@@ -1,0 +1,40 @@
+language: rust
+cache:
+  directories:
+    - "$HOME/.cargo"
+    - "$HOME/bin"
+# hopefully prevent the cache from becoming huge - https://levans.fr/rust_travis_cache.html
+before_cache:
+  - rm -rf /home/travis/.cargo/registry
+rust:
+  - 1.34.1
+branches:
+  only:
+    - master
+before_install:
+  # key for integration tests
+  - openssl aes-256-cbc -K $encrypted_717cbb888a01_key -iv $encrypted_717cbb888a01_iv -in tests/testkeys/rsa_private.pem.enc -out tests/testkeys/rsa_private.pem -d
+before_script:
+  - rustup component add rustfmt-preview
+  - cross --version || cargo install cross
+matrix:
+  include:
+    # Linux
+    - name: Travis Default Environment (Ubuntu Linux)
+      os: linux
+    # OSX
+    - name: OSX x86_64
+      os: osx
+    # iOS
+    - name: iOS x64
+      os: osx
+      env:
+        - TARGET=aarch64-apple-ios
+        - IOS=1
+    # Android
+    - name: Android x64
+      os: linux
+      env:
+        - TARGET=aarch64-linux-android
+script:
+  - "./.travis_scripts/cross-test.sh"

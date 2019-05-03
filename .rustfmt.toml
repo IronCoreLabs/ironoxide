@@ -1,0 +1,4 @@
+# Only available on nightly. If extra lines at the top of your file offend you, you will need a nightly toolchain.
+# rustup component add rustfmt --toolchain nightly
+# cargo +nightly fmt
+merge_imports = true

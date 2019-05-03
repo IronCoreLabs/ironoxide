@@ -1,0 +1,12 @@
+/target
+**/*.rs.bk
+Cargo.lock
+.idea
+*.iml
+*.code-workspace
+.metals/
+tests/testkeys/*.pem
+java/scala/src/test/resources/service-keys.conf
+java/scala/src/test/resources/service-keys.conf.stage
+java/scala/src/test/resources/service-keys.conf.local
+.vscode
