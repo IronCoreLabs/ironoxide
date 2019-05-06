@@ -7,5 +7,5 @@ pub use crate::{
         user_api::{DeviceId, DeviceName, UserId},
     },
     user::UserOps,
-    DeviceContext, IronOxide,
+    DeviceContext, IronOxide, IronOxideErr,
 };

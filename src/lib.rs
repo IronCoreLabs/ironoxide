@@ -42,6 +42,12 @@ extern crate galvanic_assert;
 mod crypto;
 mod internal;
 
+/// Code specific to binding to another language
+///
+/// Code is only included here if it needs to live inside the ironoxide crate.
+/// See [ironoxide-java](https://github.com/IronCoreLabs/ironoxide-java) for the Java binding.
+pub mod binding;
+
 /// SDK document operations
 pub mod document;
 
