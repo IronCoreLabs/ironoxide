@@ -9,7 +9,7 @@ extern crate serde_json;
 
 #[test]
 fn user_verify_non_existing_user() {
-    let result = IronOxide::user_verify(&gen_jwt(1012, "test-segment", 553, None).0);
+    let result = IronOxide::user_verify(&gen_jwt(1012, "test-segment", 551, None).0);
     assert_eq!(true, result.is_ok(), "User verify call failed unexpectedly");
     let option_result = result.unwrap();
     assert_eq!(true, option_result.is_none());
@@ -19,13 +19,13 @@ fn user_verify_non_existing_user() {
 fn user_verify_existing_user() {
     let account_id: UserId = Uuid::new_v4().to_string().try_into().unwrap();
     IronOxide::user_create(
-        &gen_jwt(1012, "test-segment", 553, Some(account_id.id())).0,
+        &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
         "foo",
     )
     .unwrap();
 
     let result =
-        IronOxide::user_verify(&gen_jwt(1012, "test-segment", 553, Some(account_id.id())).0)
+        IronOxide::user_verify(&gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0)
             .unwrap();
     assert_eq!(true, result.is_some());
     let verify_resp = result.unwrap();
@@ -38,13 +38,13 @@ fn user_verify_existing_user() {
 fn user_create_good_with_devices() {
     let account_id: UserId = Uuid::new_v4().to_string().try_into().unwrap();
     let result = IronOxide::user_create(
-        &gen_jwt(1012, "test-segment", 553, Some(account_id.id())).0,
+        &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
         "foo",
     );
     assert!(result.is_ok());
 
     let device = IronOxide::generate_new_device(
-        &gen_jwt(1012, "test-segment", 553, Some(account_id.id())).0,
+        &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
         "foo",
         &DeviceCreateOpts::new(Some("myDevice".try_into().unwrap())),
     );
