@@ -95,7 +95,7 @@ impl<'a> Authorization<'a> {
 ///A struct which holds the basic info that will be needed for making requests to an ironcore service. Currently just the base_url.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IronCoreRequest<'a> {
-    base_url: &'a str, //This will eventually be non-static.
+    base_url: &'a str,
 }
 
 impl Default for IronCoreRequest<'static> {

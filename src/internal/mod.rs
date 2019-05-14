@@ -582,6 +582,14 @@ pub(crate) mod test {
 
         let de: DeviceContext = serde_json::from_str(&json.unwrap()).unwrap();
         assert_eq!(context.account_id(), de.account_id());
+        assert_eq!(
+            context.auth.signing_keys.as_bytes().to_vec(),
+            de.auth.signing_keys.as_bytes().to_vec()
+        );
+        assert_eq!(
+            context.private_device_key.as_bytes().to_vec(),
+            de.private_device_key.as_bytes().to_vec()
+        );
     }
 
     #[test]
