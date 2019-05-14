@@ -6,6 +6,7 @@ use chrono::{DateTime, Utc};
 use futures::prelude::*;
 use itertools::{Either, Itertools};
 use recrypt::prelude::*;
+use std::convert::{TryFrom, TryInto};
 use std::{collections::HashMap, result::Result};
 
 /// private module that handles interaction with ironcore-id
@@ -196,7 +197,7 @@ pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: Jwt,
     passphrase: Password,
-    request: IronCoreRequest,
+    request: IronCoreRequest<'static>,
 ) -> impl Future<Item = UserCreateKeyPair, Error = IronOxideErr> {
     recrypt
         .generate_key_pair()
@@ -228,7 +229,7 @@ pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
     password: Password,
     device_name: Option<DeviceName>,
     signing_ts: &'a DateTime<Utc>,
-    request: IronCoreRequest,
+    request: IronCoreRequest<'static>,
 ) -> impl Future<Item = DeviceContext, Error = IronOxideErr> + 'a {
     // verify that this user exists
     requests::user_verify::user_verify(&jwt, &request)
