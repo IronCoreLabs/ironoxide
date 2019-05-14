@@ -32,7 +32,7 @@ chrono = { version = "0.4", features = ["serde"] }
 percent-encoding="1.0"
 
 [dev-dependencies]
-frank_jwt = {git = "ssh://git@github.com/dcoles/frank_jwt.git", rev = "38dd93e" }
+frank_jwt = {git = "https://git@github.com/dcoles/frank_jwt.git", rev = "38dd93e" }
 galvanic-assert = "0.8"
 base64 = "0.10"
 uuid = { version = "0.7.2", features = ["serde", "v4"] }
