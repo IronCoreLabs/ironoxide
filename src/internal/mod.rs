@@ -12,9 +12,9 @@ use recrypt::api::{
     SigningKeypair as RecryptSigningKeypair,
 };
 use regex::Regex;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     convert::{TryFrom, TryInto},
-    fmt::{Debug, Formatter},
     result::Result,
 };
 
@@ -163,7 +163,7 @@ pub fn validate_name(name: &str, name_type: &str) -> Result<String, IronOxideErr
 }
 
 ///Structure that contains all the info needed to make a signed API request from a device.
-#[derive(Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RequestAuth {
     ///The users given id, which uniquely identifies them inside the segment.
     account_id: UserId,
@@ -171,7 +171,8 @@ pub struct RequestAuth {
     segment_id: usize,
     ///The signing key which was generated for the device.
     signing_keys: DeviceSigningKeyPair,
-    pub(crate) request: IronCoreRequest,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub(crate) request: IronCoreRequest<'static>,
 }
 
 impl RequestAuth {
@@ -198,7 +199,7 @@ impl RequestAuth {
 }
 
 /// Accounts device context. Needed to initialize the Sdk with a set of device keys. See `IronOxide.initialize()`
-#[derive(Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceContext {
     auth: RequestAuth,
     ///The private key which was generated for a particular device for the user. Not the user's master private key.
@@ -316,7 +317,7 @@ impl PublicKey {
 
 /// Represents an asymmetric private key that wraps the underlying bytes
 /// of the key.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct PrivateKey(RecryptPrivateKey);
 impl PrivateKey {
     const BYTES_SIZE: usize = RecryptPrivateKey::ENCODED_SIZE_BYTES;
@@ -346,7 +347,28 @@ impl TryFrom<&[u8]> for PrivateKey {
     }
 }
 
-/// Public/Private assymetric keypair that is used for decryption/encryption.
+impl Serialize for PrivateKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&base64::encode(&self.0.bytes().to_vec()))
+    }
+}
+
+impl<'de> Deserialize<'de> for PrivateKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let s = String::deserialize(deserializer)?;
+        let keys_bytes = base64::decode(&s).map_err(|e| Error::custom(e.to_string()))?;
+        PrivateKey::try_from(&keys_bytes[..]).map_err(|e| Error::custom(e.to_string()))
+    }
+}
+
+/// Public/Private asymmetric keypair that is used for decryption/encryption.
 #[derive(Clone)]
 pub struct KeyPair {
     public_key: PublicKey,
@@ -371,7 +393,7 @@ impl KeyPair {
 
 /// Signing keypair specific to a device. Used to sign all requests to the IronCore API
 /// endpoints. Needed to create a `DeviceContext`.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct DeviceSigningKeyPair(RecryptSigningKeypair);
 impl From<&DeviceSigningKeyPair> for RecryptSigningKeypair {
     fn from(dsk: &DeviceSigningKeyPair) -> RecryptSigningKeypair {
@@ -393,18 +415,35 @@ impl TryFrom<&[u8]> for DeviceSigningKeyPair {
             })
     }
 }
-impl Debug for DeviceSigningKeyPair {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        f.debug_struct(stringify!(DeviceSigningKeyPair))
-            .field("bytes", &&self.0.bytes().to_vec())
-            .finish()
-    }
-}
+
 impl PartialEq for DeviceSigningKeyPair {
     fn eq(&self, other: &DeviceSigningKeyPair) -> bool {
         self.0.bytes().to_vec() == other.0.bytes().to_vec()
     }
 }
+
+impl Serialize for DeviceSigningKeyPair {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let base64 = base64::encode(&self.0.bytes().to_vec());
+        serializer.serialize_str(&base64)
+    }
+}
+
+impl<'de> Deserialize<'de> for DeviceSigningKeyPair {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let s = String::deserialize(deserializer)?;
+        let keys_bytes = base64::decode(&s).map_err(|e| Error::custom(e.to_string()))?;
+        DeviceSigningKeyPair::try_from(&keys_bytes[..]).map_err(|e| Error::custom(e.to_string()))
+    }
+}
+
 impl DeviceSigningKeyPair {
     pub fn sign(&self, payload: &[u8]) -> [u8; 64] {
         self.0.sign(&payload).into()
@@ -483,6 +522,7 @@ impl<T> WithKey<T> {
 pub(crate) mod test {
     use super::*;
     use galvanic_assert::{matchers::*, MatchResultBuilder, Matcher};
+    use recrypt::api::KeyGenOps;
     use std::fmt::Debug;
 
     /// String contains matcher to assert that the provided substring exists in the provided value
@@ -518,6 +558,38 @@ pub(crate) mod test {
                 ))
             }
         })
+    }
+
+    #[test]
+    fn serde_devicecontext_roundtrip() {
+        use serde_json;
+        let mut recrypt = recrypt::api::Recrypt::new();
+        let priv_key = recrypt.random_private_key();
+        let dev_keys = recrypt::api::SigningKeypair::from_byte_slice(&[
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 138, 136, 227, 221, 116, 9, 241, 149, 253, 82, 219, 45, 60, 186, 93, 114, 202,
+            103, 9, 191, 29, 148, 18, 27, 243, 116, 136, 1, 180, 15, 111, 92,
+        ])
+        .unwrap();
+        let context = DeviceContext::new(
+            TryFrom::try_from("account_id").unwrap(),
+            22,
+            priv_key.into(),
+            DeviceSigningKeyPair::from(dev_keys),
+        );
+
+        let json = serde_json::to_string(&context);
+
+        let de: DeviceContext = serde_json::from_str(&json.unwrap()).unwrap();
+        assert_eq!(context.account_id(), de.account_id());
+        assert_eq!(
+            context.auth.signing_keys.as_bytes().to_vec(),
+            de.auth.signing_keys.as_bytes().to_vec()
+        );
+        assert_eq!(
+            context.private_device_key.as_bytes().to_vec(),
+            de.private_device_key.as_bytes().to_vec()
+        );
     }
 
     #[test]

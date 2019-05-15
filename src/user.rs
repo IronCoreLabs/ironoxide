@@ -38,7 +38,9 @@ pub trait UserOps {
     /// - `password` - Password used to encrypt and escrow the user's private master key
     ///
     /// # Returns
-    /// Newly generated `UserCreateKeyPair` or Err
+    /// Newly generated `UserCreateKeyPair` or Err. For most use cases this key pair can
+    /// be discarded as IronCore escrows your user's keys. The escrowed keys are unlocked
+    /// by the provided password.
     fn user_create(jwt: &str, password: &str) -> Result<UserCreateKeyPair>;
 
     /// Get all the devices for the current user

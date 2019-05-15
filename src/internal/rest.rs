@@ -12,7 +12,7 @@ use reqwest::{
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::internal::{
-    user_api::UserId, DeviceSigningKeyPair, IronOxideErr, Jwt, RequestErrorCode,
+    user_api::UserId, DeviceSigningKeyPair, IronOxideErr, Jwt, RequestErrorCode, OUR_REQUEST,
 };
 
 lazy_static! {
@@ -93,17 +93,23 @@ impl<'a> Authorization<'a> {
 }
 
 ///A struct which holds the basic info that will be needed for making requests to an ironcore service. Currently just the base_url.
-#[derive(Clone)]
-pub struct IronCoreRequest {
-    base_url: &'static str, //This will eventually be non-static.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IronCoreRequest<'a> {
+    base_url: &'a str,
 }
 
-impl IronCoreRequest {
-    pub const fn new(base_url: &'static str) -> IronCoreRequest {
+impl Default for IronCoreRequest<'static> {
+    fn default() -> Self {
+        OUR_REQUEST
+    }
+}
+
+impl<'a> IronCoreRequest<'a> {
+    pub const fn new(base_url: &'a str) -> IronCoreRequest {
         IronCoreRequest { base_url }
     }
 
-    pub fn base_url(&self) -> &'static str {
+    pub fn base_url(&self) -> &'a str {
         self.base_url
     }
 
