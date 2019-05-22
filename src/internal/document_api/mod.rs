@@ -511,7 +511,7 @@ pub fn document_update_bytes<'a, CR: rand::CryptoRng + rand::RngCore>(
 //that was decrypted along with it's decrypted bytes.
 pub fn decrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
-    recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     device_private_key: &'a PrivateKey,
     encrypted_doc: &'a [u8],
 ) -> impl Future<Item = DocumentDecryptResult, Error = IronOxideErr> + 'a {
