@@ -1,6 +1,7 @@
 mod common;
 use common::{create_second_user, init_sdk};
 use galvanic_assert::matchers::collection::*;
+use ironoxide::group::GroupCreateOpts;
 use ironoxide::{document::*, prelude::*};
 use std::convert::{TryFrom, TryInto};
 
@@ -153,9 +154,15 @@ fn doc_grant_access() {
     // create a second user to grant access to the document
     let user = create_second_user();
 
+    // group user is a memeber of
     let group_result = sdk.group_create(&Default::default());
     assert!(group_result.is_ok());
     let group_id = group_result.unwrap().id().clone();
+
+    // group user is not a member of
+    let group2_result = sdk.group_create(&GroupCreateOpts::new(None, None, false));
+    assert!(group2_result.is_ok());
+    let group2_id = group2_result.unwrap().id().clone();
 
     let grant_result = sdk.document_grant_access(
         &doc_id,
@@ -164,6 +171,7 @@ fn doc_grant_access() {
                 id: user.account_id().clone(),
             },
             UserOrGroup::Group { id: group_id },
+            UserOrGroup::Group { id: group2_id },
             UserOrGroup::User {
                 id: "bad-user-id".try_into().unwrap(),
             },
@@ -175,7 +183,7 @@ fn doc_grant_access() {
     dbg!(&grant_result);
     assert!(grant_result.is_ok());
     let grants = grant_result.unwrap();
-    assert_eq!(2, grants.succeeded().len());
+    assert_eq!(3, grants.succeeded().len());
     assert_eq!(2, grants.failed().len());
 }
 
