@@ -94,7 +94,7 @@ pub trait DocumentOps {
     ///
     /// # Returns
     /// `Result<DocumentDecryptResult>` Includes metadata about the provided document as well as the decrypted document bytes.
-    fn document_decrypt(&mut self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult>;
+    fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult>;
 
     /// Update a document name to a new value or clear its value.
     ///
@@ -198,12 +198,12 @@ impl DocumentOps for crate::IronOxide {
         ))
     }
 
-    fn document_decrypt(&mut self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult> {
+    fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult> {
         let mut rt = Runtime::new().unwrap();
 
         rt.block_on(document_api::decrypt_document(
             self.device.auth(),
-            &mut self.recrypt,
+            &self.recrypt,
             self.device.private_device_key(),
             encrypted_document,
         ))
