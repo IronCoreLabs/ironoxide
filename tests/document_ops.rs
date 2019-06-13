@@ -127,12 +127,13 @@ fn doc_create_must_grant() {
         &DocumentEncryptOpts::new(None, Some("first name".try_into().unwrap()), false, vec![]),
     );
 
+    // make sure there was a validation error, and that the problem was with the grant
     assert_eq!(
-        doc_result.err().unwrap(),
-        IronOxideErr::ValidationError(
-            "grant_to_author".to_string(),
-            "grant_to_author cannot be false if there are no explicit grants".to_string()
-        )
+        match doc_result.err().unwrap() {
+            IronOxideErr::ValidationError(field_name, _) => field_name,
+            _ => "failed test".to_string(),
+        },
+        "grant_to_author".to_string()
     )
 }
 

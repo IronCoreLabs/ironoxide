@@ -76,7 +76,7 @@ pub trait DocumentOps {
     /// - `encrypt_opts` - Optional document encrypt parameters. Includes
     ///       `id` - Unique ID to use for the document. Document ID will be stored unencrypted and must be unique per segment.
     ///       `name` - Non-unique name to use in the document. Document name will **not** be encrypted.
-    ///       `grant_to_author` - Flag determining whether to encrypt to the calling user or not.
+    ///       `grant_to_author` - Flag determining whether to encrypt to the calling user or not. If set to false at least one value must be present in the `grant` list.
     ///       `grants` - List of users/groups to grant access to this document once encrypted
     fn document_encrypt(
         &mut self,
