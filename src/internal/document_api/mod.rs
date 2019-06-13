@@ -420,18 +420,20 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
         .and_then(move |(users, groups, encrypted_doc)| {
             let (group_errs, groups_with_key) = process_groups(groups);
             let (user_errs, users_with_key) = process_users(users);
-            let self_grant = WithKey::new(
-                UserOrGroup::User {
-                    id: auth.account_id.clone(),
-                },
-                user_master_pub_key.clone(),
-            );
             let grant_list = if grant_to_author {
+                let self_grant = WithKey::new(
+                    UserOrGroup::User {
+                        id: auth.account_id.clone(),
+                    },
+                    user_master_pub_key.clone(),
+                );
                 [&[self_grant], &users_with_key[..], &groups_with_key[..]].concat()
             } else {
                 [&users_with_key[..], &groups_with_key[..]].concat()
             };
 
+            // check to make sure that we are granting to something. self would be here already if it
+            // should be included
             if grant_list.is_empty() {
                 Err(IronOxideErr::ValidationError(
                     "grant_to_author".to_string(),
