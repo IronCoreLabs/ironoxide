@@ -406,6 +406,7 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
     plaintext: &'a [u8],
     document_id: Option<DocumentId>,
     document_name: Option<DocumentName>,
+    grant_to_author: bool,
     user_grants: &'a Vec<UserId>,
     group_grants: &'a Vec<GroupId>,
 ) -> impl Future<Item = DocumentEncryptResult, Error = IronOxideErr> + 'a {
@@ -417,36 +418,46 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
             aes::encrypt_future(rng, &plaintext.to_vec(), *doc_sym_key.bytes()),
         )
         .and_then(move |(users, groups, encrypted_doc)| {
-            Ok({
-                let (group_errs, groups_with_key) = process_groups(groups);
-                let (user_errs, users_with_key) = process_users(users);
-                let self_grant = WithKey::new(
-                    UserOrGroup::User {
-                        id: auth.account_id.clone(),
-                    },
-                    user_master_pub_key.clone(),
-                );
-                let grant_list =
-                    [&[self_grant], &users_with_key[..], &groups_with_key[..]].concat();
+            let (group_errs, groups_with_key) = process_groups(groups);
+            let (user_errs, users_with_key) = process_users(users);
+            let self_grant = WithKey::new(
+                UserOrGroup::User {
+                    id: auth.account_id.clone(),
+                },
+                user_master_pub_key.clone(),
+            );
+            let grant_list = if grant_to_author {
+                [&[self_grant], &users_with_key[..], &groups_with_key[..]].concat()
+            } else {
+                [&users_with_key[..], &groups_with_key[..]].concat()
+            };
 
-                // encrypt to all the users and groups
-                let (encrypt_errs, grants) = transform::encrypt_to_with_key(
-                    recrypt,
-                    &dek,
-                    &auth.signing_keys().into(),
-                    grant_list,
-                );
+            if grant_list.is_empty() {
+                Err(IronOxideErr::ValidationError(
+                    "grant_to_author".to_string(),
+                    "grant_to_author cannot be false if there are no explicit grants".to_string(),
+                ))
+            } else {
+                Ok({
+                    // encrypt to all the users and groups
+                    let (encrypt_errs, grants) = transform::encrypt_to_with_key(
+                        recrypt,
+                        &dek,
+                        &auth.signing_keys().into(),
+                        grant_list,
+                    );
 
-                // squish all accumulated errors into one list
-                let other_errs = vec![
-                    group_errs,
-                    user_errs,
-                    encrypt_errs.into_iter().map(|e| e.into()).collect(),
-                ]
-                .into_iter()
-                .concat();
-                (grants, encrypted_doc, other_errs)
-            })
+                    // squish all accumulated errors into one list
+                    let other_errs = vec![
+                        group_errs,
+                        user_errs,
+                        encrypt_errs.into_iter().map(|e| e.into()).collect(),
+                    ]
+                    .into_iter()
+                    .concat();
+                    (grants, encrypted_doc, other_errs)
+                })
+            }
         })
         .and_then(move |(grants, encrypted_doc, other_errs)| {
             //We want to grab a copy of the documentId before we make the call so we can propagate it to the next map.
