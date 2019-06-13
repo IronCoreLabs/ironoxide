@@ -1,5 +1,5 @@
-IronOxide- IronCore Labs Rust SDK
-===================================
+# IronOxide- IronCore Labs Rust SDK
+
 [![](https://img.shields.io/crates/v/ironoxide.svg)](https://crates.io/crates/ironoxide) [![](https://docs.rs/ironoxide/badge.svg)](https://docs.rs/ironoxide) [![Build Status](https://travis-ci.org/IronCoreLabs/ironoxide.svg?branch=master)](https://travis-ci.org/IronCoreLabs/ironoxide)
 
 IronOxide is an SDK for accessing IronCore's privacy platform. It is appropriate for both client and server applications.
@@ -9,9 +9,11 @@ IronOxide is an SDK for accessing IronCore's privacy platform. It is appropriate
 To include IronOxide in your Rust application, see https://crates.io/crates/ironoxide for the most recent version.
 
 If you are not building a Rust application, you might be interested in one of these SDKs:
-* [ironoxide-java](https://github.com/IronCoreLabs/ironoxide-java) - Java bindings for ironoxide. Appropriate for all JVM langauges.
-* [ironode](https://github.com/IronCoreLabs/ironnode) - NodeJS implementation of IronCore's Privacy Platform.
-* [ironweb](https://github.com/IronCoreLabs/ironweb) - Javascript implementation of IronCore's Privacy Platform. Appropriate for all modern browsers.
+
+- [ironoxide-java](https://github.com/IronCoreLabs/ironoxide-java) - Java bindings for ironoxide. Appropriate for all JVM langauges.
+- [ironoxide-scala](https://github.com/IronCoreLabs/ironoxide-scala) - Scala wrappers around `ironoxide-java`.
+- [ironode](https://github.com/IronCoreLabs/ironnode) - NodeJS implementation of IronCore's Privacy Platform.
+- [ironweb](https://github.com/IronCoreLabs/ironweb) - Javascript implementation of IronCore's Privacy Platform. Appropriate for all modern browsers.
 
 All SDKs are intended to be compatible with one another.
 
@@ -22,7 +24,6 @@ Please see https://ironoxide.rs
 ## Contributing
 
 IronCore welcomes community participation through the issue tracker or pull request process.
-
 
 #### Building
 
@@ -46,6 +47,5 @@ To run the unit test suite, use:
 IronOxide is licensed under the [GNU Affero General Public License](LICENSE).
 We also offer commercial licenses - [email](mailto:info@ironcorelabs.com) for more information.
 
-Copyright (c)  2017-present  IronCore Labs, Inc.
+Copyright (c) 2019 IronCore Labs, Inc.
 All rights reserved.
-

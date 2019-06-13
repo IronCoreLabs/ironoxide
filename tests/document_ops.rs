@@ -25,6 +25,7 @@ fn doc_create_without_id() {
     assert_eq!(doc_result.grants().len(), 1); // access always granted to creator
     assert_eq!(doc_result.access_errs().len(), 0);
 }
+
 #[test]
 fn doc_create_with_grant() {
     let mut sdk = init_sdk();
@@ -40,6 +41,7 @@ fn doc_create_with_grant() {
             &DocumentEncryptOpts::new(
                 None,
                 Some("first name".try_into().unwrap()),
+                true,
                 vec![
                     UserOrGroup::User {
                         id: bad_user.clone(),
@@ -72,6 +74,69 @@ fn doc_create_with_grant() {
         ])
     )
 }
+
+#[test]
+fn doc_create_without_self_grant() {
+    let mut sdk = init_sdk();
+
+    let doc = [0u8; 64];
+
+    // create a second user to grant access to the document
+    let second_user = create_second_user();
+
+    let doc_result = sdk
+        .document_encrypt(
+            &doc,
+            &DocumentEncryptOpts::new(
+                None,
+                Some("first name".try_into().unwrap()),
+                false,
+                vec![UserOrGroup::User {
+                    id: second_user.account_id().clone(),
+                }],
+            ),
+        )
+        .unwrap();
+
+    // should be a user with access, but not the currently initd user
+    assert_eq!(doc_result.grants().len(), 1);
+    assert_ne!(
+        doc_result.grants()[0],
+        UserOrGroup::User {
+            id: sdk.device().account_id().clone()
+        }
+    );
+    assert_eq!(
+        doc_result.grants()[0],
+        UserOrGroup::User {
+            id: second_user.account_id().clone()
+        }
+    );
+    assert_eq!(doc_result.access_errs().len(), 0);
+}
+
+#[test]
+fn doc_create_must_grant() {
+    let mut sdk = init_sdk();
+
+    let doc = [0u8; 64];
+
+    // should fail because encrypting a document with no grants is nonsense
+    let doc_result = sdk.document_encrypt(
+        &doc,
+        &DocumentEncryptOpts::new(None, Some("first name".try_into().unwrap()), false, vec![]),
+    );
+
+    // make sure there was a validation error, and that the problem was with the grant
+    assert_eq!(
+        match doc_result.err().unwrap() {
+            IronOxideErr::ValidationError(field_name, _) => field_name,
+            _ => "failed test".to_string(),
+        },
+        "grant_to_author".to_string()
+    )
+}
+
 #[test]
 fn doc_create_and_adjust_name() {
     let mut sdk = init_sdk();
@@ -84,6 +149,7 @@ fn doc_create_and_adjust_name() {
             &DocumentEncryptOpts::new(
                 None,
                 Some("first name".try_into().unwrap()),
+                true,
                 vec![UserOrGroup::User {
                     id: UserId::try_from("bad-user").expect("should be good id"),
                 }],
