@@ -283,7 +283,7 @@ pub(crate) fn get_group_keys<'a>(
 /// `add_as_member` - if true the user represented by the current DeviceContext will also be added to the group's membership.
 ///     If false, the user will not be an member (but will still be an admin)
 pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &'a RequestAuth,
     user_master_pub_key: &'a PublicKey,
     group_id: Option<GroupId>,

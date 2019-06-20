@@ -60,7 +60,7 @@ pub trait GroupOps {
     ///
     /// # Arguments
     /// `group_create_opts` - See `GroupCreateOpts`. Use the `Default` implementation for defaults.
-    fn group_create(&mut self, group_create_opts: &GroupCreateOpts) -> Result<GroupMetaResult>;
+    fn group_create(&self, group_create_opts: &GroupCreateOpts) -> Result<GroupMetaResult>;
 
     /// Get the full metadata for a specific group given its ID.
     ///
@@ -154,7 +154,7 @@ impl GroupOps for crate::IronOxide {
         rt.block_on(group_api::list(self.device.auth(), None))
     }
 
-    fn group_create(&mut self, opts: &GroupCreateOpts) -> Result<GroupMetaResult> {
+    fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupMetaResult> {
         let mut rt = Runtime::new().unwrap();
         let GroupCreateOpts {
             id: maybe_id,
@@ -163,7 +163,7 @@ impl GroupOps for crate::IronOxide {
         } = opts.clone();
 
         rt.block_on(group_api::group_create(
-            &mut self.recrypt,
+            &self.recrypt,
             self.device.auth(),
             &self.user_master_pub_key,
             maybe_id,

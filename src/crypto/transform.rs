@@ -19,7 +19,7 @@ pub fn generate_new_doc_key<CR: rand::CryptoRng + rand::RngCore>(
 
 /// Generate a plaintext and a keypair necessary to create a new group
 pub fn gen_group_keys<CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
 ) -> Result<(Plaintext, PrivateKey, PublicKey), IronOxideErr> {
     let plaintext = recrypt.gen_plaintext();
     let priv_key = recrypt.derive_private_key(&plaintext);
