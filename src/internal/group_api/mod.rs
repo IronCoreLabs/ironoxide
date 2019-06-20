@@ -360,7 +360,7 @@ pub fn group_delete(
 /// # Returns GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
 ///   the reason they were not.
 pub fn group_add_members<'a, CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &'a RequestAuth,
     device_private_key: &'a PrivateKey,
     group_id: &'a GroupId,
@@ -547,7 +547,7 @@ pub fn group_remove_entity<'a>(
 ///A stripped down version of this could be put in `transform.rs`, but since it was inconvenient to do the type mapping afterwards
 ///I just moved it to here so I could keep all of the mapping code together.
 fn generate_transform_for_keys<CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     from_private: &recrypt::api::PrivateKey,
     signing_keys: &recrypt::api::SigningKeypair,
     users: Vec<WithKey<UserId>>,
