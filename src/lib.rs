@@ -60,7 +60,9 @@ pub mod prelude;
 pub use crate::internal::{
     DeviceContext, DeviceSigningKeyPair, IronOxideErr, KeyPair, PrivateKey, PublicKey,
 };
-use rand::rngs::ThreadRng;
+use rand::rngs::OsRng;
+use rand::SeedableRng;
+use rand_chacha::ChaChaRng;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
 use tokio::runtime::current_thread::Runtime;
 
@@ -68,14 +70,14 @@ use tokio::runtime::current_thread::Runtime;
 pub type Result<T> = std::result::Result<T, IronOxideErr>;
 
 /// Struct that is used to make authenticated requests to the IronCore API. Instantiated with the details
-/// of an accounts various ids, device, and signing keys. Once instantiated all operations will be
+/// of an account's various ids, device, and signing keys. Once instantiated all operations will be
 /// performed in the context of the account provided.
 pub struct IronOxide {
-    pub(crate) recrypt: Recrypt<Sha256, Ed25519, RandomBytes<ThreadRng>>,
+    pub(crate) recrypt: Recrypt<Sha256, Ed25519, RandomBytes<ChaChaRng>>,
     /// Master public key for the user identified by `account_id`
     pub(crate) user_master_pub_key: PublicKey,
     pub(crate) device: DeviceContext,
-    pub(crate) rng: ThreadRng,
+    pub(crate) rng: ChaChaRng,
 }
 
 /// Initialize the IronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
@@ -93,10 +95,18 @@ pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
             //returns us ownership so we can avoid a clone.
             .remove(&device_context.account_id())
             .map(|current_user_public_key| IronOxide {
-                recrypt: Recrypt::new(),
+                recrypt: Recrypt::new_with_rand(
+                    rand_chacha::ChaChaRng::from_rng(
+                        OsRng::new().expect("OS RNG failed to initialize."),
+                    )
+                    .unwrap(),
+                ),
                 device: device_context.clone(),
                 user_master_pub_key: current_user_public_key,
-                rng: rand::thread_rng(),
+                rng: rand_chacha::ChaChaRng::from_rng(
+                    OsRng::new().expect("OS RNG failed to initialize."),
+                )
+                .unwrap(),
             })
             .ok_or(IronOxideErr::InitializeError)
     })
