@@ -415,7 +415,7 @@ pub fn group_add_members<'a, CR: rand::CryptoRng + rand::RngCore>(
 /// # Returns GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
 ///   the reason they were not.
 pub fn group_add_admins<'a, CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &'a RequestAuth,
     device_private_key: &'a PrivateKey,
     group_id: &'a GroupId,

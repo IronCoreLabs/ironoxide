@@ -125,8 +125,7 @@ pub trait GroupOps {
     /// # Returns
     /// GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
     ///   the reason they were not.
-    fn group_add_admins(&mut self, id: &GroupId, users: &[UserId])
-        -> Result<GroupAccessEditResult>;
+    fn group_add_admins(&self, id: &GroupId, users: &[UserId]) -> Result<GroupAccessEditResult>;
 
     /// Remove a list of users as admins from the group.
     ///
@@ -212,14 +211,10 @@ impl GroupOps for crate::IronOxide {
         ))
     }
 
-    fn group_add_admins(
-        &mut self,
-        id: &GroupId,
-        users: &[UserId],
-    ) -> Result<GroupAccessEditResult> {
+    fn group_add_admins(&self, id: &GroupId, users: &[UserId]) -> Result<GroupAccessEditResult> {
         let mut rt = Runtime::new().unwrap();
         rt.block_on(group_api::group_add_admins(
-            &mut self.recrypt,
+            &self.recrypt,
             self.device.auth(),
             self.device.private_device_key(),
             id,

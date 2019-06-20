@@ -43,7 +43,7 @@ pub fn decrypt_plaintext<CR: rand::CryptoRng + rand::RngCore>(
 /// Encrypt the plaintext to all the public keys in the `with_keys` list. If the encryption succeeds, return the values in the right
 /// list. If encryption fails, return them in the left list.
 pub fn encrypt_to_with_key<T, CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     plaintext: &recrypt::api::Plaintext,
     signing_keys: &recrypt::api::SigningKeypair,
     with_keys: Vec<WithKey<T>>,
