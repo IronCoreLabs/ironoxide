@@ -89,7 +89,7 @@ pub trait UserOps {
     fn user_verify(jwt: &str) -> Result<Option<UserVerifyResult>>;
 
     /// Get a list of user public keys given their IDs. Allows discovery of which user IDs have keys in the
-    /// IronCore system to determine of they can be added to groups or have documents shared with them.AsMut
+    /// IronCore system to determine of they can be added to groups or have documents shared with them.
     ///
     /// # Arguments
     /// - users - List of user IDs to check
@@ -105,10 +105,10 @@ impl UserOps for IronOxide {
     }
 
     fn user_create(jwt: &str, password: &str) -> Result<UserCreateKeyPair> {
-        let mut recrypt = Recrypt::new();
+        let recrypt = Recrypt::new();
         let mut rt = Runtime::new().unwrap();
         rt.block_on(user_api::user_create(
-            &mut recrypt,
+            &recrypt,
             jwt.try_into()?,
             password.try_into()?,
             OUR_REQUEST,
@@ -120,12 +120,12 @@ impl UserOps for IronOxide {
         password: &str,
         device_create_options: &DeviceCreateOpts,
     ) -> Result<DeviceContext> {
-        let mut recrypt = Recrypt::new();
+        let recrypt = Recrypt::new();
         let mut rt = Runtime::new().unwrap();
         let device_create_options = device_create_options.clone();
 
         rt.block_on(user_api::generate_device_key(
-            &mut recrypt,
+            &recrypt,
             &jwt.try_into()?,
             password.try_into()?,
             device_create_options.device_name,

@@ -95,12 +95,7 @@ pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
             //returns us ownership so we can avoid a clone.
             .remove(&device_context.account_id())
             .map(|current_user_public_key| IronOxide {
-                recrypt: Recrypt::new_with_rand(
-                    rand_chacha::ChaChaRng::from_rng(
-                        OsRng::new().expect("OS RNG failed to initialize."),
-                    )
-                    .unwrap(),
-                ),
+                recrypt: Recrypt::new(),
                 device: device_context.clone(),
                 user_master_pub_key: current_user_public_key,
                 rng: rand_chacha::ChaChaRng::from_rng(
