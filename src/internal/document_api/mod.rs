@@ -1,3 +1,5 @@
+use crate::crypto::aes::AesEncryptedValue;
+use crate::document::PolicyGrant;
 use crate::{
     crypto::{aes, transform},
     internal::{
@@ -12,6 +14,7 @@ use futures::prelude::*;
 use hex::encode;
 use itertools::Itertools;
 use rand::{self, CryptoRng, RngCore};
+use recrypt::api::Plaintext;
 use recrypt::prelude::*;
 use requests::{
     document_create,
@@ -432,57 +435,140 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
                 [&users_with_key[..], &groups_with_key[..]].concat()
             };
 
-            // check to make sure that we are granting to something. self would be here already if it
-            // should be included
-            if grant_list.is_empty() {
-                Err(IronOxideErr::ValidationError(
-                    "grant_to_author".to_string(),
-                    "grant_to_author cannot be false if there are no explicit grants".to_string(),
-                ))
-            } else {
-                Ok({
-                    // encrypt to all the users and groups
-                    let (encrypt_errs, grants) = transform::encrypt_to_with_key(
-                        recrypt,
-                        &dek,
-                        &auth.signing_keys().into(),
-                        grant_list,
-                    );
+            encrypt_document_core(
+                auth,
+                recrypt,
+                user_master_pub_key,
+                rng,
+                dek,
+                encrypted_doc,
+                doc_id,
+                document_name,
+                grant_list,
+            )
+        })
 
-                    // squish all accumulated errors into one list
-                    let other_errs = vec![
-                        group_errs,
-                        user_errs,
-                        encrypt_errs.into_iter().map(|e| e.into()).collect(),
-                    ]
-                    .into_iter()
-                    .concat();
-                    (grants, encrypted_doc, other_errs)
-                })
-            }
+    //            // check to make sure that we are granting to something. self would be here already if it
+    //            // should be included
+    //            if grant_list.is_empty() {
+    //                Err(IronOxideErr::ValidationError(
+    //                    "grant_to_author".to_string(),
+    //                    "grant_to_author cannot be false if there are no explicit grants".to_string(),
+    //                ))
+    //            } else {
+    //                Ok({
+    //                    // encrypt to all the users and groups
+    //                    let (encrypt_errs, grants) = transform::encrypt_to_with_key(
+    //                        recrypt,
+    //                        &dek,
+    //                        &auth.signing_keys().into(),
+    //                        grant_list,
+    //                    );
+    //
+    //                    // squish all accumulated errors into one list
+    //                    let other_errs = vec![
+    //                        group_errs,
+    //                        user_errs,
+    //                        encrypt_errs.into_iter().map(|e| e.into()).collect(),
+    //                    ]
+    //                    .into_iter()
+    //                    .concat();
+    //                    (grants, encrypted_doc, other_errs)
+    //                })
+    //            }
+    //        })
+    //        .and_then(move |(grants, encrypted_doc, other_errs)| {
+    //            //We want to grab a copy of the documentId before we make the call so we can propagate it to the next map.
+    //            document_create::document_create_request(auth, doc_id.clone(), document_name, grants)
+    //                .map(|resp| (doc_id, resp, encrypted_doc, other_errs))
+    //        })
+    //        .map(move |(doc_id, api_resp, encrypted_doc, all_errs)| {
+    //            //Generate and prepend the document header to the encrypted document
+    //            let encrypted_payload = [
+    //                &generate_document_header(doc_id.clone(), auth.segment_id())[..],
+    //                &encrypted_doc.bytes()[..],
+    //            ]
+    //            .concat();
+    //            DocumentEncryptResult {
+    //                id: api_resp.id,
+    //                name: api_resp.name,
+    //                created: api_resp.created,
+    //                updated: api_resp.updated,
+    //                encrypted_data: encrypted_payload,
+    //                grants: api_resp.shared_with.iter().map(|sw| sw.into()).collect(),
+    //                access_errs: all_errs,
+    //            }
+    //        })
+}
+
+fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
+    auth: &'a RequestAuth,
+    recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    user_master_pub_key: &'a PublicKey,
+    rng: &'a mut CR,
+    dek: Plaintext,
+    encrypted_doc: AesEncryptedValue,
+    doc_id: DocumentId,
+    document_name: Option<DocumentName>,
+    grants: Vec<WithKey<UserOrGroup>>,
+) -> impl Future<Item = DocumentEncryptResult, Error = IronOxideErr> + 'a {
+    // check to make sure that we are granting to something
+    if grants.is_empty() {
+        Err(IronOxideErr::ValidationError(
+            "grant_to_author".to_string(),
+            "grant_to_author cannot be false if there are no explicit grants".to_string(),
+        ))
+    } else {
+        Ok({
+            // encrypt to all the users and groups
+            let (encrypt_errs, grants) =
+                transform::encrypt_to_with_key(recrypt, &dek, &auth.signing_keys().into(), grants);
+
+            // squish all accumulated errors into one list
+            //        let other_errs =
+            //            vec![
+            //            group_errs,
+            //            user_errs,
+            //            encrypt_errs.into_iter().map(|e| e.into()).collect(),
+            //        ]
+            //            .into_iter()
+            //            .concat();
+
+            (
+                grants,
+                encrypted_doc,
+                encrypt_errs.into_iter().map(|e| e.into()).collect(),
+            )
         })
-        .and_then(move |(grants, encrypted_doc, other_errs)| {
-            //We want to grab a copy of the documentId before we make the call so we can propagate it to the next map.
-            document_create::document_create_request(auth, doc_id.clone(), document_name, grants)
-                .map(|resp| (doc_id, resp, encrypted_doc, other_errs))
-        })
-        .map(move |(doc_id, api_resp, encrypted_doc, all_errs)| {
-            //Generate and prepend the document header to the encrypted document
-            let encrypted_payload = [
-                &generate_document_header(doc_id.clone(), auth.segment_id())[..],
-                &encrypted_doc.bytes()[..],
-            ]
-            .concat();
-            DocumentEncryptResult {
-                id: api_resp.id,
-                name: api_resp.name,
-                created: api_resp.created,
-                updated: api_resp.updated,
-                encrypted_data: encrypted_payload,
-                grants: api_resp.shared_with.iter().map(|sw| sw.into()).collect(),
-                access_errs: all_errs,
-            }
-        })
+    }
+    .into_future()
+    .and_then(move |(grants, encrypted_doc, other_errs)| {
+        //We want to grab a copy of the documentId before we make the call so we can propagate it to the next map.
+        document_create::document_create_request(auth, doc_id.clone(), document_name, grants)
+            .map(move |resp| (doc_id, resp, encrypted_doc, other_errs))
+    })
+    .map(move |(doc_id, api_resp, encrypted_doc, all_errs)| {
+        //Generate and prepend the document header to the encrypted document
+        let encrypted_payload = [
+            &generate_document_header(doc_id.clone(), auth.segment_id())[..],
+            &encrypted_doc.bytes()[..],
+        ]
+        .concat();
+        DocumentEncryptResult {
+            id: api_resp.id,
+            name: api_resp.name,
+            created: api_resp.created,
+            updated: api_resp.updated,
+            encrypted_data: encrypted_payload,
+            grants: api_resp.shared_with.iter().map(|sw| sw.into()).collect(),
+            access_errs: all_errs,
+        }
+    })
+}
+pub struct PolicyResult {}
+
+pub fn eval_policy(policy: PolicyGrant) -> PolicyResult {
+    unimplemented!()
 }
 
 // Encrypt the provided plaintext using the DEK from the provided document ID but with a new AES IV. Allows updating the encrypted bytes

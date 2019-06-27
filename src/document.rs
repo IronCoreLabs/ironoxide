@@ -19,12 +19,25 @@ use tokio::runtime::current_thread::Runtime;
 pub struct DocumentEncryptOpts {
     id: Option<DocumentId>,
     name: Option<DocumentName>,
+    explicit_grants: Option<ExplicitGrant>,
+    policy_grants: Option<PolicyGrant>,
+}
+#[derive(Debug, PartialEq, Clone)]
+pub struct ExplicitGrant {
     grant_to_author: bool,
     grants: Vec<UserOrGroup>,
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct PolicyGrant {
+    classification: Option<String>,
+    sensitivity: Option<String>,
+    data_subject: Option<String>,
+    substitute_id: Option<String>,
+}
+
 impl<'a> DocumentEncryptOpts {
-    pub fn new(
+    pub fn with_explicit_grants(
         id: Option<DocumentId>,
         name: Option<DocumentName>,
         grant_to_author: bool,
@@ -33,14 +46,25 @@ impl<'a> DocumentEncryptOpts {
         DocumentEncryptOpts {
             id,
             name,
-            grant_to_author,
-            grants,
+            explicit_grants: Some(ExplicitGrant {
+                grant_to_author,
+                grants,
+            }),
+            policy_grants: None,
         }
+    }
+
+    pub fn with_policy_grants(
+        id: Option<DocumentId>,
+        name: Option<DocumentName>,
+        policy: PolicyGrant,
+    ) -> DocumentEncryptOpts {
+        unimplemented!()
     }
 }
 impl Default for DocumentEncryptOpts {
     fn default() -> Self {
-        DocumentEncryptOpts::new(None, None, true, vec![])
+        DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![])
     }
 }
 
@@ -83,6 +107,21 @@ pub trait DocumentOps {
         document_data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptResult>;
+
+    //    /// Encrypt the provided document bytes using the specified policy.
+    //    ///
+    //    /// # Arguments
+    //    /// - `document_data` - Bytes of the document to encrypt
+    //    /// - `encrypt_opts` - Optional document encrypt parameters. Includes
+    //    ///       `id` - Unique ID to use for the document. Document ID will be stored unencrypted and must be unique per segment.
+    //    ///       `name` - Non-unique name to use in the document. Document name will **not** be encrypted.
+    //    ///       `grant_to_author` - Flag determining whether to encrypt to the calling user or not. If set to false at least one value must be present in the `grant` list.
+    //    ///       `grants` - List of users/groups to grant access to this document once encrypted
+    //    fn document_encrypt2(
+    //        &mut self,
+    //        document_data: &[u8],
+    //        encrypt_opts: &DocumentEncryptOpts,
+    //    ) -> Result<DocumentEncryptResult>;
 
     /// Update the encrypted content of an existing document. Persists any existing access to other users and groups.
     ///
@@ -174,7 +213,8 @@ impl DocumentOps for crate::IronOxide {
         let mut rt = Runtime::new().unwrap();
         let encrypt_opts = encrypt_opts.clone();
 
-        let (user_grants, group_grants) = partition_user_or_group(&encrypt_opts.grants);
+        let (user_grants, group_grants) =
+            partition_user_or_group(&encrypt_opts.explicit_grants.clone().unwrap().grants);
 
         rt.block_on(document_api::encrypt_document(
             self.device.auth(),
@@ -184,7 +224,7 @@ impl DocumentOps for crate::IronOxide {
             document_data,
             encrypt_opts.id,
             encrypt_opts.name,
-            encrypt_opts.grant_to_author,
+            encrypt_opts.explicit_grants.unwrap().grant_to_author,
             &user_grants,
             &group_grants,
         ))

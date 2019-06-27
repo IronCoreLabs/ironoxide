@@ -213,6 +213,26 @@ pub mod document_create {
     }
 }
 
+pub mod policy_get {
+    use super::*;
+
+    pub struct PolicyResult {
+        users: Vec<UserOrGroupWithKey>,
+        groups: Vec<UserOrGroupWithKey>,
+    }
+
+    pub fn policy_get_request(
+        auth: &RequestAuth,
+        classification: Option<String>,
+        sensitivity: Option<String>,
+        data_subject: Option<String>,
+        substitute_id: Option<String>,
+    ) -> PolicyResult {
+        unimplemented!()
+    }
+
+}
+
 pub mod document_update {
     use super::*;
 
