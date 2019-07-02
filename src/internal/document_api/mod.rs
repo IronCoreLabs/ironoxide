@@ -1,5 +1,6 @@
 use crate::crypto::aes::AesEncryptedValue;
 use crate::document::PolicyGrant;
+use crate::internal::document_api::requests::policy_get::policy_get_request;
 use crate::{
     crypto::{aes, transform},
     internal::{
@@ -400,7 +401,7 @@ pub fn get_id_from_bytes(encrypted_document: &[u8]) -> Result<DocumentId, IronOx
     parse_document_parts(&encrypted_document).map(|header| header.0.document_id)
 }
 
-/// Encrypt a new document and share it with the current user, plus any other arbitrary users or groups
+/// Encrypt a new document and share it with explicit users or groups, and with users and group specified by a policy
 pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -412,18 +413,20 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
     grant_to_author: bool,
     user_grants: &'a Vec<UserId>,
     group_grants: &'a Vec<GroupId>,
+    policy_grant: Option<&PolicyGrant>,
 ) -> impl Future<Item = DocumentEncryptResult, Error = IronOxideErr> + 'a {
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
     let doc_id = document_id.unwrap_or(DocumentId::goo_id(rng));
     internal::user_api::get_user_keys(auth, user_grants)
-        .join3(
+        .join4(
             internal::group_api::get_group_keys(auth, group_grants),
+            policy_grant.map_or(None, |p| Some(eval_policy(auth, p))),
             aes::encrypt_future(rng, &plaintext.to_vec(), *doc_sym_key.bytes()),
         )
-        .and_then(move |(users, groups, encrypted_doc)| {
+        .and_then(move |(users, groups, maybe_policy_res, encrypted_doc)| {
             let (group_errs, groups_with_key) = process_groups(groups);
             let (user_errs, users_with_key) = process_users(users);
-            let grant_list = if grant_to_author {
+            let explicit_grants = if grant_to_author {
                 let self_grant = WithKey::new(
                     UserOrGroup::User {
                         id: auth.account_id.clone(),
@@ -435,6 +438,16 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
                 [&users_with_key[..], &groups_with_key[..]].concat()
             };
 
+            let (policy_errs, policy_uogs) = match maybe_policy_res {
+                None => (vec![], vec![]),
+                Some(res) => process_policy(res),
+            };
+
+            // squish all accumulated errors into one list
+            let other_errs = vec![group_errs, user_errs, policy_errs]
+                .into_iter()
+                .concat();
+
             encrypt_document_core(
                 auth,
                 recrypt,
@@ -444,61 +457,10 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
                 encrypted_doc,
                 doc_id,
                 document_name,
-                grant_list,
+                explicit_grants,
+                other_errs,
             )
         })
-
-    //            // check to make sure that we are granting to something. self would be here already if it
-    //            // should be included
-    //            if grant_list.is_empty() {
-    //                Err(IronOxideErr::ValidationError(
-    //                    "grant_to_author".to_string(),
-    //                    "grant_to_author cannot be false if there are no explicit grants".to_string(),
-    //                ))
-    //            } else {
-    //                Ok({
-    //                    // encrypt to all the users and groups
-    //                    let (encrypt_errs, grants) = transform::encrypt_to_with_key(
-    //                        recrypt,
-    //                        &dek,
-    //                        &auth.signing_keys().into(),
-    //                        grant_list,
-    //                    );
-    //
-    //                    // squish all accumulated errors into one list
-    //                    let other_errs = vec![
-    //                        group_errs,
-    //                        user_errs,
-    //                        encrypt_errs.into_iter().map(|e| e.into()).collect(),
-    //                    ]
-    //                    .into_iter()
-    //                    .concat();
-    //                    (grants, encrypted_doc, other_errs)
-    //                })
-    //            }
-    //        })
-    //        .and_then(move |(grants, encrypted_doc, other_errs)| {
-    //            //We want to grab a copy of the documentId before we make the call so we can propagate it to the next map.
-    //            document_create::document_create_request(auth, doc_id.clone(), document_name, grants)
-    //                .map(|resp| (doc_id, resp, encrypted_doc, other_errs))
-    //        })
-    //        .map(move |(doc_id, api_resp, encrypted_doc, all_errs)| {
-    //            //Generate and prepend the document header to the encrypted document
-    //            let encrypted_payload = [
-    //                &generate_document_header(doc_id.clone(), auth.segment_id())[..],
-    //                &encrypted_doc.bytes()[..],
-    //            ]
-    //            .concat();
-    //            DocumentEncryptResult {
-    //                id: api_resp.id,
-    //                name: api_resp.name,
-    //                created: api_resp.created,
-    //                updated: api_resp.updated,
-    //                encrypted_data: encrypted_payload,
-    //                grants: api_resp.shared_with.iter().map(|sw| sw.into()).collect(),
-    //                access_errs: all_errs,
-    //            }
-    //        })
 }
 
 fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
@@ -511,6 +473,7 @@ fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
     doc_id: DocumentId,
     document_name: Option<DocumentName>,
     grants: Vec<WithKey<UserOrGroup>>,
+    accum_errs: Vec<DocAccessEditErr>,
 ) -> impl Future<Item = DocumentEncryptResult, Error = IronOxideErr> + 'a {
     // check to make sure that we are granting to something
     if grants.is_empty() {
@@ -524,20 +487,15 @@ fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
             let (encrypt_errs, grants) =
                 transform::encrypt_to_with_key(recrypt, &dek, &auth.signing_keys().into(), grants);
 
-            // squish all accumulated errors into one list
-            //        let other_errs =
-            //            vec![
-            //            group_errs,
-            //            user_errs,
-            //            encrypt_errs.into_iter().map(|e| e.into()).collect(),
-            //        ]
-            //            .into_iter()
-            //            .concat();
-
             (
                 grants,
                 encrypted_doc,
-                encrypt_errs.into_iter().map(|e| e.into()).collect(),
+                vec![
+                    accum_errs,
+                    encrypt_errs.into_iter().map(|e| e.into()).collect(),
+                ]
+                .into_iter()
+                .concat(),
             )
         })
     }
@@ -565,10 +523,13 @@ fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
         }
     })
 }
-pub struct PolicyResult {}
 
-pub fn eval_policy(policy: PolicyGrant) -> PolicyResult {
-    unimplemented!()
+pub use requests::policy_get::PolicyResult;
+pub fn eval_policy(
+    auth: &RequestAuth,
+    policy: &PolicyGrant,
+) -> impl Future<Item = PolicyResult, Error = IronOxideErr> {
+    Ok(unimplemented!()).into_future()
 }
 
 // Encrypt the provided plaintext using the DEK from the provided document ID but with a new AES IV. Allows updating the encrypted bytes
@@ -769,6 +730,12 @@ fn process_users(
         })
         .collect();
     (user_errs, users_with_key)
+}
+
+fn process_policy(
+    policy_result: PolicyResult,
+) -> (Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>) {
+    unimplemented!()
 }
 
 #[cfg(test)]

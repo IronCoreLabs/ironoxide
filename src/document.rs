@@ -3,15 +3,18 @@ pub use crate::internal::document_api::{
     DocumentEncryptResult, DocumentListMeta, DocumentListResult, DocumentMetadataResult,
     UserOrGroup, VisibleGroup, VisibleUser,
 };
+use crate::internal::validate_simple_policy_id;
 use crate::{
     internal::{
         document_api::{self, DocumentId, DocumentName},
         group_api::GroupId,
         user_api::UserId,
     },
-    Result,
+    IronOxideErr, Result,
 };
 use itertools::{Either, Itertools};
+use regex::Regex;
+use std::convert::TryFrom;
 use tokio::runtime::current_thread::Runtime;
 
 /// Optional parameters that can be provided when encrypting a new document.
@@ -30,10 +33,87 @@ pub struct ExplicitGrant {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct PolicyGrant {
-    classification: Option<String>,
-    sensitivity: Option<String>,
-    data_subject: Option<String>,
-    substitute_id: Option<String>,
+    category: Option<Category>,
+    sensitivity: Option<Sensitivity>,
+    data_subject: Option<DataSubject>,
+    substitute_id: Option<SubstituteId>,
+}
+
+impl PolicyGrant {
+    pub fn new(
+        category: Option<Category>,
+        sensitivity: Option<Sensitivity>,
+        data_subject: Option<DataSubject>,
+        substitute_id: Option<SubstituteId>,
+    ) -> PolicyGrant {
+        PolicyGrant {
+            category,
+            sensitivity,
+            data_subject,
+            substitute_id,
+        }
+    }
+
+    pub fn category(&self) -> Option<&Category> {
+        self.category.as_ref()
+    }
+
+    pub fn sensitivity(&self) -> Option<&Sensitivity> {
+        self.sensitivity.as_ref()
+    }
+
+    pub fn data_subject(&self) -> Option<&DataSubject> {
+        self.data_subject.as_ref()
+    }
+    pub fn substitute_id(&self) -> Option<&SubstituteId> {
+        self.substitute_id.as_ref()
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Category(pub(crate) String);
+
+impl TryFrom<&str> for Category {
+    type Error = IronOxideErr;
+
+    fn try_from(value: &str) -> Result<Self> {
+        validate_simple_policy_id(value, "Category").map(|v| Self(v))
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Sensitivity(pub(crate) String);
+
+//TODO macro?
+impl TryFrom<&str> for Sensitivity {
+    type Error = IronOxideErr;
+
+    fn try_from(value: &str) -> Result<Self> {
+        validate_simple_policy_id(value, "Sensitivity").map(|v| Self(v))
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct DataSubject(pub(crate) String);
+
+impl TryFrom<&str> for DataSubject {
+    type Error = IronOxideErr;
+
+    fn try_from(value: &str) -> Result<Self> {
+        validate_simple_policy_id(value, "DataSubject").map(|v| Self(v))
+    }
+}
+
+//TODO
+#[derive(Debug, PartialEq, Clone)]
+pub struct SubstituteId(pub(crate) String);
+
+impl TryFrom<&str> for SubstituteId {
+    type Error = IronOxideErr;
+
+    fn try_from(value: &str) -> Result<Self> {
+        unimplemented!()
+    }
 }
 
 impl<'a> DocumentEncryptOpts {
@@ -227,6 +307,7 @@ impl DocumentOps for crate::IronOxide {
             encrypt_opts.explicit_grants.unwrap().grant_to_author,
             &user_grants,
             &group_grants,
+            encrypt_opts.policy_grants.as_ref(),
         ))
     }
 

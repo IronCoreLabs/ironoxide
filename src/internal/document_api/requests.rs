@@ -217,8 +217,9 @@ pub mod policy_get {
     use super::*;
 
     pub struct PolicyResult {
-        users: Vec<UserOrGroupWithKey>,
-        groups: Vec<UserOrGroupWithKey>,
+        grants: Vec<UserOrGroupWithKey>,
+        invalid_users: Vec<UserId>,
+        invalid_groups: Vec<GroupId>,
     }
 
     pub fn policy_get_request(

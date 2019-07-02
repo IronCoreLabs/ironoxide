@@ -2,7 +2,7 @@ mod common;
 use common::{create_second_user, init_sdk};
 use galvanic_assert::matchers::collection::*;
 use ironoxide::group::GroupCreateOpts;
-use ironoxide::{document::*, prelude::*};
+use ironoxide::{document::*, prelude::*, IronOxide};
 use std::convert::{TryFrom, TryInto};
 
 #[cfg(test)]
@@ -27,7 +27,7 @@ fn doc_create_without_id() {
 }
 
 #[test]
-fn doc_create_with_grant() {
+fn doc_create_with_explicit_grants() {
     let mut sdk = init_sdk();
 
     let doc = [0u8; 64];
@@ -38,7 +38,7 @@ fn doc_create_with_grant() {
     let doc_result = sdk
         .document_encrypt(
             &doc,
-            &DocumentEncryptOpts::new(
+            &DocumentEncryptOpts::with_explicit_grants(
                 None,
                 Some("first name".try_into().unwrap()),
                 true,
@@ -76,6 +76,53 @@ fn doc_create_with_grant() {
 }
 
 #[test]
+fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
+    let mut sdk = init_sdk();
+
+    let doc = [0u8; 64];
+
+    let bad_user: UserId = "bad_user".try_into().unwrap();
+    let bad_group: GroupId = "bad_group".try_into().unwrap();
+
+    let doc_result = sdk
+        .document_encrypt(
+            &doc,
+            &DocumentEncryptOpts::with_policy_grants(
+                None,
+                Some("first name".try_into()?),
+                PolicyGrant::new(
+                    Some("PII".try_into()?),
+                    Some("PRIVATE".try_into()?),
+                    Some("EMPLOYEE".try_into()?),
+                    None,
+                ),
+            ),
+        )
+        .unwrap();
+
+    assert_eq!(doc_result.grants().len(), 1);
+    assert_eq!(
+        doc_result.grants()[0],
+        UserOrGroup::User {
+            id: sdk.device().account_id().clone()
+        }
+    );
+    assert_eq!(doc_result.access_errs().len(), 2);
+    assert_that!(
+        &doc_result
+            .access_errs()
+            .iter()
+            .map(|err| err.user_or_group.clone())
+            .collect::<Vec<_>>(),
+        contains_in_any_order(vec![
+            UserOrGroup::User { id: bad_user },
+            UserOrGroup::Group { id: bad_group }
+        ])
+    );
+    Ok(())
+}
+
+#[test]
 fn doc_create_without_self_grant() {
     let mut sdk = init_sdk();
 
@@ -87,7 +134,7 @@ fn doc_create_without_self_grant() {
     let doc_result = sdk
         .document_encrypt(
             &doc,
-            &DocumentEncryptOpts::new(
+            &DocumentEncryptOpts::with_explicit_grants(
                 None,
                 Some("first name".try_into().unwrap()),
                 false,
@@ -124,7 +171,12 @@ fn doc_create_must_grant() {
     // should fail because encrypting a document with no grants is nonsense
     let doc_result = sdk.document_encrypt(
         &doc,
-        &DocumentEncryptOpts::new(None, Some("first name".try_into().unwrap()), false, vec![]),
+        &DocumentEncryptOpts::with_explicit_grants(
+            None,
+            Some("first name".try_into().unwrap()),
+            false,
+            vec![],
+        ),
     );
 
     // make sure there was a validation error, and that the problem was with the grant
@@ -146,7 +198,7 @@ fn doc_create_and_adjust_name() {
     let doc_result = sdk
         .document_encrypt(
             &doc,
-            &DocumentEncryptOpts::new(
+            &DocumentEncryptOpts::with_explicit_grants(
                 None,
                 Some("first name".try_into().unwrap()),
                 true,
