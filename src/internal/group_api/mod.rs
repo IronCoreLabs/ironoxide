@@ -32,6 +32,11 @@ impl GroupId {
     pub fn id(&self) -> &String {
         &self.0
     }
+
+    /// Create a GroupId from a string with no validation. Useful for ids coming back from the web service.
+    pub fn unsafe_from_string(id: String) -> GroupId {
+        GroupId(id)
+    }
 }
 impl TryFrom<String> for GroupId {
     type Error = IronOxideErr;

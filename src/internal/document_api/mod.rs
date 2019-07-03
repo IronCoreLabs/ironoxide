@@ -1,6 +1,7 @@
 use crate::crypto::aes::AesEncryptedValue;
 use crate::document::PolicyGrant;
 use crate::internal::document_api::requests::policy_get::policy_get_request;
+use crate::internal::document_api::requests::UserOrGroupWithKey;
 use crate::{
     crypto::{aes, transform},
     internal::{
@@ -13,10 +14,11 @@ use crate::{
 use chrono::{DateTime, Utc};
 use futures::prelude::*;
 use hex::encode;
-use itertools::Itertools;
+use itertools::{Either, Itertools};
 use rand::{self, CryptoRng, RngCore};
 use recrypt::api::Plaintext;
 use recrypt::prelude::*;
+pub use requests::policy_get::PolicyResult;
 use requests::{
     document_create,
     document_list::{DocumentListApiResponse, DocumentListApiResponseItem},
@@ -420,7 +422,9 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
     internal::user_api::get_user_keys(auth, user_grants)
         .join4(
             internal::group_api::get_group_keys(auth, group_grants),
-            policy_grant.map_or(None, |p| Some(eval_policy(auth, p))),
+            policy_grant.map_or(None, |p| {
+                Some(requests::policy_get::policy_get_request(auth, p))
+            }),
             aes::encrypt_future(rng, &plaintext.to_vec(), *doc_sym_key.bytes()),
         )
         .and_then(move |(users, groups, maybe_policy_res, encrypted_doc)| {
@@ -440,7 +444,7 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
 
             let (policy_errs, policy_uogs) = match maybe_policy_res {
                 None => (vec![], vec![]),
-                Some(res) => process_policy(res),
+                Some(res) => process_policy(&res),
             };
 
             // squish all accumulated errors into one list
@@ -451,7 +455,6 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
             encrypt_document_core(
                 auth,
                 recrypt,
-                user_master_pub_key,
                 rng,
                 dek,
                 encrypted_doc,
@@ -466,7 +469,6 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
 fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
-    user_master_pub_key: &'a PublicKey,
     rng: &'a mut CR,
     dek: Plaintext,
     encrypted_doc: AesEncryptedValue,
@@ -478,8 +480,11 @@ fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
     // check to make sure that we are granting to something
     if grants.is_empty() {
         Err(IronOxideErr::ValidationError(
-            "grant_to_author".to_string(),
-            "grant_to_author cannot be false if there are no explicit grants".to_string(),
+            "grants".into(),
+            format!(
+                "Access must be granted to document {:?} by explicit grant or via a policy",
+                &doc_id
+            ),
         ))
     } else {
         Ok({
@@ -501,7 +506,6 @@ fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
     }
     .into_future()
     .and_then(move |(grants, encrypted_doc, other_errs)| {
-        //We want to grab a copy of the documentId before we make the call so we can propagate it to the next map.
         document_create::document_create_request(auth, doc_id.clone(), document_name, grants)
             .map(move |resp| (doc_id, resp, encrypted_doc, other_errs))
     })
@@ -522,14 +526,6 @@ fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
             access_errs: all_errs,
         }
     })
-}
-
-pub use requests::policy_get::PolicyResult;
-pub fn eval_policy(
-    auth: &RequestAuth,
-    policy: &PolicyGrant,
-) -> impl Future<Item = PolicyResult, Error = IronOxideErr> {
-    Ok(unimplemented!()).into_future()
 }
 
 // Encrypt the provided plaintext using the DEK from the provided document ID but with a new AES IV. Allows updating the encrypted bytes
@@ -733,9 +729,58 @@ fn process_users(
 }
 
 fn process_policy(
-    policy_result: PolicyResult,
+    policy_result: &PolicyResult,
 ) -> (Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>) {
-    unimplemented!()
+    let successes: (Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>) = policy_result
+        .user_or_groups()
+        .into_iter()
+        .partition_map(|uog| match uog {
+            UserOrGroupWithKey::User {
+                id,
+                master_public_key: Some(key),
+            } => {
+                let user = UserOrGroup::User {
+                    // okay since these came back from the service
+                    id: UserId::unsafe_from_string(id.clone()),
+                };
+
+                Either::from(
+                    key.clone()
+                        .try_into()
+                        .map(|k| WithKey::new(user.clone(), k))
+                        .map_err(|e| DocAccessEditErr::new(user, "".to_string())),
+                )
+            }
+            UserOrGroupWithKey::Group {
+                id,
+                master_public_key: Some(key),
+            } => {
+                let group = UserOrGroup::Group {
+                    // okay since these came back from the service
+                    id: GroupId::unsafe_from_string(id.clone()),
+                };
+
+                Either::from(
+                    key.clone()
+                        .try_into()
+                        .map(|k| WithKey::new(group.clone(), k))
+                        .map_err(|e| DocAccessEditErr::new(group, "".to_string())),
+                )
+            }
+
+            //            UserOrGroupWithKey::Group {
+            //                id,
+            //                master_public_key: Some(key),
+            //            } => key.clone().try_into().map(|k| WithKey::new(
+            //                UserOrGroup::Group {
+            //                    // okay since these came back from the service
+            //                    id: GroupId::unsafe_from_string(id.clone()),
+            //                },
+            //                k
+            //            )),
+            _ => unimplemented!(),
+        });
+    successes
 }
 
 #[cfg(test)]
@@ -891,5 +936,46 @@ mod tests {
                 44, 34, 95, 115, 105, 100, 95, 34, 58, 49, 56, 125
             ])
         );
+    }
+    use galvanic_assert::matchers::collection::*;
+    #[test]
+    fn process_policy_good() {
+        let mut recrypt = recrypt::api::Recrypt::new();
+        let (_, pubk) = recrypt.generate_key_pair().unwrap();
+
+        let policy = PolicyResult {
+            user_or_groups: vec![
+                UserOrGroupWithKey::User {
+                    id: "userid1".to_string(),
+                    master_public_key: Some(pubk.into()),
+                },
+                UserOrGroupWithKey::Group {
+                    id: "groupid1".to_string(),
+                    master_public_key: Some(pubk.into()),
+                },
+            ],
+            invalid_groups: vec![],
+            invalid_users: vec![],
+        };
+
+        let (errs, results) = process_policy(&policy);
+        assert_that!(results.len() == 2);
+        assert_that!(errs.len() == 0);
+
+        let ex_user = WithKey {
+            id: UserOrGroup::User {
+                id: UserId::unsafe_from_string("userid1".to_string()),
+            },
+            public_key: pubk.into(),
+        };
+
+        let ex_group = WithKey {
+            id: UserOrGroup::Group {
+                id: GroupId::unsafe_from_string("groupid1".to_string()),
+            },
+            public_key: pubk.into(),
+        };
+
+        assert_that!(&results, contains_in_any_order(vec![ex_user, ex_group]));
     }
 }

@@ -85,7 +85,7 @@ impl From<&AccessGrant> for UserOrGroup {
                 user_or_group: UserOrGroupWithKey::User { id, .. },
                 ..
             } => UserOrGroup::User {
-                id: UserId(id.clone()),
+                id: UserId::unsafe_from_string(id.clone()),
             },
             AccessGrant {
                 user_or_group: UserOrGroupWithKey::Group { id, .. },
@@ -216,20 +216,53 @@ pub mod document_create {
 pub mod policy_get {
     use super::*;
 
+    #[derive(Deserialize, Debug, Clone)]
+    #[serde(rename_all = "camelCase")]
     pub struct PolicyResult {
-        grants: Vec<UserOrGroupWithKey>,
-        invalid_users: Vec<UserId>,
-        invalid_groups: Vec<GroupId>,
+        pub(crate) user_or_groups: Vec<UserOrGroupWithKey>,
+        pub(crate) invalid_users: Vec<UserId>,
+        pub(crate) invalid_groups: Vec<GroupId>,
     }
+
+    impl PolicyResult {
+        pub fn user_or_groups(&self) -> &[UserOrGroupWithKey] {
+            &self.user_or_groups
+        }
+    }
+
+    use crate::document::{Category, DataSubject, PolicyGrant, Sensitivity, SubstituteId};
+    use futures::future::IntoFuture;
+    use itertools::{fold, Itertools};
 
     pub fn policy_get_request(
         auth: &RequestAuth,
-        classification: Option<String>,
-        sensitivity: Option<String>,
-        data_subject: Option<String>,
-        substitute_id: Option<String>,
-    ) -> PolicyResult {
-        unimplemented!()
+        policy_grant: &PolicyGrant,
+    ) -> impl Future<Item = PolicyResult, Error = IronOxideErr> {
+        let url_with_query_params = "policies";
+        let query_params: Vec<(String, String)> = [
+            policy_grant
+                .category()
+                .map(|c| (Category::QUERY_PARAM.to_string(), c.0.clone())),
+            policy_grant
+                .sensitivity()
+                .map(|s| (Sensitivity::QUERY_PARAM.to_string(), s.0.clone())),
+            policy_grant
+                .data_subject()
+                .map(|d| (DataSubject::QUERY_PARAM.to_string(), d.0.clone())),
+            policy_grant
+                .substitute_id()
+                .map(|s| (SubstituteId::QUERY_PARAM.to_string(), s.0.clone())),
+        ]
+        .to_vec()
+        .into_iter()
+        .flatten()
+        .collect();
+        auth.request.get_with_query_params(
+            "policies",
+            &query_params,
+            RequestErrorCode::PolicyGet,
+            &auth.create_signature(Utc::now()),
+        )
     }
 
 }
@@ -306,9 +339,9 @@ pub mod document_access {
         impl From<UserOrGroupAccess> for UserOrGroup {
             fn from(uog: UserOrGroupAccess) -> Self {
                 match uog {
-                    UserOrGroupAccess::User { id } => {
-                        UserOrGroup::User { id: UserId(id) } //not validating here
-                    }
+                    UserOrGroupAccess::User { id } => UserOrGroup::User {
+                        id: UserId::unsafe_from_string(id),
+                    },
                     UserOrGroupAccess::Group { id } => {
                         UserOrGroup::Group { id: GroupId(id) } //not validating here
                     }

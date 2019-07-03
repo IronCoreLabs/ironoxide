@@ -53,6 +53,7 @@ pub enum RequestErrorCode {
     DocumentUpdate,
     DocumentGrantAccess,
     DocumentRevokeAccess,
+    PolicyGet,
 }
 
 quick_error! {
@@ -101,6 +102,9 @@ quick_error! {
         ///The operation failed because the accessing user was not a group admin, but must be for the operation to work.
         NotGroupAdmin(group_id:group_api::GroupId) {
             display("You're are not an administrator of group '{}'", group_id.0)
+        }
+        InvalidPolicy {
+            display("A policy must specify one or more of category, sensitivity, data_subject, substitute_id")
         }
     }
 }
@@ -525,7 +529,7 @@ impl TryFrom<&str> for Password {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct WithKey<T> {
     pub(crate) id: T,
     pub(crate) public_key: PublicKey,

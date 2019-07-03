@@ -92,10 +92,10 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
                 Some("first name".try_into()?),
                 PolicyGrant::new(
                     Some("PII".try_into()?),
-                    Some("PRIVATE".try_into()?),
-                    Some("EMPLOYEE".try_into()?),
+                    Some("INTERNAL".try_into()?),
                     None,
-                ),
+                    None,
+                )?,
             ),
         )
         .unwrap();
@@ -185,7 +185,7 @@ fn doc_create_must_grant() {
             IronOxideErr::ValidationError(field_name, _) => field_name,
             _ => "failed test".to_string(),
         },
-        "grant_to_author".to_string()
+        "grants".to_string()
     )
 }
 

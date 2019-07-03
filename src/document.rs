@@ -13,7 +13,6 @@ use crate::{
     IronOxideErr, Result,
 };
 use itertools::{Either, Itertools};
-use regex::Regex;
 use std::convert::TryFrom;
 use tokio::runtime::current_thread::Runtime;
 
@@ -45,12 +44,17 @@ impl PolicyGrant {
         sensitivity: Option<Sensitivity>,
         data_subject: Option<DataSubject>,
         substitute_id: Option<SubstituteId>,
-    ) -> PolicyGrant {
-        PolicyGrant {
-            category,
-            sensitivity,
-            data_subject,
-            substitute_id,
+    ) -> Result<PolicyGrant> {
+        //TODO test
+        if let (None, None, None, None) = (&category, &sensitivity, &data_subject, &substitute_id) {
+            Err(IronOxideErr::InvalidPolicy)
+        } else {
+            Ok(PolicyGrant {
+                category,
+                sensitivity,
+                data_subject,
+                substitute_id,
+            })
         }
     }
 
@@ -81,6 +85,10 @@ impl TryFrom<&str> for Category {
     }
 }
 
+impl Category {
+    pub(crate) const QUERY_PARAM: &'static str = "category";
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Sensitivity(pub(crate) String);
 
@@ -91,6 +99,10 @@ impl TryFrom<&str> for Sensitivity {
     fn try_from(value: &str) -> Result<Self> {
         validate_simple_policy_id(value, "Sensitivity").map(|v| Self(v))
     }
+}
+
+impl Sensitivity {
+    pub(crate) const QUERY_PARAM: &'static str = "sensitivity";
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -104,6 +116,10 @@ impl TryFrom<&str> for DataSubject {
     }
 }
 
+impl DataSubject {
+    pub(crate) const QUERY_PARAM: &'static str = "dataSubject";
+}
+
 //TODO
 #[derive(Debug, PartialEq, Clone)]
 pub struct SubstituteId(pub(crate) String);
@@ -114,6 +130,10 @@ impl TryFrom<&str> for SubstituteId {
     fn try_from(value: &str) -> Result<Self> {
         unimplemented!()
     }
+}
+
+impl SubstituteId {
+    pub(crate) const QUERY_PARAM: &'static str = "substituteId";
 }
 
 impl<'a> DocumentEncryptOpts {
@@ -139,7 +159,12 @@ impl<'a> DocumentEncryptOpts {
         name: Option<DocumentName>,
         policy: PolicyGrant,
     ) -> DocumentEncryptOpts {
-        unimplemented!()
+        DocumentEncryptOpts {
+            id,
+            name,
+            explicit_grants: None,
+            policy_grants: Some(policy),
+        }
     }
 }
 impl Default for DocumentEncryptOpts {
@@ -293,8 +318,12 @@ impl DocumentOps for crate::IronOxide {
         let mut rt = Runtime::new().unwrap();
         let encrypt_opts = encrypt_opts.clone();
 
-        let (user_grants, group_grants) =
-            partition_user_or_group(&encrypt_opts.explicit_grants.clone().unwrap().grants);
+        let (user_grants, group_grants) = encrypt_opts
+            .explicit_grants
+            .clone()
+            .map_or((vec![], vec![]), |ex_grant| {
+                partition_user_or_group(&ex_grant.grants)
+            });
 
         rt.block_on(document_api::encrypt_document(
             self.device.auth(),
@@ -304,7 +333,9 @@ impl DocumentOps for crate::IronOxide {
             document_data,
             encrypt_opts.id,
             encrypt_opts.name,
-            encrypt_opts.explicit_grants.unwrap().grant_to_author,
+            encrypt_opts
+                .explicit_grants
+                .map_or(false, |ex_grant| ex_grant.grant_to_author),
             &user_grants,
             &group_grants,
             encrypt_opts.policy_grants.as_ref(),
