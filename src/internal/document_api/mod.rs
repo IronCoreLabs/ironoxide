@@ -441,7 +441,7 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
             } else {
                 [&users_with_key[..], &groups_with_key[..]].concat()
             };
-
+            dbg!(&maybe_policy_res);
             let (policy_errs, policy_uogs) = match maybe_policy_res {
                 None => (vec![], vec![]),
                 Some(res) => process_policy(&res),
@@ -748,7 +748,12 @@ fn process_policy(
                     key.clone()
                         .try_into()
                         .map(|k| WithKey::new(user.clone(), k))
-                        .map_err(|e| DocAccessEditErr::new(user, "".to_string())),
+                        .map_err(|_e| {
+                            DocAccessEditErr::new(
+                                user,
+                                format!("Error parsing user public key {:?}", &key),
+                            )
+                        }),
                 )
             }
             UserOrGroupWithKey::Group {
@@ -764,21 +769,19 @@ fn process_policy(
                     key.clone()
                         .try_into()
                         .map(|k| WithKey::new(group.clone(), k))
-                        .map_err(|e| DocAccessEditErr::new(group, "".to_string())),
+                        .map_err(|_e| {
+                            DocAccessEditErr::new(
+                                group,
+                                format!("Error parsing group public key {:?}", &key),
+                            )
+                        }),
                 )
             }
 
-            //            UserOrGroupWithKey::Group {
-            //                id,
-            //                master_public_key: Some(key),
-            //            } => key.clone().try_into().map(|k| WithKey::new(
-            //                UserOrGroup::Group {
-            //                    // okay since these came back from the service
-            //                    id: GroupId::unsafe_from_string(id.clone()),
-            //                },
-            //                k
-            //            )),
-            _ => unimplemented!(),
+            any => Either::Left(DocAccessEditErr::new(
+                any.clone().into(),
+                "User or group does not have associated public key".to_string(),
+            )),
         });
     successes
 }
@@ -944,7 +947,7 @@ mod tests {
         let (_, pubk) = recrypt.generate_key_pair().unwrap();
 
         let policy = PolicyResult {
-            user_or_groups: vec![
+            users_and_groups: vec![
                 UserOrGroupWithKey::User {
                     id: "userid1".to_string(),
                     master_public_key: Some(pubk.into()),

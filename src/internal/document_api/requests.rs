@@ -42,6 +42,19 @@ pub enum UserOrGroupWithKey {
     },
 }
 
+impl From<UserOrGroupWithKey> for UserOrGroup {
+    fn from(with_key: UserOrGroupWithKey) -> Self {
+        match with_key {
+            UserOrGroupWithKey::User { id, .. } => UserOrGroup::User {
+                id: UserId::unsafe_from_string(id),
+            },
+            UserOrGroupWithKey::Group { id, .. } => UserOrGroup::Group {
+                id: GroupId::unsafe_from_string(id),
+            },
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AccessGrant {
@@ -91,7 +104,7 @@ impl From<&AccessGrant> for UserOrGroup {
                 user_or_group: UserOrGroupWithKey::Group { id, .. },
                 ..
             } => UserOrGroup::Group {
-                id: GroupId(id.clone()),
+                id: GroupId::unsafe_from_string(id.clone()),
             },
         }
     }
@@ -219,14 +232,14 @@ pub mod policy_get {
     #[derive(Deserialize, Debug, Clone)]
     #[serde(rename_all = "camelCase")]
     pub struct PolicyResult {
-        pub(crate) user_or_groups: Vec<UserOrGroupWithKey>,
+        pub(crate) users_and_groups: Vec<UserOrGroupWithKey>,
         pub(crate) invalid_users: Vec<UserId>,
         pub(crate) invalid_groups: Vec<GroupId>,
     }
 
     impl PolicyResult {
         pub fn user_or_groups(&self) -> &[UserOrGroupWithKey] {
-            &self.user_or_groups
+            &self.users_and_groups
         }
     }
 
@@ -238,6 +251,7 @@ pub mod policy_get {
         auth: &RequestAuth,
         policy_grant: &PolicyGrant,
     ) -> impl Future<Item = PolicyResult, Error = IronOxideErr> {
+        dbg!(&policy_grant);
         let url_with_query_params = "policies";
         let query_params: Vec<(String, String)> = [
             policy_grant

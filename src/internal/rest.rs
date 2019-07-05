@@ -272,16 +272,17 @@ impl<'a> IronCoreRequest<'a> {
             .iter()
             .fold(builder, |build, body| build.json(body));
 
-        builder
-            .headers(DEFAULT_HEADERS.clone())
-            .headers(headers)
-            .send()
+        let req = builder.headers(DEFAULT_HEADERS.clone()).headers(headers);
+        dbg!(&req);
+        req.send()
             //Parse the body content into bytes
             .and_then(|res| {
+                dbg!(&res);
                 let status_code = res.status();
-                res.into_body()
-                    .concat2()
-                    .map(move |body| (status_code, body))
+                res.into_body().concat2().map(move |body| {
+                    dbg!(&body);
+                    (status_code, body)
+                })
             })
             //Now make the error type into the IronOxideErr and run the resp_handler which was passed to us.
             .then(move |resp| {

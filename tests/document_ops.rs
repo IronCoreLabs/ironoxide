@@ -89,7 +89,7 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
             &doc,
             &DocumentEncryptOpts::with_policy_grants(
                 None,
-                Some("first name".try_into()?),
+                Some("doc name".try_into()?),
                 PolicyGrant::new(
                     Some("PII".try_into()?),
                     Some("INTERNAL".try_into()?),
