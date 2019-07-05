@@ -1,6 +1,5 @@
 use crate::crypto::aes::AesEncryptedValue;
 use crate::document::PolicyGrant;
-use crate::internal::document_api::requests::policy_get::policy_get_request;
 use crate::internal::document_api::requests::UserOrGroupWithKey;
 use crate::{
     crypto::{aes, transform},
@@ -442,7 +441,7 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
                 [&users_with_key[..], &groups_with_key[..]].concat()
             };
             dbg!(&maybe_policy_res);
-            let (policy_errs, policy_uogs) = match maybe_policy_res {
+            let (policy_errs, applied_policy_grants) = match maybe_policy_res {
                 None => (vec![], vec![]),
                 Some(res) => process_policy(&res),
             };
@@ -455,12 +454,11 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
             encrypt_document_core(
                 auth,
                 recrypt,
-                rng,
                 dek,
                 encrypted_doc,
                 doc_id,
                 document_name,
-                explicit_grants,
+                [explicit_grants, applied_policy_grants].concat(),
                 other_errs,
             )
         })
@@ -469,7 +467,6 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
 fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
-    rng: &'a mut CR,
     dek: Plaintext,
     encrypted_doc: AesEncryptedValue,
     doc_id: DocumentId,

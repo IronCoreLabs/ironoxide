@@ -244,15 +244,12 @@ pub mod policy_get {
     }
 
     use crate::document::{Category, DataSubject, PolicyGrant, Sensitivity, SubstituteId};
-    use futures::future::IntoFuture;
-    use itertools::{fold, Itertools};
 
     pub fn policy_get_request(
         auth: &RequestAuth,
         policy_grant: &PolicyGrant,
     ) -> impl Future<Item = PolicyResult, Error = IronOxideErr> {
         dbg!(&policy_grant);
-        let url_with_query_params = "policies";
         let query_params: Vec<(String, String)> = [
             policy_grant
                 .category()
