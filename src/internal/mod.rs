@@ -103,9 +103,6 @@ quick_error! {
         NotGroupAdmin(group_id:group_api::GroupId) {
             display("You're are not an administrator of group '{}'", group_id.0)
         }
-        InvalidPolicy {
-            display("A policy must specify one or more of category, sensitivity, data_subject, substitute_id")
-        }
     }
 }
 
@@ -151,7 +148,10 @@ pub fn validate_id(id: &str, id_type: &str) -> Result<String, IronOxideErr> {
     }
 }
 
-pub fn validate_simple_policy_id(id: &str, id_type: &str) -> Result<String, IronOxideErr> {
+pub fn validate_simple_policy_field_id(
+    field_id: &str,
+    field_type: &str,
+) -> Result<String, IronOxideErr> {
     let simple_policy_field_regex = Regex::new("^[A-Za-z0-9_-]+$").expect("regex is valid");
     let trimmed_id = id.trim();
     if trimmed_id.is_empty() || trimmed_id.len() > NAME_AND_ID_MAX_LEN {
@@ -709,15 +709,15 @@ pub(crate) mod test {
     fn validate_simple_policy_id_good() {
         let name_type = "name_type";
         let id = "abc-123";
-        let result = validate_simple_policy_id(id, name_type);
+        let result = validate_simple_policy_field_id(id, name_type);
         assert_that!(&result, is_variant!(Ok));
 
         let id = "SIMPLE_2";
-        let result = validate_simple_policy_id(id, name_type);
+        let result = validate_simple_policy_field_id(id, name_type);
         assert_that!(&result, is_variant!(Ok));
 
         let id = "LOTS-O-CHARS_012345678901234567890123456789012345678901234567890123456789012345678901234567890123456";
-        let result = validate_simple_policy_id(id, name_type);
+        let result = validate_simple_policy_field_id(id, name_type);
         assert_that!(&result, is_variant!(Ok))
     }
 
@@ -727,7 +727,7 @@ pub(crate) mod test {
 
         // very limited special chars
         let invalid = "abc!123";
-        let result = validate_simple_policy_id(invalid, name_type);
+        let result = validate_simple_policy_field_id(invalid, name_type);
         assert_that!(&result, is_variant!(Err));
         let validation_error = result.unwrap_err();
         assert_that!(
@@ -737,7 +737,7 @@ pub(crate) mod test {
 
         //no unicode
         let invalid = "❤HEART❤";
-        let result = validate_simple_policy_id(invalid, name_type);
+        let result = validate_simple_policy_field_id(invalid, name_type);
         assert_that!(&result, is_variant!(Err));
         let validation_error = result.unwrap_err();
         assert_that!(
@@ -747,7 +747,7 @@ pub(crate) mod test {
 
         // no spaces
         let invalid = "spaces not allowed";
-        let result = validate_simple_policy_id(invalid, name_type);
+        let result = validate_simple_policy_field_id(invalid, name_type);
         assert_that!(&result, is_variant!(Err));
         let validation_error = result.unwrap_err();
         assert_that!(
@@ -760,7 +760,7 @@ pub(crate) mod test {
     fn validate_simple_policy_id_invalid_length() {
         let name_type = "name_type";
         let invalid = "too many chars 012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789";
-        let result = validate_simple_policy_id(invalid, name_type);
+        let result = validate_simple_policy_field_id(invalid, name_type);
         assert_that!(&result, is_variant!(Err));
         let validation_error = result.unwrap_err();
         assert_that!(

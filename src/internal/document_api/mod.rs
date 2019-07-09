@@ -485,6 +485,8 @@ fn dedupe_grants(grants: &[WithKey<UserOrGroup>]) -> Vec<WithKey<UserOrGroup>> {
         .collect_vec()
 }
 
+/// Actually encrypts the document. Can be called once you have all users/groups and their public keys.
+/// `accum_errs` - non fatal errors accumulated while preparing to call `encrypt_document_core`. Probably from web requests.
 fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -751,10 +753,11 @@ fn process_users(
     (user_errs, users_with_key)
 }
 
+/// Extract users/groups + keys from a PolicyResult (Right). Errors from applying the policy are Left.
 fn process_policy(
     policy_result: &PolicyResult,
 ) -> (Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>) {
-    let (de_errs, policy_eval_results): (Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>) =
+    let (pubkey_errs, policy_eval_results): (Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>) =
         policy_result
             .users_and_groups
             .iter()
@@ -802,15 +805,17 @@ fn process_policy(
                     )
                 }
 
-                any => Either::Left(DocAccessEditErr::new(
-                    any.clone().into(),
-                    "User or group does not have associated public key".to_string(),
-                )),
+                any => {
+                    let uog: UserOrGroup = any.clone().into();
+                    let err_msg =
+                        format!("{} does not have associated public key", &uog).to_string();
+                    Either::Left(DocAccessEditErr::new(uog, err_msg))
+                }
             });
 
     (
         [
-            de_errs,
+            pubkey_errs,
             policy_result
                 .invalid_users_and_groups
                 .iter()

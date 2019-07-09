@@ -3,7 +3,7 @@ pub use crate::internal::document_api::{
     DocumentEncryptResult, DocumentListMeta, DocumentListResult, DocumentMetadataResult,
     UserOrGroup, VisibleGroup, VisibleUser,
 };
-use crate::internal::validate_simple_policy_id;
+use crate::internal::validate_simple_policy_field_id;
 use crate::{
     internal::{
         document_api::{self, DocumentId, DocumentName},
@@ -77,12 +77,77 @@ impl<'a> DocumentEncryptOpts {
 
 /// Document access granted by a policy.
 ///
-/// A policy is stored on the server and yields a list of users and groups when applied.
+/// Policies are defined using the ironcore admin console: https://admin.ironcorelabs.com/policy
+/// In the future policies will be able to be programmatically defined using ironoxide.
 ///
-/// `category` -
-/// `sensitivity` -
-/// `data_subject` -
-/// `substitute_id` -
+/// A policy could look something like:
+/// ```json
+/// {
+///  "dataSubjects": [
+///    "PATIENT",
+///    "EMPLOYEE"
+///  ],
+///  "sensitivities": [
+///    "RESTRICTED",
+///    "CLASSIFIED",
+///    "INTERNAL"
+///  ],
+///  "categories": [
+///    "HEALTH",
+///    "PII"
+///  ],
+///  "rules": [
+///    {
+///      "sensitivity": "RESTRICTED",
+///      "users": [
+///        "%USER%"
+///      ],
+///      "dataSubject": "PATIENT",
+///      "groups": [
+///        "group_other_%USER%",
+///        "group_id_doctors",
+///        "data_recovery"
+///      ],
+///      "category": "HEALTH"
+///    },
+///    {
+///      "sensitivity": "INTERNAL",
+///      "users": [
+///        "joe@ironcorelabs",
+///        "%LOGGED_IN_USER%"
+///      ],
+///      "groups": [
+///        "group_%LOGGED_IN_USER%",
+///        "data_recovery"
+///      ],
+///      "category": "PII"
+///    },
+///    {
+///      "groups": [
+///        "data_recovery"
+///      ],
+///    },
+///  ]
+/// }
+/// ```
+///
+/// A policy is stored on the server and yields a list of users and groups when applied.
+/// The triple (`category`, `sensitivity`, `data_subject`) maps to a single policy rule. Each policy
+/// rule may generate any number of users/groups.
+///
+/// How a `substitute_user_id` is a `UserId` that will be used to replace the `%USER%` placeholder.
+/// `%LOGGED_IN_USER%` is a special token that will be replaced by the user currently authenticated
+/// to make SDK calls.
+///
+/// Rules in the policy are matched from top to bottom. If more than one rule would match a `PolicyGrant`
+/// the first one will be applied.
+///
+/// Example:
+/// If the current user of the sdk is "alice@ironcorelabs" and the following PolicyGrant is evaluated,
+/// `PolicyGrant::new("PII".try_from()?, "INTERNAL".try_from()?, None, None)` will match the last rule
+/// in the example policy, above and will return users: [joe@ironcorelabs, alice@ironcorelabs] and
+/// groups [group_alice@ironcorelabs, data_recovery"]
+///
 #[derive(Debug, PartialEq, Clone)]
 pub struct PolicyGrant {
     category: Option<Category>,
@@ -97,17 +162,12 @@ impl PolicyGrant {
         sensitivity: Option<Sensitivity>,
         data_subject: Option<DataSubject>,
         substitute_user: Option<UserId>,
-    ) -> Result<PolicyGrant> {
-        if let (None, None, None, None) = (&category, &sensitivity, &data_subject, &substitute_user)
-        {
-            Err(IronOxideErr::InvalidPolicy)
-        } else {
-            Ok(PolicyGrant {
-                category,
-                sensitivity,
-                data_subject,
-                substitute_user_id: substitute_user.map(|u| u.into()),
-            })
+    ) -> PolicyGrant {
+        PolicyGrant {
+            category,
+            sensitivity,
+            data_subject,
+            substitute_user_id: substitute_user.map(|u| u.into()),
         }
     }
 
@@ -127,51 +187,38 @@ impl PolicyGrant {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct Category(pub(crate) String);
-
-impl TryFrom<&str> for Category {
-    type Error = IronOxideErr;
-
-    fn try_from(value: &str) -> Result<Self> {
-        validate_simple_policy_id(value, "Category").map(|v| Self(v))
+impl Default for PolicyGrant {
+    fn default() -> Self {
+        PolicyGrant {
+            category: None,
+            sensitivity: None,
+            data_subject: None,
+            substitute_user_id: None,
+        }
     }
 }
+macro_rules! policy_field {
+    ($t: ident, $l: literal) => {
+        #[derive(Debug, PartialEq, Clone)]
+        pub struct $t(pub(crate) String);
 
-impl Category {
-    pub(crate) const QUERY_PARAM: &'static str = "category";
+        impl TryFrom<&str> for $t {
+            type Error = IronOxideErr;
+
+            fn try_from(value: &str) -> Result<Self> {
+                validate_simple_policy_field_id(value, $l).map(|v| Self(v))
+            }
+        }
+
+        impl $t {
+            pub(crate) const QUERY_PARAM: &'static str = $l;
+        }
+    };
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct Sensitivity(pub(crate) String);
-
-//TODO macro?
-impl TryFrom<&str> for Sensitivity {
-    type Error = IronOxideErr;
-
-    fn try_from(value: &str) -> Result<Self> {
-        validate_simple_policy_id(value, "Sensitivity").map(|v| Self(v))
-    }
-}
-
-impl Sensitivity {
-    pub(crate) const QUERY_PARAM: &'static str = "sensitivity";
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct DataSubject(pub(crate) String);
-
-impl TryFrom<&str> for DataSubject {
-    type Error = IronOxideErr;
-
-    fn try_from(value: &str) -> Result<Self> {
-        validate_simple_policy_id(value, "DataSubject").map(|v| Self(v))
-    }
-}
-
-impl DataSubject {
-    pub(crate) const QUERY_PARAM: &'static str = "dataSubject";
-}
+policy_field!(Category, "category");
+policy_field!(DataSubject, "dataSubject");
+policy_field!(Sensitivity, "sensitivity");
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct SubstituteId(pub(crate) UserId);
@@ -230,21 +277,6 @@ pub trait DocumentOps {
         document_data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptResult>;
-
-    //    /// Encrypt the provided document bytes using the specified policy.
-    //    ///
-    //    /// # Arguments
-    //    /// - `document_data` - Bytes of the document to encrypt
-    //    /// - `encrypt_opts` - Optional document encrypt parameters. Includes
-    //    ///       `id` - Unique ID to use for the document. Document ID will be stored unencrypted and must be unique per segment.
-    //    ///       `name` - Non-unique name to use in the document. Document name will **not** be encrypted.
-    //    ///       `grant_to_author` - Flag determining whether to encrypt to the calling user or not. If set to false at least one value must be present in the `grant` list.
-    //    ///       `grants` - List of users/groups to grant access to this document once encrypted
-    //    fn document_encrypt2(
-    //        &mut self,
-    //        document_data: &[u8],
-    //        encrypt_opts: &DocumentEncryptOpts,
-    //    ) -> Result<DocumentEncryptResult>;
 
     /// Update the encrypted content of an existing document. Persists any existing access to other users and groups.
     ///
@@ -336,22 +368,23 @@ impl DocumentOps for crate::IronOxide {
         let mut rt = Runtime::new().unwrap();
         let encrypt_opts = encrypt_opts.clone();
 
-        let (ex_users, ex_groups, grant_to_author, policy_grants) = match encrypt_opts.grants {
-            EitherOrBoth::Left(explicit_grants) => {
-                let (users, groups) = partition_user_or_group(&explicit_grants.grants);
-                (users, groups, explicit_grants.grant_to_author, None)
-            }
-            EitherOrBoth::Right(policy_grant) => (vec![], vec![], false, Some(policy_grant)),
-            EitherOrBoth::Both(explicit_grants, policy_grant) => {
-                let (users, groups) = partition_user_or_group(&explicit_grants.grants);
-                (
-                    users,
-                    groups,
-                    explicit_grants.grant_to_author,
-                    Some(policy_grant),
-                )
-            }
-        };
+        let (explicit_users, explicit_groups, grant_to_author, policy_grants) =
+            match encrypt_opts.grants {
+                EitherOrBoth::Left(explicit_grants) => {
+                    let (users, groups) = partition_user_or_group(&explicit_grants.grants);
+                    (users, groups, explicit_grants.grant_to_author, None)
+                }
+                EitherOrBoth::Right(policy_grant) => (vec![], vec![], false, Some(policy_grant)),
+                EitherOrBoth::Both(explicit_grants, policy_grant) => {
+                    let (users, groups) = partition_user_or_group(&explicit_grants.grants);
+                    (
+                        users,
+                        groups,
+                        explicit_grants.grant_to_author,
+                        Some(policy_grant),
+                    )
+                }
+            };
 
         rt.block_on(document_api::encrypt_document(
             self.device.auth(),
@@ -362,8 +395,8 @@ impl DocumentOps for crate::IronOxide {
             encrypt_opts.id,
             encrypt_opts.name,
             grant_to_author,
-            &ex_users,
-            &ex_groups,
+            &explicit_users,
+            &explicit_groups,
             policy_grants.as_ref(),
         ))
     }
@@ -452,21 +485,4 @@ fn partition_user_or_group(uog_slice: &[UserOrGroup]) -> (Vec<UserId>, Vec<Group
             UserOrGroup::User { id } => Either::Left(id.clone()),
             UserOrGroup::Group { id } => Either::Right(id.clone()),
         })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::internal::test::contains;
-    use galvanic_assert::matchers::*;
-
-    #[test]
-    fn create_invalid_policy_grant() {
-        let result = PolicyGrant::new(None, None, None, None);
-        assert_that!(&result, is_variant!(Err));
-        assert_that!(
-            &result,
-            has_structure!(Err[eq(IronOxideErr::InvalidPolicy)])
-        );
-    }
 }
