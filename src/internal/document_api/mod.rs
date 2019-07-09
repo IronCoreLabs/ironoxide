@@ -434,9 +434,7 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
     internal::user_api::get_user_keys(auth, user_grants)
         .join4(
             internal::group_api::get_group_keys(auth, group_grants),
-            policy_grant.map_or(None, |p| {
-                Some(requests::policy_get::policy_get_request(auth, p))
-            }),
+            policy_grant.map(|p| requests::policy_get::policy_get_request(auth, p)),
             aes::encrypt_future(rng, &plaintext.to_vec(), *doc_sym_key.bytes()),
         )
         .and_then(move |(users, groups, maybe_policy_res, encrypted_doc)| {
