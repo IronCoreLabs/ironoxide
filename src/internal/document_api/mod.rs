@@ -1,7 +1,6 @@
 use crate::crypto::aes::AesEncryptedValue;
 use crate::document::PolicyGrant;
 use crate::internal::document_api::requests::UserOrGroupWithKey;
-use crate::internal::document_api::UserOrGroup::User;
 use crate::{
     crypto::{aes, transform},
     internal::{
