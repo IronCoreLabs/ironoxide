@@ -228,22 +228,14 @@ pub mod document_create {
 
 pub mod policy_get {
     use super::*;
+    use crate::document::{Category, DataSubject, PolicyGrant, Sensitivity, SubstituteId};
 
     #[derive(Deserialize, Debug, Clone)]
     #[serde(rename_all = "camelCase")]
     pub struct PolicyResult {
         pub(crate) users_and_groups: Vec<UserOrGroupWithKey>,
-        pub(crate) invalid_users: Vec<UserId>,
-        pub(crate) invalid_groups: Vec<GroupId>,
+        pub(crate) invalid_users_and_groups: Vec<UserOrGroup>,
     }
-
-    impl PolicyResult {
-        pub fn user_or_groups(&self) -> &[UserOrGroupWithKey] {
-            &self.users_and_groups
-        }
-    }
-
-    use crate::document::{Category, DataSubject, PolicyGrant, Sensitivity, SubstituteId};
 
     pub fn policy_get_request(
         auth: &RequestAuth,

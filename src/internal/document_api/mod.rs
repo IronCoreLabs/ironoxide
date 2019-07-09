@@ -363,7 +363,8 @@ impl DocumentAccessResult {
 }
 
 /// Either a user or a group. Allows for containing both.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
 pub enum UserOrGroup {
     User { id: UserId },
     Group { id: GroupId },
@@ -755,8 +756,8 @@ fn process_policy(
 ) -> (Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>) {
     let (de_errs, policy_eval_results): (Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>) =
         policy_result
-            .user_or_groups()
-            .into_iter()
+            .users_and_groups
+            .iter()
             .partition_map(|uog| match uog {
                 UserOrGroupWithKey::User {
                     id,
@@ -807,24 +808,11 @@ fn process_policy(
                 )),
             });
 
-    let uog_errs = [
-        policy_result
-            .invalid_users
-            .iter()
-            .map(UserOrGroup::from)
-            .collect::<Vec<_>>(),
-        policy_result
-            .invalid_groups
-            .iter()
-            .map(UserOrGroup::from)
-            .collect::<Vec<_>>(),
-    ]
-    .concat();
-
     (
         [
             de_errs,
-            uog_errs
+            policy_result
+                .invalid_users_and_groups
                 .iter()
                 .map(|uog| {
                     DocAccessEditErr::new(
@@ -1009,8 +997,7 @@ mod tests {
                     master_public_key: Some(pubk.into()),
                 },
             ],
-            invalid_groups: vec![],
-            invalid_users: vec![],
+            invalid_users_and_groups: vec![],
         };
 
         let (errs, results) = process_policy(&policy);
