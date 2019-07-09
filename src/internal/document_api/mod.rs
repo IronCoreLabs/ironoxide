@@ -363,7 +363,7 @@ impl DocumentAccessResult {
 }
 
 /// Either a user or a group. Allows for containing both.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum UserOrGroup {
     User { id: UserId },
     Group { id: GroupId },
@@ -475,6 +475,15 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
         })
 }
 
+/// Remove any duplicates in the grant list. Uses ids (not keys) for comparison.
+fn dedupe_grants(grants: &[WithKey<UserOrGroup>]) -> Vec<WithKey<UserOrGroup>> {
+    grants
+        .iter()
+        .unique_by(|i| &i.id)
+        .map(Clone::clone)
+        .collect_vec()
+}
+
 fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -497,8 +506,12 @@ fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
     } else {
         Ok({
             // encrypt to all the users and groups
-            let (encrypt_errs, grants) =
-                transform::encrypt_to_with_key(recrypt, &dek, &auth.signing_keys().into(), grants);
+            let (encrypt_errs, grants) = transform::encrypt_to_with_key(
+                recrypt,
+                &dek,
+                &auth.signing_keys().into(),
+                dedupe_grants(&grants),
+            );
 
             (
                 grants,
@@ -536,8 +549,8 @@ fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
     })
 }
 
-// Encrypt the provided plaintext using the DEK from the provided document ID but with a new AES IV. Allows updating the encrypted bytes
-// of a document without having to change document access.
+/// Encrypt the provided plaintext using the DEK from the provided document ID but with a new AES IV. Allows updating the encrypted bytes
+/// of a document without having to change document access.
 pub fn document_update_bytes<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -635,7 +648,8 @@ pub fn document_grant_access<'a, CR: rand::CryptoRng + rand::RngCore>(
 
                 let (group_errs, groups_with_key) = process_groups(groups);
                 let (user_errs, users_with_key) = process_users(users);
-                let users_and_groups = [&users_with_key[..], &groups_with_key[..]].concat();
+                let users_and_groups =
+                    dedupe_grants(&[&users_with_key[..], &groups_with_key[..]].concat());
 
                 // encrypt to all the users and groups
                 let (grant_errs, grants) = transform::encrypt_to_with_key(
@@ -666,7 +680,7 @@ pub fn document_grant_access<'a, CR: rand::CryptoRng + rand::RngCore>(
         })
 }
 
-//Remove access to a document from the provided list of users and/or groups
+/// Remove access to a document from the provided list of users and/or groups
 pub fn document_revoke_access<'a>(
     auth: &'a RequestAuth,
     id: &'a DocumentId,
@@ -827,10 +841,10 @@ fn process_policy(
 
 #[cfg(test)]
 mod tests {
-    use base64::decode;
-    use galvanic_assert::matchers::*;
-
     use crate::internal::test::contains;
+    use base64::decode;
+    use galvanic_assert::matchers::collection::*;
+    use galvanic_assert::matchers::*;
 
     use super::*;
 
@@ -979,7 +993,6 @@ mod tests {
             ])
         );
     }
-    use galvanic_assert::matchers::collection::*;
     #[test]
     fn process_policy_good() {
         let mut recrypt = recrypt::api::Recrypt::new();
@@ -1019,5 +1032,23 @@ mod tests {
         };
 
         assert_that!(&results, contains_in_any_order(vec![ex_user, ex_group]));
+    }
+
+    #[test]
+    fn dedupe_grants_removes_dupes() {
+        let mut recrypt = recrypt::api::Recrypt::new();
+        let (_, pubk) = recrypt.generate_key_pair().unwrap();
+
+        let u1 = &UserId::unsafe_from_string("user1".into());
+        let g1 = &GroupId::unsafe_from_string("group1".into());
+        let grants_w_dupes: Vec<WithKey<UserOrGroup>> = vec![
+            WithKey::new(u1.into(), pubk.into()),
+            WithKey::new(g1.into(), pubk.into()),
+            WithKey::new(u1.into(), pubk.into()),
+            WithKey::new(g1.into(), pubk.into()),
+        ];
+
+        let deduplicated_grants = dedupe_grants(&grants_w_dupes);
+        assert_that!(&deduplicated_grants.len(), eq(2))
     }
 }
