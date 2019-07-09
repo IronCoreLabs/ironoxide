@@ -1,8 +1,11 @@
 mod common;
+use crate::common::init_sdk_get_user;
 use common::{create_second_user, init_sdk};
 use galvanic_assert::matchers::collection::*;
+use galvanic_assert::matchers::*;
 use ironoxide::group::GroupCreateOpts;
 use ironoxide::{document::*, prelude::*, IronOxide};
+use itertools::EitherOrBoth;
 use std::convert::{TryFrom, TryInto};
 
 #[cfg(test)]
@@ -77,12 +80,16 @@ fn doc_create_with_explicit_grants() {
 
 #[test]
 fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
-    let mut sdk = init_sdk();
+    let (curr_user, mut sdk) = init_sdk_get_user();
+    let group_id: GroupId = format!("group_{}", curr_user.id()).try_into().unwrap();
+
+    let group_result = sdk.group_create(&GroupCreateOpts::new(group_id.clone().into(), None, true));
+    assert!(group_result.is_ok());
 
     let doc = [0u8; 64];
 
-    let bad_user: UserId = "bad_user".try_into().unwrap();
-    let bad_group: GroupId = "bad_group".try_into().unwrap();
+    //    let bad_user: UserId = "bad_user".try_into().unwrap();
+    //    let bad_group: GroupId = "bad_group".try_into().unwrap();
 
     let doc_result = sdk
         .document_encrypt(
@@ -100,12 +107,21 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
         )
         .unwrap();
 
-    assert_eq!(doc_result.grants().len(), 1);
-    assert_eq!(
-        doc_result.grants()[0],
-        UserOrGroup::User {
-            id: sdk.device().account_id().clone()
-        }
+    assert_eq!(doc_result.grants().len(), 2);
+    assert_that!(
+        &doc_result
+            .grants()
+            .iter()
+            .map(Clone::clone)
+            .collect::<Vec<UserOrGroup>>(),
+        contains_in_any_order(vec![
+            UserOrGroup::User {
+                id: sdk.device().account_id().clone()
+            },
+            UserOrGroup::Group {
+                id: group_id.clone()
+            }
+        ])
     );
     assert_eq!(doc_result.access_errs().len(), 2);
     assert_that!(
@@ -115,13 +131,143 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
             .map(|err| err.user_or_group.clone())
             .collect::<Vec<_>>(),
         contains_in_any_order(vec![
-            UserOrGroup::User { id: bad_user },
-            UserOrGroup::Group { id: bad_group }
+            UserOrGroup::Group {
+                id: "badgroupid_frompolicy".try_into().unwrap()
+            },
+            UserOrGroup::User {
+                id: "baduserid_frompolicy".try_into().unwrap()
+            }
+        ])
+    );
+
+    // now use category, sensitivity, data_subject and substitution_user_id
+    let user2_result = create_second_user();
+    let user2 = user2_result.account_id();
+    let group2_id: GroupId = format!("group_other_{}", user2.id()).try_into().unwrap();
+    let group2_result =
+        sdk.group_create(&GroupCreateOpts::new(group2_id.clone().into(), None, false));
+    assert!(group2_result.is_ok());
+
+    let doc_result2 = sdk
+        .document_encrypt(
+            &doc,
+            &DocumentEncryptOpts::with_policy_grants(
+                None,
+                Some("doc name2".try_into()?),
+                PolicyGrant::new(
+                    Some("HEALTH".try_into()?),
+                    Some("RESTRICTED".try_into()?),
+                    Some("PATIENT".try_into()?),
+                    Some(user2.clone()),
+                )?,
+            ),
+        )
+        .unwrap();
+
+    assert_eq!(doc_result2.grants().len(), 2);
+    assert_that!(
+        &doc_result2
+            .grants()
+            .iter()
+            .map(Clone::clone)
+            .collect::<Vec<UserOrGroup>>(),
+        contains_in_any_order(vec![
+            UserOrGroup::User { id: user2.clone() },
+            UserOrGroup::Group { id: group2_id }
+        ])
+    );
+    assert_eq!(doc_result2.access_errs().len(), 1);
+    assert_that!(
+        &doc_result2
+            .access_errs()
+            .iter()
+            .map(|err| err.user_or_group.clone())
+            .collect::<Vec<_>>(),
+        contains_in_any_order(vec![UserOrGroup::Group {
+            id: "group_id_doctors".try_into().unwrap()
+        },])
+    );
+
+    Ok(())
+}
+#[test]
+fn doc_create_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
+    use std::borrow::Borrow;
+
+    let (curr_user, mut sdk) = init_sdk_get_user();
+    let group_id: GroupId = format!("group_{}", curr_user.id()).try_into().unwrap();
+
+    let group_result = sdk.group_create(&GroupCreateOpts::new(group_id.clone().into(), None, true));
+    assert!(group_result.is_ok());
+
+    //create an explicit group as well
+    let group2_result = sdk.group_create(&Default::default());
+    assert!(group2_result.is_ok());
+    let group2 = group2_result?;
+    let ex_group_id = group2.id();
+
+    let doc = [0u8; 64];
+
+    //    let bad_user: UserId = "bad_user".try_into().unwrap();
+    let bad_group: GroupId = "bad_group".try_into().unwrap();
+
+    let doc_result = sdk
+        .document_encrypt(
+            &doc,
+            &DocumentEncryptOpts::new(
+                None,
+                None,
+                EitherOrBoth::Both(
+                    ExplicitGrant::new(true, &vec![ex_group_id.into(), bad_group.borrow().into()]),
+                    PolicyGrant::new(
+                        Some("PII".try_into()?),
+                        Some("INTERNAL".try_into()?),
+                        None,
+                        None,
+                    )?,
+                ),
+            ),
+        )
+        .unwrap();
+
+    assert_eq!(doc_result.grants().len(), 3);
+    assert_that!(
+        &doc_result
+            .grants()
+            .iter()
+            .map(Clone::clone)
+            .collect::<Vec<UserOrGroup>>(),
+        contains_in_any_order(vec![
+            UserOrGroup::User {
+                id: sdk.device().account_id().clone()
+            },
+            UserOrGroup::Group {
+                id: group_id.clone()
+            },
+            UserOrGroup::Group {
+                id: ex_group_id.clone()
+            }
+        ])
+    );
+    assert_eq!(doc_result.access_errs().len(), 3);
+    assert_that!(
+        &doc_result
+            .access_errs()
+            .iter()
+            .map(|err| err.user_or_group.clone())
+            .collect::<Vec<_>>(),
+        contains_in_any_order(vec![
+            UserOrGroup::Group {
+                id: "badgroupid_frompolicy".try_into().unwrap()
+            },
+            UserOrGroup::User {
+                id: "baduserid_frompolicy".try_into().unwrap()
+            },
+            UserOrGroup::Group { id: bad_group } // bad explicit group
         ])
     );
     Ok(())
 }
-
 #[test]
 fn doc_create_without_self_grant() {
     let mut sdk = init_sdk();

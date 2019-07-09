@@ -262,7 +262,7 @@ pub mod policy_get {
                 .map(|d| (DataSubject::QUERY_PARAM.to_string(), d.0.clone())),
             policy_grant
                 .substitute_id()
-                .map(|s| (SubstituteId::QUERY_PARAM.to_string(), s.0.clone())),
+                .map(|SubstituteId(UserId(u))| (SubstituteId::QUERY_PARAM.to_string(), u.clone())),
         ]
         .to_vec()
         .into_iter()

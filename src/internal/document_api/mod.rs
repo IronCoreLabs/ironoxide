@@ -1,6 +1,7 @@
 use crate::crypto::aes::AesEncryptedValue;
 use crate::document::PolicyGrant;
 use crate::internal::document_api::requests::UserOrGroupWithKey;
+use crate::internal::document_api::UserOrGroup::User;
 use crate::{
     crypto::{aes, transform},
     internal::{
@@ -377,6 +378,18 @@ impl std::fmt::Display for UserOrGroup {
     }
 }
 
+impl From<&UserId> for UserOrGroup {
+    fn from(u: &UserId) -> Self {
+        UserOrGroup::User { id: u.clone() }
+    }
+}
+
+impl From<&GroupId> for UserOrGroup {
+    fn from(g: &GroupId) -> Self {
+        UserOrGroup::Group { id: g.clone() }
+    }
+}
+
 /// List all documents that the current user has the ability to see. Either documents that are encrypted
 /// to them directly (owner) or documents shared to them via user (fromUser) or group (fromGroup).
 pub fn document_list(
@@ -728,59 +741,90 @@ fn process_users(
 fn process_policy(
     policy_result: &PolicyResult,
 ) -> (Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>) {
-    let successes: (Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>) = policy_result
-        .user_or_groups()
-        .into_iter()
-        .partition_map(|uog| match uog {
-            UserOrGroupWithKey::User {
-                id,
-                master_public_key: Some(key),
-            } => {
-                let user = UserOrGroup::User {
-                    // okay since these came back from the service
-                    id: UserId::unsafe_from_string(id.clone()),
-                };
+    let (de_errs, policy_eval_results): (Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>) =
+        policy_result
+            .user_or_groups()
+            .into_iter()
+            .partition_map(|uog| match uog {
+                UserOrGroupWithKey::User {
+                    id,
+                    master_public_key: Some(key),
+                } => {
+                    let user = UserOrGroup::User {
+                        // okay since these came back from the service
+                        id: UserId::unsafe_from_string(id.clone()),
+                    };
 
-                Either::from(
-                    key.clone()
-                        .try_into()
-                        .map(|k| WithKey::new(user.clone(), k))
-                        .map_err(|_e| {
-                            DocAccessEditErr::new(
-                                user,
-                                format!("Error parsing user public key {:?}", &key),
-                            )
-                        }),
-                )
-            }
-            UserOrGroupWithKey::Group {
-                id,
-                master_public_key: Some(key),
-            } => {
-                let group = UserOrGroup::Group {
-                    // okay since these came back from the service
-                    id: GroupId::unsafe_from_string(id.clone()),
-                };
+                    Either::from(
+                        key.clone()
+                            .try_into()
+                            .map(|k| WithKey::new(user.clone(), k))
+                            .map_err(|_e| {
+                                DocAccessEditErr::new(
+                                    user,
+                                    format!("Error parsing user public key {:?}", &key),
+                                )
+                            }),
+                    )
+                }
+                UserOrGroupWithKey::Group {
+                    id,
+                    master_public_key: Some(key),
+                } => {
+                    let group = UserOrGroup::Group {
+                        // okay since these came back from the service
+                        id: GroupId::unsafe_from_string(id.clone()),
+                    };
 
-                Either::from(
-                    key.clone()
-                        .try_into()
-                        .map(|k| WithKey::new(group.clone(), k))
-                        .map_err(|_e| {
-                            DocAccessEditErr::new(
-                                group,
-                                format!("Error parsing group public key {:?}", &key),
-                            )
-                        }),
-                )
-            }
+                    Either::from(
+                        key.clone()
+                            .try_into()
+                            .map(|k| WithKey::new(group.clone(), k))
+                            .map_err(|_e| {
+                                DocAccessEditErr::new(
+                                    group,
+                                    format!("Error parsing group public key {:?}", &key),
+                                )
+                            }),
+                    )
+                }
 
-            any => Either::Left(DocAccessEditErr::new(
-                any.clone().into(),
-                "User or group does not have associated public key".to_string(),
-            )),
-        });
-    successes
+                any => Either::Left(DocAccessEditErr::new(
+                    any.clone().into(),
+                    "User or group does not have associated public key".to_string(),
+                )),
+            });
+
+    let uog_errs = [
+        policy_result
+            .invalid_users
+            .iter()
+            .map(UserOrGroup::from)
+            .collect::<Vec<_>>(),
+        policy_result
+            .invalid_groups
+            .iter()
+            .map(UserOrGroup::from)
+            .collect::<Vec<_>>(),
+    ]
+    .concat();
+
+    (
+        [
+            de_errs,
+            uog_errs
+                .iter()
+                .map(|uog| {
+                    DocAccessEditErr::new(
+                        uog.clone(),
+                        format!("Policy refers to unknown user or group '{}'", &uog),
+                    )
+                })
+                .collect(),
+        ]
+        .concat(),
+        policy_eval_results,
+    )
 }
 
 #[cfg(test)]

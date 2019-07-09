@@ -12,7 +12,7 @@ use crate::{
     },
     IronOxideErr, Result,
 };
-use itertools::{Either, Itertools};
+use itertools::{Either, EitherOrBoth, Itertools};
 use std::convert::TryFrom;
 use tokio::runtime::current_thread::Runtime;
 
@@ -21,8 +21,7 @@ use tokio::runtime::current_thread::Runtime;
 pub struct DocumentEncryptOpts {
     id: Option<DocumentId>,
     name: Option<DocumentName>,
-    explicit_grants: Option<ExplicitGrant>,
-    policy_grants: Option<PolicyGrant>,
+    grants: EitherOrBoth<ExplicitGrant, PolicyGrant>,
 }
 #[derive(Debug, PartialEq, Clone)]
 pub struct ExplicitGrant {
@@ -30,12 +29,66 @@ pub struct ExplicitGrant {
     grants: Vec<UserOrGroup>,
 }
 
+impl ExplicitGrant {
+    pub fn new(grant_to_author: bool, grants: &[UserOrGroup]) -> ExplicitGrant {
+        ExplicitGrant {
+            grant_to_author,
+            grants: grants.to_vec(),
+        }
+    }
+}
+
+impl<'a> DocumentEncryptOpts {
+    pub fn new(
+        id: Option<DocumentId>,
+        name: Option<DocumentName>,
+        grants: EitherOrBoth<ExplicitGrant, PolicyGrant>,
+    ) -> DocumentEncryptOpts {
+        DocumentEncryptOpts { grants, name, id }
+    }
+    pub fn with_explicit_grants(
+        id: Option<DocumentId>,
+        name: Option<DocumentName>,
+        grant_to_author: bool,
+        grants: Vec<UserOrGroup>,
+    ) -> DocumentEncryptOpts {
+        DocumentEncryptOpts {
+            id,
+            name,
+            grants: EitherOrBoth::Left(ExplicitGrant {
+                grants,
+                grant_to_author,
+            }),
+        }
+    }
+
+    pub fn with_policy_grants(
+        id: Option<DocumentId>,
+        name: Option<DocumentName>,
+        policy: PolicyGrant,
+    ) -> DocumentEncryptOpts {
+        DocumentEncryptOpts {
+            id,
+            name,
+            grants: EitherOrBoth::Right(policy),
+        }
+    }
+}
+
+/// Document access granted by a policy.
+///
+/// A policy is stored on the server and yields a list of users and groups when applied.
+///
+/// `category` -
+/// `sensitivity` -
+/// `data_subject` -
+/// `substitute_id` -
 #[derive(Debug, PartialEq, Clone)]
 pub struct PolicyGrant {
     category: Option<Category>,
     sensitivity: Option<Sensitivity>,
     data_subject: Option<DataSubject>,
-    substitute_id: Option<SubstituteId>,
+    substitute_user_id: Option<SubstituteId>,
 }
 
 impl PolicyGrant {
@@ -43,17 +96,17 @@ impl PolicyGrant {
         category: Option<Category>,
         sensitivity: Option<Sensitivity>,
         data_subject: Option<DataSubject>,
-        substitute_id: Option<SubstituteId>,
+        substitute_user: Option<UserId>,
     ) -> Result<PolicyGrant> {
-        //TODO test
-        if let (None, None, None, None) = (&category, &sensitivity, &data_subject, &substitute_id) {
+        if let (None, None, None, None) = (&category, &sensitivity, &data_subject, &substitute_user)
+        {
             Err(IronOxideErr::InvalidPolicy)
         } else {
             Ok(PolicyGrant {
                 category,
                 sensitivity,
                 data_subject,
-                substitute_id,
+                substitute_user_id: substitute_user.map(|u| u.into()),
             })
         }
     }
@@ -70,7 +123,7 @@ impl PolicyGrant {
         self.data_subject.as_ref()
     }
     pub fn substitute_id(&self) -> Option<&SubstituteId> {
-        self.substitute_id.as_ref()
+        self.substitute_user_id.as_ref()
     }
 }
 
@@ -120,52 +173,17 @@ impl DataSubject {
     pub(crate) const QUERY_PARAM: &'static str = "dataSubject";
 }
 
-//TODO
 #[derive(Debug, PartialEq, Clone)]
-pub struct SubstituteId(pub(crate) String);
+pub struct SubstituteId(pub(crate) UserId);
 
-impl TryFrom<&str> for SubstituteId {
-    type Error = IronOxideErr;
-
-    fn try_from(value: &str) -> Result<Self> {
-        unimplemented!()
+impl From<UserId> for SubstituteId {
+    fn from(u: UserId) -> Self {
+        SubstituteId(u)
     }
 }
 
 impl SubstituteId {
-    pub(crate) const QUERY_PARAM: &'static str = "substituteId";
-}
-
-impl<'a> DocumentEncryptOpts {
-    pub fn with_explicit_grants(
-        id: Option<DocumentId>,
-        name: Option<DocumentName>,
-        grant_to_author: bool,
-        grants: Vec<UserOrGroup>,
-    ) -> DocumentEncryptOpts {
-        DocumentEncryptOpts {
-            id,
-            name,
-            explicit_grants: Some(ExplicitGrant {
-                grant_to_author,
-                grants,
-            }),
-            policy_grants: None,
-        }
-    }
-
-    pub fn with_policy_grants(
-        id: Option<DocumentId>,
-        name: Option<DocumentName>,
-        policy: PolicyGrant,
-    ) -> DocumentEncryptOpts {
-        DocumentEncryptOpts {
-            id,
-            name,
-            explicit_grants: None,
-            policy_grants: Some(policy),
-        }
-    }
+    pub(crate) const QUERY_PARAM: &'static str = "id";
 }
 impl Default for DocumentEncryptOpts {
     fn default() -> Self {
@@ -318,12 +336,22 @@ impl DocumentOps for crate::IronOxide {
         let mut rt = Runtime::new().unwrap();
         let encrypt_opts = encrypt_opts.clone();
 
-        let (user_grants, group_grants) = encrypt_opts
-            .explicit_grants
-            .clone()
-            .map_or((vec![], vec![]), |ex_grant| {
-                partition_user_or_group(&ex_grant.grants)
-            });
+        let (ex_users, ex_groups, grant_to_author, policy_grants) = match encrypt_opts.grants {
+            EitherOrBoth::Left(explicit_grants) => {
+                let (users, groups) = partition_user_or_group(&explicit_grants.grants);
+                (users, groups, explicit_grants.grant_to_author, None)
+            }
+            EitherOrBoth::Right(policy_grant) => (vec![], vec![], false, Some(policy_grant)),
+            EitherOrBoth::Both(explicit_grants, policy_grant) => {
+                let (users, groups) = partition_user_or_group(&explicit_grants.grants);
+                (
+                    users,
+                    groups,
+                    explicit_grants.grant_to_author,
+                    Some(policy_grant),
+                )
+            }
+        };
 
         rt.block_on(document_api::encrypt_document(
             self.device.auth(),
@@ -333,12 +361,10 @@ impl DocumentOps for crate::IronOxide {
             document_data,
             encrypt_opts.id,
             encrypt_opts.name,
-            encrypt_opts
-                .explicit_grants
-                .map_or(false, |ex_grant| ex_grant.grant_to_author),
-            &user_grants,
-            &group_grants,
-            encrypt_opts.policy_grants.as_ref(),
+            grant_to_author,
+            &ex_users,
+            &ex_groups,
+            policy_grants.as_ref(),
         ))
     }
 
@@ -426,4 +452,21 @@ fn partition_user_or_group(uog_slice: &[UserOrGroup]) -> (Vec<UserId>, Vec<Group
             UserOrGroup::User { id } => Either::Left(id.clone()),
             UserOrGroup::Group { id } => Either::Right(id.clone()),
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::internal::test::contains;
+    use galvanic_assert::matchers::*;
+
+    #[test]
+    fn create_invalid_policy_grant() {
+        let result = PolicyGrant::new(None, None, None, None);
+        assert_that!(&result, is_variant!(Err));
+        assert_that!(
+            &result,
+            has_structure!(Err[eq(IronOxideErr::InvalidPolicy)])
+        );
+    }
 }
