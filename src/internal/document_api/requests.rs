@@ -228,7 +228,7 @@ pub mod document_create {
 
 pub mod policy_get {
     use super::*;
-    use crate::document::{Category, DataSubject, PolicyGrant, Sensitivity, SubstituteId};
+    use crate::policy::{Category, DataSubject, PolicyGrant, Sensitivity, SubstituteId};
 
     #[derive(Deserialize, Debug, Clone)]
     #[serde(rename_all = "camelCase")]
@@ -241,7 +241,6 @@ pub mod policy_get {
         auth: &RequestAuth,
         policy_grant: &PolicyGrant,
     ) -> impl Future<Item = PolicyResult, Error = IronOxideErr> {
-        dbg!(&policy_grant);
         let query_params: Vec<(String, String)> = [
             policy_grant
                 .category()

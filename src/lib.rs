@@ -51,8 +51,8 @@ pub mod group;
 /// SDK user operations
 pub mod user;
 
-/// Polcicy types and operations
-//pub mod policy;
+/// Policy types
+pub mod policy;
 
 /// Convenience re-export of essential IronOxide types
 pub mod prelude;

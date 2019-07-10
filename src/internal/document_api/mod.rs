@@ -1,6 +1,6 @@
 use crate::crypto::aes::AesEncryptedValue;
-use crate::document::PolicyGrant;
 use crate::internal::document_api::requests::UserOrGroupWithKey;
+use crate::policy::PolicyGrant;
 use crate::{
     crypto::{aes, transform},
     internal::{
@@ -451,7 +451,6 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
             } else {
                 [&users_with_key[..], &groups_with_key[..]].concat()
             };
-            dbg!(&maybe_policy_res);
             let (policy_errs, applied_policy_grants) = match maybe_policy_res {
                 None => (vec![], vec![]),
                 Some(res) => process_policy(&res),

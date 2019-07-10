@@ -148,27 +148,6 @@ pub fn validate_id(id: &str, id_type: &str) -> Result<String, IronOxideErr> {
     }
 }
 
-pub fn validate_simple_policy_field_id(
-    field_id: &str,
-    field_type: &str,
-) -> Result<String, IronOxideErr> {
-    let simple_policy_field_regex = Regex::new("^[A-Za-z0-9_-]+$").expect("regex is valid");
-    let trimmed_id = field_id.trim();
-    if trimmed_id.is_empty() || trimmed_id.len() > NAME_AND_ID_MAX_LEN {
-        Err(IronOxideErr::ValidationError(
-            field_type.to_string(),
-            format!("'{}' must have length between 1 and 100", trimmed_id),
-        ))
-    } else if !simple_policy_field_regex.is_match(trimmed_id) {
-        Err(IronOxideErr::ValidationError(
-            field_type.to_string(),
-            format!("'{}' contains invalid characters", trimmed_id),
-        ))
-    } else {
-        Ok(trimmed_id.to_string())
-    }
-}
-
 /// Validate that the provided document/group name is valid. Ensures that the length of
 /// the name is between 1-100 characters. Also takes the readable type of the name for
 /// usage within any resulting error messages.
@@ -703,71 +682,6 @@ pub(crate) mod test {
             is_variant!(IronOxideErr::ValidationError)
         );
         assert_that!(&format!("{}", validation_error), contains(name_type));
-    }
-
-    #[test]
-    fn validate_simple_policy_id_good() {
-        let name_type = "name_type";
-        let id = "abc-123";
-        let result = validate_simple_policy_field_id(id, name_type);
-        assert_that!(&result, is_variant!(Ok));
-
-        let id = "SIMPLE_2";
-        let result = validate_simple_policy_field_id(id, name_type);
-        assert_that!(&result, is_variant!(Ok));
-
-        let id = "LOTS-O-CHARS_012345678901234567890123456789012345678901234567890123456789012345678901234567890123456";
-        let result = validate_simple_policy_field_id(id, name_type);
-        assert_that!(&result, is_variant!(Ok))
-    }
-
-    #[test]
-    fn validate_simple_policy_id_invalid_chars() {
-        let name_type = "name_type";
-
-        // very limited special chars
-        let invalid = "abc!123";
-        let result = validate_simple_policy_field_id(invalid, name_type);
-        assert_that!(&result, is_variant!(Err));
-        let validation_error = result.unwrap_err();
-        assert_that!(
-            &validation_error,
-            is_variant!(IronOxideErr::ValidationError)
-        );
-
-        //no unicode
-        let invalid = "❤HEART❤";
-        let result = validate_simple_policy_field_id(invalid, name_type);
-        assert_that!(&result, is_variant!(Err));
-        let validation_error = result.unwrap_err();
-        assert_that!(
-            &validation_error,
-            is_variant!(IronOxideErr::ValidationError)
-        );
-
-        // no spaces
-        let invalid = "spaces not allowed";
-        let result = validate_simple_policy_field_id(invalid, name_type);
-        assert_that!(&result, is_variant!(Err));
-        let validation_error = result.unwrap_err();
-        assert_that!(
-            &validation_error,
-            is_variant!(IronOxideErr::ValidationError)
-        );
-    }
-
-    #[test]
-    fn validate_simple_policy_id_invalid_length() {
-        let name_type = "name_type";
-        let invalid = "too many chars 012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789";
-        let result = validate_simple_policy_field_id(invalid, name_type);
-        assert_that!(&result, is_variant!(Err));
-        let validation_error = result.unwrap_err();
-        assert_that!(
-            &validation_error,
-            is_variant!(IronOxideErr::ValidationError)
-        );
-        assert_that!(&format!("{}", validation_error), contains("100"));
     }
 
     #[test]
