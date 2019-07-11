@@ -48,11 +48,14 @@ pub mod document;
 /// SDK group operations
 pub mod group;
 
-/// Convenience re-export of essential IronOxide types
-pub mod prelude;
-
 /// SDK user operations
 pub mod user;
+
+/// Policy types
+pub mod policy;
+
+/// Convenience re-export of essential IronOxide types
+pub mod prelude;
 
 pub use crate::internal::{
     DeviceContext, DeviceSigningKeyPair, IronOxideErr, KeyPair, PrivateKey, PublicKey,

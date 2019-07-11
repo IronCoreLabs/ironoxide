@@ -9,9 +9,10 @@ use crate::{
         group_api::GroupId,
         user_api::UserId,
     },
+    policy::*,
     Result,
 };
-use itertools::{Either, Itertools};
+use itertools::{Either, EitherOrBoth, Itertools};
 use tokio::runtime::current_thread::Runtime;
 
 /// Optional parameters that can be provided when encrypting a new document.
@@ -19,12 +20,32 @@ use tokio::runtime::current_thread::Runtime;
 pub struct DocumentEncryptOpts {
     id: Option<DocumentId>,
     name: Option<DocumentName>,
+    grants: EitherOrBoth<ExplicitGrant, PolicyGrant>,
+}
+#[derive(Debug, PartialEq, Clone)]
+pub struct ExplicitGrant {
     grant_to_author: bool,
     grants: Vec<UserOrGroup>,
 }
 
+impl ExplicitGrant {
+    pub fn new(grant_to_author: bool, grants: &[UserOrGroup]) -> ExplicitGrant {
+        ExplicitGrant {
+            grant_to_author,
+            grants: grants.to_vec(),
+        }
+    }
+}
+
 impl<'a> DocumentEncryptOpts {
     pub fn new(
+        id: Option<DocumentId>,
+        name: Option<DocumentName>,
+        grants: EitherOrBoth<ExplicitGrant, PolicyGrant>,
+    ) -> DocumentEncryptOpts {
+        DocumentEncryptOpts { grants, name, id }
+    }
+    pub fn with_explicit_grants(
         id: Option<DocumentId>,
         name: Option<DocumentName>,
         grant_to_author: bool,
@@ -33,14 +54,30 @@ impl<'a> DocumentEncryptOpts {
         DocumentEncryptOpts {
             id,
             name,
-            grant_to_author,
-            grants,
+            grants: EitherOrBoth::Left(ExplicitGrant {
+                grants,
+                grant_to_author,
+            }),
+        }
+    }
+
+    pub fn with_policy_grants(
+        id: Option<DocumentId>,
+        name: Option<DocumentName>,
+        policy: PolicyGrant,
+    ) -> DocumentEncryptOpts {
+        DocumentEncryptOpts {
+            id,
+            name,
+            grants: EitherOrBoth::Right(policy),
         }
     }
 }
+
 impl Default for DocumentEncryptOpts {
+    /// default to only sharing with the creator of the document
     fn default() -> Self {
-        DocumentEncryptOpts::new(None, None, true, vec![])
+        DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![])
     }
 }
 
@@ -174,7 +211,23 @@ impl DocumentOps for crate::IronOxide {
         let mut rt = Runtime::new().unwrap();
         let encrypt_opts = encrypt_opts.clone();
 
-        let (user_grants, group_grants) = partition_user_or_group(&encrypt_opts.grants);
+        let (explicit_users, explicit_groups, grant_to_author, policy_grants) =
+            match encrypt_opts.grants {
+                EitherOrBoth::Left(explicit_grants) => {
+                    let (users, groups) = partition_user_or_group(&explicit_grants.grants);
+                    (users, groups, explicit_grants.grant_to_author, None)
+                }
+                EitherOrBoth::Right(policy_grant) => (vec![], vec![], false, Some(policy_grant)),
+                EitherOrBoth::Both(explicit_grants, policy_grant) => {
+                    let (users, groups) = partition_user_or_group(&explicit_grants.grants);
+                    (
+                        users,
+                        groups,
+                        explicit_grants.grant_to_author,
+                        Some(policy_grant),
+                    )
+                }
+            };
 
         rt.block_on(document_api::encrypt_document(
             self.device.auth(),
@@ -184,9 +237,10 @@ impl DocumentOps for crate::IronOxide {
             document_data,
             encrypt_opts.id,
             encrypt_opts.name,
-            encrypt_opts.grant_to_author,
-            &user_grants,
-            &group_grants,
+            grant_to_author,
+            &explicit_users,
+            &explicit_groups,
+            policy_grants.as_ref(),
         ))
     }
 

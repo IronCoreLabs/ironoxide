@@ -42,6 +42,19 @@ pub enum UserOrGroupWithKey {
     },
 }
 
+impl From<UserOrGroupWithKey> for UserOrGroup {
+    fn from(with_key: UserOrGroupWithKey) -> Self {
+        match with_key {
+            UserOrGroupWithKey::User { id, .. } => UserOrGroup::User {
+                id: UserId::unsafe_from_string(id),
+            },
+            UserOrGroupWithKey::Group { id, .. } => UserOrGroup::Group {
+                id: GroupId::unsafe_from_string(id),
+            },
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AccessGrant {
@@ -85,13 +98,13 @@ impl From<&AccessGrant> for UserOrGroup {
                 user_or_group: UserOrGroupWithKey::User { id, .. },
                 ..
             } => UserOrGroup::User {
-                id: UserId(id.clone()),
+                id: UserId::unsafe_from_string(id.clone()),
             },
             AccessGrant {
                 user_or_group: UserOrGroupWithKey::Group { id, .. },
                 ..
             } => UserOrGroup::Group {
-                id: GroupId(id.clone()),
+                id: GroupId::unsafe_from_string(id.clone()),
             },
         }
     }
@@ -213,6 +226,49 @@ pub mod document_create {
     }
 }
 
+pub mod policy_get {
+    use super::*;
+    use crate::policy::{Category, DataSubject, PolicyGrant, Sensitivity, SubstituteId};
+
+    #[derive(Deserialize, Debug, Clone)]
+    #[serde(rename_all = "camelCase")]
+    pub struct PolicyResult {
+        pub(crate) users_and_groups: Vec<UserOrGroupWithKey>,
+        pub(crate) invalid_users_and_groups: Vec<UserOrGroup>,
+    }
+
+    pub fn policy_get_request(
+        auth: &RequestAuth,
+        policy_grant: &PolicyGrant,
+    ) -> impl Future<Item = PolicyResult, Error = IronOxideErr> {
+        let query_params: Vec<(String, String)> = [
+            policy_grant
+                .category()
+                .map(|c| (Category::QUERY_PARAM.to_string(), c.0.clone())),
+            policy_grant
+                .sensitivity()
+                .map(|s| (Sensitivity::QUERY_PARAM.to_string(), s.0.clone())),
+            policy_grant
+                .data_subject()
+                .map(|d| (DataSubject::QUERY_PARAM.to_string(), d.0.clone())),
+            policy_grant
+                .substitute_id()
+                .map(|SubstituteId(UserId(u))| (SubstituteId::QUERY_PARAM.to_string(), u.clone())),
+        ]
+        .to_vec()
+        .into_iter()
+        .flatten()
+        .collect();
+        auth.request.get_with_query_params(
+            "policies",
+            &query_params,
+            RequestErrorCode::PolicyGet,
+            &auth.create_signature(Utc::now()),
+        )
+    }
+
+}
+
 pub mod document_update {
     use super::*;
 
@@ -285,9 +341,9 @@ pub mod document_access {
         impl From<UserOrGroupAccess> for UserOrGroup {
             fn from(uog: UserOrGroupAccess) -> Self {
                 match uog {
-                    UserOrGroupAccess::User { id } => {
-                        UserOrGroup::User { id: UserId(id) } //not validating here
-                    }
+                    UserOrGroupAccess::User { id } => UserOrGroup::User {
+                        id: UserId::unsafe_from_string(id),
+                    },
                     UserOrGroupAccess::Group { id } => {
                         UserOrGroup::Group { id: GroupId(id) } //not validating here
                     }

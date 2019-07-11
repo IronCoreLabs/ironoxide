@@ -6,8 +6,11 @@ use chrono::{DateTime, Utc};
 use futures::prelude::*;
 use itertools::{Either, Itertools};
 use recrypt::prelude::*;
-use std::convert::{TryFrom, TryInto};
-use std::{collections::HashMap, result::Result};
+use std::{
+    collections::HashMap,
+    convert::{TryFrom, TryInto},
+    result::Result,
+};
 
 /// private module that handles interaction with ironcore-id
 mod requests;
@@ -18,6 +21,11 @@ pub struct UserId(pub(crate) String);
 impl UserId {
     pub fn id(&self) -> &String {
         &self.0
+    }
+
+    /// Create a UserId from a string with no validation. Useful for ids coming back from the web service.
+    pub fn unsafe_from_string(id: String) -> UserId {
+        UserId(id)
     }
 }
 impl TryFrom<String> for UserId {
@@ -322,7 +330,7 @@ pub fn user_key_list<'a>(
                     let maybe_pub_key = PublicKey::try_from(user.user_master_public_key.clone());
                     maybe_pub_key.into_iter().for_each(|pub_key| {
                         //We asked the api for valid user ids. We're assuming here that the response has valid user ids.
-                        acc.insert(UserId(user.id.clone()), pub_key);
+                        acc.insert(UserId::unsafe_from_string(user.id.clone()), pub_key);
                     });
                     acc
                 })

@@ -122,10 +122,11 @@ impl<'a> IronCoreRequest<'a> {
         error_code: RequestErrorCode,
         auth: &Authorization,
     ) -> impl Future<Item = B, Error = IronOxideErr> {
-        self.request(
+        self.request::<A, _, String, _>(
             relative_url,
             Method::POST,
             Some(body),
+            None,
             error_code,
             auth.to_header(),
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
@@ -141,10 +142,11 @@ impl<'a> IronCoreRequest<'a> {
         error_code: RequestErrorCode,
         auth: &Authorization,
     ) -> impl Future<Item = B, Error = IronOxideErr> {
-        self.request(
+        self.request::<A, _, String, _>(
             relative_url,
             Method::PUT,
             Some(body),
+            None,
             error_code,
             auth.to_header(),
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
@@ -160,10 +162,32 @@ impl<'a> IronCoreRequest<'a> {
         auth: &Authorization,
     ) -> impl Future<Item = A, Error = IronOxideErr> {
         //A little lie here, String isn't actually the body type as it's unused
-        self.request::<String, _, _>(
+        self.request::<String, _, String, _>(
             relative_url,
             Method::GET,
             None,
+            None,
+            error_code,
+            auth.to_header(),
+            move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
+        )
+    }
+
+    ///GET the resource at relative_url using auth for authorization.
+    ///If the request fails a RequestError will be raised.
+    pub fn get_with_query_params<A: DeserializeOwned>(
+        &self,
+        relative_url: &str,
+        query_params: &[(String, String)],
+        error_code: RequestErrorCode,
+        auth: &Authorization,
+    ) -> impl Future<Item = A, Error = IronOxideErr> {
+        //A little lie here, String isn't actually the body type as it's unused
+        self.request::<String, _, [(String, String)], _>(
+            relative_url,
+            Method::GET,
+            None,
+            Some(query_params),
             error_code,
             auth.to_header(),
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
@@ -178,9 +202,10 @@ impl<'a> IronCoreRequest<'a> {
         auth: &Authorization,
     ) -> impl Future<Item = Option<A>, Error = IronOxideErr> {
         //A little lie here, String isn't actually the body type as it's unused
-        self.request::<String, _, _>(
+        self.request::<String, _, String, _>(
             relative_url,
             Method::GET,
+            None,
             None,
             error_code,
             auth.to_header(),
@@ -203,37 +228,25 @@ impl<'a> IronCoreRequest<'a> {
         error_code: RequestErrorCode,
         auth: &Authorization,
     ) -> impl Future<Item = B, Error = IronOxideErr> {
-        self.request(
+        self.request::<A, _, String, _>(
             relative_url,
             Method::DELETE,
             Some(body),
+            None,
             error_code,
             auth.to_header(),
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
     }
 
-    pub fn delete_with_no_body<B: DeserializeOwned>(
-        &self,
-        relative_url: &str,
-        error_code: RequestErrorCode,
-        auth: &Authorization,
-    ) -> impl Future<Item = B, Error = IronOxideErr> {
-        self.delete(
-            relative_url,
-            &PhantomData::<u8>, // BS type, maybe there's a better way?
-            error_code,
-            auth,
-        )
-    }
-
     ///Make a request to the url using the specified method. DEFAULT_HEADERS will be used as well as whatever headers are passed
     /// in. The response will be sent to `resp_handler` so the caller can make the received bytes however they want.
-    pub fn request<A, B, F>(
+    pub fn request<A, B, Q, F>(
         &self,
         relative_url: &str,
         method: Method,
         maybe_body: Option<&A>,
+        maybe_query_params: Option<&Q>,
         error_code: RequestErrorCode,
         headers: HeaderMap,
         resp_handler: F,
@@ -241,6 +254,7 @@ impl<'a> IronCoreRequest<'a> {
     where
         A: Serialize,
         B: DeserializeOwned,
+        Q: Serialize + ?Sized,
         F: FnOnce(&Chunk) -> Result<B, IronOxideErr>,
     {
         let client = RClient::new();
@@ -248,15 +262,18 @@ impl<'a> IronCoreRequest<'a> {
             method,
             format!("{}{}", self.base_url, relative_url).as_str(),
         );
+        // add query params, if any
+        builder = maybe_query_params
+            .iter()
+            .fold(builder, |build, q| build.query(q));
+
         //We want to add the body as json if it was specified
         builder = maybe_body
             .iter()
             .fold(builder, |build, body| build.json(body));
 
-        builder
-            .headers(DEFAULT_HEADERS.clone())
-            .headers(headers)
-            .send()
+        let req = builder.headers(DEFAULT_HEADERS.clone()).headers(headers);
+        req.send()
             //Parse the body content into bytes
             .and_then(|res| {
                 let status_code = res.status();
@@ -281,6 +298,20 @@ impl<'a> IronCoreRequest<'a> {
                     resp_handler(&server_resp)
                 }
             })
+    }
+
+    pub fn delete_with_no_body<B: DeserializeOwned>(
+        &self,
+        relative_url: &str,
+        error_code: RequestErrorCode,
+        auth: &Authorization,
+    ) -> impl Future<Item = B, Error = IronOxideErr> {
+        self.delete(
+            relative_url,
+            &PhantomData::<u8>, // BS type, maybe there's a better way?
+            error_code,
+            auth,
+        )
     }
 
     ///Deserialize the body of the response into a Result.

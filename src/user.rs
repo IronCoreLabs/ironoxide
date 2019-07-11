@@ -9,8 +9,7 @@ use crate::{
     DeviceContext, IronOxide, Result,
 };
 use recrypt::api::Recrypt;
-use std::collections::HashMap;
-use std::convert::TryInto;
+use std::{collections::HashMap, convert::TryInto};
 use tokio::runtime::current_thread::Runtime;
 
 /// Optional parameters for creating a new device instance.

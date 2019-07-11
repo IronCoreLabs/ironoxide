@@ -53,6 +53,7 @@ pub enum RequestErrorCode {
     DocumentUpdate,
     DocumentGrantAccess,
     DocumentRevokeAccess,
+    PolicyGet,
 }
 
 quick_error! {
@@ -130,7 +131,7 @@ const NAME_AND_ID_MAX_LEN: usize = 100;
 /// ID has a length and that it matches our restricted set of characters. Also takes the readable
 /// type of ID for usage within any resulting error messages.
 pub fn validate_id(id: &str, id_type: &str) -> Result<String, IronOxideErr> {
-    let id_regex = Regex::new("^[a-zA-Z0-9_.$#|@/:;=+'-]+$").unwrap();
+    let id_regex = Regex::new("^[a-zA-Z0-9_.$#|@/:;=+'-]+$").expect("regex is valid");
     let trimmed_id = id.trim();
     if trimmed_id.is_empty() || trimmed_id.len() > NAME_AND_ID_MAX_LEN {
         Err(IronOxideErr::ValidationError(
@@ -507,7 +508,7 @@ impl TryFrom<&str> for Password {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct WithKey<T> {
     pub(crate) id: T,
     pub(crate) public_key: PublicKey,

@@ -1,18 +1,24 @@
 use crate::{
-    crypto::{aes, transform},
+    crypto::{
+        aes::{self, AesEncryptedValue},
+        transform,
+    },
     internal::{
         self,
+        document_api::requests::UserOrGroupWithKey,
         group_api::{GroupId, GroupName},
         user_api::UserId,
         validate_id, validate_name, IronOxideErr, PrivateKey, PublicKey, RequestAuth, WithKey,
     },
+    policy::PolicyGrant,
 };
 use chrono::{DateTime, Utc};
 use futures::prelude::*;
 use hex::encode;
-use itertools::Itertools;
+use itertools::{Either, Itertools};
 use rand::{self, CryptoRng, RngCore};
-use recrypt::prelude::*;
+use recrypt::{api::Plaintext, prelude::*};
+pub use requests::policy_get::PolicyResult;
 use requests::{
     document_create,
     document_list::{DocumentListApiResponse, DocumentListApiResponseItem},
@@ -357,7 +363,8 @@ impl DocumentAccessResult {
 }
 
 /// Either a user or a group. Allows for containing both.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
 pub enum UserOrGroup {
     User { id: UserId },
     Group { id: GroupId },
@@ -369,6 +376,18 @@ impl std::fmt::Display for UserOrGroup {
             UserOrGroup::User { id } => write!(f, "'{}' [user]", &id.0),
             UserOrGroup::Group { id } => write!(f, "'{}' [group]", &id.0),
         }
+    }
+}
+
+impl From<&UserId> for UserOrGroup {
+    fn from(u: &UserId) -> Self {
+        UserOrGroup::User { id: u.clone() }
+    }
+}
+
+impl From<&GroupId> for UserOrGroup {
+    fn from(g: &GroupId) -> Self {
+        UserOrGroup::Group { id: g.clone() }
     }
 }
 
@@ -397,7 +416,7 @@ pub fn get_id_from_bytes(encrypted_document: &[u8]) -> Result<DocumentId, IronOx
     parse_document_parts(&encrypted_document).map(|header| header.0.document_id)
 }
 
-/// Encrypt a new document and share it with the current user, plus any other arbitrary users or groups
+/// Encrypt a new document and share it with explicit users or groups, and with users and group specified by a policy
 pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -409,18 +428,20 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
     grant_to_author: bool,
     user_grants: &'a Vec<UserId>,
     group_grants: &'a Vec<GroupId>,
+    policy_grant: Option<&PolicyGrant>,
 ) -> impl Future<Item = DocumentEncryptResult, Error = IronOxideErr> + 'a {
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
     let doc_id = document_id.unwrap_or(DocumentId::goo_id(rng));
     internal::user_api::get_user_keys(auth, user_grants)
-        .join3(
+        .join4(
             internal::group_api::get_group_keys(auth, group_grants),
+            policy_grant.map(|p| requests::policy_get::policy_get_request(auth, p)),
             aes::encrypt_future(rng, &plaintext.to_vec(), *doc_sym_key.bytes()),
         )
-        .and_then(move |(users, groups, encrypted_doc)| {
+        .and_then(move |(users, groups, maybe_policy_res, encrypted_doc)| {
             let (group_errs, groups_with_key) = process_groups(groups);
             let (user_errs, users_with_key) = process_users(users);
-            let grant_list = if grant_to_author {
+            let explicit_grants = if grant_to_author {
                 let self_grant = WithKey::new(
                     UserOrGroup::User {
                         id: auth.account_id.clone(),
@@ -431,62 +452,107 @@ pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
             } else {
                 [&users_with_key[..], &groups_with_key[..]].concat()
             };
+            let (policy_errs, applied_policy_grants) = match maybe_policy_res {
+                None => (vec![], vec![]),
+                Some(res) => process_policy(&res),
+            };
 
-            // check to make sure that we are granting to something. self would be here already if it
-            // should be included
-            if grant_list.is_empty() {
-                Err(IronOxideErr::ValidationError(
-                    "grant_to_author".to_string(),
-                    "grant_to_author cannot be false if there are no explicit grants".to_string(),
-                ))
-            } else {
-                Ok({
-                    // encrypt to all the users and groups
-                    let (encrypt_errs, grants) = transform::encrypt_to_with_key(
-                        recrypt,
-                        &dek,
-                        &auth.signing_keys().into(),
-                        grant_list,
-                    );
+            // squish all accumulated errors into one list
+            let other_errs = vec![group_errs, user_errs, policy_errs]
+                .into_iter()
+                .concat();
 
-                    // squish all accumulated errors into one list
-                    let other_errs = vec![
-                        group_errs,
-                        user_errs,
-                        encrypt_errs.into_iter().map(|e| e.into()).collect(),
-                    ]
-                    .into_iter()
-                    .concat();
-                    (grants, encrypted_doc, other_errs)
-                })
-            }
-        })
-        .and_then(move |(grants, encrypted_doc, other_errs)| {
-            //We want to grab a copy of the documentId before we make the call so we can propagate it to the next map.
-            document_create::document_create_request(auth, doc_id.clone(), document_name, grants)
-                .map(|resp| (doc_id, resp, encrypted_doc, other_errs))
-        })
-        .map(move |(doc_id, api_resp, encrypted_doc, all_errs)| {
-            //Generate and prepend the document header to the encrypted document
-            let encrypted_payload = [
-                &generate_document_header(doc_id.clone(), auth.segment_id())[..],
-                &encrypted_doc.bytes()[..],
-            ]
-            .concat();
-            DocumentEncryptResult {
-                id: api_resp.id,
-                name: api_resp.name,
-                created: api_resp.created,
-                updated: api_resp.updated,
-                encrypted_data: encrypted_payload,
-                grants: api_resp.shared_with.iter().map(|sw| sw.into()).collect(),
-                access_errs: all_errs,
-            }
+            encrypt_document_core(
+                auth,
+                recrypt,
+                dek,
+                encrypted_doc,
+                doc_id,
+                document_name,
+                [explicit_grants, applied_policy_grants].concat(),
+                other_errs,
+            )
         })
 }
 
-// Encrypt the provided plaintext using the DEK from the provided document ID but with a new AES IV. Allows updating the encrypted bytes
-// of a document without having to change document access.
+/// Remove any duplicates in the grant list. Uses ids (not keys) for comparison.
+fn dedupe_grants(grants: &[WithKey<UserOrGroup>]) -> Vec<WithKey<UserOrGroup>> {
+    grants
+        .iter()
+        .unique_by(|i| &i.id)
+        .map(Clone::clone)
+        .collect_vec()
+}
+
+/// Actually encrypts the document. Can be called once you have all users/groups and their public keys.
+/// `accum_errs` - non fatal errors accumulated while preparing to call `encrypt_document_core`. Probably from web requests.
+fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
+    auth: &'a RequestAuth,
+    recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    dek: Plaintext,
+    encrypted_doc: AesEncryptedValue,
+    doc_id: DocumentId,
+    document_name: Option<DocumentName>,
+    grants: Vec<WithKey<UserOrGroup>>,
+    accum_errs: Vec<DocAccessEditErr>,
+) -> impl Future<Item = DocumentEncryptResult, Error = IronOxideErr> + 'a {
+    // check to make sure that we are granting to something
+    if grants.is_empty() {
+        Err(IronOxideErr::ValidationError(
+            "grants".into(),
+            format!(
+                "Access must be granted to document {:?} by explicit grant or via a policy",
+                &doc_id
+            ),
+        ))
+    } else {
+        Ok({
+            // encrypt to all the users and groups
+            let (encrypt_errs, grants) = transform::encrypt_to_with_key(
+                recrypt,
+                &dek,
+                &auth.signing_keys().into(),
+                dedupe_grants(&grants),
+            );
+
+            (
+                grants,
+                encrypted_doc,
+                vec![
+                    accum_errs,
+                    encrypt_errs.into_iter().map(|e| e.into()).collect(),
+                ]
+                .into_iter()
+                .concat(),
+            )
+        })
+    }
+    .into_future()
+    .and_then(move |(grants, encrypted_doc, other_errs)| {
+        document_create::document_create_request(auth, doc_id.clone(), document_name, grants)
+            .map(move |resp| (doc_id, resp, encrypted_doc, other_errs))
+    })
+    .map(move |(doc_id, api_resp, encrypted_doc, all_errs)| {
+        //Generate and prepend the document header to the encrypted document
+        let encrypted_payload = [
+            &generate_document_header(doc_id.clone(), auth.segment_id())[..],
+            &encrypted_doc.bytes()[..],
+        ]
+        .concat();
+        DocumentEncryptResult {
+            id: api_resp.id,
+            name: api_resp.name,
+            created: api_resp.created,
+            updated: api_resp.updated,
+            encrypted_data: encrypted_payload,
+            grants: api_resp.shared_with.iter().map(|sw| sw.into()).collect(),
+            access_errs: all_errs,
+        }
+    })
+}
+
+/// Encrypt the provided plaintext using the DEK from the provided document ID but with a new AES IV. Allows updating the encrypted bytes
+/// of a document without having to change document access.
 pub fn document_update_bytes<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -584,7 +650,8 @@ pub fn document_grant_access<'a, CR: rand::CryptoRng + rand::RngCore>(
 
                 let (group_errs, groups_with_key) = process_groups(groups);
                 let (user_errs, users_with_key) = process_users(users);
-                let users_and_groups = [&users_with_key[..], &groups_with_key[..]].concat();
+                let users_and_groups =
+                    dedupe_grants(&[&users_with_key[..], &groups_with_key[..]].concat());
 
                 // encrypt to all the users and groups
                 let (grant_errs, grants) = transform::encrypt_to_with_key(
@@ -615,7 +682,7 @@ pub fn document_grant_access<'a, CR: rand::CryptoRng + rand::RngCore>(
         })
 }
 
-//Remove access to a document from the provided list of users and/or groups
+/// Remove access to a document from the provided list of users and/or groups
 pub fn document_revoke_access<'a>(
     auth: &'a RequestAuth,
     id: &'a DocumentId,
@@ -685,12 +752,90 @@ fn process_users(
     (user_errs, users_with_key)
 }
 
+/// Extract users/groups + keys from a PolicyResult (Right). Errors from applying the policy are Left.
+fn process_policy(
+    policy_result: &PolicyResult,
+) -> (Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>) {
+    let (pubkey_errs, policy_eval_results): (Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>) =
+        policy_result
+            .users_and_groups
+            .iter()
+            .partition_map(|uog| match uog {
+                UserOrGroupWithKey::User {
+                    id,
+                    master_public_key: Some(key),
+                } => {
+                    let user = UserOrGroup::User {
+                        // okay since these came back from the service
+                        id: UserId::unsafe_from_string(id.clone()),
+                    };
+
+                    Either::from(
+                        key.clone()
+                            .try_into()
+                            .map(|k| WithKey::new(user.clone(), k))
+                            .map_err(|_e| {
+                                DocAccessEditErr::new(
+                                    user,
+                                    format!("Error parsing user public key {:?}", &key),
+                                )
+                            }),
+                    )
+                }
+                UserOrGroupWithKey::Group {
+                    id,
+                    master_public_key: Some(key),
+                } => {
+                    let group = UserOrGroup::Group {
+                        // okay since these came back from the service
+                        id: GroupId::unsafe_from_string(id.clone()),
+                    };
+
+                    Either::from(
+                        key.clone()
+                            .try_into()
+                            .map(|k| WithKey::new(group.clone(), k))
+                            .map_err(|_e| {
+                                DocAccessEditErr::new(
+                                    group,
+                                    format!("Error parsing group public key {:?}", &key),
+                                )
+                            }),
+                    )
+                }
+
+                any => {
+                    let uog: UserOrGroup = any.clone().into();
+                    let err_msg =
+                        format!("{} does not have associated public key", &uog).to_string();
+                    Either::Left(DocAccessEditErr::new(uog, err_msg))
+                }
+            });
+
+    (
+        [
+            pubkey_errs,
+            policy_result
+                .invalid_users_and_groups
+                .iter()
+                .map(|uog| {
+                    DocAccessEditErr::new(
+                        uog.clone(),
+                        format!("Policy refers to unknown user or group '{}'", &uog),
+                    )
+                })
+                .collect(),
+        ]
+        .concat(),
+        policy_eval_results,
+    )
+}
+
 #[cfg(test)]
 mod tests {
-    use base64::decode;
-    use galvanic_assert::matchers::*;
-
     use crate::internal::test::contains;
+    use base64::decode;
+    use galvanic_assert::matchers::{collection::*, *};
 
     use super::*;
 
@@ -838,5 +983,62 @@ mod tests {
                 44, 34, 95, 115, 105, 100, 95, 34, 58, 49, 56, 125
             ])
         );
+    }
+    #[test]
+    fn process_policy_good() {
+        let mut recrypt = recrypt::api::Recrypt::new();
+        let (_, pubk) = recrypt.generate_key_pair().unwrap();
+
+        let policy = PolicyResult {
+            users_and_groups: vec![
+                UserOrGroupWithKey::User {
+                    id: "userid1".to_string(),
+                    master_public_key: Some(pubk.into()),
+                },
+                UserOrGroupWithKey::Group {
+                    id: "groupid1".to_string(),
+                    master_public_key: Some(pubk.into()),
+                },
+            ],
+            invalid_users_and_groups: vec![],
+        };
+
+        let (errs, results) = process_policy(&policy);
+        assert_that!(results.len() == 2);
+        assert_that!(errs.len() == 0);
+
+        let ex_user = WithKey {
+            id: UserOrGroup::User {
+                id: UserId::unsafe_from_string("userid1".to_string()),
+            },
+            public_key: pubk.into(),
+        };
+
+        let ex_group = WithKey {
+            id: UserOrGroup::Group {
+                id: GroupId::unsafe_from_string("groupid1".to_string()),
+            },
+            public_key: pubk.into(),
+        };
+
+        assert_that!(&results, contains_in_any_order(vec![ex_user, ex_group]));
+    }
+
+    #[test]
+    fn dedupe_grants_removes_dupes() {
+        let mut recrypt = recrypt::api::Recrypt::new();
+        let (_, pubk) = recrypt.generate_key_pair().unwrap();
+
+        let u1 = &UserId::unsafe_from_string("user1".into());
+        let g1 = &GroupId::unsafe_from_string("group1".into());
+        let grants_w_dupes: Vec<WithKey<UserOrGroup>> = vec![
+            WithKey::new(u1.into(), pubk.into()),
+            WithKey::new(g1.into(), pubk.into()),
+            WithKey::new(u1.into(), pubk.into()),
+            WithKey::new(g1.into(), pubk.into()),
+        ];
+
+        let deduplicated_grants = dedupe_grants(&grants_w_dupes);
+        assert_that!(&deduplicated_grants.len(), eq(2))
     }
 }

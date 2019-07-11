@@ -46,6 +46,11 @@ pub fn gen_jwt(
 }
 
 pub fn init_sdk() -> IronOxide {
+    let (_, io) = init_sdk_get_user();
+    io
+}
+
+pub fn init_sdk_get_user() -> (UserId, IronOxide) {
     let account_id: UserId = Uuid::new_v4().to_string().try_into().unwrap();
     IronOxide::user_create(
         &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
@@ -84,7 +89,7 @@ pub fn init_sdk() -> IronOxide {
         users_signing_keys_bytes.try_into().unwrap(),
     );
 
-    ironoxide::initialize(&device_init).unwrap()
+    (account_id, ironoxide::initialize(&device_init).unwrap())
 }
 
 pub fn create_second_user() -> UserVerifyResult {
