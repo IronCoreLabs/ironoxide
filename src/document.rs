@@ -3,13 +3,13 @@ pub use crate::internal::document_api::{
     DocumentEncryptResult, DocumentListMeta, DocumentListResult, DocumentMetadataResult,
     UserOrGroup, VisibleGroup, VisibleUser,
 };
-use crate::policy::*;
 use crate::{
     internal::{
         document_api::{self, DocumentId, DocumentName},
         group_api::GroupId,
         user_api::UserId,
     },
+    policy::*,
     Result,
 };
 use itertools::{Either, EitherOrBoth, Itertools};

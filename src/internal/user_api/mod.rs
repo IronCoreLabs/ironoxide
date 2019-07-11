@@ -6,8 +6,11 @@ use chrono::{DateTime, Utc};
 use futures::prelude::*;
 use itertools::{Either, Itertools};
 use recrypt::prelude::*;
-use std::convert::{TryFrom, TryInto};
-use std::{collections::HashMap, result::Result};
+use std::{
+    collections::HashMap,
+    convert::{TryFrom, TryInto},
+    result::Result,
+};
 
 /// private module that handles interaction with ironcore-id
 mod requests;

@@ -2,15 +2,14 @@
 //! separation of concerns when it comes to labeling data vs defining who to encrypt to.
 //!
 //! Policies are defined using the ironcore admin console: https://admin.ironcorelabs.com/policy
-//! and are stored on the server. This allows a policy to be updated independently any application code.
-//! In the future policies will be able to be programmatically defined using ironoxide.
+//! and are stored on the server. This allows a policy to be updated independently of any application code.
 //!
 //! Data labeling is provided in three dimensions (category, sensitivity, dataSubject).
 //! You only need to use the dimensions that make sense for your use case. The values of the labels
 //! are arbitrary, but the example below may be instructive in selecting label names.
 //!
 //! In addition to defining labels, a list of rules is required to map the labels to a set of users/groups.
-//! Rules are checked in the order they are defined. If a rule matches is can produce any number of users/groups.
+//! Rules are checked in the order they are defined. If a rule matches, it can produce any number of users/groups.
 //! Rules defined after the matching rule will not be processed.
 //!
 //! The `%USER%` and `%LOGGED_IN_USER%` are special tokens that will be replaced when the policy is applied.
@@ -76,8 +75,7 @@
 //! `PolicyGrant::new(None, None, None, None)` will match the last rule in the example and will return
 //! the group [data_recovery]
 //!
-use crate::internal::user_api::UserId;
-use crate::{IronOxideErr, Result};
+use crate::{internal::user_api::UserId, IronOxideErr, Result};
 use regex::Regex;
 use std::convert::TryFrom;
 

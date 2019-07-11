@@ -1,22 +1,23 @@
-use crate::crypto::aes::AesEncryptedValue;
-use crate::internal::document_api::requests::UserOrGroupWithKey;
-use crate::policy::PolicyGrant;
 use crate::{
-    crypto::{aes, transform},
+    crypto::{
+        aes::{self, AesEncryptedValue},
+        transform,
+    },
     internal::{
         self,
+        document_api::requests::UserOrGroupWithKey,
         group_api::{GroupId, GroupName},
         user_api::UserId,
         validate_id, validate_name, IronOxideErr, PrivateKey, PublicKey, RequestAuth, WithKey,
     },
+    policy::PolicyGrant,
 };
 use chrono::{DateTime, Utc};
 use futures::prelude::*;
 use hex::encode;
 use itertools::{Either, Itertools};
 use rand::{self, CryptoRng, RngCore};
-use recrypt::api::Plaintext;
-use recrypt::prelude::*;
+use recrypt::{api::Plaintext, prelude::*};
 pub use requests::policy_get::PolicyResult;
 use requests::{
     document_create,
@@ -834,8 +835,7 @@ fn process_policy(
 mod tests {
     use crate::internal::test::contains;
     use base64::decode;
-    use galvanic_assert::matchers::collection::*;
-    use galvanic_assert::matchers::*;
+    use galvanic_assert::matchers::{collection::*, *};
 
     use super::*;
 
