@@ -84,13 +84,13 @@ use std::convert::TryFrom;
 /// The triple (`category`, `sensitivity`, `data_subject`) maps to a single policy rule. Each policy
 /// rule may generate any number of users/groups.
 ///
-/// `substitute_user_id` replaces `%USER%` in a matched policy rule.
+/// `substitute_user_id replaces `%USER%` in a matched policy rule.
 #[derive(Debug, PartialEq, Clone)]
 pub struct PolicyGrant {
     category: Option<Category>,
     sensitivity: Option<Sensitivity>,
     data_subject: Option<DataSubject>,
-    substitute_user_id: Option<SubstituteId>,
+    substitute_user: Option<UserId>,
 }
 
 impl PolicyGrant {
@@ -104,7 +104,7 @@ impl PolicyGrant {
             category,
             sensitivity,
             data_subject,
-            substitute_user_id: substitute_user.map(|u| u.into()),
+            substitute_user,
         }
     }
 
@@ -119,8 +119,8 @@ impl PolicyGrant {
     pub fn data_subject(&self) -> Option<&DataSubject> {
         self.data_subject.as_ref()
     }
-    pub fn substitute_id(&self) -> Option<&SubstituteId> {
-        self.substitute_user_id.as_ref()
+    pub fn substitute_user(&self) -> Option<&UserId> {
+        self.substitute_user.as_ref()
     }
 }
 
@@ -130,7 +130,7 @@ impl Default for PolicyGrant {
             category: None,
             sensitivity: None,
             data_subject: None,
-            substitute_user_id: None,
+            substitute_user: None,
         }
     }
 }
@@ -150,6 +150,10 @@ macro_rules! policy_field {
 
         impl $t {
             pub(crate) const QUERY_PARAM: &'static str = $l;
+
+            pub fn inner(&self) -> &str {
+                self.0.as_str()
+            }
         }
     };
 }
@@ -157,18 +161,6 @@ macro_rules! policy_field {
 policy_field!(Category, "category");
 policy_field!(DataSubject, "dataSubject");
 policy_field!(Sensitivity, "sensitivity");
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct SubstituteId(pub(crate) UserId);
-
-impl From<UserId> for SubstituteId {
-    fn from(u: UserId) -> Self {
-        SubstituteId(u)
-    }
-}
-impl SubstituteId {
-    pub(crate) const QUERY_PARAM: &'static str = "substituteId";
-}
 
 const NAME_AND_ID_MAX_LEN: usize = 100;
 
@@ -193,6 +185,8 @@ fn validate_simple_policy_field_value(field_id: &str, field_type: &str) -> Resul
 pub(crate) mod test {
     use super::*;
     use crate::internal::test::contains;
+    use galvanic_assert::matchers::eq;
+    use std::convert::TryInto;
 
     #[test]
     fn validate_simple_policy_id_good() {
@@ -257,5 +251,27 @@ pub(crate) mod test {
             is_variant!(IronOxideErr::ValidationError)
         );
         assert_that!(&format!("{}", validation_error), contains("100"));
+    }
+
+    #[test]
+    fn can_inspect_policy_grant() -> Result<()> {
+        let category = "CATEGORY".try_into()?;
+        let sensitivity = "SENSITIVITY".try_into()?;
+        let dat_subj = "DATA_SUBJECT".try_into()?;
+        let sub_userid = "a-user-id".try_into()?;
+
+        let policy = PolicyGrant::new(
+            Some(category),
+            Some(sensitivity),
+            Some(dat_subj),
+            Some(sub_userid),
+        );
+
+        assert_that!(&policy.category().unwrap().inner(), eq("CATEGORY"));
+        assert_that!(&policy.sensitivity().unwrap().inner(), eq("SENSITIVITY"));
+        assert_that!(&policy.data_subject().unwrap().inner(), eq("DATA_SUBJECT"));
+        assert_that!(&policy.substitute_user().unwrap().id(), eq("a-user-id"));
+
+        Ok(())
     }
 }

@@ -228,7 +228,9 @@ pub mod document_create {
 
 pub mod policy_get {
     use super::*;
-    use crate::policy::{Category, DataSubject, PolicyGrant, Sensitivity, SubstituteId};
+    use crate::policy::{Category, DataSubject, PolicyGrant, Sensitivity};
+
+    pub(crate) const SUBSTITUTE_ID_QUERY_PARAM: &'static str = "substituteId";
 
     #[derive(Deserialize, Debug, Clone)]
     #[serde(rename_all = "camelCase")]
@@ -252,8 +254,8 @@ pub mod policy_get {
                 .data_subject()
                 .map(|d| (DataSubject::QUERY_PARAM.to_string(), d.0.clone())),
             policy_grant
-                .substitute_id()
-                .map(|SubstituteId(UserId(u))| (SubstituteId::QUERY_PARAM.to_string(), u.clone())),
+                .substitute_user()
+                .map(|UserId(u)| (SUBSTITUTE_ID_QUERY_PARAM.to_string(), u.clone())),
         ]
         .to_vec()
         .into_iter()
