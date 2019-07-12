@@ -6,7 +6,7 @@ pub fn gen_jwt(
     project_id: usize,
     seg_id: &str,
     service_key_id: usize,
-    account_id: Option<&String>,
+    account_id: Option<&str>,
 ) -> (String, String) {
     use std::env;
 
@@ -83,7 +83,7 @@ pub fn init_sdk_get_user() -> (UserId, IronOxide) {
     let users_signing_keys_bytes = &device.signing_keys().as_bytes()[..];
 
     let device_init = DeviceContext::new(
-        users_account_id.as_str().try_into().unwrap(),
+        users_account_id.try_into().unwrap(),
         users_segment_id,
         users_private_device_key_bytes.try_into().unwrap(),
         users_signing_keys_bytes.try_into().unwrap(),
