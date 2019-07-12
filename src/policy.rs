@@ -84,7 +84,7 @@ use std::convert::TryFrom;
 /// The triple (`category`, `sensitivity`, `data_subject`) maps to a single policy rule. Each policy
 /// rule may generate any number of users/groups.
 ///
-/// `substitute_user_id replaces `%USER%` in a matched policy rule.
+/// `substitute_user` replaces `%USER%` in a matched policy rule.
 #[derive(Debug, PartialEq, Clone)]
 pub struct PolicyGrant {
     category: Option<Category>,
