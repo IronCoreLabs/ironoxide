@@ -2,7 +2,7 @@ mod common;
 use crate::common::init_sdk_get_user;
 use common::{create_second_user, init_sdk};
 use galvanic_assert::matchers::{collection::*, *};
-use ironoxide::{document::*, group::GroupCreateOpts, prelude::*, IronOxide};
+use ironoxide::{document::*, group::GroupCreateOpts, prelude::*};
 use itertools::EitherOrBoth;
 use std::convert::{TryFrom, TryInto};
 
@@ -29,6 +29,55 @@ fn doc_create_without_id() {
 
 #[test]
 fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
+    // policy assumed for this test
+    /*
+    {
+      "dataSubjects": [
+        "PATIENT"
+      ],
+      "sensitivities": [
+        "RESTRICTED",
+        "INTERNAL"
+      ],
+      "categories": [
+        "HEALTH",
+        "PII"
+      ],
+      "rules": [
+        {
+          "sensitivity": "RESTRICTED",
+          "users": [
+            "%USER%"
+          ],
+          "dataSubject": "PATIENT",
+          "groups": [
+            "group_other_%USER%",
+            "group_id_doctors",
+            "data_recovery_%LOGGED_IN_USER%"
+          ],
+          "category": "HEALTH"
+        },
+        {
+          "sensitivity": "INTERNAL",
+          "users": [
+            "baduserid_frompolicy",
+            "%LOGGED_IN_USER%"
+          ],
+          "groups": [
+            "badgroupid_frompolicy",
+            "data_recovery_%LOGGED_IN_USER%"
+          ],
+          "category": "PII"
+        },
+        {
+          "users": [],
+          "groups": [
+            "data_recovery_%LOGGED_IN_USER%"
+          ]
+        }
+      ]
+    }
+        */
     let (curr_user, mut sdk) = init_sdk_get_user();
 
     //create the data_recovery group used in the policy
