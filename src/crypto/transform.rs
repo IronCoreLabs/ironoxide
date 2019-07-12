@@ -10,7 +10,7 @@ use recrypt::{
 
 /// Generate a DEK and it's associated symmetric key for a new document
 pub fn generate_new_doc_key<CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
 ) -> (Plaintext, DerivedSymmetricKey) {
     let dek = recrypt.gen_plaintext();
     let symmetric_key = recrypt.derive_symmetric_key(&dek);

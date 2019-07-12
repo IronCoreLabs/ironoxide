@@ -24,6 +24,7 @@ use requests::{
     document_list::{DocumentListApiResponse, DocumentListApiResponseItem},
     DocumentMetaApiResponse,
 };
+use std::sync::Mutex;
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Formatter,
@@ -419,7 +420,7 @@ pub fn get_id_from_bytes(encrypted_document: &[u8]) -> Result<DocumentId, IronOx
 /// Encrypt a new document and share it with explicit users or groups, and with users and group specified by a policy
 pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
-    recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     user_master_pub_key: &'a PublicKey,
     rng: &'a mut CR,
     plaintext: &'a [u8],
@@ -488,7 +489,7 @@ fn dedupe_grants(grants: &[WithKey<UserOrGroup>]) -> Vec<WithKey<UserOrGroup>> {
 /// `accum_errs` - non fatal errors accumulated while preparing to call `encrypt_document_core`. Probably from web requests.
 fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
-    recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     dek: Plaintext,
     encrypted_doc: AesEncryptedValue,
     doc_id: DocumentId,
@@ -555,7 +556,7 @@ fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
 /// of a document without having to change document access.
 pub fn document_update_bytes<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
-    recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     device_private_key: &'a PrivateKey,
     rng: &'a mut CR,
     document_id: &'a DocumentId,
@@ -628,7 +629,7 @@ pub fn update_document_name<'a>(
 
 pub fn document_grant_access<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
-    recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     id: &'a DocumentId,
     user_master_pub_key: &'a PublicKey,
     priv_device_key: &'a PrivateKey,

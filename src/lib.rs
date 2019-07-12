@@ -64,6 +64,7 @@ use rand::rngs::OsRng;
 use rand::SeedableRng;
 use rand_chacha::ChaChaRng;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
+use std::sync::Mutex;
 use tokio::runtime::current_thread::Runtime;
 
 /// Result of an Sdk operation
@@ -77,7 +78,7 @@ pub struct IronOxide {
     /// Master public key for the user identified by `account_id`
     pub(crate) user_master_pub_key: PublicKey,
     pub(crate) device: DeviceContext,
-    pub(crate) rng: ChaChaRng,
+    pub(crate) rng: Mutex<ChaChaRng>,
 }
 
 /// Initialize the IronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
@@ -98,10 +99,12 @@ pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
                 recrypt: Recrypt::new(),
                 device: device_context.clone(),
                 user_master_pub_key: current_user_public_key,
-                rng: rand_chacha::ChaChaRng::from_rng(
-                    OsRng::new().expect("OS RNG failed to initialize."),
-                )
-                .unwrap(),
+                rng: Mutex::new(
+                    rand_chacha::ChaChaRng::from_rng(
+                        OsRng::new().expect("OS RNG failed to initialize."),
+                    )
+                    .unwrap(),
+                ),
             })
             .ok_or(IronOxideErr::InitializeError)
     })
