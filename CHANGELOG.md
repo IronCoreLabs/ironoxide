@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.0
+
+- add the ability to encrypt via policy
+
 ## 0.7.0
 
 - add the ability to encrypt without granting to the author
