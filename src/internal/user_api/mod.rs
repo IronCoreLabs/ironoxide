@@ -6,6 +6,7 @@ use chrono::{DateTime, Utc};
 use futures::prelude::*;
 use itertools::{Either, Itertools};
 use recrypt::prelude::*;
+use std::sync::Mutex;
 use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
@@ -212,7 +213,7 @@ pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
         .map_err(IronOxideErr::from)
         .and_then(|(recrypt_priv, recrypt_pub)| {
             Ok(aes::encrypt_user_master_key(
-                &mut rand::thread_rng(),
+                &Mutex::new(rand::thread_rng()),
                 passphrase.0.as_str(),
                 recrypt_priv.bytes(),
             )

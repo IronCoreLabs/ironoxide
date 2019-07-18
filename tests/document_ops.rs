@@ -2,9 +2,10 @@ mod common;
 use crate::common::init_sdk_get_user;
 use common::{create_second_user, init_sdk};
 use galvanic_assert::matchers::{collection::*, *};
-use ironoxide::{document::*, group::GroupCreateOpts, prelude::*, IronOxide};
+use ironoxide::{document::*, group::GroupCreateOpts, prelude::*};
 use itertools::EitherOrBoth;
 use std::convert::{TryFrom, TryInto};
+use std::sync::Arc;
 
 #[cfg(test)]
 #[macro_use]
@@ -15,7 +16,7 @@ extern crate serde_json;
 
 #[test]
 fn doc_create_without_id() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
 
     let doc = [0u8; 64];
 
@@ -29,7 +30,56 @@ fn doc_create_without_id() {
 
 #[test]
 fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
-    let (curr_user, mut sdk) = init_sdk_get_user();
+    // policy assumed for this test
+    /*
+    {
+      "dataSubjects": [
+        "PATIENT"
+      ],
+      "sensitivities": [
+        "RESTRICTED",
+        "INTERNAL"
+      ],
+      "categories": [
+        "HEALTH",
+        "PII"
+      ],
+      "rules": [
+        {
+          "sensitivity": "RESTRICTED",
+          "users": [
+            "%USER%"
+          ],
+          "dataSubject": "PATIENT",
+          "groups": [
+            "group_other_%USER%",
+            "group_id_doctors",
+            "data_recovery_%LOGGED_IN_USER%"
+          ],
+          "category": "HEALTH"
+        },
+        {
+          "sensitivity": "INTERNAL",
+          "users": [
+            "baduserid_frompolicy",
+            "%LOGGED_IN_USER%"
+          ],
+          "groups": [
+            "badgroupid_frompolicy",
+            "data_recovery_%LOGGED_IN_USER%"
+          ],
+          "category": "PII"
+        },
+        {
+          "users": [],
+          "groups": [
+            "data_recovery_%LOGGED_IN_USER%"
+          ]
+        }
+      ]
+    }
+        */
+    let (curr_user, sdk) = init_sdk_get_user();
 
     //create the data_recovery group used in the policy
     let data_rec_group_id: GroupId = format!("data_recovery_{}", curr_user.id())
@@ -162,7 +212,7 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
 
 #[test]
 fn doc_create_with_explicit_grants() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
 
     let doc = [0u8; 64];
 
@@ -214,7 +264,7 @@ fn doc_create_with_explicit_grants() {
 fn doc_create_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
     use std::borrow::Borrow;
 
-    let (curr_user, mut sdk) = init_sdk_get_user();
+    let (curr_user, sdk) = init_sdk_get_user();
 
     //create the data_recovery group used in the policy
     let data_rec_group_id: GroupId = format!("data_recovery_{}", curr_user.id())
@@ -301,7 +351,7 @@ fn doc_create_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
 
 #[test]
 fn doc_create_duplicate_grants() {
-    let (user, mut sdk) = init_sdk_get_user();
+    let (user, sdk) = init_sdk_get_user();
 
     let doc = [0u8; 64];
 
@@ -322,7 +372,7 @@ fn doc_create_duplicate_grants() {
 
 #[test]
 fn doc_create_without_self_grant() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
 
     let doc = [0u8; 64];
 
@@ -362,7 +412,7 @@ fn doc_create_without_self_grant() {
 
 #[test]
 fn doc_create_must_grant() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
 
     let doc = [0u8; 64];
 
@@ -389,7 +439,7 @@ fn doc_create_must_grant() {
 
 #[test]
 fn doc_create_and_adjust_name() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
 
     let doc = [0u8; 64];
 
@@ -425,7 +475,7 @@ fn doc_create_and_adjust_name() {
 
 #[test]
 fn doc_decrypt_roundtrip() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
     let doc = [43u8; 64];
     let encrypted_doc = sdk.document_encrypt(&doc, &Default::default()).unwrap();
 
@@ -440,7 +490,7 @@ fn doc_decrypt_roundtrip() {
 
 #[test]
 fn doc_encrypt_update_and_decrypt() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
     let doc1 = [20u8; 72];
 
     let encrypted_doc = sdk.document_encrypt(&doc1, &Default::default()).unwrap();
@@ -460,7 +510,7 @@ fn doc_encrypt_update_and_decrypt() {
 
 #[test]
 fn doc_grant_access() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
 
     let doc = [0u8; 64];
     let doc_result = sdk.document_encrypt(&doc, &Default::default());
@@ -505,7 +555,7 @@ fn doc_grant_access() {
 
 #[test]
 fn doc_revoke_access() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
 
     let doc = [0u8; 64];
     let doc_result = sdk.document_encrypt(&doc, &Default::default());
@@ -557,4 +607,31 @@ fn doc_revoke_access() {
     let revokes = revoke_result.unwrap();
     assert_eq!(revokes.succeeded().len(), 2);
     assert_eq!(revokes.failed().len(), 2)
+}
+
+#[test]
+fn doc_encrypt_concurrent() {
+    let sdk = Arc::new(init_sdk());
+    let doc = [43u8; 64];
+    let encrypted_doc = sdk.document_encrypt(&doc, &Default::default()).unwrap();
+
+    let mut threads = vec![];
+    for _i in 0..100 {
+        let sdk_ref = sdk.clone();
+        threads.push(std::thread::spawn(move || {
+            let result = sdk_ref.document_encrypt(&doc, &Default::default()).unwrap();
+            //            dbg!(&result);
+        }));
+    }
+
+    //        let res = encrypt(&rng, &plaintext, key).unwrap();
+    //        dbg!(res);
+
+    let mut joined_count = 0;
+    for t in threads {
+        t.join();
+        joined_count += 1;
+    }
+
+    dbg!(joined_count);
 }

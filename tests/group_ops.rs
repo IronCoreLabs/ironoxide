@@ -10,7 +10,7 @@ extern crate serde_json;
 
 #[test]
 fn group_create_no_member() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
 
     let group_result = sdk.group_create(&GroupCreateOpts::new(
         Some(Uuid::new_v4().to_string().try_into().unwrap()),
@@ -23,7 +23,7 @@ fn group_create_no_member() {
 
 #[test]
 fn group_create_also_member() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
 
     let group_result = sdk.group_create(&Default::default());
 
@@ -32,7 +32,7 @@ fn group_create_also_member() {
 
 #[test]
 fn group_delete() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
 
     let group_result = sdk.group_create(&Default::default());
     assert!(group_result.is_ok());
@@ -46,7 +46,7 @@ fn group_delete() {
 
 #[test]
 fn group_update_name() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
 
     let group_result = sdk
         .group_create(&GroupCreateOpts::new(
@@ -77,7 +77,7 @@ fn group_update_name() {
 
 #[test]
 fn group_add_member() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
     let account_id = sdk.device().account_id().clone();
 
     let group_result = sdk.group_create(&GroupCreateOpts::new(None, None, false));
@@ -101,7 +101,7 @@ fn group_add_member() {
 
 #[test]
 fn group_list() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
 
     //create two groups
     let group_result = sdk.group_create(&Default::default());
@@ -116,7 +116,7 @@ fn group_list() {
 
 #[test]
 fn group_remove_member() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
     let account_id = sdk.device().account_id().clone();
 
     let group_result = sdk.group_create(&Default::default());
@@ -137,7 +137,7 @@ fn group_remove_member() {
 
 #[test]
 fn group_add_admin() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
 
     let account_id = sdk.device().account_id().clone();
     let second_account_id = init_sdk().device().account_id().clone();
@@ -159,7 +159,7 @@ fn group_add_admin() {
 
 #[test]
 fn group_remove_admin() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
 
     let second_account_id = init_sdk().device().account_id().clone();
 
@@ -183,7 +183,7 @@ fn group_remove_admin() {
 
 #[test]
 fn group_get_not_url_safe_id() {
-    let mut sdk = init_sdk();
+    let sdk = init_sdk();
 
     let not_url_safe_id: GroupId = format!("{}{}", Uuid::new_v4(), "'=#.other|/$non@;safe'-:;id_")
         .try_into()

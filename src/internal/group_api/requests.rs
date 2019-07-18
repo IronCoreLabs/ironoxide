@@ -413,7 +413,7 @@ mod tests {
         permissions.insert(Permission::Member);
         permissions.insert(Permission::Admin);
 
-        let mut recrypt = recrypt::api::Recrypt::new();
+        let recrypt = recrypt::api::Recrypt::new();
         let (_, pk) = recrypt.generate_key_pair().unwrap();
         let item = GroupBasicApiResponse {
             id: GroupId("my_id".to_string()),

@@ -229,13 +229,11 @@ impl DocumentOps for crate::IronOxide {
                 }
             };
 
-        let mut rng = &mut *self.rng.lock().unwrap();
-
         rt.block_on(document_api::encrypt_document(
             self.device.auth(),
             &self.recrypt,
             &self.user_master_pub_key,
-            &mut rng,
+            &self.rng,
             document_data,
             encrypt_opts.id,
             encrypt_opts.name,
@@ -252,13 +250,12 @@ impl DocumentOps for crate::IronOxide {
         new_document_data: &[u8],
     ) -> Result<DocumentEncryptResult> {
         let mut rt = Runtime::new().unwrap();
-        let mut rng = &mut *self.rng.lock().unwrap();
 
         rt.block_on(document_api::document_update_bytes(
             self.device.auth(),
             &self.recrypt,
             self.device.private_device_key(),
-            &mut rng,
+            &self.rng,
             id,
             &new_document_data,
         ))

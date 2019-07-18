@@ -31,6 +31,7 @@ quick-error = "1.2"
 lazy_static = "1.2"
 chrono = { version = "0.4", features = ["serde"] }
 percent-encoding="1.0"
+log = "~0.4"
 
 [dev-dependencies]
 frank_jwt = "3.1.1"
