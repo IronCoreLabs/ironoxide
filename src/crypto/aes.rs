@@ -309,7 +309,7 @@ mod tests {
         let a_rng = Arc::new(rng);
 
         let mut threads = vec![];
-        for _i in 0..2 {
+        for _i in 0..100 {
             let rng_ref = a_rng.clone();
             let pt = plaintext.clone();
             threads.push(std::thread::spawn(move || {
@@ -317,44 +317,12 @@ mod tests {
             }));
         }
 
-        //        let res = encrypt(&rng, &plaintext, key).unwrap();
-        //        dbg!(res);
-
         let mut joined_count = 0;
         for t in threads {
             t.join();
             joined_count += 1;
         }
 
-        dbg!(joined_count);
+        assert_eq!(joined_count, 100);
     }
-
-    //    #[test]
-    //    fn test_parallel_encrypt_future() {
-    //        use rand::FromEntropy;
-    //        use tokio::runtime::Runtime;
-    //
-    //        let plaintext = vec![1, 2, 3, 4, 5, 6, 7];
-    //        let mut key = [0u8; 32];
-    //        let mut rng = Mutex::new(rand_chacha::ChaChaRng::from_entropy());
-    //        take_lock(&rng).deref_mut().fill_bytes(&mut key);
-    //
-    //        let a_rng = Arc::new(rng);
-    //
-    //        let mut threads = vec![];
-    //        for _i in 0..10000 {
-    //            let rng_ref = a_rng.clone();
-    //            let pt = plaintext.clone();
-    //            threads.push(encrypt_future(&rng_ref, &pt, key));
-    //        }
-    //
-    //        let futures = Ok(threads.into_iter().for_each(|f| {
-    //            tokio::spawn(f);
-    //            ()
-    //        }))
-    //        .into_future();
-    //
-    //        let mut rt = Runtime::new().unwrap();
-    //        rt.spawn(futures);
-    //    }
 }

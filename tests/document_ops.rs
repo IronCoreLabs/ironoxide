@@ -613,25 +613,21 @@ fn doc_revoke_access() {
 fn doc_encrypt_concurrent() {
     let sdk = Arc::new(init_sdk());
     let doc = [43u8; 64];
-    let encrypted_doc = sdk.document_encrypt(&doc, &Default::default()).unwrap();
+    let _encrypted_doc = sdk.document_encrypt(&doc, &Default::default()).unwrap();
 
     let mut threads = vec![];
-    for _i in 0..100 {
+    for _i in 0..10 {
         let sdk_ref = sdk.clone();
         threads.push(std::thread::spawn(move || {
-            let result = sdk_ref.document_encrypt(&doc, &Default::default()).unwrap();
-            //            dbg!(&result);
+            let _result = sdk_ref.document_encrypt(&doc, &Default::default()).unwrap();
         }));
     }
 
-    //        let res = encrypt(&rng, &plaintext, key).unwrap();
-    //        dbg!(res);
-
     let mut joined_count = 0;
     for t in threads {
-        t.join();
+        t.join().expect("couldn't join");
         joined_count += 1;
     }
 
-    dbg!(joined_count);
+    assert_eq!(joined_count, 10)
 }
