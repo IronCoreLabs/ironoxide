@@ -20,7 +20,7 @@ mod requests;
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone, Eq, Hash)]
 pub struct UserId(pub(crate) String);
 impl UserId {
-    pub fn id(&self) -> &String {
+    pub fn id(&self) -> &str {
         &self.0
     }
 
