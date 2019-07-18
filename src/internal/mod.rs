@@ -532,17 +532,13 @@ impl<T> WithKey<T> {
 ///
 /// mutli-statement (mut)
 ///
-/// # use ::ironoxide::internal::take_lock;
-/// # struct T {};
-/// # impl T {
-/// # pub fn call_method_on_t(&self) -> u32 { 0 }
-/// # }
-/// # let t = T {};
+/// ```ignore
+/// let t = T {};
 /// let result = {
 ///     let g = &mut *take_lock(&t);
 ///     g.call_method_on_t()
 /// }; // lock released here
-///
+/// ```
 ///
 pub(crate) fn take_lock<T>(m: &Mutex<T>) -> MutexGuard<T> {
     m.lock().unwrap_or_else(|e| {

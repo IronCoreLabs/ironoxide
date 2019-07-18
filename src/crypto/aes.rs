@@ -303,7 +303,7 @@ mod tests {
 
         let plaintext = vec![1, 2, 3, 4, 5, 6, 7];
         let mut key = [0u8; 32];
-        let mut rng = Mutex::new(rand_chacha::ChaChaRng::from_entropy());
+        let rng = Mutex::new(rand_chacha::ChaChaRng::from_entropy());
         take_lock(&rng).deref_mut().fill_bytes(&mut key);
 
         let a_rng = Arc::new(rng);
@@ -313,13 +313,13 @@ mod tests {
             let rng_ref = a_rng.clone();
             let pt = plaintext.clone();
             threads.push(std::thread::spawn(move || {
-                let res = encrypt(&rng_ref, &pt, key).unwrap();
+                let _res = encrypt(&rng_ref, &pt, key).unwrap();
             }));
         }
 
         let mut joined_count = 0;
         for t in threads {
-            t.join();
+            t.join().expect("join failed");
             joined_count += 1;
         }
 
