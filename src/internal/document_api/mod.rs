@@ -420,11 +420,15 @@ pub fn get_id_from_bytes(encrypted_document: &[u8]) -> Result<DocumentId, IronOx
 }
 
 /// Encrypt a new document and share it with explicit users or groups, and with users and group specified by a policy
-pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
+pub fn encrypt_document<
+    'a,
+    R1: rand::CryptoRng + rand::RngCore,
+    R2: rand::CryptoRng + rand::RngCore,
+>(
     auth: &'a RequestAuth,
-    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
     user_master_pub_key: &'a PublicKey,
-    rng: &'a Mutex<CR>,
+    rng: &'a Mutex<R2>,
     plaintext: &'a [u8],
     document_id: Option<DocumentId>,
     document_name: Option<DocumentName>,
@@ -556,11 +560,15 @@ fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
 
 /// Encrypt the provided plaintext using the DEK from the provided document ID but with a new AES IV. Allows updating the encrypted bytes
 /// of a document without having to change document access.
-pub fn document_update_bytes<'a, CR: rand::CryptoRng + rand::RngCore>(
+pub fn document_update_bytes<
+    'a,
+    R1: rand::CryptoRng + rand::RngCore,
+    R2: rand::CryptoRng + rand::RngCore,
+>(
     auth: &'a RequestAuth,
-    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
     device_private_key: &'a PrivateKey,
-    rng: &'a Mutex<CR>,
+    rng: &'a Mutex<R2>,
     document_id: &'a DocumentId,
     plaintext: &'a [u8],
 ) -> impl Future<Item = DocumentEncryptResult, Error = IronOxideErr> + 'a {

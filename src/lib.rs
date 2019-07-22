@@ -60,9 +60,10 @@ pub mod prelude;
 pub use crate::internal::{
     DeviceContext, DeviceSigningKeyPair, IronOxideErr, KeyPair, PrivateKey, PublicKey,
 };
-use rand::rngs::OsRng;
-use rand::SeedableRng;
-use rand_chacha::ChaChaRng;
+use rand::rngs::adapter::ReseedingRng;
+use rand::rngs::EntropyRng;
+use rand::FromEntropy;
+use rand_chacha::ChaChaCore;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
 use std::sync::Mutex;
 use tokio::runtime::current_thread::Runtime;
@@ -74,16 +75,18 @@ pub type Result<T> = std::result::Result<T, IronOxideErr>;
 /// of an account's various ids, device, and signing keys. Once instantiated all operations will be
 /// performed in the context of the account provided.
 pub struct IronOxide {
-    pub(crate) recrypt: Recrypt<Sha256, Ed25519, RandomBytes<ChaChaRng>>,
+    pub(crate) recrypt: Recrypt<Sha256, Ed25519, RandomBytes<recrypt::api::DefaultRng>>,
     /// Master public key for the user identified by `account_id`
     pub(crate) user_master_pub_key: PublicKey,
     pub(crate) device: DeviceContext,
-    pub(crate) rng: Mutex<ChaChaRng>,
+    pub(crate) rng: Mutex<ReseedingRng<ChaChaCore, EntropyRng>>,
 }
 
 /// Initialize the IronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
 /// keys are valid and exist for the provided account. If successful returns an instance of the IronOxide SDK
 pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
+    // 1 MB
+    const BYTES_BEFORE_RESEEDING: u64 = 1 * 1024 * 1024;
     let mut rt = Runtime::new().unwrap();
     let account_id = device_context.account_id();
     rt.block_on(crate::internal::user_api::user_key_list(
@@ -99,12 +102,11 @@ pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
                 recrypt: Recrypt::new(),
                 device: device_context.clone(),
                 user_master_pub_key: current_user_public_key,
-                rng: Mutex::new(
-                    rand_chacha::ChaChaRng::from_rng(
-                        OsRng::new().expect("OS RNG failed to initialize."),
-                    )
-                    .unwrap(),
-                ),
+                rng: Mutex::new(ReseedingRng::new(
+                    rand_chacha::ChaChaCore::from_entropy(),
+                    BYTES_BEFORE_RESEEDING,
+                    EntropyRng::new(),
+                )),
             })
             .ok_or(IronOxideErr::InitializeError)
     })

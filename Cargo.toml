@@ -21,7 +21,7 @@ rand = "0.6"
 rand_chacha = "0.1"
 regex = "1.1"
 ring = "0.14"
-recrypt = { git = "https://github.com/IronCoreLabs/recrypt-rs.git", rev = "6df3eb60e" }
+recrypt = "0.8.0"
 reqwest = "0.9"
 tokio = "0.1"
 hex = "0.3"
