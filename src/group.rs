@@ -60,7 +60,7 @@ pub trait GroupOps {
     ///
     /// # Arguments
     /// `group_create_opts` - See `GroupCreateOpts`. Use the `Default` implementation for defaults.
-    fn group_create(&mut self, group_create_opts: &GroupCreateOpts) -> Result<GroupMetaResult>;
+    fn group_create(&self, group_create_opts: &GroupCreateOpts) -> Result<GroupMetaResult>;
 
     /// Get the full metadata for a specific group given its ID.
     ///
@@ -100,11 +100,7 @@ pub trait GroupOps {
     /// # Returns
     /// GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
     ///   the reason they were not.
-    fn group_add_members(
-        &mut self,
-        id: &GroupId,
-        users: &[UserId],
-    ) -> Result<GroupAccessEditResult>;
+    fn group_add_members(&self, id: &GroupId, users: &[UserId]) -> Result<GroupAccessEditResult>;
 
     /// Remove a list of users as members from the group.
     ///
@@ -129,8 +125,7 @@ pub trait GroupOps {
     /// # Returns
     /// GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
     ///   the reason they were not.
-    fn group_add_admins(&mut self, id: &GroupId, users: &[UserId])
-        -> Result<GroupAccessEditResult>;
+    fn group_add_admins(&self, id: &GroupId, users: &[UserId]) -> Result<GroupAccessEditResult>;
 
     /// Remove a list of users as admins from the group.
     ///
@@ -154,7 +149,7 @@ impl GroupOps for crate::IronOxide {
         rt.block_on(group_api::list(self.device.auth(), None))
     }
 
-    fn group_create(&mut self, opts: &GroupCreateOpts) -> Result<GroupMetaResult> {
+    fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupMetaResult> {
         let mut rt = Runtime::new().unwrap();
         let GroupCreateOpts {
             id: maybe_id,
@@ -163,7 +158,7 @@ impl GroupOps for crate::IronOxide {
         } = opts.clone();
 
         rt.block_on(group_api::group_create(
-            &mut self.recrypt,
+            &self.recrypt,
             self.device.auth(),
             &self.user_master_pub_key,
             maybe_id,
@@ -188,13 +183,13 @@ impl GroupOps for crate::IronOxide {
     }
 
     fn group_add_members(
-        &mut self,
+        &self,
         id: &GroupId,
         grant_list: &[UserId],
     ) -> Result<GroupAccessEditResult> {
         let mut rt = Runtime::new().unwrap();
         rt.block_on(group_api::group_add_members(
-            &mut self.recrypt,
+            &self.recrypt,
             self.device.auth(),
             self.device.private_device_key(),
             id,
@@ -216,14 +211,10 @@ impl GroupOps for crate::IronOxide {
         ))
     }
 
-    fn group_add_admins(
-        &mut self,
-        id: &GroupId,
-        users: &[UserId],
-    ) -> Result<GroupAccessEditResult> {
+    fn group_add_admins(&self, id: &GroupId, users: &[UserId]) -> Result<GroupAccessEditResult> {
         let mut rt = Runtime::new().unwrap();
         rt.block_on(group_api::group_add_admins(
-            &mut self.recrypt,
+            &self.recrypt,
             self.device.auth(),
             self.device.private_device_key(),
             id,

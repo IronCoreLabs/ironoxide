@@ -10,7 +10,7 @@ use recrypt::{
 
 /// Generate a DEK and it's associated symmetric key for a new document
 pub fn generate_new_doc_key<CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
 ) -> (Plaintext, DerivedSymmetricKey) {
     let dek = recrypt.gen_plaintext();
     let symmetric_key = recrypt.derive_symmetric_key(&dek);
@@ -19,7 +19,7 @@ pub fn generate_new_doc_key<CR: rand::CryptoRng + rand::RngCore>(
 
 /// Generate a plaintext and a keypair necessary to create a new group
 pub fn gen_group_keys<CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
 ) -> Result<(Plaintext, PrivateKey, PublicKey), IronOxideErr> {
     let plaintext = recrypt.gen_plaintext();
     let priv_key = recrypt.derive_private_key(&plaintext);
@@ -43,7 +43,7 @@ pub fn decrypt_plaintext<CR: rand::CryptoRng + rand::RngCore>(
 /// Encrypt the plaintext to all the public keys in the `with_keys` list. If the encryption succeeds, return the values in the right
 /// list. If encryption fails, return them in the left list.
 pub fn encrypt_to_with_key<T, CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     plaintext: &recrypt::api::Plaintext,
     signing_keys: &recrypt::api::SigningKeypair,
     with_keys: Vec<WithKey<T>>,

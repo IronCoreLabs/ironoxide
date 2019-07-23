@@ -116,7 +116,7 @@ pub trait DocumentOps {
     ///       `grant_to_author` - Flag determining whether to encrypt to the calling user or not. If set to false at least one value must be present in the `grant` list.
     ///       `grants` - List of users/groups to grant access to this document once encrypted
     fn document_encrypt(
-        &mut self,
+        &self,
         document_data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptResult>;
@@ -127,7 +127,7 @@ pub trait DocumentOps {
     /// - `id` - ID of document to update.
     /// - `new_document_data` - Updated document content to encrypt.
     fn document_update_bytes(
-        &mut self,
+        &self,
         id: &DocumentId,
         new_document_data: &[u8],
     ) -> Result<DocumentEncryptResult>;
@@ -166,7 +166,7 @@ pub trait DocumentOps {
     /// the whole request. If the outer result is `Ok` then each individual grant to a user/group
     /// either succeeded or failed.
     fn document_grant_access(
-        &mut self,
+        &self,
         document_id: &DocumentId,
         grant_list: &Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult>;
@@ -204,7 +204,7 @@ impl DocumentOps for crate::IronOxide {
     }
 
     fn document_encrypt(
-        &mut self,
+        &self,
         document_data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptResult> {
@@ -231,9 +231,9 @@ impl DocumentOps for crate::IronOxide {
 
         rt.block_on(document_api::encrypt_document(
             self.device.auth(),
-            &mut self.recrypt,
+            &self.recrypt,
             &self.user_master_pub_key,
-            &mut self.rng,
+            &self.rng,
             document_data,
             encrypt_opts.id,
             encrypt_opts.name,
@@ -245,7 +245,7 @@ impl DocumentOps for crate::IronOxide {
     }
 
     fn document_update_bytes(
-        &mut self,
+        &self,
         id: &DocumentId,
         new_document_data: &[u8],
     ) -> Result<DocumentEncryptResult> {
@@ -253,9 +253,9 @@ impl DocumentOps for crate::IronOxide {
 
         rt.block_on(document_api::document_update_bytes(
             self.device.auth(),
-            &mut self.recrypt,
+            &self.recrypt,
             self.device.private_device_key(),
-            &mut self.rng,
+            &self.rng,
             id,
             &new_document_data,
         ))
@@ -287,7 +287,7 @@ impl DocumentOps for crate::IronOxide {
     }
 
     fn document_grant_access(
-        &mut self,
+        &self,
         id: &DocumentId,
         grant_list: &Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult> {
@@ -297,7 +297,7 @@ impl DocumentOps for crate::IronOxide {
 
         rt.block_on(document_api::document_grant_access(
             self.device.auth(),
-            &mut self.recrypt,
+            &self.recrypt,
             id,
             &self.user_master_pub_key,
             &self.device.private_device_key(),

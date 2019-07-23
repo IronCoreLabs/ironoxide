@@ -1,3 +1,4 @@
+use crate::internal::take_lock;
 use crate::{
     crypto::{
         aes::{self, AesEncryptedValue},
@@ -24,6 +25,8 @@ use requests::{
     document_list::{DocumentListApiResponse, DocumentListApiResponseItem},
     DocumentMetaApiResponse,
 };
+use std::ops::DerefMut;
+use std::sync::Mutex;
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Formatter,
@@ -44,9 +47,9 @@ impl DocumentId {
     }
 
     /// Generate a random id for a document
-    pub(crate) fn goo_id<R: CryptoRng + RngCore>(rng: &mut R) -> DocumentId {
+    pub(crate) fn goo_id<R: CryptoRng + RngCore>(rng: &Mutex<R>) -> DocumentId {
         let mut id = [0u8; 16];
-        rng.fill_bytes(&mut id);
+        take_lock(rng).deref_mut().fill_bytes(&mut id);
         DocumentId(encode(id))
     }
 }
@@ -417,11 +420,15 @@ pub fn get_id_from_bytes(encrypted_document: &[u8]) -> Result<DocumentId, IronOx
 }
 
 /// Encrypt a new document and share it with explicit users or groups, and with users and group specified by a policy
-pub fn encrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
+pub fn encrypt_document<
+    'a,
+    R1: rand::CryptoRng + rand::RngCore,
+    R2: rand::CryptoRng + rand::RngCore,
+>(
     auth: &'a RequestAuth,
-    recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
     user_master_pub_key: &'a PublicKey,
-    rng: &'a mut CR,
+    rng: &'a Mutex<R2>,
     plaintext: &'a [u8],
     document_id: Option<DocumentId>,
     document_name: Option<DocumentName>,
@@ -488,7 +495,7 @@ fn dedupe_grants(grants: &[WithKey<UserOrGroup>]) -> Vec<WithKey<UserOrGroup>> {
 /// `accum_errs` - non fatal errors accumulated while preparing to call `encrypt_document_core`. Probably from web requests.
 fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
-    recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     dek: Plaintext,
     encrypted_doc: AesEncryptedValue,
     doc_id: DocumentId,
@@ -553,11 +560,15 @@ fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
 
 /// Encrypt the provided plaintext using the DEK from the provided document ID but with a new AES IV. Allows updating the encrypted bytes
 /// of a document without having to change document access.
-pub fn document_update_bytes<'a, CR: rand::CryptoRng + rand::RngCore>(
+pub fn document_update_bytes<
+    'a,
+    R1: rand::CryptoRng + rand::RngCore,
+    R2: rand::CryptoRng + rand::RngCore,
+>(
     auth: &'a RequestAuth,
-    recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
     device_private_key: &'a PrivateKey,
-    rng: &'a mut CR,
+    rng: &'a Mutex<R2>,
     document_id: &'a DocumentId,
     plaintext: &'a [u8],
 ) -> impl Future<Item = DocumentEncryptResult, Error = IronOxideErr> + 'a {
@@ -568,20 +579,22 @@ pub fn document_update_bytes<'a, CR: rand::CryptoRng + rand::RngCore>(
             &device_private_key.recrypt_key(),
         )?;
         Ok(
-            aes::encrypt(rng, &plaintext.to_vec(), *sym_key.bytes()).map(move |encrypted_doc| {
-                let mut encrypted_payload =
-                    generate_document_header(document_id.clone(), auth.segment_id());
-                encrypted_payload.append(&mut encrypted_doc.bytes());
-                DocumentEncryptResult {
-                    id: doc_meta.0.id,
-                    name: doc_meta.0.name,
-                    created: doc_meta.0.created,
-                    updated: doc_meta.0.updated,
-                    encrypted_data: encrypted_payload,
-                    grants: vec![],      // grants can't currently change via update
-                    access_errs: vec![], // no grants, no access errs
-                }
-            })?,
+            aes::encrypt(&rng, &plaintext.to_vec(), *sym_key.bytes()).map(
+                move |encrypted_doc| {
+                    let mut encrypted_payload =
+                        generate_document_header(document_id.clone(), auth.segment_id());
+                    encrypted_payload.append(&mut encrypted_doc.bytes());
+                    DocumentEncryptResult {
+                        id: doc_meta.0.id,
+                        name: doc_meta.0.name,
+                        created: doc_meta.0.created,
+                        updated: doc_meta.0.updated,
+                        encrypted_data: encrypted_payload,
+                        grants: vec![], // grants can't currently change via update
+                        access_errs: vec![], // no grants, no access errs
+                    }
+                },
+            )?,
         )
     })
 }
@@ -628,7 +641,7 @@ pub fn update_document_name<'a>(
 
 pub fn document_grant_access<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
-    recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     id: &'a DocumentId,
     user_master_pub_key: &'a PublicKey,
     priv_device_key: &'a PrivateKey,
@@ -986,7 +999,7 @@ mod tests {
     }
     #[test]
     fn process_policy_good() {
-        let mut recrypt = recrypt::api::Recrypt::new();
+        let recrypt = recrypt::api::Recrypt::new();
         let (_, pubk) = recrypt.generate_key_pair().unwrap();
 
         let policy = PolicyResult {
@@ -1026,7 +1039,7 @@ mod tests {
 
     #[test]
     fn dedupe_grants_removes_dupes() {
-        let mut recrypt = recrypt::api::Recrypt::new();
+        let recrypt = recrypt::api::Recrypt::new();
         let (_, pubk) = recrypt.generate_key_pair().unwrap();
 
         let u1 = &UserId::unsafe_from_string("user1".into());

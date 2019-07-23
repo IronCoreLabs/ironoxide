@@ -7,12 +7,14 @@ use crate::internal::{
     user_api::UserId,
 };
 use chrono::{DateTime, Utc};
+use log::error;
 use recrypt::api::{
     Hashable, PrivateKey as RecryptPrivateKey, PublicKey as RecryptPublicKey, RecryptErr,
     SigningKeypair as RecryptSigningKeypair,
 };
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::sync::{Mutex, MutexGuard};
 use std::{
     convert::{TryFrom, TryInto},
     result::Result,
@@ -519,6 +521,33 @@ impl<T> WithKey<T> {
     }
 }
 
+/// Acquire mutex in a blocking fashion. If the Mutex is or becomes poisoned, write out an error
+/// message and panic.
+///
+/// The lock is released when the returned MutexGuard falls out of scope.
+///
+/// # Usage:
+/// single statement (mut)
+/// `let result = take_lock(&t).deref_mut().call_method_on_t();`
+///
+/// mutli-statement (mut)
+///
+/// ```ignore
+/// let t = T {};
+/// let result = {
+///     let g = &mut *take_lock(&t);
+///     g.call_method_on_t()
+/// }; // lock released here
+/// ```
+///
+pub(crate) fn take_lock<T>(m: &Mutex<T>) -> MutexGuard<T> {
+    m.lock().unwrap_or_else(|e| {
+        let error = format!("Error when acquiring lock: {}", e);
+        error!("{}", error);
+        panic!(error);
+    })
+}
+
 #[cfg(test)]
 pub(crate) mod test {
     use super::*;
@@ -564,7 +593,7 @@ pub(crate) mod test {
     #[test]
     fn serde_devicecontext_roundtrip() {
         use serde_json;
-        let mut recrypt = recrypt::api::Recrypt::new();
+        let recrypt = recrypt::api::Recrypt::new();
         let priv_key = recrypt.random_private_key();
         let dev_keys = recrypt::api::SigningKeypair::from_byte_slice(&[
             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,

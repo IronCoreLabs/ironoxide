@@ -12,30 +12,31 @@ description = "A pure-Rust SDK for accessing IronCore's privacy platform"
 edition = "2018"
 
 [dependencies]
-base64 = "0.10"
-base64-serde = "0.3.1"
-serde = "1.0"
-serde_json = "1.0"
-serde_derive = "1.0"
-rand = "0.6"
-regex = "1.1"
-ring = "0.14"
-recrypt = "0.7"
-reqwest = "0.9"
-tokio = "0.1"
-hex = "0.3"
-itertools = "0.8"
-futures = "0.1.25"
-quick-error = "1.2"
-lazy_static = "1.2"
+base64 = "~0.10"
+base64-serde = "~0.3.1"
+serde = "~1.0"
+serde_json = "~1.0"
+serde_derive = "~1.0"
+rand = "~0.6"
+rand_chacha = "~0.1"
+regex = "~1.1"
+ring = "~0.14"
+recrypt = "~0.8"
+reqwest = "~0.9"
+tokio = "~0.1"
+hex = "~0.3"
+itertools = "~0.8"
+futures = "~0.1.25"
+quick-error = "~1.2"
+lazy_static = "~1.2"
 chrono = { version = "0.4", features = ["serde"] }
-percent-encoding="1.0"
+percent-encoding="~1.0"
+log = "~0.4"
 
 [dev-dependencies]
-frank_jwt = "3.1.1"
-galvanic-assert = "0.8"
-base64 = "0.10"
-uuid = { version = "0.7.2", features = ["serde", "v4"] }
+frank_jwt = "~3.1.1"
+galvanic-assert = "~0.8"
+uuid = { version = "~0.7.2", features = ["serde", "v4"] }
 
 [features]
 senv = []

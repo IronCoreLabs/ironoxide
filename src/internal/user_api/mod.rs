@@ -6,6 +6,7 @@ use chrono::{DateTime, Utc};
 use futures::prelude::*;
 use itertools::{Either, Itertools};
 use recrypt::prelude::*;
+use std::sync::Mutex;
 use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
@@ -202,7 +203,7 @@ pub fn user_verify(
 
 /// Create a user
 pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: Jwt,
     passphrase: Password,
     request: IronCoreRequest<'static>,
@@ -212,7 +213,7 @@ pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
         .map_err(IronOxideErr::from)
         .and_then(|(recrypt_priv, recrypt_pub)| {
             Ok(aes::encrypt_user_master_key(
-                &mut rand::thread_rng(),
+                &Mutex::new(rand::thread_rng()),
                 passphrase.0.as_str(),
                 recrypt_priv.bytes(),
             )
@@ -232,7 +233,7 @@ pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
 
 /// Generate a device key for the user specified in the JWT.
 pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &'a mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: &'a Jwt,
     password: Password,
     device_name: Option<DeviceName>,
@@ -367,7 +368,7 @@ pub(crate) fn get_user_keys<'a>(
 /// Specifically, it creates a device key pair and signing key pair, then a transform key between the provided
 /// user private key and device public key. Also generated is a device add signature that is necessary to hit the API.
 fn generate_device_add<CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: &Jwt,
     user_master_keypair: &KeyPair,
     signing_ts: &DateTime<Utc>,
@@ -398,7 +399,7 @@ fn generate_device_add<CR: rand::CryptoRng + rand::RngCore>(
 
 /// Generate a schnorr signature for calling the device add endpoint in ironcore-id
 fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &mut Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: &Jwt,
     user_master_keypair: &KeyPair,
     transform_key: &TransformKey,

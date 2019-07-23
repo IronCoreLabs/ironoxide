@@ -3,7 +3,7 @@ use std::{fmt, num::NonZeroU32};
 use rand::{self, CryptoRng, RngCore};
 use ring::{aead, digest, error::Unspecified, pbkdf2};
 
-use crate::internal::IronOxideErr;
+use crate::internal::{take_lock, IronOxideErr};
 use futures::Future;
 use std::convert::TryFrom;
 
@@ -84,7 +84,7 @@ impl EncryptedMasterKey {
         dest
     }
 }
-
+#[derive(Debug, Clone)]
 pub struct AesEncryptedValue {
     aes_iv: [u8; AES_IV_LEN],
     ciphertext: Vec<u8>,
@@ -136,12 +136,13 @@ fn derive_key_from_password(password: &str, salt: [u8; PBKDF2_SALT_LEN]) -> [u8;
 /// Encrypt a users master private key using the provided password. Uses the password to generate a derived AES key
 /// via PBKDF2 and then AES encrypts the users private key with the derived AES key.
 pub fn encrypt_user_master_key<R: CryptoRng + RngCore>(
-    rng: &mut R,
+    rng: &Mutex<R>,
     password: &str,
     user_master_key: &[u8; 32],
 ) -> Result<EncryptedMasterKey, Unspecified> {
     let mut salt = [0u8; PBKDF2_SALT_LEN];
-    rng.fill_bytes(&mut salt);
+
+    take_lock(&rng).deref_mut().fill_bytes(&mut salt);
     let derived_key = derive_key_from_password(password, salt);
 
     let encrypted_key = encrypt(rng, &user_master_key.to_vec(), derived_key)?;
@@ -177,15 +178,14 @@ pub fn decrypt_user_master_key(
 /// Encrypt the provided variable length plaintext with the provided 32 byte AES key. Returns a Result which
 /// is a struct which contains the resulting ciphertext and the IV used during encryption.
 pub fn encrypt<R: CryptoRng + RngCore>(
-    rng: &mut R,
+    rng: &Mutex<R>,
     plaintext: &Vec<u8>,
     key: [u8; AES_KEY_LEN],
 ) -> Result<AesEncryptedValue, Unspecified> {
     let algorithm = &aead::AES_256_GCM;
-
     let mut iv = [0u8; aead::NONCE_LEN];
-    rng.fill_bytes(&mut iv);
 
+    take_lock(rng).deref_mut().fill_bytes(&mut iv);
     let aes_key = aead::SealingKey::new(algorithm, &key[..])?;
 
     //Increase the size of the plaintext vector to fit the GCM auth tag
@@ -205,10 +205,12 @@ pub fn encrypt<R: CryptoRng + RngCore>(
 }
 
 use futures::future::IntoFuture;
+use std::ops::DerefMut;
+use std::sync::Mutex;
 
 /// Like `encrypt`, just wrapped in a Future for convenience
 pub fn encrypt_future<R: CryptoRng + RngCore>(
-    rng: &mut R,
+    rng: &Mutex<R>,
     plaintext: &Vec<u8>,
     key: [u8; AES_KEY_LEN],
 ) -> impl Future<Item = AesEncryptedValue, Error = IronOxideErr> {
@@ -239,14 +241,15 @@ pub fn decrypt(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     #[test]
     fn test_encrypt_user_master_key() {
         let user_master_key = [0u8; 32];
         let password = "MyPassword";
-        let mut rng = rand::thread_rng();
+        let rng = rand::thread_rng();
         let encrypted_master_key =
-            encrypt_user_master_key(&mut rng, &password, &user_master_key).unwrap();
+            encrypt_user_master_key(&Mutex::new(rng), &password, &user_master_key).unwrap();
         assert_eq!(encrypted_master_key.pbkdf2_salt.len(), 32);
         assert_eq!(encrypted_master_key.aes_iv.len(), 12);
         assert_eq!(encrypted_master_key.encrypted_key.len(), 48);
@@ -256,9 +259,9 @@ mod tests {
     fn test_decrypt_user_master_key() {
         let user_master_key = [0u8; 32];
         let password = "MyPassword";
-        let mut rng = rand::thread_rng();
+        let rng = rand::thread_rng();
         let encrypted_master_key =
-            encrypt_user_master_key(&mut rng, &password, &user_master_key).unwrap();
+            encrypt_user_master_key(&Mutex::new(rng), &password, &user_master_key).unwrap();
 
         let decrypted_master_key =
             decrypt_user_master_key(&password, &encrypted_master_key).unwrap();
@@ -272,7 +275,7 @@ mod tests {
         let mut rng = rand::thread_rng();
         rng.fill_bytes(&mut key);
 
-        let res = encrypt(&mut rng, &plaintext, key).unwrap();
+        let res = encrypt(&Mutex::new(rng), &plaintext, key).unwrap();
         assert_eq!(res.aes_iv.len(), 12);
         assert_eq!(
             res.ciphertext.len(),
@@ -287,10 +290,39 @@ mod tests {
         let mut rng = rand::thread_rng();
         rng.fill_bytes(&mut key);
 
-        let mut encrypted_result = encrypt(&mut rng, &plaintext, key).unwrap();
+        let mut encrypted_result = encrypt(&Mutex::new(rng), &plaintext, key).unwrap();
 
         let decrypted_plaintext = decrypt(&mut encrypted_result, key).unwrap();
 
         assert_eq!(*decrypted_plaintext, plaintext[..]);
+    }
+
+    #[test]
+    fn test_parallel_encrypt() {
+        use rand::FromEntropy;
+
+        let plaintext = vec![1, 2, 3, 4, 5, 6, 7];
+        let mut key = [0u8; 32];
+        let rng = Mutex::new(rand_chacha::ChaChaRng::from_entropy());
+        take_lock(&rng).deref_mut().fill_bytes(&mut key);
+
+        let a_rng = Arc::new(rng);
+
+        let mut threads = vec![];
+        for _i in 0..100 {
+            let rng_ref = a_rng.clone();
+            let pt = plaintext.clone();
+            threads.push(std::thread::spawn(move || {
+                let _res = encrypt(&rng_ref, &pt, key).unwrap();
+            }));
+        }
+
+        let mut joined_count = 0;
+        for t in threads {
+            t.join().expect("join failed");
+            joined_count += 1;
+        }
+
+        assert_eq!(joined_count, 100);
     }
 }
