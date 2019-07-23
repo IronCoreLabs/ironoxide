@@ -1,0 +1,33 @@
+
+syntax = "proto3";
+
+option java_package = "com.ironcorelabs.proto";
+
+message PublicKey {
+    bytes x = 1;
+    bytes y = 2;
+}
+
+message UserOrGroup {
+    oneof UserOrGroupId {
+        string userId = 1;
+        string groupId = 2;
+    }
+
+    PublicKey masterPublicKey = 3;
+}
+
+message EDEK {
+    bytes encryptedDekData = 1;
+    PublicKey ephemeralPublicKey = 2;
+    bytes signature = 3;
+    bytes authHash = 4;
+    bytes publicSigningKey = 5;
+    UserOrGroup userOrGroup = 6;
+}
+
+message EDEKs {
+    repeated EDEK edeks = 1;
+    string documentId = 2;
+    int32 segmentId = 3;
+}
