@@ -42,6 +42,8 @@ extern crate galvanic_assert;
 mod crypto;
 mod internal;
 
+mod proto;
+
 /// SDK document operations
 pub mod document;
 
