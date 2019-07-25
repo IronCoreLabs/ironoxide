@@ -1,4 +1,5 @@
 use super::{AssociationType, DocumentId, DocumentName};
+use crate::internal::document_api::EncryptedDek;
 use crate::internal::{
     self,
     document_api::{UserOrGroup, VisibleGroup, VisibleUser, WithKey},
@@ -13,6 +14,7 @@ use crate::internal::{
 use chrono::{DateTime, Utc};
 use futures::Future;
 use std::convert::TryFrom;
+use std::convert::TryInto;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Association {
@@ -63,15 +65,41 @@ pub struct AccessGrant {
     pub(crate) encrypted_value: EncryptedOnceValue,
 }
 
+//TODO get rid of
 impl TryFrom<(WithKey<UserOrGroup>, recrypt::api::EncryptedValue)> for AccessGrant {
     type Error = IronOxideErr;
     fn try_from(
         entry: (WithKey<UserOrGroup>, recrypt::api::EncryptedValue),
     ) -> Result<Self, Self::Error> {
-        use std::convert::TryInto;
         Ok(AccessGrant {
             encrypted_value: entry.1.clone().try_into()?,
             user_or_group: match entry.0.clone() {
+                WithKey {
+                    id: UserOrGroup::User { id },
+                    public_key,
+                } => UserOrGroupWithKey::User {
+                    id: id.0,
+                    master_public_key: Some(public_key.into()),
+                },
+                WithKey {
+                    id: UserOrGroup::Group { id },
+                    public_key,
+                } => UserOrGroupWithKey::Group {
+                    id: id.0,
+                    master_public_key: Some(public_key.into()),
+                },
+            },
+        })
+    }
+}
+
+impl TryFrom<EncryptedDek> for AccessGrant {
+    type Error = IronOxideErr;
+
+    fn try_from(value: EncryptedDek) -> Result<Self, Self::Error> {
+        Ok(AccessGrant {
+            encrypted_value: value.encrypted_dek_data.try_into()?,
+            user_or_group: match value.grant_to {
                 WithKey {
                     id: UserOrGroup::User { id },
                     public_key,
@@ -168,7 +196,7 @@ pub mod document_get {
 
 pub mod document_create {
     use super::*;
-    use crate::internal::document_api::DocumentName;
+    use crate::internal::document_api::{DocumentName, EncryptedDek};
     use std::convert::TryInto;
 
     #[derive(Serialize, Debug, Clone, Deserialize, PartialEq)]
@@ -198,7 +226,7 @@ pub mod document_create {
         auth: &RequestAuth,
         id: DocumentId,
         name: Option<DocumentName>,
-        grants: Vec<(WithKey<UserOrGroup>, recrypt::api::EncryptedValue)>,
+        grants: Vec<EncryptedDek>, // TODO dyn added due to warning. Can Box be removed?
     ) -> Box<Future<Item = DocumentCreateResponse, Error = IronOxideErr>> {
         let maybe_req_grants: Result<Vec<_>, _> =
             grants.into_iter().map(|g| g.try_into()).collect();

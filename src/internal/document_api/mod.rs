@@ -18,6 +18,7 @@ use futures::prelude::*;
 use hex::encode;
 use itertools::{Either, Itertools};
 use rand::{self, CryptoRng, RngCore};
+use recrypt::api::EncryptedValue;
 use recrypt::{api::Plaintext, prelude::*};
 pub use requests::policy_get::PolicyResult;
 use requests::{
@@ -260,7 +261,7 @@ impl DocumentMetadataResult {
 /// - `grants` - Users and groups that have access to decrypt the `encrypted_data`
 /// - `access_errs` - Users and groups that could not be granted access
 #[derive(Debug)]
-pub struct DocumentEncryptResult {
+pub struct DocumentCreateResult {
     id: DocumentId,
     name: Option<DocumentName>,
     updated: DateTime<Utc>,
@@ -269,7 +270,7 @@ pub struct DocumentEncryptResult {
     grants: Vec<UserOrGroup>,
     access_errs: Vec<DocAccessEditErr>,
 }
-impl DocumentEncryptResult {
+impl DocumentCreateResult {
     pub fn id(&self) -> &DocumentId {
         &self.id
     }
@@ -436,7 +437,7 @@ pub fn encrypt_document<
     user_grants: &'a Vec<UserId>,
     group_grants: &'a Vec<GroupId>,
     policy_grant: Option<&PolicyGrant>,
-) -> impl Future<Item = DocumentEncryptResult, Error = IronOxideErr> + 'a {
+) -> impl Future<Item = DocumentCreateResult, Error = IronOxideErr> + 'a {
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
     let doc_id = document_id.unwrap_or(DocumentId::goo_id(rng));
     internal::user_api::get_user_keys(auth, user_grants)
@@ -474,11 +475,101 @@ pub fn encrypt_document<
                 recrypt,
                 dek,
                 encrypted_doc,
-                doc_id,
-                document_name,
+                &doc_id,
+                //                document_name,
                 [explicit_grants, applied_policy_grants].concat(),
-                other_errs,
+                //                other_errs,
             )
+            .into_future()
+            .and_then(move |r| document_create(&auth, r, doc_id, &document_name, other_errs))
+        })
+}
+
+fn resolve_grants<'a>(
+    auth: &'a RequestAuth,
+    //                  recrypt: & Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
+    //    user_master_pub_key: &PublicKey,
+    //                  rng: & Mutex<R2>,
+    //                  plaintext: & [u8],
+    //                  document_id: Option<DocumentId>,
+    //                  document_name: Option<DocumentName>,
+    //    grant_to_author: bool,
+    user_grants: &'a Vec<UserId>,
+    group_grants: &'a Vec<GroupId>,
+    policy_grant: Option<&'a PolicyGrant>,
+) -> impl Future<Item = (Vec<WithKey<UserOrGroup>>, Vec<DocAccessEditErr>), Error = IronOxideErr> + 'a
+{
+    internal::user_api::get_user_keys(auth, user_grants)
+        .join3(
+            internal::group_api::get_group_keys(auth, group_grants),
+            policy_grant.map(|p| requests::policy_get::policy_get_request(auth, p)),
+        )
+        .map(move |(users, groups, maybe_policy_res)| {
+            let (group_errs, groups_with_key) = process_groups(groups);
+            let (user_errs, users_with_key) = process_users(users);
+            let explicit_grants =
+//                if grant_to_author {
+//                let self_grant = WithKey::new(
+//                    UserOrGroup::User {
+//                        id: auth.account_id.clone(),
+//                    },
+//                    user_master_pub_key.clone(),
+//                );
+//                [&[self_grant], &users_with_key[..], &groups_with_key[..]].concat()
+//            } else {
+                [&users_with_key[..], &groups_with_key[..]].concat();
+            //            };
+            let (policy_errs, applied_policy_grants) = match maybe_policy_res {
+                None => (vec![], vec![]),
+                Some(res) => process_policy(&res),
+            };
+
+            (
+                [explicit_grants, applied_policy_grants].concat(),
+                [group_errs, user_errs, policy_errs].concat(),
+            )
+        })
+}
+
+/// Encrypts a document but does not create the document in the IronCore system.
+/// The resultant EncryptionResult both the EncryptedDeks and the AesEncryptedValue for the caller to deal with.
+pub fn edek_encrypt_document<'a, R1, R2: 'a>(
+    auth: &'a RequestAuth,
+    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
+    user_master_pub_key: &PublicKey,
+    rng: &Mutex<R2>,
+    plaintext: &[u8],
+    document_id: Option<DocumentId>,
+    document_name: Option<DocumentName>,
+    grant_to_author: bool,
+    user_grants: &'a Vec<UserId>,
+    group_grants: &'a Vec<GroupId>,
+    policy_grant: Option<&'a PolicyGrant>,
+) -> impl Future<Item = EncryptionResult, Error = IronOxideErr> + 'a
+where
+    R1: rand::CryptoRng + rand::RngCore,
+    R2: rand::CryptoRng + rand::RngCore,
+{
+    let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
+    let doc_id = document_id.unwrap_or(DocumentId::goo_id(rng));
+
+    aes::encrypt_future(rng, &plaintext.to_vec(), *doc_sym_key.bytes())
+        .join(resolve_grants(
+            auth,
+            user_grants,
+            group_grants,
+            policy_grant,
+        ))
+        .and_then(move |(encryption_result, (grants, key_errs))| {
+            Ok({
+                let encryption_result =
+                    encrypt_document_core(auth, recrypt, dek, encryption_result, &doc_id, grants)?;
+                EncryptionResult {
+                    edeks: encryption_result.edeks,
+                    encrypted_data: encryption_result.encrypted_data,
+                    encryption_errs: [key_errs, encryption_result.encryption_errs].concat(),
+                }
+            })
         })
 }
 
@@ -492,17 +583,16 @@ fn dedupe_grants(grants: &[WithKey<UserOrGroup>]) -> Vec<WithKey<UserOrGroup>> {
 }
 
 /// Actually encrypts the document. Can be called once you have all users/groups and their public keys.
-/// `accum_errs` - non fatal errors accumulated while preparing to call `encrypt_document_core`. Probably from web requests.
 fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     dek: Plaintext,
     encrypted_doc: AesEncryptedValue,
-    doc_id: DocumentId,
-    document_name: Option<DocumentName>,
+    doc_id: &DocumentId,
+    //    document_name: Option<DocumentName>,
     grants: Vec<WithKey<UserOrGroup>>,
-    accum_errs: Vec<DocAccessEditErr>,
-) -> impl Future<Item = DocumentEncryptResult, Error = IronOxideErr> + 'a {
+    //    accum_errs: Vec<DocAccessEditErr>,
+) -> Result<EncryptionResult, IronOxideErr> {
     // check to make sure that we are granting to something
     if grants.is_empty() {
         Err(IronOxideErr::ValidationError(
@@ -522,38 +612,98 @@ fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
                 dedupe_grants(&grants),
             );
 
-            (
-                grants,
-                encrypted_doc,
-                vec![
-                    accum_errs,
+            EncryptionResult {
+                edeks: grants
+                    .into_iter()
+                    .map(|(wk, ev)| EncryptedDek {
+                        grant_to: wk,
+                        encrypted_dek_data: ev,
+                    })
+                    .collect(),
+                encrypted_data: encrypted_doc,
+                encryption_errs: vec![
+                    //TODO don't squash errs here
+                    //                    accum_errs,
                     encrypt_errs.into_iter().map(|e| e.into()).collect(),
                 ]
                 .into_iter()
                 .concat(),
-            )
+            }
         })
     }
-    .into_future()
-    .and_then(move |(grants, encrypted_doc, other_errs)| {
-        document_create::document_create_request(auth, doc_id.clone(), document_name, grants)
-            .map(move |resp| (doc_id, resp, encrypted_doc, other_errs))
+    //    .into_future()
+    //    .and_then(move |(grants, encrypted_doc, other_errs)| {
+    //        document_create::document_create_request(auth, doc_id.clone(), document_name, grants)
+    //            .map(move |resp| (doc_id, resp, encrypted_doc, other_errs))
+    //    })
+    //    .map(move |(doc_id, api_resp, encrypted_doc, all_errs)| {
+    //        //Generate and prepend the document header to the encrypted document
+    //        let encrypted_payload = [
+    //            &generate_document_header(doc_id.clone(), auth.segment_id())[..],
+    //            &encrypted_doc.bytes()[..],
+    //        ]
+    //        .concat();
+    //        DocumentCreateResult {
+    //            id: api_resp.id,
+    //            name: api_resp.name,
+    //            created: api_resp.created,
+    //            updated: api_resp.updated,
+    //            encrypted_data: encrypted_payload,
+    //            grants: api_resp.shared_with.iter().map(|sw| sw.into()).collect(),
+    //            access_errs: all_errs,
+    //        }
+    //    })
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EncryptedDek {
+    grant_to: WithKey<UserOrGroup>,
+    encrypted_dek_data: recrypt::api::EncryptedValue,
+}
+
+pub struct EncryptionResult {
+    edeks: Vec<EncryptedDek>,
+    encrypted_data: AesEncryptedValue,
+    encryption_errs: Vec<DocAccessEditErr>,
+}
+
+/// Creates an encrypted document entry in the IronCore webservice.
+pub fn document_create<'a>(
+    auth: &'a RequestAuth,
+    encryption_result: EncryptionResult,
+    doc_id: DocumentId,
+    doc_name: &Option<DocumentName>,
+    accum_errs: Vec<DocAccessEditErr>,
+) -> impl Future<Item = DocumentCreateResult, Error = IronOxideErr> + 'a {
+    document_create::document_create_request(
+        auth,
+        doc_id.clone(),
+        doc_name.clone(),
+        encryption_result.edeks.to_vec(),
+    )
+    .map(move |resp| {
+        (
+            doc_id,
+            resp,
+            encryption_result.encrypted_data.clone(),
+            encryption_result.encryption_errs.clone(),
+        )
     })
-    .map(move |(doc_id, api_resp, encrypted_doc, all_errs)| {
+    .map(move |(doc_id, api_resp, encrypted_data, encrypt_errs)| {
         //Generate and prepend the document header to the encrypted document
         let encrypted_payload = [
-            &generate_document_header(doc_id.clone(), auth.segment_id())[..],
-            &encrypted_doc.bytes()[..],
+            generate_document_header(doc_id.clone(), auth.segment_id()),
+            encrypted_data.bytes(),
         ]
         .concat();
-        DocumentEncryptResult {
+        DocumentCreateResult {
             id: api_resp.id,
             name: api_resp.name,
             created: api_resp.created,
             updated: api_resp.updated,
             encrypted_data: encrypted_payload,
             grants: api_resp.shared_with.iter().map(|sw| sw.into()).collect(),
-            access_errs: all_errs,
+            access_errs: [accum_errs, encrypt_errs].concat(),
         }
     })
 }
@@ -571,7 +721,7 @@ pub fn document_update_bytes<
     rng: &'a Mutex<R2>,
     document_id: &'a DocumentId,
     plaintext: &'a [u8],
-) -> impl Future<Item = DocumentEncryptResult, Error = IronOxideErr> + 'a {
+) -> impl Future<Item = DocumentCreateResult, Error = IronOxideErr> + 'a {
     document_get_metadata(auth, &document_id).and_then(move |doc_meta| {
         let (_, sym_key) = transform::decrypt_plaintext(
             &recrypt,
@@ -584,7 +734,7 @@ pub fn document_update_bytes<
                     let mut encrypted_payload =
                         generate_document_header(document_id.clone(), auth.segment_id());
                     encrypted_payload.append(&mut encrypted_doc.bytes());
-                    DocumentEncryptResult {
+                    DocumentCreateResult {
                         id: doc_meta.0.id,
                         name: doc_meta.0.name,
                         created: doc_meta.0.created,

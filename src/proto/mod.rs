@@ -1,1 +1,1 @@
-mod edeks;
+pub mod edeks;
