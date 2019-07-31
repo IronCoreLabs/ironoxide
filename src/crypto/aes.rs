@@ -176,13 +176,25 @@ pub fn decrypt_user_master_key(
     Ok(fixed_decrypted_master_key)
 }
 
-struct ConstantNonceGenerator {
-    iv: [u8; aead::NONCE_LEN],
+// Will hand out a Nonce once and an Unspecified Error each subsequent time
+struct SingleUseNonceGenerator {
+    iv: Option<[u8; aead::NONCE_LEN]>,
 }
 
-impl aead::NonceSequence for ConstantNonceGenerator {
+impl SingleUseNonceGenerator {
+    fn new(iv: [u8; aead::NONCE_LEN]) -> SingleUseNonceGenerator {
+        SingleUseNonceGenerator { iv: Some(iv) }
+    }
+}
+
+impl aead::NonceSequence for SingleUseNonceGenerator {
     fn advance(&mut self) -> Result<aead::Nonce, Unspecified> {
-        Ok(aead::Nonce::assume_unique_for_key(self.iv))
+        self.iv
+            .take() // will take the value and leave None in its place
+            .map_or_else(
+                || Err(Unspecified),
+                |iv| Ok(aead::Nonce::assume_unique_for_key(iv)),
+            )
     }
 }
 
@@ -198,7 +210,7 @@ pub fn encrypt<R: CryptoRng + RngCore>(
     take_lock(rng).deref_mut().fill_bytes(&mut iv);
     let mut aes_key = aead::SealingKey::new(
         aead::UnboundKey::new(algorithm, &key[..])?,
-        ConstantNonceGenerator { iv },
+        SingleUseNonceGenerator::new(iv),
     );
     //Increase the size of the plaintext vector to fit the GCM auth tag
     let mut ciphertext = plaintext.clone(); // <-- Not good. We're copying the entire plaintext, which could be large.
@@ -233,9 +245,7 @@ pub fn decrypt(
 ) -> Result<&mut [u8], Unspecified> {
     let mut aes_key = aead::OpeningKey::new(
         aead::UnboundKey::new(&aead::AES_256_GCM, &key[..])?,
-        ConstantNonceGenerator {
-            iv: encrypted_doc.aes_iv,
-        },
+        SingleUseNonceGenerator::new(encrypted_doc.aes_iv),
     );
     let plaintext = aes_key.open_in_place(aead::Aad::empty(), &mut encrypted_doc.ciphertext[..])?;
     Ok(plaintext)
