@@ -114,7 +114,7 @@ impl TryFrom<&[u8]> for AesEncryptedValue {
 }
 
 impl From<ring::error::Unspecified> for IronOxideErr {
-    fn from(ring_err: Unspecified) -> Self {
+    fn from(ring_err: ring::error::Unspecified) -> Self {
         IronOxideErr::AesError(ring_err)
     }
 }
@@ -124,7 +124,7 @@ impl From<ring::error::Unspecified> for IronOxideErr {
 fn derive_key_from_password(password: &str, salt: [u8; PBKDF2_SALT_LEN]) -> [u8; AES_KEY_LEN] {
     let mut derived_key = [0u8; digest::SHA256_OUTPUT_LEN];
     pbkdf2::derive(
-        &digest::SHA256,
+        pbkdf2::PBKDF2_HMAC_SHA256,
         PBKDF2_ITERATIONS,
         &salt,
         password.as_bytes(),
@@ -186,17 +186,15 @@ pub fn encrypt<R: CryptoRng + RngCore>(
     let mut iv = [0u8; aead::NONCE_LEN];
 
     take_lock(rng).deref_mut().fill_bytes(&mut iv);
-    let aes_key = aead::SealingKey::new(algorithm, &key[..])?;
-
+    let unbound_key = aead::UnboundKey::new(algorithm, &key[..])?;
+    let aes_key = aead::LessSafeKey::new(unbound_key);
     //Increase the size of the plaintext vector to fit the GCM auth tag
     let mut ciphertext = plaintext.clone(); // <-- Not good. We're copying the entire plaintext, which could be large.
-    ciphertext.resize(ciphertext.len() + algorithm.tag_len(), 0);
-    aead::seal_in_place(
-        &aes_key,
+    //ciphertext.resize(ciphertext.len() + algorithm.tag_len(), 0);
+    aes_key.seal_in_place_append_tag(
         aead::Nonce::assume_unique_for_key(iv),
         aead::Aad::empty(),
         &mut ciphertext,
-        algorithm.tag_len(),
     )?;
     Ok(AesEncryptedValue {
         ciphertext,
@@ -226,13 +224,11 @@ pub fn decrypt(
     encrypted_doc: &mut AesEncryptedValue,
     key: [u8; AES_KEY_LEN],
 ) -> Result<&mut [u8], Unspecified> {
-    let aes_key = aead::OpeningKey::new(&aead::AES_256_GCM, &key[..])?;
-
-    let plaintext = aead::open_in_place(
-        &aes_key,
+    let unbound_key = aead::UnboundKey::new(&aead::AES_256_GCM, &key[..])?;
+    let aes_key = aead::LessSafeKey::new(unbound_key);
+    let plaintext = aes_key.open_in_place(
         aead::Nonce::assume_unique_for_key(encrypted_doc.aes_iv),
         aead::Aad::empty(),
-        0,
         &mut encrypted_doc.ciphertext[..],
     )?;
     Ok(plaintext)
