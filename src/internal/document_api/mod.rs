@@ -659,8 +659,8 @@ where
 }
 
 impl From<ProtobufError> for IronOxideErr {
-    fn from(_: ProtobufError) -> Self {
-        unimplemented!()
+    fn from(e: ProtobufError) -> Self {
+        internal::IronOxideErr::ProtobufError(e)
     }
 }
 

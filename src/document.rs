@@ -188,6 +188,20 @@ pub trait DocumentOps {
         revoke_list: &Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult>;
 
+    /// (Advanced) Encrypt the provided document bytes. Return the encrypted document encryption keys (EDEKs)
+    /// instead of creating a document entry in the IronCore webservice.
+    ///
+    /// The webservice is still needed for looking up public keys and evaluating policies, but no
+    /// document is created and the edeks are not stored. An additional burden is put on the caller
+    /// in that the encrypted data AND the edeks need to be provided for decryption.
+    ///
+    /// # Arguments
+    /// - `document_data` - Bytes of the document to encrypt
+    /// - `encrypt_opts` - Optional document encrypt parameters. Includes
+    ///       `id` - Unique ID to use for the document. Document ID will be stored unencrypted and must be unique per segment.
+    ///       `name` - (Ignored) - Any name provided will be ignored
+    ///       `grant_to_author` - Flag determining whether to encrypt to the calling user or not. If set to false at least one value must be present in the `grant` list.
+    ///       `grants` - List of users/groups to grant access to this document once encrypted
     fn document_edek_encrypt(
         &self,
         data: &[u8],
