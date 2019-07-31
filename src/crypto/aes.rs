@@ -1,6 +1,7 @@
 use std::{fmt, num::NonZeroU32};
 
 use rand::{self, CryptoRng, RngCore};
+use ring::aead::BoundKey;
 use ring::{aead, digest, error::Unspecified, pbkdf2};
 
 use crate::internal::{take_lock, IronOxideErr};
@@ -124,7 +125,7 @@ impl From<ring::error::Unspecified> for IronOxideErr {
 fn derive_key_from_password(password: &str, salt: [u8; PBKDF2_SALT_LEN]) -> [u8; AES_KEY_LEN] {
     let mut derived_key = [0u8; digest::SHA256_OUTPUT_LEN];
     pbkdf2::derive(
-        &digest::SHA256,
+        pbkdf2::PBKDF2_HMAC_SHA256,
         PBKDF2_ITERATIONS,
         &salt,
         password.as_bytes(),
@@ -175,6 +176,28 @@ pub fn decrypt_user_master_key(
     Ok(fixed_decrypted_master_key)
 }
 
+// Will hand out a Nonce once and an Unspecified Error each subsequent time
+struct SingleUseNonceGenerator {
+    iv: Option<[u8; aead::NONCE_LEN]>,
+}
+
+impl SingleUseNonceGenerator {
+    fn new(iv: [u8; aead::NONCE_LEN]) -> SingleUseNonceGenerator {
+        SingleUseNonceGenerator { iv: Some(iv) }
+    }
+}
+
+impl aead::NonceSequence for SingleUseNonceGenerator {
+    fn advance(&mut self) -> Result<aead::Nonce, Unspecified> {
+        self.iv
+            .take() // will take the value and leave None in its place
+            .map_or_else(
+                || Err(Unspecified),
+                |iv| Ok(aead::Nonce::assume_unique_for_key(iv)),
+            )
+    }
+}
+
 /// Encrypt the provided variable length plaintext with the provided 32 byte AES key. Returns a Result which
 /// is a struct which contains the resulting ciphertext and the IV used during encryption.
 pub fn encrypt<R: CryptoRng + RngCore>(
@@ -184,20 +207,14 @@ pub fn encrypt<R: CryptoRng + RngCore>(
 ) -> Result<AesEncryptedValue, Unspecified> {
     let algorithm = &aead::AES_256_GCM;
     let mut iv = [0u8; aead::NONCE_LEN];
-
     take_lock(rng).deref_mut().fill_bytes(&mut iv);
-    let aes_key = aead::SealingKey::new(algorithm, &key[..])?;
-
+    let mut aes_key = aead::SealingKey::new(
+        aead::UnboundKey::new(algorithm, &key[..])?,
+        SingleUseNonceGenerator::new(iv),
+    );
     //Increase the size of the plaintext vector to fit the GCM auth tag
     let mut ciphertext = plaintext.clone(); // <-- Not good. We're copying the entire plaintext, which could be large.
-    ciphertext.resize(ciphertext.len() + algorithm.tag_len(), 0);
-    aead::seal_in_place(
-        &aes_key,
-        aead::Nonce::assume_unique_for_key(iv),
-        aead::Aad::empty(),
-        &mut ciphertext,
-        algorithm.tag_len(),
-    )?;
+    aes_key.seal_in_place_append_tag(aead::Aad::empty(), &mut ciphertext)?;
     Ok(AesEncryptedValue {
         ciphertext,
         aes_iv: iv,
@@ -226,15 +243,11 @@ pub fn decrypt(
     encrypted_doc: &mut AesEncryptedValue,
     key: [u8; AES_KEY_LEN],
 ) -> Result<&mut [u8], Unspecified> {
-    let aes_key = aead::OpeningKey::new(&aead::AES_256_GCM, &key[..])?;
-
-    let plaintext = aead::open_in_place(
-        &aes_key,
-        aead::Nonce::assume_unique_for_key(encrypted_doc.aes_iv),
-        aead::Aad::empty(),
-        0,
-        &mut encrypted_doc.ciphertext[..],
-    )?;
+    let mut aes_key = aead::OpeningKey::new(
+        aead::UnboundKey::new(&aead::AES_256_GCM, &key[..])?,
+        SingleUseNonceGenerator::new(encrypted_doc.aes_iv),
+    );
+    let plaintext = aes_key.open_in_place(aead::Aad::empty(), &mut encrypted_doc.ciphertext[..])?;
     Ok(plaintext)
 }
 
