@@ -1,6 +1,7 @@
 use std::{fmt, num::NonZeroU32};
 
 use rand::{self, CryptoRng, RngCore};
+use ring::aead::BoundKey;
 use ring::{aead, digest, error::Unspecified, pbkdf2};
 
 use crate::internal::{take_lock, IronOxideErr};
@@ -114,7 +115,7 @@ impl TryFrom<&[u8]> for AesEncryptedValue {
 }
 
 impl From<ring::error::Unspecified> for IronOxideErr {
-    fn from(ring_err: ring::error::Unspecified) -> Self {
+    fn from(ring_err: Unspecified) -> Self {
         IronOxideErr::AesError(ring_err)
     }
 }
@@ -175,6 +176,16 @@ pub fn decrypt_user_master_key(
     Ok(fixed_decrypted_master_key)
 }
 
+struct NonceGenerator {
+    iv: [u8; aead::NONCE_LEN],
+}
+
+impl aead::NonceSequence for NonceGenerator {
+    fn advance(&mut self) -> Result<aead::Nonce, Unspecified> {
+        aead::Nonce::try_assume_unique_for_key(&self.iv)
+    }
+}
+
 /// Encrypt the provided variable length plaintext with the provided 32 byte AES key. Returns a Result which
 /// is a struct which contains the resulting ciphertext and the IV used during encryption.
 pub fn encrypt<R: CryptoRng + RngCore>(
@@ -184,18 +195,12 @@ pub fn encrypt<R: CryptoRng + RngCore>(
 ) -> Result<AesEncryptedValue, Unspecified> {
     let algorithm = &aead::AES_256_GCM;
     let mut iv = [0u8; aead::NONCE_LEN];
-
     take_lock(rng).deref_mut().fill_bytes(&mut iv);
     let unbound_key = aead::UnboundKey::new(algorithm, &key[..])?;
-    let aes_key = aead::LessSafeKey::new(unbound_key);
+    let mut aes_key = aead::SealingKey::new(unbound_key, NonceGenerator { iv });
     //Increase the size of the plaintext vector to fit the GCM auth tag
     let mut ciphertext = plaintext.clone(); // <-- Not good. We're copying the entire plaintext, which could be large.
-    //ciphertext.resize(ciphertext.len() + algorithm.tag_len(), 0);
-    aes_key.seal_in_place_append_tag(
-        aead::Nonce::assume_unique_for_key(iv),
-        aead::Aad::empty(),
-        &mut ciphertext,
-    )?;
+    aes_key.seal_in_place_append_tag(aead::Aad::empty(), &mut ciphertext)?;
     Ok(AesEncryptedValue {
         ciphertext,
         aes_iv: iv,
@@ -225,12 +230,13 @@ pub fn decrypt(
     key: [u8; AES_KEY_LEN],
 ) -> Result<&mut [u8], Unspecified> {
     let unbound_key = aead::UnboundKey::new(&aead::AES_256_GCM, &key[..])?;
-    let aes_key = aead::LessSafeKey::new(unbound_key);
-    let plaintext = aes_key.open_in_place(
-        aead::Nonce::assume_unique_for_key(encrypted_doc.aes_iv),
-        aead::Aad::empty(),
-        &mut encrypted_doc.ciphertext[..],
-    )?;
+    let mut aes_key = aead::OpeningKey::new(
+        unbound_key,
+        NonceGenerator {
+            iv: encrypted_doc.aes_iv,
+        },
+    );
+    let plaintext = aes_key.open_in_place(aead::Aad::empty(), &mut encrypted_doc.ciphertext[..])?;
     Ok(plaintext)
 }
 
