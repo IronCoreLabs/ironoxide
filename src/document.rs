@@ -1,9 +1,9 @@
+use crate::internal::document_api::DocumentDetachedEncryptResult;
 pub use crate::internal::document_api::{
     AssociationType, DocAccessEditErr, DocumentAccessResult, DocumentCreateResult,
     DocumentDecryptResult, DocumentListMeta, DocumentListResult, DocumentMetadataResult,
     UserOrGroup, VisibleGroup, VisibleUser,
 };
-use crate::proto::edeks::EDEKs;
 use crate::{
     internal::{
         document_api::{self, DocumentId, DocumentName},
@@ -189,9 +189,10 @@ pub trait DocumentOps {
     ) -> Result<DocumentAccessResult>;
 
     fn document_edek_encrypt(
+        &self,
         data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
-    ) -> (DocumentCreateResult, EDEKs);
+    ) -> Result<DocumentDetachedEncryptResult>;
 }
 
 impl DocumentOps for crate::IronOxide {
@@ -327,17 +328,43 @@ impl DocumentOps for crate::IronOxide {
     }
 
     fn document_edek_encrypt(
+        &self,
         data: &[u8],
-        encrypt_opts: &DocumentEncryptOpts,
-    ) -> (DocumentCreateResult, EDEKs) {
+        encrypt_opts: &DocumentEncryptOpts, //TODO new struct needed here
+    ) -> Result<DocumentDetachedEncryptResult> {
         let mut rt = Runtime::new().unwrap();
+        let encrypt_opts = encrypt_opts.clone();
 
-        //                rt.block_on(document_api::document_(
-        //                    self.device.auth(),
-        //                    id,
-        //                    revoke_list,
-        //                ));
-        unimplemented!()
+        let (explicit_users, explicit_groups, grant_to_author, policy_grants) =
+            match encrypt_opts.grants {
+                EitherOrBoth::Left(explicit_grants) => {
+                    let (users, groups) = partition_user_or_group(&explicit_grants.grants);
+                    (users, groups, explicit_grants.grant_to_author, None)
+                }
+                EitherOrBoth::Right(policy_grant) => (vec![], vec![], false, Some(policy_grant)),
+                EitherOrBoth::Both(explicit_grants, policy_grant) => {
+                    let (users, groups) = partition_user_or_group(&explicit_grants.grants);
+                    (
+                        users,
+                        groups,
+                        explicit_grants.grant_to_author,
+                        Some(policy_grant),
+                    )
+                }
+            };
+
+        rt.block_on(document_api::edek_encrypt_document(
+            self.device.auth(),
+            &self.recrypt,
+            &self.user_master_pub_key,
+            &self.rng,
+            data,
+            encrypt_opts.id,
+            grant_to_author,
+            &explicit_users,
+            &explicit_groups,
+            policy_grants.as_ref(),
+        ))
     }
 }
 

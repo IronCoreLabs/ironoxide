@@ -610,6 +610,55 @@ fn doc_revoke_access() {
 }
 
 #[test]
+fn doc_edek_encrypt() {
+    let sdk = init_sdk();
+
+    let doc = [0u8; 64];
+
+    let bad_user: UserId = "bad_user".try_into().unwrap();
+    let bad_group: GroupId = "bad_group".try_into().unwrap();
+
+    let doc_result = sdk
+        .document_edek_encrypt(
+            &doc,
+            &DocumentEncryptOpts::with_explicit_grants(
+                None,
+                Some("first name".try_into().unwrap()),
+                true,
+                vec![
+                    UserOrGroup::User {
+                        id: bad_user.clone(),
+                    },
+                    UserOrGroup::Group {
+                        id: bad_group.clone(),
+                    },
+                ],
+            ),
+        )
+        .unwrap();
+
+    assert_eq!(doc_result.grants().len(), 1);
+    assert_eq!(
+        doc_result.grants()[0],
+        UserOrGroup::User {
+            id: sdk.device().account_id().clone()
+        }
+    );
+    assert_eq!(doc_result.access_errs().len(), 2);
+    assert_that!(
+        &doc_result
+            .access_errs()
+            .iter()
+            .map(|err| err.user_or_group.clone())
+            .collect::<Vec<_>>(),
+        contains_in_any_order(vec![
+            UserOrGroup::User { id: bad_user },
+            UserOrGroup::Group { id: bad_group }
+        ])
+    )
+}
+
+#[test]
 fn doc_encrypt_concurrent() {
     let sdk = Arc::new(init_sdk());
     let doc = [43u8; 64];
