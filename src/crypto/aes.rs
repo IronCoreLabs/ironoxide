@@ -176,13 +176,13 @@ pub fn decrypt_user_master_key(
     Ok(fixed_decrypted_master_key)
 }
 
-struct NonceGenerator {
+struct ConstantNonceGenerator {
     iv: [u8; aead::NONCE_LEN],
 }
 
-impl aead::NonceSequence for NonceGenerator {
+impl aead::NonceSequence for ConstantNonceGenerator {
     fn advance(&mut self) -> Result<aead::Nonce, Unspecified> {
-        aead::Nonce::try_assume_unique_for_key(&self.iv)
+        Ok(aead::Nonce::assume_unique_for_key(self.iv))
     }
 }
 
@@ -196,8 +196,10 @@ pub fn encrypt<R: CryptoRng + RngCore>(
     let algorithm = &aead::AES_256_GCM;
     let mut iv = [0u8; aead::NONCE_LEN];
     take_lock(rng).deref_mut().fill_bytes(&mut iv);
-    let unbound_key = aead::UnboundKey::new(algorithm, &key[..])?;
-    let mut aes_key = aead::SealingKey::new(unbound_key, NonceGenerator { iv });
+    let mut aes_key = aead::SealingKey::new(
+        aead::UnboundKey::new(algorithm, &key[..])?,
+        ConstantNonceGenerator { iv },
+    );
     //Increase the size of the plaintext vector to fit the GCM auth tag
     let mut ciphertext = plaintext.clone(); // <-- Not good. We're copying the entire plaintext, which could be large.
     aes_key.seal_in_place_append_tag(aead::Aad::empty(), &mut ciphertext)?;
@@ -229,10 +231,9 @@ pub fn decrypt(
     encrypted_doc: &mut AesEncryptedValue,
     key: [u8; AES_KEY_LEN],
 ) -> Result<&mut [u8], Unspecified> {
-    let unbound_key = aead::UnboundKey::new(&aead::AES_256_GCM, &key[..])?;
     let mut aes_key = aead::OpeningKey::new(
-        unbound_key,
-        NonceGenerator {
+        aead::UnboundKey::new(&aead::AES_256_GCM, &key[..])?,
+        ConstantNonceGenerator {
             iv: encrypted_doc.aes_iv,
         },
     );
