@@ -610,7 +610,7 @@ fn doc_revoke_access() {
 }
 
 #[test]
-fn doc_edek_encrypt() {
+fn doc_edek_encrypt_to_self() {
     let sdk = init_sdk();
 
     let doc = [0u8; 64];
@@ -656,6 +656,95 @@ fn doc_edek_encrypt() {
             UserOrGroup::Group { id: bad_group }
         ])
     )
+}
+
+#[test]
+fn doc_edek_encrypt_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
+    use std::borrow::Borrow;
+
+    let (curr_user, sdk) = init_sdk_get_user();
+
+    //create the data_recovery group used in the policy
+    let data_rec_group_id: GroupId = format!("data_recovery_{}", curr_user.id())
+        .try_into()
+        .unwrap();
+    let group_result = sdk.group_create(&GroupCreateOpts::new(
+        data_rec_group_id.clone().into(),
+        None,
+        true,
+    ));
+    assert!(group_result.is_ok());
+
+    // create an explicit group as well
+    let group2_result = sdk.group_create(&Default::default());
+    assert!(group2_result.is_ok());
+    let group2 = group2_result?;
+    let ex_group_id = group2.id();
+
+    let doc = [0u8; 64];
+
+    // this group doesn't exist, so it should show up in the errors
+    let bad_group: GroupId = "bad_group".try_into().unwrap();
+
+    let doc_result = sdk
+        .document_edek_encrypt(
+            &doc,
+            &DocumentEncryptOpts::new(
+                None,
+                None,
+                // encrypt using the results of the policy and to ex_group_id
+                // note that both the policy and the `grant_to_author` will encrypt to the
+                // logged in user. This gets deduplicated internally.
+                EitherOrBoth::Both(
+                    ExplicitGrant::new(true, &vec![ex_group_id.into(), bad_group.borrow().into()]),
+                    PolicyGrant::new(
+                        Some("PII".try_into()?),
+                        Some("INTERNAL".try_into()?),
+                        None,
+                        None,
+                    ),
+                ),
+            ),
+        )
+        .unwrap();
+
+    assert_eq!(doc_result.grants().len(), 3);
+    assert_that!(
+        &doc_result
+            .grants()
+            .iter()
+            .map(Clone::clone)
+            .collect::<Vec<UserOrGroup>>(),
+        contains_in_any_order(vec![
+            UserOrGroup::User {
+                id: sdk.device().account_id().clone()
+            },
+            UserOrGroup::Group {
+                id: data_rec_group_id.clone()
+            },
+            UserOrGroup::Group {
+                id: ex_group_id.clone()
+            }
+        ])
+    );
+    assert_eq!(doc_result.access_errs().len(), 3);
+    assert_that!(
+        &doc_result
+            .access_errs()
+            .iter()
+            .map(|err| err.user_or_group.clone())
+            .collect::<Vec<_>>(),
+        contains_in_any_order(vec![
+            UserOrGroup::Group {
+                id: "badgroupid_frompolicy".try_into().unwrap()
+            },
+            UserOrGroup::User {
+                id: "baduserid_frompolicy".try_into().unwrap()
+            },
+            UserOrGroup::Group { id: bad_group } // bad explicit group
+        ])
+    );
+    Ok(())
 }
 
 #[test]

@@ -551,6 +551,7 @@ fn resolve_keys_for_grants<'a>(
     grant_to_author: bool,
 ) -> impl Future<
     Item = (
+        //TODO: new ticket for returning vec1 here or error
         impl FnOnce(&UserMasterPublicKey) -> Vec<WithKey<UserOrGroup>> + 'a,
         Vec<DocAccessEditErr>,
     ),
@@ -755,7 +756,9 @@ impl From<&EncryptedDek> for EDEK {
 
                 proto_edek_no_uog
             }
-            re::EncryptedValue::TransformedValue { .. } => unimplemented!(),
+            re::EncryptedValue::TransformedValue { .. } => {
+                unreachable!("Will be needed for decrypt!")
+            }
         };
         let (proto_uog, proto_pub_key) = match edek.grant_to {
             WithKey {
@@ -773,7 +776,21 @@ impl From<&EncryptedDek> for EDEK {
                 proto_pub_key.set_y(public_key.as_bytes().into());
                 (proto_uog, proto_pub_key)
             }
-            _ => unimplemented!(),
+            WithKey {
+                id:
+                    UserOrGroup::Group {
+                        id: GroupId(group_string),
+                    },
+                public_key,
+            } => {
+                let mut proto_uog = edeks::UserOrGroup::default();
+                proto_uog.set_groupId(group_string.into());
+
+                let mut proto_pub_key = edeks::PublicKey::default();
+                proto_pub_key.set_x(public_key.as_bytes().into());
+                proto_pub_key.set_y(public_key.as_bytes().into());
+                (proto_uog, proto_pub_key)
+            }
         };
         proto_edek.set_userOrGroup(proto_uog);
         proto_edek.set_ephemeralPublicKey(proto_pub_key);
@@ -910,6 +927,7 @@ pub fn update_document_name<'a>(
     requests::document_update::document_update_request(auth, id, name).map(DocumentMetadataResult)
 }
 
+// TODO refactor to use resolve_keys_for_grants like encrypt and edek_encrypt
 pub fn document_grant_access<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
