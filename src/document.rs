@@ -1,6 +1,6 @@
 pub use crate::internal::document_api::{
-    AssociationType, DocAccessEditErr, DocumentAccessResult, DocumentCreateResult,
-    DocumentDecryptResult, DocumentDetachedEncryptResult, DocumentListMeta, DocumentListResult,
+    AssociationType, DocAccessEditErr, DocumentAccessResult, DocumentDecryptResult,
+    DocumentDetachedEncryptResult, DocumentEncryptResult, DocumentListMeta, DocumentListResult,
     DocumentMetadataResult, UserOrGroup, VisibleGroup, VisibleUser,
 };
 use crate::{
@@ -119,7 +119,7 @@ pub trait DocumentOps {
         &self,
         document_data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
-    ) -> Result<DocumentCreateResult>;
+    ) -> Result<DocumentEncryptResult>;
 
     /// Update the encrypted content of an existing document. Persists any existing access to other users and groups.
     ///
@@ -130,7 +130,7 @@ pub trait DocumentOps {
         &self,
         id: &DocumentId,
         new_document_data: &[u8],
-    ) -> Result<DocumentCreateResult>;
+    ) -> Result<DocumentEncryptResult>;
 
     /// Decrypts the provided encrypted document and returns details about the document as well as its decrypted bytes.
     ///
@@ -227,7 +227,7 @@ impl DocumentOps for crate::IronOxide {
         &self,
         document_data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
-    ) -> Result<DocumentCreateResult> {
+    ) -> Result<DocumentEncryptResult> {
         let mut rt = Runtime::new().unwrap();
         let encrypt_opts = encrypt_opts.clone();
 
@@ -268,7 +268,7 @@ impl DocumentOps for crate::IronOxide {
         &self,
         id: &DocumentId,
         new_document_data: &[u8],
-    ) -> Result<DocumentCreateResult> {
+    ) -> Result<DocumentEncryptResult> {
         let mut rt = Runtime::new().unwrap();
 
         rt.block_on(document_api::document_update_bytes(

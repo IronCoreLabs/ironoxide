@@ -319,7 +319,7 @@ impl DocumentDetachedEncryptResult {
 /// - `grants` - Users and groups that have access to decrypt the `encrypted_data`
 /// - `access_errs` - Users and groups that could not be granted access
 #[derive(Debug)]
-pub struct DocumentCreateResult {
+pub struct DocumentEncryptResult {
     id: DocumentId,
     name: Option<DocumentName>,
     updated: DateTime<Utc>,
@@ -328,7 +328,7 @@ pub struct DocumentCreateResult {
     grants: Vec<UserOrGroup>,
     access_errs: Vec<DocAccessEditErr>,
 }
-impl DocumentCreateResult {
+impl DocumentEncryptResult {
     pub fn id(&self) -> &DocumentId {
         &self.id
     }
@@ -494,7 +494,7 @@ pub fn encrypt_document<
     user_grants: &'a Vec<UserId>,
     group_grants: &'a Vec<GroupId>,
     policy_grant: Option<&'a PolicyGrant>,
-) -> impl Future<Item = DocumentCreateResult, Error = IronOxideErr> + 'a {
+) -> impl Future<Item = DocumentEncryptResult, Error = IronOxideErr> + 'a {
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
     let doc_id = document_id.unwrap_or(DocumentId::goo_id(rng));
     aes::encrypt_future(rng, &plaintext.to_vec(), *doc_sym_key.bytes())
@@ -812,7 +812,7 @@ pub fn document_create<'a>(
     doc_id: DocumentId,
     doc_name: &Option<DocumentName>,
     accum_errs: Vec<DocAccessEditErr>,
-) -> impl Future<Item = DocumentCreateResult, Error = IronOxideErr> + 'a {
+) -> impl Future<Item = DocumentEncryptResult, Error = IronOxideErr> + 'a {
     document_create::document_create_request(
         auth,
         doc_id.clone(),
@@ -834,7 +834,7 @@ pub fn document_create<'a>(
             encrypted_data.bytes(),
         ]
         .concat();
-        DocumentCreateResult {
+        DocumentEncryptResult {
             id: api_resp.id,
             name: api_resp.name,
             created: api_resp.created,
@@ -859,7 +859,7 @@ pub fn document_update_bytes<
     rng: &'a Mutex<R2>,
     document_id: &'a DocumentId,
     plaintext: &'a [u8],
-) -> impl Future<Item = DocumentCreateResult, Error = IronOxideErr> + 'a {
+) -> impl Future<Item = DocumentEncryptResult, Error = IronOxideErr> + 'a {
     document_get_metadata(auth, &document_id).and_then(move |doc_meta| {
         let (_, sym_key) = transform::decrypt_plaintext(
             &recrypt,
@@ -872,7 +872,7 @@ pub fn document_update_bytes<
                     let mut encrypted_payload =
                         generate_document_header(document_id.clone(), auth.segment_id());
                     encrypted_payload.append(&mut encrypted_doc.bytes());
-                    DocumentCreateResult {
+                    DocumentEncryptResult {
                         id: doc_meta.0.id,
                         name: doc_meta.0.name,
                         created: doc_meta.0.created,
