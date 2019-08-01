@@ -268,7 +268,7 @@ pub mod device_delete {
     pub fn device_delete(
         auth: &RequestAuth,
         device_id: &DeviceId,
-    ) -> Box<Future<Item = DeviceDeleteResponse, Error = IronOxideErr>> {
+    ) -> Box<dyn Future<Item = DeviceDeleteResponse, Error = IronOxideErr>> {
         Box::new(auth.request.delete_with_no_body(
             &format!(
                 "users/{}/devices/{}",
@@ -282,7 +282,7 @@ pub mod device_delete {
 
     pub fn device_delete_current(
         auth: &RequestAuth,
-    ) -> Box<Future<Item = DeviceDeleteResponse, Error = IronOxideErr>> {
+    ) -> Box<dyn Future<Item = DeviceDeleteResponse, Error = IronOxideErr>> {
         Box::new(auth.request.delete_with_no_body(
             &format!(
                 "users/{}/devices/current",

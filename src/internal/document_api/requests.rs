@@ -226,8 +226,8 @@ pub mod document_create {
         auth: &RequestAuth,
         id: DocumentId,
         name: Option<DocumentName>,
-        grants: Vec<EncryptedDek>, // TODO dyn added due to warning. Can Box be removed?
-    ) -> Box<Future<Item = DocumentCreateResponse, Error = IronOxideErr>> {
+        grants: Vec<EncryptedDek>,
+    ) -> Box<dyn Future<Item = DocumentCreateResponse, Error = IronOxideErr>> {
         let maybe_req_grants: Result<Vec<_>, _> =
             grants.into_iter().map(|g| g.try_into()).collect();
 
@@ -428,7 +428,7 @@ pub mod document_access {
         id: &'a DocumentId,
         from_pub_key: &'a internal::PublicKey,
         grants: Vec<(WithKey<UserOrGroup>, recrypt::api::EncryptedValue)>,
-    ) -> Box<Future<Item = DocumentAccessResponse, Error = IronOxideErr> + 'a> {
+    ) -> Box<dyn Future<Item = DocumentAccessResponse, Error = IronOxideErr> + 'a> {
         let maybe_req_grants: Result<Vec<_>, _> =
             grants.into_iter().map(|g| g.try_into()).collect();
 

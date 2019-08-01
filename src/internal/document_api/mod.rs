@@ -281,6 +281,10 @@ impl DocumentDetachedEncryptResult {
     pub fn access_errs(&self) -> &[DocAccessEditErr] {
         &self.access_errs
     }
+
+    /// Users and Groups that have access to the encrypted document.
+    ///
+    /// Implementation is somewhat expensive as it is decoding the `encrypted_deks`.
     pub fn grants(&self) -> Vec<UserOrGroup> {
         let pb_result: ProtobufResult<EDEKs> = protobuf::parse_from_bytes(&self.encrypted_deks);
         let result: Vec<UserOrGroup> = pb_result
@@ -566,7 +570,7 @@ fn resolve_keys_for_grants<'a>(
         .map(move |(users, groups, maybe_policy_res)| {
             let (group_errs, groups_with_key) = process_groups(groups);
             let (user_errs, users_with_key) = process_users(users);
-            let explicit_grants = [&users_with_key[..], &groups_with_key[..]].concat();
+            let explicit_grants = [users_with_key, groups_with_key].concat();
             let (policy_errs, applied_policy_grants) = match maybe_policy_res {
                 None => (vec![], vec![]),
                 Some(res) => process_policy(&res),
@@ -598,7 +602,7 @@ fn resolve_keys_for_grants<'a>(
 }
 
 /// Encrypts a document but does not create the document in the IronCore system.
-/// The resultant EncryptionResult both the EncryptedDeks and the AesEncryptedValue for the caller to deal with.
+/// The resultant DocumentDetachedEncryptResult both the EncryptedDeks and the AesEncryptedValue for the caller to deal with.
 pub fn edek_encrypt_document<'a, R1, R2: 'a>(
     auth: &'a RequestAuth,
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
@@ -710,18 +714,19 @@ fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
                     })
                     .collect(),
                 encrypted_data: encrypted_doc,
-                encryption_errs: vec![
-                    //TODO don't squash errs here
-                    //                    accum_errs,
-                    encrypt_errs.into_iter().map(|e| e.into()).collect(),
-                ]
-                .into_iter()
-                .concat(),
+                encryption_errs: vec![encrypt_errs.into_iter().map(|e| e.into()).collect()]
+                    .into_iter()
+                    .concat(),
             }
         })
     }
 }
 
+/// An encrypted document encryption key.
+///
+/// Once decrypted, the DEK serves as a symmetric encryption key.
+///
+/// It can also be useful to think of an EDEK as representing a "document access grant" to a user/group.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EncryptedDek {
     grant_to: WithKey<UserOrGroup>,
@@ -1140,6 +1145,7 @@ mod tests {
     use galvanic_assert::matchers::{collection::*, *};
 
     use super::*;
+    use std::borrow::Borrow;
 
     #[test]
     fn document_id_validate_good() {
@@ -1342,5 +1348,32 @@ mod tests {
 
         let deduplicated_grants = dedupe_grants(&grants_w_dupes);
         assert_that!(&deduplicated_grants.len(), eq(2))
+    }
+
+    #[test]
+    fn roundtrip_encrypted_dek_proto() {
+        use recrypt::prelude::*;
+
+        let recrypt_api = recrypt::api::Recrypt::new();
+        let (_, pubk) = recrypt_api.generate_key_pair().unwrap();
+        let signing_keys = recrypt_api.generate_ed25519_key_pair();
+        let plaintext = recrypt_api.gen_plaintext();
+        let encrypted_value = recrypt_api
+            .encrypt(&plaintext, &pubk, &signing_keys)
+            .unwrap();
+
+        let edek = EncryptedDek {
+            encrypted_dek_data: encrypted_value,
+            grant_to: WithKey {
+                public_key: pubk.into(),
+                id: UserId::unsafe_from_string("userid".to_string())
+                    .borrow()
+                    .into(),
+            },
+        };
+
+        let _proto_edek: EDEK = edek.borrow().into();
+
+        //TODO write the other half of this test for decrypt
     }
 }

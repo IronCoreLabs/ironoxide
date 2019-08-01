@@ -343,7 +343,7 @@ impl DocumentOps for crate::IronOxide {
     fn document_edek_encrypt(
         &self,
         data: &[u8],
-        encrypt_opts: &DocumentEncryptOpts, //TODO new struct needed here
+        encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentDetachedEncryptResult> {
         let mut rt = Runtime::new().unwrap();
         let encrypt_opts = encrypt_opts.clone();
