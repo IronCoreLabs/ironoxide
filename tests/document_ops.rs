@@ -878,7 +878,7 @@ trait WithGrantsAndErrs {
     fn access_errs(&self) -> &[DocAccessEditErr];
 }
 
-impl WithGrantsAndErrs for DocumentCreateResult {
+impl WithGrantsAndErrs for DocumentEncryptResult {
     fn grants(&self) -> Vec<UserOrGroup> {
         self.grants().to_vec()
     }
