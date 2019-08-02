@@ -1385,7 +1385,7 @@ mod tests {
             },
         };
 
-        let _proto_edek: EDEK = edek.borrow().into();
+        let _proto_edek: EncryptedDekP = edek.borrow().into();
 
         //TODO write the other half of this test for decrypt
     }
