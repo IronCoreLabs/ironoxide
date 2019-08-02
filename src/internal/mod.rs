@@ -176,7 +176,7 @@ pub struct RequestAuth {
     ///The users given id, which uniquely identifies them inside the segment.
     account_id: UserId,
     ///The segment_id for the above user.
-    segment_id: usize,
+    segment_id: usize, //TODO this should be i32 to match the webservice
     ///The signing key which was generated for the device.
     signing_keys: DeviceSigningKeyPair,
     #[serde(skip_serializing, skip_deserializing)]

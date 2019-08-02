@@ -1,5 +1,7 @@
 use crate::internal::take_lock;
-use crate::proto::edeks::{EDEKs, EDEK};
+use crate::proto::edeks::EncryptedDek as EncryptedDekP;
+use crate::proto::edeks::EncryptedDekData as EncryptedDekDataP;
+use crate::proto::edeks::EncryptedDeks as EncryptedDeksP;
 use crate::{
     crypto::{
         aes::{self, AesEncryptedValue},
@@ -286,7 +288,8 @@ impl DocumentDetachedEncryptResult {
     ///
     /// Implementation is somewhat expensive as it is decoding the `encrypted_deks`.
     pub fn grants(&self) -> Vec<UserOrGroup> {
-        let pb_result: ProtobufResult<EDEKs> = protobuf::parse_from_bytes(&self.encrypted_deks);
+        let pb_result: ProtobufResult<EncryptedDeksP> =
+            protobuf::parse_from_bytes(&self.encrypted_deks);
         let result: Vec<UserOrGroup> = pb_result
             // safe since the proto-encoded data is encoded in this file using the same definition as this decode
             .expect("Unable to decode protobuf encoded encrypted_data")
@@ -643,12 +646,12 @@ where
                 let proto_edek_vec = encryption_result
                     .edeks
                     .iter()
-                    .map(|edek| EDEK::from(edek))
+                    .map(|edek| EncryptedDekP::from(edek))
                     .collect();
-                let mut proto_edeks = EDEKs::default();
+                let mut proto_edeks = EncryptedDeksP::default();
                 proto_edeks.edeks = RepeatedField::from_vec(proto_edek_vec);
                 proto_edeks.documentId = doc_id.id().as_str().into();
-                proto_edeks.segmentId = auth.segment_id as i32; //TODO
+                proto_edeks.segmentId = auth.segment_id as i32; // okay since the ironcore-ws defines this to be an i32
 
                 let edek_bytes = proto_edeks.write_to_bytes()?;
 
@@ -733,12 +736,14 @@ pub struct EncryptedDek {
     encrypted_dek_data: recrypt::api::EncryptedValue,
 }
 
-impl From<&EncryptedDek> for EDEK {
+impl From<&EncryptedDek> for EncryptedDekP {
     fn from(edek: &EncryptedDek) -> Self {
         use crate::proto::edeks;
         use recrypt::api as re;
         let edek = edek.clone();
-        let mut proto_edek: EDEK = match edek.encrypted_dek_data {
+
+        // transform the recrypt EncryptedValue to a edek proto
+        let mut proto_edek_data_no_pubk = match edek.encrypted_dek_data {
             re::EncryptedValue::EncryptedOnceValue {
                 ephemeral_public_key,
                 encrypted_message,
@@ -746,25 +751,27 @@ impl From<&EncryptedDek> for EDEK {
                 public_signing_key,
                 signature,
             } => {
-                let mut proto_edek_no_uog: EDEK = Default::default();
+                let mut proto_edek_data = EncryptedDekDataP::default();
                 {
                     let mut proto_eph_pub_key = edeks::PublicKey::default();
                     let (x, y) = ephemeral_public_key.bytes_x_y();
                     proto_eph_pub_key.set_x(x[..].into());
                     proto_eph_pub_key.set_y(y[..].into());
-                    proto_edek_no_uog.set_ephemeralPublicKey(proto_eph_pub_key);
+                    proto_edek_data.set_ephemeralPublicKey(proto_eph_pub_key);
                 }
-                proto_edek_no_uog.set_encryptedDekData(encrypted_message.bytes()[..].into());
-                proto_edek_no_uog.set_signature(signature.bytes()[..].into());
-                proto_edek_no_uog.set_authHash(auth_hash.bytes()[..].into());
-                proto_edek_no_uog.set_publicSigningKey(public_signing_key.bytes()[..].into());
+                proto_edek_data.set_encryptedMessage(encrypted_message.bytes()[..].into());
+                proto_edek_data.set_signature(signature.bytes()[..].into());
+                proto_edek_data.set_authHash(auth_hash.bytes()[..].into());
+                proto_edek_data.set_publicSigningKey(public_signing_key.bytes()[..].into());
 
-                proto_edek_no_uog
+                proto_edek_data
             }
             re::EncryptedValue::TransformedValue { .. } => {
                 unreachable!("Will be needed for decrypt!")
             }
         };
+
+        //convert the grants
         let (proto_uog, proto_pub_key) = match edek.grant_to {
             WithKey {
                 id:
@@ -797,8 +804,14 @@ impl From<&EncryptedDek> for EDEK {
                 (proto_uog, proto_pub_key)
             }
         };
+
+        // attach the ephemeral public key
+        proto_edek_data_no_pubk.set_ephemeralPublicKey(proto_pub_key);
+        let proto_edek_data = proto_edek_data_no_pubk;
+
+        let mut proto_edek = EncryptedDekP::default();
         proto_edek.set_userOrGroup(proto_uog);
-        proto_edek.set_ephemeralPublicKey(proto_pub_key);
+        proto_edek.set_encryptedDekData(proto_edek_data);
         proto_edek
     }
 }
