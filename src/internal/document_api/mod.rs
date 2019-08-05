@@ -1,7 +1,7 @@
 use crate::internal::take_lock;
-use crate::proto::edeks::EncryptedDek as EncryptedDekP;
-use crate::proto::edeks::EncryptedDekData as EncryptedDekDataP;
-use crate::proto::edeks::EncryptedDeks as EncryptedDeksP;
+use crate::proto::transform::EncryptedDek as EncryptedDekP;
+use crate::proto::transform::EncryptedDekData as EncryptedDekDataP;
+use crate::proto::transform::EncryptedDeks as EncryptedDeksP;
 use crate::{
     crypto::{
         aes::{self, AesEncryptedValue},
@@ -738,7 +738,7 @@ pub struct EncryptedDek {
 
 impl From<&EncryptedDek> for EncryptedDekP {
     fn from(edek: &EncryptedDek) -> Self {
-        use crate::proto::edeks;
+        use crate::proto::transform;
         use recrypt::api as re;
         let edek = edek.clone();
 
@@ -753,7 +753,7 @@ impl From<&EncryptedDek> for EncryptedDekP {
             } => {
                 let mut proto_edek_data = EncryptedDekDataP::default();
                 {
-                    let mut proto_eph_pub_key = edeks::PublicKey::default();
+                    let mut proto_eph_pub_key = transform::PublicKey::default();
                     let (x, y) = ephemeral_public_key.bytes_x_y();
                     proto_eph_pub_key.set_x(x[..].into());
                     proto_eph_pub_key.set_y(y[..].into());
@@ -780,10 +780,10 @@ impl From<&EncryptedDek> for EncryptedDekP {
                     },
                 public_key,
             } => {
-                let mut proto_uog = edeks::UserOrGroup::default();
+                let mut proto_uog = transform::UserOrGroup::default();
                 proto_uog.set_userId(user_string.into());
 
-                let mut proto_pub_key = edeks::PublicKey::default();
+                let mut proto_pub_key = transform::PublicKey::default();
                 proto_pub_key.set_x(public_key.as_bytes().into());
                 proto_pub_key.set_y(public_key.as_bytes().into());
                 (proto_uog, proto_pub_key)
@@ -795,10 +795,10 @@ impl From<&EncryptedDek> for EncryptedDekP {
                     },
                 public_key,
             } => {
-                let mut proto_uog = edeks::UserOrGroup::default();
+                let mut proto_uog = transform::UserOrGroup::default();
                 proto_uog.set_groupId(group_string.into());
 
-                let mut proto_pub_key = edeks::PublicKey::default();
+                let mut proto_pub_key = transform::PublicKey::default();
                 proto_pub_key.set_x(public_key.as_bytes().into());
                 proto_pub_key.set_y(public_key.as_bytes().into());
                 (proto_uog, proto_pub_key)
