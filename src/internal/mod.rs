@@ -307,6 +307,14 @@ impl From<&PublicKey> for RecryptPublicKey {
         public_key.0.clone()
     }
 }
+impl From<PublicKey> for crate::proto::transform::PublicKey {
+    fn from(pubk: PublicKey) -> Self {
+        let mut proto_pub_key = crate::proto::transform::PublicKey::default();
+        proto_pub_key.set_x(pubk.as_bytes().into());
+        proto_pub_key.set_y(pubk.as_bytes().into());
+        proto_pub_key
+    }
+}
 impl PublicKey {
     fn to_bytes_x_y(&self) -> (Vec<u8>, Vec<u8>) {
         let (x, y) = &self.0.bytes_x_y();

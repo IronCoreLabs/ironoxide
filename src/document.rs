@@ -346,10 +346,9 @@ impl DocumentOps for crate::IronOxide {
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentDetachedEncryptResult> {
         let mut rt = Runtime::new().unwrap();
-        let encrypt_opts = encrypt_opts.clone();
 
         let (explicit_users, explicit_groups, grant_to_author, policy_grants) =
-            match encrypt_opts.grants {
+            match &encrypt_opts.grants {
                 EitherOrBoth::Left(explicit_grants) => {
                     let (users, groups) = partition_user_or_group(&explicit_grants.grants);
                     (users, groups, explicit_grants.grant_to_author, None)
@@ -372,11 +371,11 @@ impl DocumentOps for crate::IronOxide {
             &self.user_master_pub_key,
             &self.rng,
             data,
-            encrypt_opts.id,
+            encrypt_opts.id.clone(),
             grant_to_author,
             &explicit_users,
             &explicit_groups,
-            policy_grants.as_ref(),
+            policy_grants,
         ))
     }
 }

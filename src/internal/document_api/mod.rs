@@ -510,27 +510,25 @@ pub fn encrypt_document<
             user_grants,
             group_grants,
             policy_grant,
-            grant_to_author,
+            if grant_to_author {
+                Some(&user_master_pub_key)
+            } else {
+                None
+            },
         ))
         .and_then(move |(encrypted_doc, (grants, key_errs))| {
-            encrypt_document_core(
-                auth,
-                recrypt,
-                dek,
-                encrypted_doc,
-                &doc_id,
-                grants(user_master_pub_key),
-            )
-            .into_future()
-            .and_then(move |r| {
-                document_create(
-                    &auth,
-                    r.clone(),
-                    doc_id,
-                    &document_name,
-                    [key_errs, r.encryption_errs].concat(),
-                )
-            })
+            encrypt_document_core(auth, recrypt, dek, encrypted_doc, &doc_id, grants)
+                .into_future()
+                .and_then(move |r| {
+                    let encryption_errs = r.encryption_errs.clone();
+                    document_create(
+                        &auth,
+                        r,
+                        doc_id,
+                        &document_name,
+                        [key_errs, encryption_errs].concat(),
+                    )
+                })
         })
 }
 
@@ -555,11 +553,11 @@ fn resolve_keys_for_grants<'a>(
     user_grants: &'a Vec<UserId>,
     group_grants: &'a Vec<GroupId>,
     policy_grant: Option<&'a PolicyGrant>,
-    grant_to_author: bool,
+    maybe_user_master_pub_key: Option<&'a UserMasterPublicKey>,
 ) -> impl Future<
     Item = (
         //TODO: new ticket for returning vec1 here or error
-        impl FnOnce(&UserMasterPublicKey) -> Vec<WithKey<UserOrGroup>> + 'a,
+        Vec<WithKey<UserOrGroup>>,
         Vec<DocAccessEditErr>,
     ),
     Error = IronOxideErr,
@@ -579,26 +577,20 @@ fn resolve_keys_for_grants<'a>(
                 Some(res) => process_policy(&res),
             };
             let maybe_self_grant = {
-                move |public_key: &PublicKey| {
-                    if grant_to_author {
-                        vec![WithKey::new(
-                            UserOrGroup::User {
-                                id: auth.account_id.clone(),
-                            },
-                            public_key.clone(),
-                        )]
-                    } else {
-                        vec![]
-                    }
+                if let Some(user_master_pub_key) = maybe_user_master_pub_key {
+                    vec![WithKey::new(
+                        UserOrGroup::User {
+                            id: auth.account_id.clone(),
+                        },
+                        user_master_pub_key.clone(),
+                    )]
+                } else {
+                    vec![]
                 }
             };
 
             (
-                {
-                    move |pk: &PublicKey| {
-                        [maybe_self_grant(pk), explicit_grants, applied_policy_grants].concat()
-                    }
-                },
+                { [maybe_self_grant, explicit_grants, applied_policy_grants].concat() },
                 [group_errs, user_errs, policy_errs].concat(),
             )
         })
@@ -631,23 +623,23 @@ where
             user_grants,
             group_grants,
             policy_grant,
-            grant_to_author,
+            if grant_to_author {
+                Some(&user_master_pub_key)
+            } else {
+                None
+            },
         ))
         .and_then(move |(encryption_result, (grants, key_errs))| {
             Ok({
-                let encryption_result = encrypt_document_core(
-                    auth,
-                    recrypt,
-                    dek,
-                    encryption_result,
-                    &doc_id,
-                    grants(user_master_pub_key),
-                )?;
-                let proto_edek_vec = encryption_result
+                let encryption_result =
+                    encrypt_document_core(auth, recrypt, dek, encryption_result, &doc_id, grants)?;
+                let proto_edek_vec_results: Result<Vec<_>, _> = encryption_result
                     .edeks
                     .iter()
-                    .map(|edek| EncryptedDekP::from(edek))
+                    .map(|edek| edek.try_into())
                     .collect();
+                let proto_edek_vec = proto_edek_vec_results?;
+
                 let mut proto_edeks = EncryptedDeksP::default();
                 proto_edeks.edeks = RepeatedField::from_vec(proto_edek_vec);
                 proto_edeks.documentId = doc_id.id().as_str().into();
@@ -736,14 +728,15 @@ pub struct EncryptedDek {
     encrypted_dek_data: recrypt::api::EncryptedValue,
 }
 
-impl From<&EncryptedDek> for EncryptedDekP {
-    fn from(edek: &EncryptedDek) -> Self {
+impl TryFrom<&EncryptedDek> for EncryptedDekP {
+    type Error = IronOxideErr;
+    fn try_from(edek: &EncryptedDek) -> Result<Self, Self::Error> {
         use crate::proto::transform;
         use recrypt::api as re;
         let edek = edek.clone();
 
-        // transform the recrypt EncryptedValue to a edek proto
-        let mut proto_edek_data_no_pubk = match edek.encrypted_dek_data {
+        // encode the recrypt EncryptedValue to a edek proto
+        let proto_edek_data = match edek.encrypted_dek_data {
             re::EncryptedValue::EncryptedOnceValue {
                 ephemeral_public_key,
                 encrypted_message,
@@ -752,27 +745,23 @@ impl From<&EncryptedDek> for EncryptedDekP {
                 signature,
             } => {
                 let mut proto_edek_data = EncryptedDekDataP::default();
-                {
-                    let mut proto_eph_pub_key = transform::PublicKey::default();
-                    let (x, y) = ephemeral_public_key.bytes_x_y();
-                    proto_eph_pub_key.set_x(x[..].into());
-                    proto_eph_pub_key.set_y(y[..].into());
-                    proto_edek_data.set_ephemeralPublicKey(proto_eph_pub_key);
-                }
+
                 proto_edek_data.set_encryptedMessage(encrypted_message.bytes()[..].into());
+                proto_edek_data
+                    .set_ephemeralPublicKey(PublicKey::from(ephemeral_public_key).into());
                 proto_edek_data.set_signature(signature.bytes()[..].into());
                 proto_edek_data.set_authHash(auth_hash.bytes()[..].into());
                 proto_edek_data.set_publicSigningKey(public_signing_key.bytes()[..].into());
 
-                proto_edek_data
+                Ok(proto_edek_data)
             }
-            re::EncryptedValue::TransformedValue { .. } => {
-                unreachable!("Will be needed for decrypt!")
-            }
-        };
+            re::EncryptedValue::TransformedValue { .. } => Err(
+                IronOxideErr::InvalidRecryptEncryptedValue("Expected".to_string()),
+            ),
+        }?;
 
         //convert the grants
-        let (proto_uog, proto_pub_key) = match edek.grant_to {
+        let proto_uog = match edek.grant_to {
             WithKey {
                 id:
                     UserOrGroup::User {
@@ -782,11 +771,8 @@ impl From<&EncryptedDek> for EncryptedDekP {
             } => {
                 let mut proto_uog = transform::UserOrGroup::default();
                 proto_uog.set_userId(user_string.into());
-
-                let mut proto_pub_key = transform::PublicKey::default();
-                proto_pub_key.set_x(public_key.as_bytes().into());
-                proto_pub_key.set_y(public_key.as_bytes().into());
-                (proto_uog, proto_pub_key)
+                proto_uog.set_masterPublicKey(public_key.into());
+                proto_uog
             }
             WithKey {
                 id:
@@ -797,22 +783,15 @@ impl From<&EncryptedDek> for EncryptedDekP {
             } => {
                 let mut proto_uog = transform::UserOrGroup::default();
                 proto_uog.set_groupId(group_string.into());
-
-                let mut proto_pub_key = transform::PublicKey::default();
-                proto_pub_key.set_x(public_key.as_bytes().into());
-                proto_pub_key.set_y(public_key.as_bytes().into());
-                (proto_uog, proto_pub_key)
+                proto_uog.set_masterPublicKey(public_key.into());
+                proto_uog
             }
         };
-
-        // attach the ephemeral public key
-        proto_edek_data_no_pubk.set_ephemeralPublicKey(proto_pub_key);
-        let proto_edek_data = proto_edek_data_no_pubk;
 
         let mut proto_edek = EncryptedDekP::default();
         proto_edek.set_userOrGroup(proto_uog);
         proto_edek.set_encryptedDekData(proto_edek_data);
-        proto_edek
+        Ok(proto_edek)
     }
 }
 
@@ -1385,7 +1364,7 @@ mod tests {
             },
         };
 
-        let _proto_edek: EncryptedDekP = edek.borrow().into();
+        let _proto_edek: EncryptedDekP = edek.borrow().try_into().unwrap();
 
         //TODO write the other half of this test for decrypt
     }
