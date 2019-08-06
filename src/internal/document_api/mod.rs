@@ -517,7 +517,7 @@ pub fn encrypt_document<
             },
         ))
         .and_then(move |(encrypted_doc, (grants, key_errs))| {
-            encrypt_document_core(auth, recrypt, dek, encrypted_doc, &doc_id, grants)
+            recrypt_document(auth, recrypt, dek, encrypted_doc, &doc_id, grants)
                 .into_future()
                 .and_then(move |r| {
                     let encryption_errs = r.encryption_errs.clone();
@@ -598,6 +598,7 @@ fn resolve_keys_for_grants<'a>(
 
 /// Encrypts a document but does not create the document in the IronCore system.
 /// The resultant DocumentDetachedEncryptResult both the EncryptedDeks and the AesEncryptedValue for the caller to deal with.
+/// Both pieces will be required to decrypt
 pub fn edek_encrypt_document<'a, R1, R2: 'a>(
     auth: &'a RequestAuth,
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
@@ -632,7 +633,7 @@ where
         .and_then(move |(encryption_result, (grants, key_errs))| {
             Ok({
                 let encryption_result =
-                    encrypt_document_core(auth, recrypt, dek, encryption_result, &doc_id, grants)?;
+                    recrypt_document(auth, recrypt, dek, encryption_result, &doc_id, grants)?;
                 let proto_edek_vec_results: Result<Vec<_>, _> = encryption_result
                     .edeks
                     .iter()
@@ -672,8 +673,10 @@ fn dedupe_grants(grants: &[WithKey<UserOrGroup>]) -> Vec<WithKey<UserOrGroup>> {
         .collect_vec()
 }
 
-/// Actually encrypts the document. Can be called once you have all users/groups and their public keys.
-fn encrypt_document_core<'a, CR: rand::CryptoRng + rand::RngCore>(
+/// Encrypt the document using transform crypto (recrypt).
+/// Can be called once you have public keys for users/groups that should have access as well as the
+/// AES encrypted data.
+fn recrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     dek: Plaintext,
