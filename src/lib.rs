@@ -27,6 +27,9 @@
 //! groups. Groups can be created, updated, and deleted along with management of a groups administrators and members.
 //!
 
+// required by quick_error or IronOxideErr
+#![recursion_limit = "128"]
+
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]

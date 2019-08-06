@@ -286,29 +286,37 @@ impl DocumentDetachedEncryptResult {
 
     /// Users and Groups that have access to the encrypted document.
     ///
-    /// Implementation is somewhat expensive as it is decoding the `encrypted_deks`.
-    pub fn grants(&self) -> Vec<UserOrGroup> {
-        let pb_result: ProtobufResult<EncryptedDeksP> =
-            protobuf::parse_from_bytes(&self.encrypted_deks);
-        let result: Vec<UserOrGroup> = pb_result
-            // safe since the proto-encoded data is encoded in this file using the same definition as this decode
-            .expect("Unable to decode protobuf encoded encrypted_data")
+    /// Implementation is somewhat expensive as it is decoding the proto encoded `encrypted_deks`.
+    pub fn grants(&self) -> Result<Vec<UserOrGroup>, IronOxideErr> {
+        use crate::proto::transform::UserOrGroup as UserOrGroupP;
+        use crate::proto::transform::UserOrGroup_oneof_UserOrGroupId as UserOrGroupIdP;
+        let proto_edeks: EncryptedDeksP = protobuf::parse_from_bytes(&self.encrypted_deks)?;
+        let result: Result<Vec<UserOrGroup>, IronOxideErr> = proto_edeks
             .edeks
             .as_slice()
             .iter()
             .map(|edek| {
-                let uog = edek.userOrGroup.clone().unwrap();
-                if uog.has_userId() {
-                    UserOrGroup::User {
-                        id: UserId::unsafe_from_string(uog.get_userId().to_string()),
-                    }
-                } else if uog.has_groupId() {
-                    UserOrGroup::Group {
-                        id: GroupId::unsafe_from_string(uog.get_groupId().to_string()),
+                if let Some(UserOrGroupP {
+                    UserOrGroupId: Some(proto_uog),
+                    ..
+                }) = edek.userOrGroup.as_ref()
+                {
+                    match proto_uog {
+                        UserOrGroupIdP::userId(user_chars) => Ok(UserOrGroup::User {
+                            id: user_chars.to_string().try_into()?,
+                        }),
+                        UserOrGroupIdP::groupId(group_chars) => Ok(UserOrGroup::Group {
+                            id: group_chars.to_string().try_into()?,
+                        }),
                     }
                 } else {
-                    // a userOrGroup must be either a user or a group
-                    unreachable!()
+                    Err(IronOxideErr::ProtobufValidationError(
+                        format!(
+                            "EncryptedDek does not have a valid user or group: {:?}",
+                            &edek
+                        )
+                        .into(),
+                    ))
                 }
             })
             .collect();
@@ -660,7 +668,7 @@ where
 
 impl From<ProtobufError> for IronOxideErr {
     fn from(e: ProtobufError) -> Self {
-        internal::IronOxideErr::ProtobufError(e)
+        internal::IronOxideErr::ProtobufSerdeError(e)
     }
 }
 

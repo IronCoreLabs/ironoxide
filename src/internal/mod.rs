@@ -107,8 +107,11 @@ quick_error! {
             display("You're are not an administrator of group '{}'", group_id.0)
         }
         /// Protobuf encode/decode error
-        ProtobufError(err: protobuf::ProtobufError) {
+        ProtobufSerdeError(err: protobuf::ProtobufError) {
             cause(err)
+        }
+        ProtobufValidationError(msg: String) {
+            display("Protobuf validation failed with '{}'", msg)
         }
     }
 }

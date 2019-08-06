@@ -294,10 +294,10 @@ fn doc_edek_encrypt_with_policy_grants() -> Result<(), IronOxideErr> {
         )
         .unwrap();
 
-    assert_eq!(doc_result.grants().len(), 2);
+    assert_eq!(doc_result.grants()?.len(), 2);
     assert_that!(
         &doc_result
-            .grants()
+            .grants()?
             .iter()
             .map(Clone::clone)
             .collect::<Vec<UserOrGroup>>(),
@@ -351,10 +351,10 @@ fn doc_edek_encrypt_with_policy_grants() -> Result<(), IronOxideErr> {
         )
         .unwrap();
 
-    assert_eq!(doc_result2.grants().len(), 3);
+    assert_eq!(doc_result2.grants()?.len(), 3);
     assert_that!(
         &doc_result2
-            .grants()
+            .grants()?
             .iter()
             .map(Clone::clone)
             .collect::<Vec<UserOrGroup>>(),
@@ -389,7 +389,7 @@ fn doc_edek_encrypt_with_policy_grants() -> Result<(), IronOxideErr> {
             ),
         )
         .unwrap();
-    assert_eq!(doc_result3.grants().len(), 1);
+    assert_eq!(doc_result3.grants()?.len(), 1);
     Ok(())
 }
 
@@ -891,7 +891,7 @@ impl WithGrantsAndErrs for DocumentEncryptResult {
 
 impl WithGrantsAndErrs for DocumentDetachedEncryptResult {
     fn grants(&self) -> Vec<UserOrGroup> {
-        self.grants()
+        self.grants().unwrap()
     }
 
     fn access_errs(&self) -> &[DocAccessEditErr] {
