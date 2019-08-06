@@ -15,6 +15,9 @@ use crate::{
 use itertools::{Either, EitherOrBoth, Itertools};
 use tokio::runtime::current_thread::Runtime;
 
+/// Advanced document operations
+pub mod advanced;
+
 /// Optional parameters that can be provided when encrypting a new document.
 #[derive(Debug, PartialEq, Clone)]
 pub struct DocumentEncryptOpts {
@@ -186,26 +189,6 @@ pub trait DocumentOps {
         document_id: &DocumentId,
         revoke_list: &Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult>;
-
-    /// (Advanced) Encrypt the provided document bytes. Return the encrypted document encryption keys (EDEKs)
-    /// instead of creating a document entry in the IronCore webservice.
-    ///
-    /// The webservice is still needed for looking up public keys and evaluating policies, but no
-    /// document is created and the edeks are not stored. An additional burden is put on the caller
-    /// in that the encrypted data AND the edeks need to be provided for decryption.
-    ///
-    /// # Arguments
-    /// - `document_data` - Bytes of the document to encrypt
-    /// - `encrypt_opts` - Optional document encrypt parameters. Includes
-    ///       `id` - Unique ID to use for the document. Document ID will be stored unencrypted and must be unique per segment.
-    ///       `name` - (Ignored) - Any name provided will be ignored
-    ///       `grant_to_author` - Flag determining whether to encrypt to the calling user or not. If set to false at least one value must be present in the `grant` list.
-    ///       `grants` - List of users/groups to grant access to this document once encrypted
-    fn document_edek_encrypt(
-        &self,
-        data: &[u8],
-        encrypt_opts: &DocumentEncryptOpts,
-    ) -> Result<DocumentDetachedEncryptResult>;
 }
 
 impl DocumentOps for crate::IronOxide {
@@ -337,45 +320,6 @@ impl DocumentOps for crate::IronOxide {
             self.device.auth(),
             id,
             revoke_list,
-        ))
-    }
-
-    fn document_edek_encrypt(
-        &self,
-        data: &[u8],
-        encrypt_opts: &DocumentEncryptOpts,
-    ) -> Result<DocumentDetachedEncryptResult> {
-        let mut rt = Runtime::new().unwrap();
-
-        let (explicit_users, explicit_groups, grant_to_author, policy_grants) =
-            match &encrypt_opts.grants {
-                EitherOrBoth::Left(explicit_grants) => {
-                    let (users, groups) = partition_user_or_group(&explicit_grants.grants);
-                    (users, groups, explicit_grants.grant_to_author, None)
-                }
-                EitherOrBoth::Right(policy_grant) => (vec![], vec![], false, Some(policy_grant)),
-                EitherOrBoth::Both(explicit_grants, policy_grant) => {
-                    let (users, groups) = partition_user_or_group(&explicit_grants.grants);
-                    (
-                        users,
-                        groups,
-                        explicit_grants.grant_to_author,
-                        Some(policy_grant),
-                    )
-                }
-            };
-
-        rt.block_on(document_api::edek_encrypt_document(
-            self.device.auth(),
-            &self.recrypt,
-            &self.user_master_pub_key,
-            &self.rng,
-            data,
-            encrypt_opts.id.clone(),
-            grant_to_author,
-            &explicit_users,
-            &explicit_groups,
-            policy_grants,
         ))
     }
 }

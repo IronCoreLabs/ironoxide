@@ -2,7 +2,8 @@ mod common;
 use crate::common::init_sdk_get_user;
 use common::{create_second_user, init_sdk};
 use galvanic_assert::matchers::{collection::*, *};
-use ironoxide::{document::*, group::GroupCreateOpts, prelude::*, IronOxide};
+use ironoxide::group::GroupCreateOpts;
+use ironoxide::{document::advanced::*, document::*, prelude::*, IronOxide};
 use itertools::EitherOrBoth;
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
@@ -278,7 +279,7 @@ fn doc_edek_encrypt_with_policy_grants() -> Result<(), IronOxideErr> {
 
     // all of the policy grant fields are optional
     let doc_result = sdk
-        .document_edek_encrypt(
+        .document_encrypt_unmanaged(
             &doc,
             &DocumentEncryptOpts::with_policy_grants(
                 None,
@@ -335,7 +336,7 @@ fn doc_edek_encrypt_with_policy_grants() -> Result<(), IronOxideErr> {
     assert!(group2_result.is_ok());
 
     let doc_result2 = sdk
-        .document_edek_encrypt(
+        .document_encrypt_unmanaged(
             &doc,
             &DocumentEncryptOpts::with_policy_grants(
                 None,
@@ -379,7 +380,7 @@ fn doc_edek_encrypt_with_policy_grants() -> Result<(), IronOxideErr> {
 
     //finally send an empty policy
     let doc_result3 = sdk
-        .document_edek_encrypt(
+        .document_encrypt_unmanaged(
             &doc,
             &DocumentEncryptOpts::with_policy_grants(
                 None,
@@ -453,7 +454,7 @@ fn doc_edek_encrypt_with_explicit_self_grant() {
     let encrypt_opts = setup_encrypt_with_explicit_self_grant();
     let doc = [0u8; 64];
 
-    let doc_result = sdk.document_edek_encrypt(&doc, &encrypt_opts).unwrap();
+    let doc_result = sdk.document_encrypt_unmanaged(&doc, &encrypt_opts).unwrap();
 
     check_encrypt_with_explicit_self_grant(&sdk, Box::new(doc_result));
 }
@@ -580,7 +581,7 @@ fn doc_edek_encrypt_with_explicit_and_policy_grants() -> Result<(), IronOxideErr
     let (opts, ex_group_id, data_rec_group_id) =
         setup_encrypt_with_explicit_and_policy_grants(&sdk, &curr_user, &bad_group)?;
 
-    let doc_result = sdk.document_edek_encrypt(&doc, &opts).unwrap();
+    let doc_result = sdk.document_encrypt_unmanaged(&doc, &opts).unwrap();
     check_encrypt_with_explicit_and_policy_grants(
         &curr_user,
         &ex_group_id,
