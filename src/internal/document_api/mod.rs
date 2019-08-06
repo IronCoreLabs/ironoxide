@@ -743,7 +743,6 @@ impl TryFrom<&EncryptedDek> for EncryptedDekP {
     fn try_from(edek: &EncryptedDek) -> Result<Self, Self::Error> {
         use crate::proto::transform;
         use recrypt::api as re;
-        let edek = edek.clone();
 
         // encode the recrypt EncryptedValue to a edek proto
         let proto_edek_data = match edek.encrypted_dek_data {
@@ -771,7 +770,7 @@ impl TryFrom<&EncryptedDek> for EncryptedDekP {
         }?;
 
         //convert the grants
-        let proto_uog = match edek.grant_to {
+        let proto_uog = match edek.grant_to.clone() {
             WithKey {
                 id:
                     UserOrGroup::User {

@@ -889,7 +889,7 @@ impl WithGrantsAndErrs for DocumentEncryptResult {
     }
 }
 
-impl WithGrantsAndErrs for DocumentDetachedEncryptResult {
+impl WithGrantsAndErrs for DocumentEncryptUnmanagedResult {
     fn grants(&self) -> Vec<UserOrGroup> {
         self.grants().unwrap()
     }
