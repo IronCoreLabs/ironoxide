@@ -1,6 +1,6 @@
 pub use crate::internal::document_api::{
     AssociationType, DocAccessEditErr, DocumentAccessResult, DocumentDecryptResult,
-    DocumentDetachedEncryptResult, DocumentEncryptResult, DocumentListMeta, DocumentListResult,
+    DocumentEncryptResult, DocumentEncryptUnmanagedResult, DocumentListMeta, DocumentListResult,
     DocumentMetadataResult, UserOrGroup, VisibleGroup, VisibleUser,
 };
 use crate::{

@@ -20,7 +20,7 @@ use chrono::{DateTime, Utc};
 use futures::prelude::*;
 use hex::encode;
 use itertools::{Either, Itertools};
-use protobuf::{Message, ProtobufError, ProtobufResult, RepeatedField};
+use protobuf::{Message, ProtobufError, RepeatedField};
 use rand::{self, CryptoRng, RngCore};
 use recrypt::{api::Plaintext, prelude::*};
 pub use requests::policy_get::PolicyResult;
@@ -263,14 +263,14 @@ impl DocumentMetadataResult {
 /// - `encrypted_deks` - List of encrypted document encryption keys (EDEK) of users/groups that have been granted access to `encrypted_data`
 /// - `access_errs` - Users and groups that could not be granted access
 #[derive(Debug)]
-pub struct DocumentDetachedEncryptResult {
+pub struct DocumentEncryptUnmanagedResult {
     id: DocumentId,
     encrypted_data: Vec<u8>,
     encrypted_deks: Vec<u8>,
     access_errs: Vec<DocAccessEditErr>,
 }
 
-impl DocumentDetachedEncryptResult {
+impl DocumentEncryptUnmanagedResult {
     pub fn id(&self) -> &DocumentId {
         &self.id
     }
@@ -327,7 +327,7 @@ impl DocumentDetachedEncryptResult {
 /// Result for encrypt operations.
 ///
 /// - `id` - Unique (within the segment) id of the document
-/// - `name` Non-unique docuemnt name. The document name is *not* encrypted.
+/// - `name` Non-unique document name. The document name is *not* encrypted.
 /// - `updated` - When the document was last updated
 /// - `created` - When the document was created
 /// - `encrypted_data` - Bytes of encrypted document content
@@ -548,14 +548,13 @@ type UserMasterPublicKey = PublicKey;
 /// `user_grants`   - list of user ids to which document access should be granted
 /// `group_grants`  - list of groups ids to which document access should be granted
 /// `policy_grant`  - policy to apply for document access
-/// `grant_to_author` - true if document access should be granted to the logged in user, else false
+/// `maybe_user_master_pub_key`
+///                 - if Some, contains the logged in user's master public key for self-grant
 ///
 /// # Returns
-/// A Future that will resolve to the list of keys for:
-/// (Left) partially applied function for all users and groups that should be granted access.
-/// The public key for the logged in user is the remaining param that must be supplied.
-/// and  
-/// (Right) errors for any invalid users/groups that were passed.
+/// A Future that will resolve to:
+/// (Left)  list of keys for all users and groups that should be granted access to the document
+/// (Right) errors for any invalid users/groups that were passed
 fn resolve_keys_for_grants<'a>(
     auth: &'a RequestAuth,
     user_grants: &'a Vec<UserId>,
@@ -605,8 +604,8 @@ fn resolve_keys_for_grants<'a>(
 }
 
 /// Encrypts a document but does not create the document in the IronCore system.
-/// The resultant DocumentDetachedEncryptResult both the EncryptedDeks and the AesEncryptedValue for the caller to deal with.
-/// Both pieces will be required to decrypt
+/// The resultant DocumentDetachedEncryptResult contains both the EncryptedDeks and the AesEncryptedValue
+/// Both pieces will be required for decryption.
 pub fn edek_encrypt_document<'a, R1, R2: 'a>(
     auth: &'a RequestAuth,
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
@@ -618,7 +617,7 @@ pub fn edek_encrypt_document<'a, R1, R2: 'a>(
     user_grants: &'a Vec<UserId>,
     group_grants: &'a Vec<GroupId>,
     policy_grant: Option<&'a PolicyGrant>,
-) -> impl Future<Item = DocumentDetachedEncryptResult, Error = IronOxideErr> + 'a
+) -> impl Future<Item = DocumentEncryptUnmanagedResult, Error = IronOxideErr> + 'a
 where
     R1: rand::CryptoRng + rand::RngCore,
     R2: rand::CryptoRng + rand::RngCore,
@@ -656,7 +655,7 @@ where
 
                 let edek_bytes = proto_edeks.write_to_bytes()?;
 
-                DocumentDetachedEncryptResult {
+                DocumentEncryptUnmanagedResult {
                     id: doc_id,
                     access_errs: [key_errs, encryption_result.encryption_errs].concat(),
                     encrypted_data: encryption_result.encrypted_data.bytes(),

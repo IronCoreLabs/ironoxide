@@ -511,52 +511,6 @@ pub mod json {
         }
     }
 
-    // TODO Can we delete this?
-
-    //    impl TryFrom<recrypt::api::EncryptedValue> for TransformedEncryptedValue {
-    //        type Error = IronOxideErr;
-    //
-    //        fn try_from(ev: recrypt::api::EncryptedValue) -> Result<Self, Self::Error> {
-    //            match ev {
-    //                recrypt::api::EncryptedValue::TransformedValue {
-    //                    ephemeral_public_key,
-    //                    encrypted_message,
-    //                    auth_hash,
-    //                    public_signing_key,
-    //                    signature,
-    //                    transform_blocks,
-    //                } => Ok(TransformedEncryptedValue {
-    //                    transform_blocks: transform_blocks
-    //                        .as_vec()
-    //                        .iter()
-    //                        .map(|tb| TransformBlock {
-    //                            encrypted_temp_key: tb.encrypted_temp_key().bytes().to_vec(),
-    //                            public_key: tb.public_key().clone().into(),
-    //                            random_transform_encrypted_temp_key: tb
-    //                                .encrypted_random_transform_temp_key()
-    //                                .bytes()
-    //                                .to_vec(),
-    //                            random_transform_public_key: tb
-    //                                .random_transform_public_key()
-    //                                .clone()
-    //                                .into(),
-    //                        })
-    //                        .collect(),
-    //                    encrypted_message: EncryptedOnceValue {
-    //                        encrypted_message: encrypted_message.bytes().to_vec(),
-    //                        ephemeral_public_key: ephemeral_public_key.into(),
-    //                        signature: signature.bytes().to_vec(),
-    //                        auth_hash: auth_hash.bytes().to_vec(),
-    //                        public_signing_key: public_signing_key.bytes().to_vec(),
-    //                    },
-    //                }),
-    //                _ => Err(IronOxideErr::InvalidRecryptEncryptedValue(
-    //                    "Expected a TransformedValue but got an EncryptedOnceValue".to_string(),
-    //                )),
-    //            }
-    //        }
-    //    }
-
     impl TryFrom<TransformBlock> for recrypt::api::TransformBlock {
         type Error = IronOxideErr;
 
@@ -612,6 +566,51 @@ mod tests {
     use crate::internal::test::{contains, length};
     use chrono::TimeZone;
     use galvanic_assert::matchers::{variant::*, *};
+
+    // We Don't need this for SDK operations, but maybe it would be useful for testing?
+    impl TryFrom<recrypt::api::EncryptedValue> for TransformedEncryptedValue {
+        type Error = IronOxideErr;
+
+        fn try_from(ev: recrypt::api::EncryptedValue) -> Result<Self, Self::Error> {
+            match ev {
+                recrypt::api::EncryptedValue::TransformedValue {
+                    ephemeral_public_key,
+                    encrypted_message,
+                    auth_hash,
+                    public_signing_key,
+                    signature,
+                    transform_blocks,
+                } => Ok(TransformedEncryptedValue {
+                    transform_blocks: transform_blocks
+                        .as_vec()
+                        .iter()
+                        .map(|tb| TransformBlock {
+                            encrypted_temp_key: tb.encrypted_temp_key().bytes().to_vec(),
+                            public_key: tb.public_key().clone().into(),
+                            random_transform_encrypted_temp_key: tb
+                                .encrypted_random_transform_temp_key()
+                                .bytes()
+                                .to_vec(),
+                            random_transform_public_key: tb
+                                .random_transform_public_key()
+                                .clone()
+                                .into(),
+                        })
+                        .collect(),
+                    encrypted_message: EncryptedOnceValue {
+                        encrypted_message: encrypted_message.bytes().to_vec(),
+                        ephemeral_public_key: ephemeral_public_key.into(),
+                        signature: signature.bytes().to_vec(),
+                        auth_hash: auth_hash.bytes().to_vec(),
+                        public_signing_key: public_signing_key.bytes().to_vec(),
+                    },
+                }),
+                _ => Err(IronOxideErr::InvalidRecryptEncryptedValue(
+                    "Expected a TransformedValue but got an EncryptedOnceValue".to_string(),
+                )),
+            }
+        }
+    }
 
     #[test]
     fn create_message_signature_for_canned_values() {

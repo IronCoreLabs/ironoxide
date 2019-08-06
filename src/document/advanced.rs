@@ -1,6 +1,6 @@
 use crate::document::{partition_user_or_group, DocumentEncryptOpts};
 use crate::internal;
-use crate::internal::document_api::DocumentDetachedEncryptResult;
+use crate::internal::document_api::DocumentEncryptUnmanagedResult;
 use crate::Result;
 use itertools::EitherOrBoth;
 use tokio::runtime::current_thread::Runtime;
@@ -18,13 +18,13 @@ pub trait DocumentAdvancedOps {
     /// - `encrypt_opts` - Optional document encrypt parameters. Includes
     ///       `id` - Unique ID to use for the document. Document ID will be stored unencrypted and must be unique per segment.
     ///       `name` - (Ignored) - Any name provided will be ignored
-    ///       `grant_to_author` - Flag determining whether to encrypt to the calling user or not. If set to false at least one value must be present in the `grant` list.
+    ///       `grant_to_author` - Flag determining whether to encrypt to the calling user or not. If set to false at least one value must be present in the `grants` list.
     ///       `grants` - List of users/groups to grant access to this document once encrypted
     fn document_encrypt_unmanaged(
         &self,
         data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
-    ) -> Result<DocumentDetachedEncryptResult>;
+    ) -> Result<DocumentEncryptUnmanagedResult>;
 }
 
 impl DocumentAdvancedOps for crate::IronOxide {
@@ -32,7 +32,7 @@ impl DocumentAdvancedOps for crate::IronOxide {
         &self,
         data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
-    ) -> Result<DocumentDetachedEncryptResult> {
+    ) -> Result<DocumentEncryptUnmanagedResult> {
         let mut rt = Runtime::new().unwrap();
 
         let (explicit_users, explicit_groups, grant_to_author, policy_grants) =

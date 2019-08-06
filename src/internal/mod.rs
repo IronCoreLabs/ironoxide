@@ -110,6 +110,7 @@ quick_error! {
         ProtobufSerdeError(err: protobuf::ProtobufError) {
             cause(err)
         }
+        /// Protobuf decode succeeded, but the result is not valid
         ProtobufValidationError(msg: String) {
             display("Protobuf validation failed with '{}'", msg)
         }
