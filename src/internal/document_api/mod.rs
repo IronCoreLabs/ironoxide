@@ -1352,7 +1352,7 @@ mod tests {
     }
 
     #[test]
-    fn roundtrip_encrypted_dek_proto() {
+    fn encode_encrypted_dek_proto() {
         use recrypt::prelude::*;
 
         let recrypt_api = recrypt::api::Recrypt::new();
@@ -1362,19 +1362,38 @@ mod tests {
         let encrypted_value = recrypt_api
             .encrypt(&plaintext, &pubk, &signing_keys)
             .unwrap();
+        let user_str = "userid".to_string();
 
         let edek = EncryptedDek {
             encrypted_dek_data: encrypted_value,
             grant_to: WithKey {
                 public_key: pubk.into(),
-                id: UserId::unsafe_from_string("userid".to_string())
-                    .borrow()
-                    .into(),
+                id: UserId::unsafe_from_string(user_str.clone()).borrow().into(),
             },
         };
 
-        let _proto_edek: EncryptedDekP = edek.borrow().try_into().unwrap();
+        let proto_edek: EncryptedDekP = edek.borrow().try_into().unwrap();
 
-        //TODO write the other half of this test for decrypt
+        assert_eq!(
+            &user_str,
+            &proto_edek.get_userOrGroup().get_userId().to_string()
+        );
+        let (x, y) = pubk.bytes_x_y();
+        assert_eq!(
+            (x.to_vec(), y.to_vec()),
+            (
+                proto_edek
+                    .get_userOrGroup()
+                    .get_masterPublicKey()
+                    .get_x()
+                    .to_vec(),
+                proto_edek
+                    .get_userOrGroup()
+                    .get_masterPublicKey()
+                    .get_y()
+                    .to_vec()
+            )
+        )
+        // TODO WIP more assertions
     }
 }

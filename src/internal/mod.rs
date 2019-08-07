@@ -314,14 +314,14 @@ impl From<&PublicKey> for RecryptPublicKey {
 impl From<PublicKey> for crate::proto::transform::PublicKey {
     fn from(pubk: PublicKey) -> Self {
         let mut proto_pub_key = crate::proto::transform::PublicKey::default();
-        proto_pub_key.set_x(pubk.as_bytes().into());
-        proto_pub_key.set_y(pubk.as_bytes().into());
+        proto_pub_key.set_x(pubk.to_bytes_x_y().0.into());
+        proto_pub_key.set_y(pubk.to_bytes_x_y().1.into());
         proto_pub_key
     }
 }
 impl PublicKey {
     fn to_bytes_x_y(&self) -> (Vec<u8>, Vec<u8>) {
-        let (x, y) = &self.0.bytes_x_y();
+        let (x, y) = self.0.bytes_x_y();
         (x.to_vec(), y.to_vec())
     }
     pub fn new_from_slice(bytes: (&[u8], &[u8])) -> Result<Self, IronOxideErr> {
@@ -752,5 +752,20 @@ pub(crate) mod test {
     fn valid_jwt_construction() {
         let jwt = Jwt::try_from("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c");
         assert!(jwt.is_ok())
+    }
+
+    #[test]
+    fn encode_proto_public_key() -> Result<(), IronOxideErr> {
+        let recr = recrypt::api::Recrypt::new();
+        let (_, re_pubk) = recr.generate_key_pair()?;
+        let pubk: PublicKey = re_pubk.into();
+
+        let proto_pubk: crate::proto::transform::PublicKey = pubk.clone().into();
+        assert_eq!(
+            (&pubk.to_bytes_x_y().0, &pubk.to_bytes_x_y().1),
+            (&proto_pubk.get_x().to_vec(), &proto_pubk.get_y().to_vec())
+        );
+
+        Ok(())
     }
 }
