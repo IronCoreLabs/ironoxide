@@ -1353,8 +1353,8 @@ mod tests {
 
     #[test]
     fn encode_encrypted_dek_proto() {
+        use recrypt::api::Hashable;
         use recrypt::prelude::*;
-
         let recrypt_api = recrypt::api::Recrypt::new();
         let (_, pubk) = recrypt_api.generate_key_pair().unwrap();
         let signing_keys = recrypt_api.generate_ed25519_key_pair();
@@ -1365,7 +1365,7 @@ mod tests {
         let user_str = "userid".to_string();
 
         let edek = EncryptedDek {
-            encrypted_dek_data: encrypted_value,
+            encrypted_dek_data: encrypted_value.clone(),
             grant_to: WithKey {
                 public_key: pubk.into(),
                 id: UserId::unsafe_from_string(user_str.clone()).borrow().into(),
@@ -1393,7 +1393,63 @@ mod tests {
                     .get_y()
                     .to_vec()
             )
-        )
+        );
         // TODO WIP more assertions
+
+        if let recrypt::api::EncryptedValue::EncryptedOnceValue {
+            ephemeral_public_key,
+            encrypted_message,
+            auth_hash,
+            public_signing_key,
+            signature,
+        } = encrypted_value
+        {
+            assert_eq!(
+                (
+                    ephemeral_public_key.bytes_x_y().0.to_vec(),
+                    ephemeral_public_key.bytes_x_y().1.to_vec()
+                ),
+                (
+                    proto_edek
+                        .get_encryptedDekData()
+                        .get_ephemeralPublicKey()
+                        .get_x()
+                        .to_vec(),
+                    proto_edek
+                        .get_encryptedDekData()
+                        .get_ephemeralPublicKey()
+                        .get_y()
+                        .to_vec()
+                )
+            );
+
+            assert_eq!(
+                encrypted_message.bytes().to_vec(),
+                proto_edek
+                    .get_encryptedDekData()
+                    .get_encryptedMessage()
+                    .to_vec()
+            );
+
+            assert_eq!(
+                auth_hash.bytes().to_vec(),
+                proto_edek.get_encryptedDekData().get_authHash().to_vec()
+            );
+
+            assert_eq!(
+                public_signing_key.to_bytes(),
+                proto_edek
+                    .get_encryptedDekData()
+                    .get_publicSigningKey()
+                    .to_vec()
+            );
+
+            assert_eq!(
+                signature.bytes().to_vec(),
+                proto_edek.get_encryptedDekData().get_signature().to_vec()
+            );
+        } else {
+            panic!("Should be EncryptedOnceValue");
+        }
     }
 }
