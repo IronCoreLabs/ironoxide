@@ -65,31 +65,16 @@ pub struct AccessGrant {
     pub(crate) encrypted_value: EncryptedOnceValue,
 }
 
-//TODO get rid of
 impl TryFrom<(WithKey<UserOrGroup>, recrypt::api::EncryptedValue)> for AccessGrant {
     type Error = IronOxideErr;
     fn try_from(
         entry: (WithKey<UserOrGroup>, recrypt::api::EncryptedValue),
     ) -> Result<Self, Self::Error> {
-        Ok(AccessGrant {
-            encrypted_value: entry.1.clone().try_into()?,
-            user_or_group: match entry.0.clone() {
-                WithKey {
-                    id: UserOrGroup::User { id },
-                    public_key,
-                } => UserOrGroupWithKey::User {
-                    id: id.0,
-                    master_public_key: Some(public_key.into()),
-                },
-                WithKey {
-                    id: UserOrGroup::Group { id },
-                    public_key,
-                } => UserOrGroupWithKey::Group {
-                    id: id.0,
-                    master_public_key: Some(public_key.into()),
-                },
-            },
-        })
+        EncryptedDek {
+            grant_to: entry.0,
+            encrypted_dek_data: entry.1,
+        }
+        .try_into()
     }
 }
 

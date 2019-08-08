@@ -561,14 +561,8 @@ fn resolve_keys_for_grants<'a>(
     group_grants: &'a Vec<GroupId>,
     policy_grant: Option<&'a PolicyGrant>,
     maybe_user_master_pub_key: Option<&'a UserMasterPublicKey>,
-) -> impl Future<
-    Item = (
-        //TODO: new ticket for returning vec1 here or error
-        Vec<WithKey<UserOrGroup>>,
-        Vec<DocAccessEditErr>,
-    ),
-    Error = IronOxideErr,
-> + 'a {
+) -> impl Future<Item = (Vec<WithKey<UserOrGroup>>, Vec<DocAccessEditErr>), Error = IronOxideErr> + 'a
+{
     internal::user_api::get_user_keys(auth, user_grants)
         .join3(
             // TICKET: only make these calls if the vecs are non-empty
@@ -933,7 +927,6 @@ pub fn update_document_name<'a>(
     requests::document_update::document_update_request(auth, id, name).map(DocumentMetadataResult)
 }
 
-// TODO refactor to use resolve_keys_for_grants like encrypt and edek_encrypt
 pub fn document_grant_access<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -1394,7 +1387,6 @@ mod tests {
                     .to_vec()
             )
         );
-        // TODO WIP more assertions
 
         if let recrypt::api::EncryptedValue::EncryptedOnceValue {
             ephemeral_public_key,
