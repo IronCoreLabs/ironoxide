@@ -765,7 +765,6 @@ pub(crate) mod test {
             (&pubk.to_bytes_x_y().0, &pubk.to_bytes_x_y().1),
             (&proto_pubk.get_x().to_vec(), &proto_pubk.get_y().to_vec())
         );
-
         Ok(())
     }
 }
