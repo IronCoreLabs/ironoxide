@@ -1451,10 +1451,10 @@ mod tests {
         let recr = recrypt::api::Recrypt::new();
         let signingkeys = DeviceSigningKeyPair::from(recr.generate_ed25519_key_pair());
         let aes_value = AesEncryptedValue::try_from(&[42u8; 32][..])?;
-        let user: UserOrGroup = UserId::unsafe_from_string("userid".into()).borrow().into();
-        let group: UserOrGroup = GroupId::unsafe_from_string("groupid".into())
-            .borrow()
-            .into();
+        let uid = UserId::unsafe_from_string("userid".into());
+        let gid = GroupId::unsafe_from_string("groupid".into());
+        let user: UserOrGroup = uid.borrow().into();
+        let group: UserOrGroup = gid.borrow().into();
         let (_, pubk) = recr.generate_key_pair()?;
         let with_keys = vec![
             WithKey::new(user, pubk.clone().into()),
@@ -1471,8 +1471,11 @@ mod tests {
             with_keys,
         )?;
 
+        // create an unmanged result, which does the proto serialization
         let doc_encrypt_unmanaged_result =
             DocumentEncryptUnmanagedResult::new(&doc_id, 1, encryption_result, vec![])?;
+
+        // then deserialize and extract the user/groups from the edeks
         let proto_edeks: EncryptedDeksP =
             protobuf::parse_from_bytes(doc_encrypt_unmanaged_result.encrypted_deks())?;
         let result: Result<Vec<UserOrGroup>, IronOxideErr> = proto_edeks
@@ -1504,6 +1507,24 @@ mod tests {
                 }
             })
             .collect();
+
+        // show that grants() and the edeks contain the same users/groups
+        assert_that!(
+            &result?,
+            contains_in_any_order(vec![
+                UserOrGroup::Group { id: gid.clone() },
+                UserOrGroup::User { id: uid.clone() }
+            ])
+        );
+
+        assert_that!(
+            &doc_encrypt_unmanaged_result.grants().to_vec(),
+            contains_in_any_order(vec![
+                UserOrGroup::Group { id: gid },
+                UserOrGroup::User { id: uid }
+            ])
+        );
+
         Ok(())
     }
 }

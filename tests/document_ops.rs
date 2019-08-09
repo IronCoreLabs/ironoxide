@@ -211,188 +211,6 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
     Ok(())
 }
 
-#[test]
-fn doc_edek_encrypt_with_policy_grants() -> Result<(), IronOxideErr> {
-    // policy assumed for this test
-    /*
-    {
-      "dataSubjects": [
-        "PATIENT"
-      ],
-      "sensitivities": [
-        "RESTRICTED",
-        "INTERNAL"
-      ],
-      "categories": [
-        "HEALTH",
-        "PII"
-      ],
-      "rules": [
-        {
-          "sensitivity": "RESTRICTED",
-          "users": [
-            "%USER%"
-          ],
-          "dataSubject": "PATIENT",
-          "groups": [
-            "group_other_%USER%",
-            "group_id_doctors",
-            "data_recovery_%LOGGED_IN_USER%"
-          ],
-          "category": "HEALTH"
-        },
-        {
-          "sensitivity": "INTERNAL",
-          "users": [
-            "baduserid_frompolicy",
-            "%LOGGED_IN_USER%"
-          ],
-          "groups": [
-            "badgroupid_frompolicy",
-            "data_recovery_%LOGGED_IN_USER%"
-          ],
-          "category": "PII"
-        },
-        {
-          "users": [],
-          "groups": [
-            "data_recovery_%LOGGED_IN_USER%"
-          ]
-        }
-      ]
-    }
-        */
-    let (curr_user, sdk) = init_sdk_get_user();
-
-    //create the data_recovery group used in the policy
-    let data_rec_group_id: GroupId = format!("data_recovery_{}", curr_user.id())
-        .try_into()
-        .unwrap();
-    let group_result = sdk.group_create(&GroupCreateOpts::new(
-        data_rec_group_id.clone().into(),
-        None,
-        true,
-    ));
-    assert!(group_result.is_ok());
-
-    let doc = [0u8; 64];
-
-    // all of the policy grant fields are optional
-    let doc_result = sdk
-        .document_encrypt_unmanaged(
-            &doc,
-            &DocumentEncryptOpts::with_policy_grants(
-                None,
-                Some("doc name".try_into()?),
-                PolicyGrant::new(
-                    Some("PII".try_into()?),
-                    Some("INTERNAL".try_into()?),
-                    None,
-                    None,
-                ),
-            ),
-        )
-        .unwrap();
-
-    assert_eq!(doc_result.grants().len(), 2);
-    assert_that!(
-        &doc_result
-            .grants()
-            .iter()
-            .map(Clone::clone)
-            .collect::<Vec<UserOrGroup>>(),
-        contains_in_any_order(vec![
-            UserOrGroup::User {
-                id: sdk.device().account_id().clone()
-            },
-            UserOrGroup::Group {
-                id: data_rec_group_id.clone()
-            }
-        ])
-    );
-    assert_eq!(doc_result.access_errs().len(), 2);
-    assert_that!(
-        &doc_result
-            .access_errs()
-            .iter()
-            .map(|err| err.user_or_group.clone())
-            .collect::<Vec<_>>(),
-        contains_in_any_order(vec![
-            UserOrGroup::Group {
-                id: "badgroupid_frompolicy".try_into().unwrap()
-            },
-            UserOrGroup::User {
-                id: "baduserid_frompolicy".try_into().unwrap()
-            }
-        ])
-    );
-
-    // now use category, sensitivity, data_subject and substitution_user_id
-    let user2_result = create_second_user();
-    let user2 = user2_result.account_id();
-    let group2_id: GroupId = format!("group_other_{}", user2.id()).try_into().unwrap();
-    let group2_result =
-        sdk.group_create(&GroupCreateOpts::new(group2_id.clone().into(), None, false));
-    assert!(group2_result.is_ok());
-
-    let doc_result2 = sdk
-        .document_encrypt_unmanaged(
-            &doc,
-            &DocumentEncryptOpts::with_policy_grants(
-                None,
-                Some("doc name2".try_into()?),
-                PolicyGrant::new(
-                    Some("HEALTH".try_into()?),
-                    Some("RESTRICTED".try_into()?),
-                    Some("PATIENT".try_into()?),
-                    Some(user2.clone()),
-                ),
-            ),
-        )
-        .unwrap();
-
-    assert_eq!(doc_result2.grants().len(), 3);
-    assert_that!(
-        &doc_result2
-            .grants()
-            .iter()
-            .map(Clone::clone)
-            .collect::<Vec<UserOrGroup>>(),
-        contains_in_any_order(vec![
-            UserOrGroup::User { id: user2.clone() },
-            UserOrGroup::Group { id: group2_id },
-            UserOrGroup::Group {
-                id: data_rec_group_id.clone()
-            }
-        ])
-    );
-    assert_eq!(doc_result2.access_errs().len(), 1);
-    assert_that!(
-        &doc_result2
-            .access_errs()
-            .iter()
-            .map(|err| err.user_or_group.clone())
-            .collect::<Vec<_>>(),
-        contains_in_any_order(vec![UserOrGroup::Group {
-            id: "group_id_doctors".try_into().unwrap()
-        },])
-    );
-
-    //finally send an empty policy
-    let doc_result3 = sdk
-        .document_encrypt_unmanaged(
-            &doc,
-            &DocumentEncryptOpts::with_policy_grants(
-                None,
-                Some("doc name2".try_into()?),
-                PolicyGrant::default(),
-            ),
-        )
-        .unwrap();
-    assert_eq!(doc_result3.grants().len(), 1);
-    Ok(())
-}
-
 fn setup_encrypt_with_explicit_self_grant() -> DocumentEncryptOpts {
     let bad_user: UserId = "bad_user".try_into().unwrap();
     let bad_group: GroupId = "bad_group".try_into().unwrap();
@@ -449,7 +267,7 @@ fn doc_create_with_explicit_self_grant() {
 }
 
 #[test]
-fn doc_edek_encrypt_with_explicit_self_grant() {
+fn doc_encrypt_unmanaged_with_explicit_self_grant() {
     let sdk = init_sdk();
     let encrypt_opts = setup_encrypt_with_explicit_self_grant();
     let doc = [0u8; 64];
@@ -572,7 +390,7 @@ fn doc_create_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
 }
 
 #[test]
-fn doc_edek_encrypt_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
+fn doc_encrypt_unmanaged_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
     let (curr_user, sdk) = init_sdk_get_user();
     // this group doesn't exist, so it should show up in the errors
     let bad_group: GroupId = "bad_group".try_into().unwrap();
