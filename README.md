@@ -34,6 +34,11 @@ Rust (stable) and [libstd](https://doc.rust-lang.org/std/) required.
 It may be possible to build with `no_std`, but we haven't looked at this.
 We test on a variety of architectures (including Linux-x86_64 MacOSX-x86_64, IOS-aarch64, Android-aarch64), and should generally work anywhere Rust stable works.
 
+If you want to use `cargo watch` you will need to exclude the generated code:
+```
+cargo watch -i "src/proto/*" -x "build"
+```
+
 #### Running Unit Tests
 
 IronCore has integration tests that are not runnable by the public. If you are interested in the results, [Travis runs the integration tests](TODO). If you think you need to run the integration tests on a development machine, please open an issue.

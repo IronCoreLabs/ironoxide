@@ -345,7 +345,7 @@ pub fn user_key_list<'a>(
 pub(crate) fn get_user_keys<'a>(
     auth: &'a RequestAuth,
     users: &'a Vec<UserId>,
-) -> Box<Future<Item = (Vec<UserId>, Vec<WithKey<UserId>>), Error = IronOxideErr> + 'a> {
+) -> Box<dyn Future<Item = (Vec<UserId>, Vec<WithKey<UserId>>), Error = IronOxideErr> + 'a> {
     // if there aren't any users in the list, just return with empty results
     if users.len() == 0 {
         return Box::new(futures::future::ok((vec![], vec![])));

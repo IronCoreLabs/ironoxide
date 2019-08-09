@@ -1,4 +1,5 @@
 use super::{AssociationType, DocumentId, DocumentName};
+use crate::internal::document_api::EncryptedDek;
 use crate::internal::{
     self,
     document_api::{UserOrGroup, VisibleGroup, VisibleUser, WithKey},
@@ -13,6 +14,7 @@ use crate::internal::{
 use chrono::{DateTime, Utc};
 use futures::Future;
 use std::convert::TryFrom;
+use std::convert::TryInto;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Association {
@@ -68,10 +70,21 @@ impl TryFrom<(WithKey<UserOrGroup>, recrypt::api::EncryptedValue)> for AccessGra
     fn try_from(
         entry: (WithKey<UserOrGroup>, recrypt::api::EncryptedValue),
     ) -> Result<Self, Self::Error> {
-        use std::convert::TryInto;
+        EncryptedDek {
+            grant_to: entry.0,
+            encrypted_dek_data: entry.1,
+        }
+        .try_into()
+    }
+}
+
+impl TryFrom<EncryptedDek> for AccessGrant {
+    type Error = IronOxideErr;
+
+    fn try_from(value: EncryptedDek) -> Result<Self, Self::Error> {
         Ok(AccessGrant {
-            encrypted_value: entry.1.clone().try_into()?,
-            user_or_group: match entry.0.clone() {
+            encrypted_value: value.encrypted_dek_data.try_into()?,
+            user_or_group: match value.grant_to {
                 WithKey {
                     id: UserOrGroup::User { id },
                     public_key,
@@ -168,7 +181,7 @@ pub mod document_get {
 
 pub mod document_create {
     use super::*;
-    use crate::internal::document_api::DocumentName;
+    use crate::internal::document_api::{DocumentName, EncryptedDek};
     use std::convert::TryInto;
 
     #[derive(Serialize, Debug, Clone, Deserialize, PartialEq)]
@@ -198,8 +211,8 @@ pub mod document_create {
         auth: &RequestAuth,
         id: DocumentId,
         name: Option<DocumentName>,
-        grants: Vec<(WithKey<UserOrGroup>, recrypt::api::EncryptedValue)>,
-    ) -> Box<Future<Item = DocumentCreateResponse, Error = IronOxideErr>> {
+        grants: Vec<EncryptedDek>,
+    ) -> Box<dyn Future<Item = DocumentCreateResponse, Error = IronOxideErr>> {
         let maybe_req_grants: Result<Vec<_>, _> =
             grants.into_iter().map(|g| g.try_into()).collect();
 
@@ -400,7 +413,7 @@ pub mod document_access {
         id: &'a DocumentId,
         from_pub_key: &'a internal::PublicKey,
         grants: Vec<(WithKey<UserOrGroup>, recrypt::api::EncryptedValue)>,
-    ) -> Box<Future<Item = DocumentAccessResponse, Error = IronOxideErr> + 'a> {
+    ) -> Box<dyn Future<Item = DocumentAccessResponse, Error = IronOxideErr> + 'a> {
         let maybe_req_grants: Result<Vec<_>, _> =
             grants.into_iter().map(|g| g.try_into()).collect();
 

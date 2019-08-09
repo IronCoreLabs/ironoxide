@@ -2,7 +2,8 @@ mod common;
 use crate::common::init_sdk_get_user;
 use common::{create_second_user, init_sdk};
 use galvanic_assert::matchers::{collection::*, *};
-use ironoxide::{document::*, group::GroupCreateOpts, prelude::*};
+use ironoxide::group::GroupCreateOpts;
+use ironoxide::{document::advanced::*, document::*, prelude::*, IronOxide};
 use itertools::EitherOrBoth;
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
@@ -210,33 +211,28 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
     Ok(())
 }
 
-#[test]
-fn doc_create_with_explicit_grants() {
-    let sdk = init_sdk();
-
-    let doc = [0u8; 64];
-
+fn setup_encrypt_with_explicit_self_grant() -> DocumentEncryptOpts {
     let bad_user: UserId = "bad_user".try_into().unwrap();
     let bad_group: GroupId = "bad_group".try_into().unwrap();
 
-    let doc_result = sdk
-        .document_encrypt(
-            &doc,
-            &DocumentEncryptOpts::with_explicit_grants(
-                None,
-                Some("first name".try_into().unwrap()),
-                true,
-                vec![
-                    UserOrGroup::User {
-                        id: bad_user.clone(),
-                    },
-                    UserOrGroup::Group {
-                        id: bad_group.clone(),
-                    },
-                ],
-            ),
-        )
-        .unwrap();
+    DocumentEncryptOpts::with_explicit_grants(
+        None,
+        Some("first name".try_into().unwrap()),
+        true,
+        vec![
+            UserOrGroup::User {
+                id: bad_user.clone(),
+            },
+            UserOrGroup::Group {
+                id: bad_group.clone(),
+            },
+        ],
+    )
+}
+
+fn check_encrypt_with_explicit_self_grant(sdk: &IronOxide, doc_result: Box<dyn WithGrantsAndErrs>) {
+    let bad_user: UserId = "bad_user".try_into().unwrap();
+    let bad_group: GroupId = "bad_group".try_into().unwrap();
 
     assert_eq!(doc_result.grants().len(), 1);
     assert_eq!(
@@ -259,57 +255,35 @@ fn doc_create_with_explicit_grants() {
     )
 }
 
-// show how policy and explicit grants interact
 #[test]
-fn doc_create_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
-    use std::borrow::Borrow;
-
-    let (curr_user, sdk) = init_sdk_get_user();
-
-    //create the data_recovery group used in the policy
-    let data_rec_group_id: GroupId = format!("data_recovery_{}", curr_user.id())
-        .try_into()
-        .unwrap();
-    let group_result = sdk.group_create(&GroupCreateOpts::new(
-        data_rec_group_id.clone().into(),
-        None,
-        true,
-    ));
-    assert!(group_result.is_ok());
-
-    // create an explicit group as well
-    let group2_result = sdk.group_create(&Default::default());
-    assert!(group2_result.is_ok());
-    let group2 = group2_result?;
-    let ex_group_id = group2.id();
-
+fn doc_create_with_explicit_self_grant() {
+    let sdk = init_sdk();
+    let encrypt_opts = setup_encrypt_with_explicit_self_grant();
     let doc = [0u8; 64];
 
-    // this group doesn't exist, so it should show up in the errors
-    let bad_group: GroupId = "bad_group".try_into().unwrap();
+    let doc_result = sdk.document_encrypt(&doc, &encrypt_opts).unwrap();
 
-    let doc_result = sdk
-        .document_encrypt(
-            &doc,
-            &DocumentEncryptOpts::new(
-                None,
-                None,
-                // encrypt using the results of the policy and to ex_group_id
-                // note that both the policy and the `grant_to_author` will encrypt to the
-                // logged in user. This gets deduplicated internally.
-                EitherOrBoth::Both(
-                    ExplicitGrant::new(true, &vec![ex_group_id.into(), bad_group.borrow().into()]),
-                    PolicyGrant::new(
-                        Some("PII".try_into()?),
-                        Some("INTERNAL".try_into()?),
-                        None,
-                        None,
-                    ),
-                ),
-            ),
-        )
-        .unwrap();
+    check_encrypt_with_explicit_self_grant(&sdk, Box::new(doc_result));
+}
 
+#[test]
+fn doc_encrypt_unmanaged_with_explicit_self_grant() {
+    let sdk = init_sdk();
+    let encrypt_opts = setup_encrypt_with_explicit_self_grant();
+    let doc = [0u8; 64];
+
+    let doc_result = sdk.document_encrypt_unmanaged(&doc, &encrypt_opts).unwrap();
+
+    check_encrypt_with_explicit_self_grant(&sdk, Box::new(doc_result));
+}
+
+fn check_encrypt_with_explicit_and_policy_grants(
+    curr_user: &UserId,
+    ex_group_id: &GroupId,
+    data_rec_group_id: &GroupId,
+    bad_group_id: &GroupId,
+    doc_result: Box<dyn WithGrantsAndErrs>,
+) {
     assert_eq!(doc_result.grants().len(), 3);
     assert_that!(
         &doc_result
@@ -319,7 +293,7 @@ fn doc_create_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
             .collect::<Vec<UserOrGroup>>(),
         contains_in_any_order(vec![
             UserOrGroup::User {
-                id: sdk.device().account_id().clone()
+                id: curr_user.clone()
             },
             UserOrGroup::Group {
                 id: data_rec_group_id.clone()
@@ -343,12 +317,98 @@ fn doc_create_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
             UserOrGroup::User {
                 id: "baduserid_frompolicy".try_into().unwrap()
             },
-            UserOrGroup::Group { id: bad_group } // bad explicit group
+            UserOrGroup::Group {
+                id: bad_group_id.clone()
+            } // bad explicit group
         ])
+    );
+}
+
+fn setup_encrypt_with_explicit_and_policy_grants(
+    sdk: &IronOxide,
+    curr_user: &UserId,
+    bad_group: &GroupId,
+) -> Result<(DocumentEncryptOpts, GroupId, GroupId), IronOxideErr> {
+    //create the data_recovery group used in the policy
+    let data_rec_group_id: GroupId = format!("data_recovery_{}", curr_user.id())
+        .try_into()
+        .unwrap();
+    let group_result = sdk.group_create(&GroupCreateOpts::new(
+        data_rec_group_id.clone().into(),
+        None,
+        true,
+    ));
+    assert!(group_result.is_ok());
+
+    // create an explicit group as well
+    let group2_result = sdk.group_create(&Default::default());
+    assert!(group2_result.is_ok());
+    let group2 = group2_result?;
+    let ex_group_id = group2.id();
+
+    Ok((
+        DocumentEncryptOpts::new(
+            None,
+            None,
+            // encrypt using the results of the policy and to ex_group_id
+            // note that both the policy and the `grant_to_author` will encrypt to the
+            // logged in user. This gets deduplicated internally.
+            EitherOrBoth::Both(
+                ExplicitGrant::new(true, &vec![ex_group_id.into(), bad_group.into()]),
+                PolicyGrant::new(
+                    Some("PII".try_into()?),
+                    Some("INTERNAL".try_into()?),
+                    None,
+                    None,
+                ),
+            ),
+        ),
+        ex_group_id.clone(),
+        data_rec_group_id.clone(),
+    ))
+}
+// show how policy and explicit grants interact
+#[test]
+fn doc_create_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
+    let (curr_user, sdk) = init_sdk_get_user();
+    // this group doesn't exist, so it should show up in the errors
+    let bad_group: GroupId = "bad_group".try_into().unwrap();
+
+    let doc = [0u8; 64];
+    let (opts, ex_group_id, data_rec_group_id) =
+        setup_encrypt_with_explicit_and_policy_grants(&sdk, &curr_user, &bad_group)?;
+
+    let doc_result = sdk.document_encrypt(&doc, &opts).unwrap();
+    check_encrypt_with_explicit_and_policy_grants(
+        &curr_user,
+        &ex_group_id,
+        &data_rec_group_id,
+        &bad_group,
+        Box::new(doc_result),
     );
     Ok(())
 }
 
+#[test]
+fn doc_encrypt_unmanaged_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
+    let (curr_user, sdk) = init_sdk_get_user();
+    // this group doesn't exist, so it should show up in the errors
+    let bad_group: GroupId = "bad_group".try_into().unwrap();
+
+    let doc = [0u8; 64];
+    let (opts, ex_group_id, data_rec_group_id) =
+        setup_encrypt_with_explicit_and_policy_grants(&sdk, &curr_user, &bad_group)?;
+
+    let doc_result = sdk.document_encrypt_unmanaged(&doc, &opts).unwrap();
+    check_encrypt_with_explicit_and_policy_grants(
+        &curr_user,
+        &ex_group_id,
+        &data_rec_group_id,
+        &bad_group,
+        Box::new(doc_result),
+    );
+    Ok(())
+}
 #[test]
 fn doc_create_duplicate_grants() {
     let (user, sdk) = init_sdk_get_user();
@@ -630,4 +690,29 @@ fn doc_encrypt_concurrent() {
     }
 
     assert_eq!(joined_count, 10)
+}
+
+trait WithGrantsAndErrs {
+    fn grants(&self) -> Vec<UserOrGroup>;
+    fn access_errs(&self) -> &[DocAccessEditErr];
+}
+
+impl WithGrantsAndErrs for DocumentEncryptResult {
+    fn grants(&self) -> Vec<UserOrGroup> {
+        self.grants().to_vec()
+    }
+
+    fn access_errs(&self) -> &[DocAccessEditErr] {
+        self.access_errs()
+    }
+}
+
+impl WithGrantsAndErrs for DocumentEncryptUnmanagedResult {
+    fn grants(&self) -> Vec<UserOrGroup> {
+        self.grants().to_vec()
+    }
+
+    fn access_errs(&self) -> &[DocAccessEditErr] {
+        self.access_errs()
+    }
 }

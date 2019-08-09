@@ -237,7 +237,7 @@ pub fn list(
 pub(crate) fn get_group_keys<'a>(
     auth: &'a RequestAuth,
     groups: &'a Vec<GroupId>,
-) -> Box<Future<Item = (Vec<GroupId>, Vec<WithKey<GroupId>>), Error = IronOxideErr> + 'a> {
+) -> Box<dyn Future<Item = (Vec<GroupId>, Vec<WithKey<GroupId>>), Error = IronOxideErr> + 'a> {
     // if there aren't any groups in the list, just return with empty results
     if groups.len() == 0 {
         return Box::new(futures::future::ok((vec![], vec![])));

@@ -139,7 +139,7 @@ pub mod group_list {
     ///List all the groups that the user is in or is an admin of.
     pub fn group_list_request(
         auth: &RequestAuth,
-    ) -> Box<Future<Item = GroupListResponse, Error = IronOxideErr>> {
+    ) -> Box<dyn Future<Item = GroupListResponse, Error = IronOxideErr>> {
         Box::new(auth.request.get(
             "groups",
             RequestErrorCode::GroupList,
@@ -151,7 +151,7 @@ pub mod group_list {
     pub fn group_limited_list_request(
         auth: &RequestAuth,
         groups: &Vec<GroupId>,
-    ) -> Box<Future<Item = GroupListResponse, Error = IronOxideErr>> {
+    ) -> Box<dyn Future<Item = GroupListResponse, Error = IronOxideErr>> {
         let encoded_group_ids: Vec<_> = groups
             .iter()
             .map(|group| rest::url_encode(&group.0))

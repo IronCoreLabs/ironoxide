@@ -1,7 +1,7 @@
 pub use crate::internal::document_api::{
     AssociationType, DocAccessEditErr, DocumentAccessResult, DocumentDecryptResult,
-    DocumentEncryptResult, DocumentListMeta, DocumentListResult, DocumentMetadataResult,
-    UserOrGroup, VisibleGroup, VisibleUser,
+    DocumentEncryptResult, DocumentEncryptUnmanagedResult, DocumentListMeta, DocumentListResult,
+    DocumentMetadataResult, UserOrGroup, VisibleGroup, VisibleUser,
 };
 use crate::{
     internal::{
@@ -14,6 +14,9 @@ use crate::{
 };
 use itertools::{Either, EitherOrBoth, Itertools};
 use tokio::runtime::current_thread::Runtime;
+
+/// Advanced document operations
+pub mod advanced;
 
 /// Optional parameters that can be provided when encrypting a new document.
 #[derive(Debug, PartialEq, Clone)]

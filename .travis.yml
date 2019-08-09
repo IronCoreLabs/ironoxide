@@ -32,9 +32,10 @@ matrix:
         - TARGET=aarch64-apple-ios
         - IOS=1
     # Android
-    - name: Android x64
-      os: linux
-      env:
-        - TARGET=aarch64-linux-android
+# Disabling until we have better proto support. See https://github.com/IronCoreLabs/ironoxide/pull/27
+#    - name: Android x64
+#      os: linux
+#      env:
+#        - TARGET=aarch64-linux-android
 script:
   - "./.travis_scripts/cross-test.sh"
