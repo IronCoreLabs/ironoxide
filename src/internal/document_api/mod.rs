@@ -747,7 +747,7 @@ impl TryFrom<&EncryptedDek> for EncryptedDekP {
             } => {
                 let mut proto_edek_data = EncryptedDekDataP::default();
 
-                proto_edek_data.set_encryptedMessage(encrypted_message.bytes()[..].into());
+                proto_edek_data.set_encryptedBytes(encrypted_message.bytes()[..].into());
                 proto_edek_data
                     .set_ephemeralPublicKey(PublicKey::from(ephemeral_public_key).into());
                 proto_edek_data.set_signature(signature.bytes()[..].into());
@@ -1417,7 +1417,7 @@ mod tests {
                 encrypted_message.bytes().to_vec(),
                 proto_edek
                     .get_encryptedDekData()
-                    .get_encryptedMessage()
+                    .get_encryptedBytes()
                     .to_vec()
             );
 

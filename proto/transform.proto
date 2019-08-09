@@ -18,7 +18,7 @@ message UserOrGroup {
 }
 
 message EncryptedDekData {
-    bytes encryptedMessage = 1; // encrypted_dek_bytes
+    bytes encryptedBytes = 1;
     PublicKey ephemeralPublicKey = 2;
     bytes signature = 3;
     bytes authHash = 4;
