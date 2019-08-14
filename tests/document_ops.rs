@@ -549,6 +549,21 @@ fn doc_decrypt_roundtrip() {
 }
 
 #[test]
+fn doc_decrypt_unmanaged_roundtrip() -> Result<(), IronOxideErr> {
+    let sdk = init_sdk();
+    let encrypt_opts = Default::default();
+    let doc = [0u8; 42];
+
+    let encrypt_result = sdk.document_encrypt_unmanaged(&doc, &encrypt_opts)?;
+    let decrypt_result = sdk.document_decrypt_unmanaged(
+        &encrypt_result.encrypted_data(),
+        &encrypt_result.encrypted_deks(),
+    )?;
+    assert_eq!(&doc[..], decrypt_result.decrypted_data());
+    Ok(())
+}
+
+#[test]
 fn doc_encrypt_update_and_decrypt() {
     let sdk = init_sdk();
     let doc1 = [20u8; 72];
@@ -580,7 +595,7 @@ fn doc_grant_access() {
     // create a second user to grant access to the document
     let user = create_second_user();
 
-    // group user is a memeber of
+    // group user is a member of
     let group_result = sdk.group_create(&Default::default());
     assert!(group_result.is_ok());
     let group_id = group_result.unwrap().id().clone();
@@ -606,7 +621,7 @@ fn doc_grant_access() {
             },
         ],
     );
-    dbg!(&grant_result);
+    //    dbg!(&grant_result);
     assert!(grant_result.is_ok());
     let grants = grant_result.unwrap();
     assert_eq!(3, grants.succeeded().len());

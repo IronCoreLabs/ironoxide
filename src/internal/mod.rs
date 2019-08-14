@@ -56,6 +56,7 @@ pub enum RequestErrorCode {
     DocumentUpdate,
     DocumentGrantAccess,
     DocumentRevokeAccess,
+    EdekTransform,
     PolicyGet,
 }
 

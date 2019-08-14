@@ -95,9 +95,9 @@ struct DocumentHeader {
     pub segment_id: usize,
 }
 
-// Take an encrypted document and extract out the header metadata. Return that metadata as well as the AESEncryptedValue
-// that contains the AES IV and encrypted content. Will fail if the provided document doesn't contain the latest version
-// which contains the header bytes.
+/// Take an encrypted document and extract out the header metadata. Return that metadata as well as the AESEncryptedValue
+/// that contains the AES IV and encrypted content. Will fail if the provided document doesn't contain the latest version
+/// which contains the header bytes.
 fn parse_document_parts(
     encrypted_document: &[u8],
 ) -> Result<(DocumentHeader, aes::AesEncryptedValue), IronOxideErr> {
@@ -131,9 +131,10 @@ fn parse_document_parts(
     }
 }
 
-// Generate a documents header given its ID and internal segment ID that is is associated with. Generates
-//a Vec<u8> which includes the document version, header size, and header JSON as bytes.
-fn generate_document_header(document_id: DocumentId, segment_id: usize) -> Vec<u8> {
+/// Generate a documents header given its ID and internal segment ID that is is associated with. Generates
+/// a Vec<u8> which includes the document version, header size, and header JSON as bytes.
+// TODO hand this off of DocHeaderPacked?
+fn generate_document_header(document_id: DocumentId, segment_id: usize) -> DocHeaderPacked {
     let mut header_json_bytes = serde_json::to_vec(&DocumentHeader {
         document_id,
         segment_id,
@@ -147,7 +148,7 @@ fn generate_document_header(document_id: DocumentId, segment_id: usize) -> Vec<u
     header.push((header_json_len >> 8) as u8);
     header.push(header_json_len as u8);
     header.append(&mut header_json_bytes);
-    header
+    DocHeaderPacked(header)
 }
 
 /// Represents the reason a document can be viewed by the requesting user.
@@ -276,10 +277,11 @@ impl DocumentEncryptUnmanagedResult {
     fn new(
         doc_id: &DocumentId,
         segment_id: usize,
-        encryption_result: EncryptionResult,
+        encryption_result: EncryptionResultWithHeader,
         access_errs: Vec<DocAccessEditErr>,
     ) -> Result<Self, IronOxideErr> {
         let proto_edek_vec_results: Result<Vec<_>, _> = encryption_result
+            .value
             .edeks
             .iter()
             .map(|edek| edek.try_into())
@@ -296,9 +298,10 @@ impl DocumentEncryptUnmanagedResult {
         Ok(DocumentEncryptUnmanagedResult {
             id: doc_id.clone(),
             access_errs,
-            encrypted_data: encryption_result.encrypted_data.bytes(),
+            encrypted_data: encryption_result.to_bytes(),
             encrypted_deks: edek_bytes,
             grants: encryption_result
+                .value
                 .edeks
                 .iter()
                 .map(|edek| edek.grant_to.id.clone())
@@ -535,9 +538,13 @@ pub fn encrypt_document<
             .into_future()
             .and_then(move |r| {
                 let encryption_errs = r.encryption_errs.clone();
+                let enc_result = EncryptionResultWithHeader {
+                    header: generate_document_header(doc_id.clone(), auth.segment_id),
+                    value: r,
+                };
                 document_create(
                     &auth,
-                    r,
+                    enc_result,
                     doc_id,
                     &document_name,
                     [key_errs, encryption_errs].concat(),
@@ -638,7 +645,7 @@ where
         ))
         .and_then(move |(encryption_result, (grants, key_errs))| {
             Ok({
-                let encryption_result = recrypt_document(
+                let r = recrypt_document(
                     &auth.signing_keys,
                     recrypt,
                     dek,
@@ -646,11 +653,15 @@ where
                     &doc_id,
                     grants,
                 )?;
-                let access_errs = [&key_errs[..], &encryption_result.encryption_errs[..]].concat();
+                let enc_result = EncryptionResultWithHeader {
+                    header: generate_document_header(doc_id.clone(), auth.segment_id),
+                    value: r,
+                };
+                let access_errs = [&key_errs[..], &enc_result.value.encryption_errs[..]].concat();
                 DocumentEncryptUnmanagedResult::new(
                     &doc_id,
                     auth.segment_id,
-                    encryption_result,
+                    enc_result,
                     access_errs,
                 )?
             })
@@ -803,10 +814,34 @@ pub struct EncryptionResult {
     encryption_errs: Vec<DocAccessEditErr>,
 }
 
+impl EncryptionResult {
+    pub fn with_header(self, header: DocHeaderPacked) -> EncryptionResultWithHeader {
+        EncryptionResultWithHeader {
+            value: self,
+            header,
+        }
+    }
+}
+
+pub struct DocHeaderPacked(Vec<u8>);
+
+// TODO struct EncryptedDoc?
+pub struct EncryptionResultWithHeader {
+    header: DocHeaderPacked,
+    value: EncryptionResult,
+}
+
+// TODO to_bytes isn't right
+impl EncryptionResultWithHeader {
+    fn to_bytes(&self) -> Vec<u8> {
+        [self.header.0.clone(), self.value.encrypted_data.bytes()].concat() //TODO
+    }
+}
+
 /// Creates an encrypted document entry in the IronCore webservice.
 pub fn document_create<'a>(
     auth: &'a RequestAuth,
-    encryption_result: EncryptionResult,
+    encryption_result: EncryptionResultWithHeader,
     doc_id: DocumentId,
     doc_name: &Option<DocumentName>,
     accum_errs: Vec<DocAccessEditErr>,
@@ -815,32 +850,16 @@ pub fn document_create<'a>(
         auth,
         doc_id.clone(),
         doc_name.clone(),
-        encryption_result.edeks.to_vec(),
+        encryption_result.value.edeks.to_vec(),
     )
-    .map(move |resp| {
-        (
-            doc_id,
-            resp,
-            encryption_result.encrypted_data.clone(),
-            encryption_result.encryption_errs.clone(),
-        )
-    })
-    .map(move |(doc_id, api_resp, encrypted_data, encrypt_errs)| {
-        //Generate and prepend the document header to the encrypted document
-        let encrypted_payload = [
-            generate_document_header(doc_id.clone(), auth.segment_id()),
-            encrypted_data.bytes(),
-        ]
-        .concat();
-        DocumentEncryptResult {
-            id: api_resp.id,
-            name: api_resp.name,
-            created: api_resp.created,
-            updated: api_resp.updated,
-            encrypted_data: encrypted_payload,
-            grants: api_resp.shared_with.iter().map(|sw| sw.into()).collect(),
-            access_errs: [accum_errs, encrypt_errs].concat(),
-        }
+    .map(move |api_resp| DocumentEncryptResult {
+        id: api_resp.id,
+        name: api_resp.name,
+        created: api_resp.created,
+        updated: api_resp.updated,
+        encrypted_data: encryption_result.to_bytes(),
+        grants: api_resp.shared_with.iter().map(|sw| sw.into()).collect(),
+        access_errs: [accum_errs, encryption_result.value.encryption_errs].concat(),
     })
 }
 
@@ -869,13 +888,13 @@ pub fn document_update_bytes<
                 move |encrypted_doc| {
                     let mut encrypted_payload =
                         generate_document_header(document_id.clone(), auth.segment_id());
-                    encrypted_payload.append(&mut encrypted_doc.bytes());
+                    encrypted_payload.0.append(&mut encrypted_doc.bytes());
                     DocumentEncryptResult {
                         id: doc_meta.0.id,
                         name: doc_meta.0.name,
                         created: doc_meta.0.created,
                         updated: doc_meta.0.updated,
-                        encrypted_data: encrypted_payload,
+                        encrypted_data: encrypted_payload.0,
                         grants: vec![], // grants can't currently change via update
                         access_errs: vec![], // no grants, no access errs
                     }
@@ -885,8 +904,8 @@ pub fn document_update_bytes<
     })
 }
 
-//Decrypt the provided document with the provided device private key. Return metadata about the document
-//that was decrypted along with it's decrypted bytes.
+/// Decrypt the provided document with the provided device private key. Return metadata about the document
+/// that was decrypted along with it's decrypted bytes.
 pub fn decrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -913,6 +932,62 @@ pub fn decrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
                     })
             })
         })
+}
+
+/// Decrypt the unmanaged document. The caller must provide both the encrypted data as well as the
+/// encrypted DEKs. Most use cases would want `decrypt_document` instead.
+pub fn decrypt_document_unmanaged<'a, CR: rand::CryptoRng + rand::RngCore>(
+    auth: &'a RequestAuth,
+    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    device_private_key: &'a PrivateKey,
+    encrypted_doc: &'a [u8],
+    encrypted_deks: &'a [u8],
+) -> impl Future<Item = DocumentDecryptUnmanagedResult, Error = IronOxideErr> + 'a {
+    requests::edek_transform::edek_transform(&auth, encrypted_deks)
+        .join(parse_document_parts(encrypted_doc).into_future())
+        .and_then(
+            move |(
+                requests::edek_transform::EdekTransformResponse {
+                    user_or_group,
+                    encrypted_symmetric_key,
+                },
+                (DocumentHeader { document_id, .. }, mut enc_data),
+            )| {
+                let (_, sym_key) = transform::decrypt_plaintext(
+                    &recrypt,
+                    encrypted_symmetric_key.try_into()?,
+                    &device_private_key.recrypt_key(),
+                )?;
+                aes::decrypt(&mut enc_data, *sym_key.bytes())
+                    .map_err(|e| e.into())
+                    .map(move |decrypted_doc| DocumentDecryptUnmanagedResult {
+                        id: document_id,
+                        access_via: user_or_group,
+                        decrypted_data: decrypted_doc.to_vec(),
+                    })
+            },
+        )
+}
+
+pub struct DocumentDecryptUnmanagedResult {
+    id: DocumentId,
+    access_via: UserOrGroup,
+    decrypted_data: Vec<u8>,
+}
+
+impl DocumentDecryptUnmanagedResult {
+    pub fn id(&self) -> &DocumentId {
+        &self.id
+    }
+
+    /// user or group that allowed the caller to decrypt the data
+    pub fn access_via(&self) -> &UserOrGroup {
+        &self.access_via
+    }
+
+    pub fn decrypted_data(&self) -> &[u8] {
+        &self.decrypted_data
+    }
 }
 
 // Update a documents name. Value can be updated to either a new name with a Some or the name value can be cleared out
@@ -1277,7 +1352,7 @@ mod tests {
         let header = generate_document_header("123abc".try_into().unwrap(), 18usize);
 
         assert_that!(
-            &header,
+            &header.0,
             eq(vec![
                 2, 0, 29, 123, 34, 95, 100, 105, 100, 95, 34, 58, 34, 49, 50, 51, 97, 98, 99, 34,
                 44, 34, 95, 115, 105, 100, 95, 34, 58, 49, 56, 125
@@ -1442,6 +1517,9 @@ mod tests {
             panic!("Should be EncryptedOnceValue");
         }
     }
+
+    //TODO test that shows edoc header is properly generated
+
     #[test]
     pub fn compare_grants_to_edek_encoded() -> Result<(), IronOxideErr> {
         use crate::proto::transform::UserOrGroup as UserOrGroupP;
@@ -1461,6 +1539,7 @@ mod tests {
             WithKey::new(group, pubk.into()),
         ];
         let doc_id = DocumentId("docid".into());
+        let seg_id = 33;
 
         let encryption_result = recrypt_document(
             &signingkeys,
@@ -1469,7 +1548,8 @@ mod tests {
             aes_value,
             &doc_id,
             with_keys,
-        )?;
+        )?
+        .with_header(generate_document_header(doc_id.clone(), seg_id));
 
         // create an unmanged result, which does the proto serialization
         let doc_encrypt_unmanaged_result =

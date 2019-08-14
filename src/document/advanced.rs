@@ -1,6 +1,8 @@
 use crate::document::{partition_user_or_group, DocumentEncryptOpts};
 use crate::internal;
-use crate::internal::document_api::DocumentEncryptUnmanagedResult;
+pub use crate::internal::document_api::{
+    DocumentDecryptUnmanagedResult, DocumentEncryptUnmanagedResult,
+};
 use crate::Result;
 use itertools::EitherOrBoth;
 use tokio::runtime::current_thread::Runtime;
@@ -25,6 +27,12 @@ pub trait DocumentAdvancedOps {
         data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptUnmanagedResult>;
+
+    fn document_decrypt_unmanaged(
+        &self,
+        encrypted_data: &[u8],
+        encrypted_deks: &[u8],
+    ) -> Result<DocumentDecryptUnmanagedResult>;
 }
 
 impl DocumentAdvancedOps for crate::IronOxide {
@@ -64,6 +72,26 @@ impl DocumentAdvancedOps for crate::IronOxide {
             &explicit_users,
             &explicit_groups,
             policy_grants,
+        ))
+    }
+
+    fn document_decrypt_unmanaged(
+        &self,
+        encrypted_data: &[u8],
+        encrypted_deks: &[u8],
+    ) -> Result<DocumentDecryptUnmanagedResult> {
+        let deks: crate::proto::transform::EncryptedDeks =
+            protobuf::parse_from_bytes(&encrypted_deks)?;
+        dbg!(&deks);
+
+        let mut rt = Runtime::new().unwrap();
+
+        rt.block_on(internal::document_api::decrypt_document_unmanaged(
+            self.device.auth(),
+            &self.recrypt,
+            self.device().private_device_key(),
+            encrypted_data,
+            encrypted_deks,
         ))
     }
 }

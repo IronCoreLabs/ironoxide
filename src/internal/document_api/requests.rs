@@ -35,7 +35,7 @@ pub enum UserOrGroupWithKey {
     User {
         id: String,
         // optional because the resp on document create does not return a public key
-        master_public_key: Option<PublicKey>,
+        master_public_key: Option<PublicKey>, //TODO can I replace the None usages of this with UserOrGroup
     },
     #[serde(rename_all = "camelCase")]
     Group {
@@ -177,6 +177,30 @@ pub mod document_get {
             &auth.create_signature(Utc::now()),
         )
     }
+}
+
+pub mod edek_transform {
+    use super::*;
+
+    pub fn edek_transform(
+        auth: &RequestAuth,
+        edek_bytes: &[u8],
+    ) -> impl Future<Item = EdekTransformResponse, Error = IronOxideErr> {
+        auth.request.post_raw(
+            "edeks/transform",
+            edek_bytes,
+            RequestErrorCode::EdekTransform,
+            &auth.create_signature(Utc::now()),
+        )
+    }
+
+    #[derive(Serialize, Debug, Clone, Deserialize, PartialEq)]
+    #[serde(rename_all = "camelCase")]
+    pub struct EdekTransformResponse {
+        pub(in crate::internal::document_api) user_or_group: UserOrGroup,
+        pub(in crate::internal::document_api) encrypted_symmetric_key: TransformedEncryptedValue,
+    }
+
 }
 
 pub mod document_create {
