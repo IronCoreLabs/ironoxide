@@ -28,7 +28,15 @@ pub trait DocumentAdvancedOps {
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptUnmanagedResult>;
 
-    /// (Advanced) TODO
+    /// (Advanced) Decrypt a document not managed by the ironcore service. Both the encrypted
+    /// data and the encrypted deks need to be provided.
+    ///
+    /// The webservice is still needed to transform a chosen encrypted dek so it can be decrypted
+    /// by the caller's private key.
+    ///
+    /// # Arguments
+    /// - `encrypted_data` - Encrypted document
+    /// - `encrypted_deks` - Associated encrypted DEKs for the `encrypted_data`
     fn document_decrypt_unmanaged(
         &self,
         encrypted_data: &[u8],

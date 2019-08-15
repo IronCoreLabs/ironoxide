@@ -1003,6 +1003,7 @@ impl DocumentDecryptUnmanagedResult {
         &self.access_via
     }
 
+    /// plaintext user data
     pub fn decrypted_data(&self) -> &[u8] {
         &self.decrypted_data.0
     }
