@@ -953,10 +953,17 @@ pub fn decrypt_document_unmanaged<'a, CR: rand::CryptoRng + rand::RngCore>(
     encrypted_doc: &'a [u8],
     encrypted_deks: &'a [u8],
 ) -> impl Future<Item = DocumentDecryptUnmanagedResult, Error = IronOxideErr> + 'a {
-    requests::edek_transform::edek_transform(&auth, encrypted_deks) //TODO proto decode here?
-        .join(parse_document_parts(encrypted_doc).into_future())
+    // attempt to parse the proto as fail-fast validation. If it fails decrypt will fail
+    protobuf::parse_from_bytes::<EncryptedDeksP>(encrypted_deks)
+        .map_err(IronOxideErr::from)
+        .into_future()
+        .join3(
+            requests::edek_transform::edek_transform(&auth, encrypted_deks),
+            parse_document_parts(encrypted_doc).into_future(),
+        )
         .and_then(
             move |(
+                _,
                 requests::edek_transform::EdekTransformResponse {
                     user_or_group,
                     encrypted_symmetric_key,
