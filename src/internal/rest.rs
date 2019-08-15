@@ -24,7 +24,8 @@ lazy_static! {
     };
     static ref RAW_BYTES_HEADERS: HeaderMap = {
         let mut headers: HeaderMap = Default::default();
-        headers.append("Content-Type", "application/x-protobuf".parse().unwrap());
+        // this works with cloudflare. tried `application/x-protobuf` and `application/protobuf` and both were flagged as potentially malicious
+        headers.append("Content-Type", "application/octet-stream".parse().unwrap());
         headers
     };
 }

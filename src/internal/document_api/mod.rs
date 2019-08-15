@@ -282,28 +282,13 @@ pub struct DocumentEncryptUnmanagedResult {
 
 impl DocumentEncryptUnmanagedResult {
     fn new(
-        doc_id: &DocumentId,
-        segment_id: usize,
-        encryption_result: EncryptedDocUnmanaged,
+        encryption_result: EncryptedDoc,
         access_errs: Vec<DocAccessEditErr>,
     ) -> Result<Self, IronOxideErr> {
-        let proto_edek_vec_results: Result<Vec<_>, _> = encryption_result
-            .value
-            .edeks
-            .iter()
-            .map(|edek| edek.try_into())
-            .collect();
-        let proto_edek_vec = proto_edek_vec_results?;
-
-        let mut proto_edeks = EncryptedDeksP::default();
-        proto_edeks.edeks = RepeatedField::from_vec(proto_edek_vec);
-        proto_edeks.documentId = doc_id.id().as_str().into();
-        proto_edeks.segmentId = segment_id as i32; // okay since the ironcore-ws defines this to be an i32
-
-        let edek_bytes = proto_edeks.write_to_bytes()?;
+        let edek_bytes = encryption_result.edek_bytes()?;
 
         Ok(DocumentEncryptUnmanagedResult {
-            id: doc_id.clone(),
+            id: encryption_result.header.document_id.clone(),
             access_errs,
             encrypted_data: encryption_result.edoc_bytes().to_vec(),
             encrypted_deks: edek_bytes,
@@ -656,17 +641,12 @@ where
                     &doc_id,
                     grants,
                 )?;
-                let enc_result = EncryptedDocUnmanaged {
+                let enc_result = EncryptedDoc {
                     header: DocumentHeader::new(doc_id.clone(), auth.segment_id),
                     value: r,
                 };
                 let access_errs = [&key_errs[..], &enc_result.value.encryption_errs[..]].concat();
-                DocumentEncryptUnmanagedResult::new(
-                    &doc_id,
-                    auth.segment_id,
-                    enc_result,
-                    access_errs,
-                )?
+                DocumentEncryptUnmanagedResult::new(enc_result, access_errs)?
             })
         })
 }
@@ -809,7 +789,9 @@ impl TryFrom<&EncryptedDek> for EncryptedDekP {
         Ok(proto_edek)
     }
 }
-//TODO
+/// Result of recrypt encryption. Contains the encrypted DEKs and the encrypted (user) data.
+/// `RecryptionResult` is an intermediate value as it cannot be serialized to bytes directly.
+/// To serialize to bytes, first construct an `EncryptedDoc`
 #[derive(Debug, Clone)]
 struct RecryptionResult {
     edeks: Vec<EncryptedDek>,
@@ -818,21 +800,22 @@ struct RecryptionResult {
 }
 
 impl RecryptionResult {
-    fn into_edoc_unmanaged(self, header: DocumentHeader) -> EncryptedDocUnmanaged {
-        EncryptedDocUnmanaged {
+    fn into_edoc_unmanaged(self, header: DocumentHeader) -> EncryptedDoc {
+        EncryptedDoc {
             value: self,
             header,
         }
     }
 }
 
-//TODO
-struct EncryptedDocUnmanaged {
+/// An ironoxide encrypted document
+struct EncryptedDoc {
     header: DocumentHeader,
     value: RecryptionResult,
 }
 
-impl EncryptedDocUnmanaged {
+impl EncryptedDoc {
+    /// bytes of the encrypted data with the edoc header prepended
     fn edoc_bytes(&self) -> Vec<u8> {
         [
             &self.header.pack().0[..],
@@ -841,15 +824,34 @@ impl EncryptedDocUnmanaged {
         .concat()
     }
 
-    //    fn edek_bytes(&self) -> &[u8] {
-    //        &self.value.edeks //TODO I could move the proto serialization here...
-    //    }
+    /// vector of EDEKs
+    fn edek_vec(&self) -> Vec<EncryptedDek> {
+        self.value.edeks.clone()
+    }
+
+    fn edek_bytes(&self) -> Result<Vec<u8>, IronOxideErr> {
+        let proto_edek_vec_results: Result<Vec<_>, _> = self
+            .value
+            .edeks
+            .iter()
+            .map(|edek| edek.try_into())
+            .collect();
+        let proto_edek_vec = proto_edek_vec_results?;
+
+        let mut proto_edeks = EncryptedDeksP::default();
+        proto_edeks.edeks = RepeatedField::from_vec(proto_edek_vec);
+        proto_edeks.documentId = self.header.document_id.id().as_str().into();
+        proto_edeks.segmentId = self.header.segment_id as i32; // okay since the ironcore-ws defines this to be an i32
+
+        let edek_bytes = proto_edeks.write_to_bytes()?;
+        Ok(edek_bytes)
+    }
 }
 
 /// Creates an encrypted document entry in the IronCore webservice.
 fn document_create<'a>(
     auth: &'a RequestAuth,
-    encryption_result: EncryptedDocUnmanaged,
+    edoc: EncryptedDoc,
     doc_id: DocumentId,
     doc_name: &Option<DocumentName>,
     accum_errs: Vec<DocAccessEditErr>,
@@ -858,16 +860,16 @@ fn document_create<'a>(
         auth,
         doc_id.clone(),
         doc_name.clone(),
-        encryption_result.value.edeks.to_vec(),
+        edoc.edek_vec(),
     )
     .map(move |api_resp| DocumentEncryptResult {
         id: api_resp.id,
         name: api_resp.name,
         created: api_resp.created,
         updated: api_resp.updated,
-        encrypted_data: encryption_result.edoc_bytes().to_vec(),
+        encrypted_data: edoc.edoc_bytes().to_vec(),
         grants: api_resp.shared_with.iter().map(|sw| sw.into()).collect(),
-        access_errs: [accum_errs, encryption_result.value.encryption_errs].concat(),
+        access_errs: [accum_errs, edoc.value.encryption_errs].concat(),
     })
 }
 
@@ -1601,7 +1603,7 @@ mod tests {
 
         // create an unmanged result, which does the proto serialization
         let doc_encrypt_unmanaged_result =
-            DocumentEncryptUnmanagedResult::new(&doc_id, 1, encryption_result, vec![])?;
+            DocumentEncryptUnmanagedResult::new(encryption_result, vec![])?;
 
         // then deserialize and extract the user/groups from the edeks
         let proto_edeks: EncryptedDeksP =
