@@ -14,11 +14,17 @@ use serde::{de::DeserializeOwned, Serialize};
 use crate::internal::{
     user_api::UserId, DeviceSigningKeyPair, IronOxideErr, Jwt, RequestErrorCode, OUR_REQUEST,
 };
+use reqwest::r#async::RequestBuilder;
 
 lazy_static! {
     static ref DEFAULT_HEADERS: HeaderMap = {
         let mut headers: HeaderMap = Default::default();
         headers.append("Content-Type", "application/json".parse().unwrap());
+        headers
+    };
+    static ref RAW_BYTES_HEADERS: HeaderMap = {
+        let mut headers: HeaderMap = Default::default();
+        headers.append("Content-Type", "application/x-protobuf".parse().unwrap());
         headers
     };
 }
@@ -140,15 +146,21 @@ impl<'a> IronCoreRequest<'a> {
         error_code: RequestErrorCode,
         auth: &Authorization,
     ) -> impl Future<Item = B, Error = IronOxideErr> {
-        self.request_raw::<_, String, _>(
-            relative_url,
+        let client = RClient::new();
+        let mut builder = client.request(
             Method::POST,
-            Some(body),
-            None,
-            error_code,
-            auth.to_header(),
-            move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
-        )
+            format!("{}{}", self.base_url, relative_url).as_str(),
+        );
+
+        //We want to add the body as raw bytes
+        builder = builder.body(body.to_vec());
+
+        let req = builder
+            .headers(RAW_BYTES_HEADERS.clone())
+            .headers(auth.to_header());
+        IronCoreRequest::send_req(req, error_code.clone(), move |server_resp| {
+            IronCoreRequest::deserialize_body(server_resp, error_code.clone())
+        })
     }
 
     ///PUT body to the resource at relative_url using auth for authorization.
@@ -257,65 +269,6 @@ impl<'a> IronCoreRequest<'a> {
         )
     }
 
-    // TODO combine with `request`
-    pub fn request_raw<B, Q, F>(
-        &self,
-        relative_url: &str,
-        method: Method,
-        maybe_body: Option<&[u8]>,
-        maybe_query_params: Option<&Q>,
-        error_code: RequestErrorCode,
-        headers: HeaderMap,
-        resp_handler: F,
-    ) -> impl Future<Item = B, Error = IronOxideErr>
-    where
-        B: DeserializeOwned,
-        Q: Serialize + ?Sized,
-        F: FnOnce(&Chunk) -> Result<B, IronOxideErr>,
-    {
-        let client = RClient::new();
-        let mut builder = client.request(
-            method,
-            format!("{}{}", self.base_url, relative_url).as_str(),
-        );
-        // add query params, if any
-        builder = maybe_query_params
-            .iter()
-            .fold(builder, |build, q| build.query(q));
-
-        //We want to add the body as json if it was specified
-        builder = maybe_body
-            .iter()
-            .fold(builder, |build, body| build.body(body.to_vec()));
-
-        let req = builder.headers(DEFAULT_HEADERS.clone()).headers(headers);
-        req.send()
-            //Parse the body content into bytes
-            .and_then(|res| {
-                let status_code = res.status();
-                res.into_body()
-                    .concat2()
-                    .map(move |body| (status_code, body))
-            })
-            //Now make the error type into the IronOxideErr and run the resp_handler which was passed to us.
-            .then(move |resp| {
-                //Map the generic error from reqwest to our error type.
-                let (status, server_resp) = resp.map_err(|err| {
-                    IronCoreRequest::create_request_err(err.to_string(), error_code, err.status())
-                })?;
-                //If the status code is a 5xx, return a fixed error code message
-                if status.is_server_error() || status.is_client_error() {
-                    Err(IronCoreRequest::request_failure_to_error(
-                        status,
-                        error_code,
-                        &server_resp,
-                    ))
-                } else {
-                    resp_handler(&server_resp)
-                }
-            })
-    }
-
     ///Make a request to the url using the specified method. DEFAULT_HEADERS will be used as well as whatever headers are passed
     /// in. The response will be sent to `resp_handler` so the caller can make the received bytes however they want.
     pub fn request<A, B, Q, F>(
@@ -350,6 +303,18 @@ impl<'a> IronCoreRequest<'a> {
             .fold(builder, |build, body| build.json(body));
 
         let req = builder.headers(DEFAULT_HEADERS.clone()).headers(headers);
+        IronCoreRequest::send_req(req, error_code, resp_handler)
+    }
+
+    fn send_req<B, F>(
+        req: RequestBuilder,
+        error_code: RequestErrorCode,
+        resp_handler: F,
+    ) -> impl Future<Item = B, Error = IronOxideErr>
+    where
+        B: DeserializeOwned,
+        F: FnOnce(&Chunk) -> Result<B, IronOxideErr>,
+    {
         req.send()
             //Parse the body content into bytes
             .and_then(|res| {

@@ -809,7 +809,7 @@ impl TryFrom<&EncryptedDek> for EncryptedDekP {
         Ok(proto_edek)
     }
 }
-
+//TODO
 #[derive(Debug, Clone)]
 struct RecryptionResult {
     edeks: Vec<EncryptedDek>,
@@ -826,19 +826,19 @@ impl RecryptionResult {
     }
 }
 
+//TODO
 struct EncryptedDocUnmanaged {
     header: DocumentHeader,
     value: RecryptionResult,
 }
 
-// TODO is this a reasonable name?
 impl EncryptedDocUnmanaged {
     fn edoc_bytes(&self) -> Vec<u8> {
         [
             &self.header.pack().0[..],
             &self.value.encrypted_data.bytes(),
         ]
-        .concat() //TODO
+        .concat()
     }
 
     //    fn edek_bytes(&self) -> &[u8] {
@@ -1527,10 +1527,49 @@ mod tests {
         }
     }
 
-    //TODO test that shows edoc header is properly generated
+    #[test]
+    pub fn unmanged_edoc_header_properly_encoded() -> Result<(), IronOxideErr> {
+        use crate::proto::transform::UserOrGroup as UserOrGroupP;
+        use crate::proto::transform::UserOrGroup_oneof_UserOrGroupId as UserOrGroupIdP;
+        use recrypt::prelude::*;
+
+        let recr = recrypt::api::Recrypt::new();
+        let signingkeys = DeviceSigningKeyPair::from(recr.generate_ed25519_key_pair());
+        let aes_value = AesEncryptedValue::try_from(&[42u8; 32][..])?;
+        let uid = UserId::unsafe_from_string("userid".into());
+        let gid = GroupId::unsafe_from_string("groupid".into());
+        let user: UserOrGroup = uid.borrow().into();
+        let group: UserOrGroup = gid.borrow().into();
+        let (_, pubk) = recr.generate_key_pair()?;
+        let with_keys = vec![
+            WithKey::new(user, pubk.clone().into()),
+            WithKey::new(group, pubk.into()),
+        ];
+        let doc_id = DocumentId("docid".into());
+        let seg_id = 33;
+
+        let encryption_result = recrypt_document(
+            &signingkeys,
+            &recr,
+            recr.gen_plaintext(),
+            aes_value,
+            &doc_id,
+            with_keys,
+        )?
+        .into_edoc_unmanaged(DocumentHeader::new(doc_id.clone(), seg_id));
+
+        assert_eq!(&encryption_result.header.document_id, &doc_id);
+        assert_eq!(&encryption_result.header.segment_id, &seg_id);
+
+        let edoc_bytes = encryption_result.edoc_bytes();
+        let (parsed_header, _) = parse_document_parts(&edoc_bytes)?;
+        assert_eq!(&encryption_result.header, &parsed_header);
+
+        Ok(())
+    }
 
     #[test]
-    pub fn compare_grants_to_edek_encoded() -> Result<(), IronOxideErr> {
+    pub fn unmanaged_edec_compare_grants() -> Result<(), IronOxideErr> {
         use crate::proto::transform::UserOrGroup as UserOrGroupP;
         use crate::proto::transform::UserOrGroup_oneof_UserOrGroupId as UserOrGroupIdP;
         use recrypt::prelude::*;

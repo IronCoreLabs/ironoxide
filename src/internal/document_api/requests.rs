@@ -35,7 +35,7 @@ pub enum UserOrGroupWithKey {
     User {
         id: String,
         // optional because the resp on document create does not return a public key
-        master_public_key: Option<PublicKey>, //TODO can I replace the None usages of this with UserOrGroup
+        master_public_key: Option<PublicKey>,
     },
     #[serde(rename_all = "camelCase")]
     Group {

@@ -28,6 +28,7 @@ pub trait DocumentAdvancedOps {
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptUnmanagedResult>;
 
+    /// (Advanced) TODO
     fn document_decrypt_unmanaged(
         &self,
         encrypted_data: &[u8],
@@ -80,10 +81,6 @@ impl DocumentAdvancedOps for crate::IronOxide {
         encrypted_data: &[u8],
         encrypted_deks: &[u8],
     ) -> Result<DocumentDecryptUnmanagedResult> {
-        let deks: crate::proto::transform::EncryptedDeks =
-            protobuf::parse_from_bytes(&encrypted_deks)?;
-        dbg!(&deks);
-
         let mut rt = Runtime::new().unwrap();
 
         rt.block_on(internal::document_api::decrypt_document_unmanaged(

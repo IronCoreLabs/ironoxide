@@ -570,7 +570,6 @@ fn generate_transform_for_keys<CR: rand::CryptoRng + rand::RngCore>(
                 Ok(recrypt_transform_key) => {
                     Either::Right((user_id, public_key, TransformKey(recrypt_transform_key)))
                 }
-                //TODO: Logging the error might be nice?
                 Err(_) => Either::Left(GroupAccessEditErr::new(
                     user_id,
                     "Transform key could not be generated.".to_string(),

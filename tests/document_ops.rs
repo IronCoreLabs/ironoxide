@@ -534,7 +534,7 @@ fn doc_create_and_adjust_name() {
 }
 
 #[test]
-fn doc_decrypt_roundtrip() {
+fn doc_encrypt_decrypt_roundtrip() {
     let sdk = init_sdk();
     let doc = [43u8; 64];
     let encrypted_doc = sdk.document_encrypt(&doc, &Default::default()).unwrap();
@@ -549,7 +549,7 @@ fn doc_decrypt_roundtrip() {
 }
 
 #[test]
-fn doc_decrypt_unmanaged_roundtrip() -> Result<(), IronOxideErr> {
+fn doc_encrypt_decrypt_unmanaged_roundtrip() -> Result<(), IronOxideErr> {
     let sdk = init_sdk();
     let encrypt_opts = Default::default();
     let doc = [0u8; 42];
