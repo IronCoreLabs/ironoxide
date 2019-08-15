@@ -86,13 +86,40 @@ impl TryFrom<&str> for DocumentName {
     }
 }
 
+/// Binary version of the document header. Appropriate for using in edoc serialization.
+struct DocHeaderPacked(Vec<u8>);
+
 /// Represents a parsed document header which is decoded from JSON
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct DocumentHeader {
     #[serde(rename = "_did_")]
-    pub document_id: DocumentId,
+    document_id: DocumentId,
     #[serde(rename = "_sid_")]
-    pub segment_id: usize,
+    segment_id: usize,
+}
+
+impl DocumentHeader {
+    fn new(document_id: DocumentId, segment_id: usize) -> DocumentHeader {
+        DocumentHeader {
+            document_id,
+            segment_id,
+        }
+    }
+    /// Generate a documents header given its ID and internal segment ID that is is associated with. Generates
+    /// a Vec<u8> which includes the document version, header size, and header JSON as bytes.
+    fn pack(&self) -> DocHeaderPacked {
+        let mut header_json_bytes =
+            serde_json::to_vec(&self).expect("Serialization of DocumentHeader failed."); //Serializing a string and number shouldn't fail
+        let header_json_len = header_json_bytes.len();
+        //Make header vector with size of header plus 1 byte for version and 2 bytes for header length
+        let mut header = Vec::with_capacity(header_json_len + 3);
+        header.push(CURRENT_DOCUMENT_ID_VERSION);
+        //Push the header length representation as two bytes, most significant digit first (BigEndian)
+        header.push((header_json_len >> 8) as u8);
+        header.push(header_json_len as u8);
+        header.append(&mut header_json_bytes);
+        DocHeaderPacked(header)
+    }
 }
 
 /// Take an encrypted document and extract out the header metadata. Return that metadata as well as the AESEncryptedValue
@@ -129,26 +156,6 @@ fn parse_document_parts(
             ))
         })
     }
-}
-
-/// Generate a documents header given its ID and internal segment ID that is is associated with. Generates
-/// a Vec<u8> which includes the document version, header size, and header JSON as bytes.
-// TODO hand this off of DocHeaderPacked?
-fn generate_document_header(document_id: DocumentId, segment_id: usize) -> DocHeaderPacked {
-    let mut header_json_bytes = serde_json::to_vec(&DocumentHeader {
-        document_id,
-        segment_id,
-    })
-    .expect("Serialization of DocumentHeader failed."); //Serializing a string and number shouldn't fail
-    let header_json_len = header_json_bytes.len();
-    //Make header vector with size of header plus 1 byte for version and 2 bytes for header length
-    let mut header = Vec::with_capacity(header_json_len + 3);
-    header.push(CURRENT_DOCUMENT_ID_VERSION);
-    //Push the header length representation as two bytes, most significant digit first (BigEndian)
-    header.push((header_json_len >> 8) as u8);
-    header.push(header_json_len as u8);
-    header.append(&mut header_json_bytes);
-    DocHeaderPacked(header)
 }
 
 /// Represents the reason a document can be viewed by the requesting user.
@@ -277,7 +284,7 @@ impl DocumentEncryptUnmanagedResult {
     fn new(
         doc_id: &DocumentId,
         segment_id: usize,
-        encryption_result: EncryptionResultWithHeader,
+        encryption_result: EncryptedDocUnmanaged,
         access_errs: Vec<DocAccessEditErr>,
     ) -> Result<Self, IronOxideErr> {
         let proto_edek_vec_results: Result<Vec<_>, _> = encryption_result
@@ -298,7 +305,7 @@ impl DocumentEncryptUnmanagedResult {
         Ok(DocumentEncryptUnmanagedResult {
             id: doc_id.clone(),
             access_errs,
-            encrypted_data: encryption_result.to_bytes(),
+            encrypted_data: encryption_result.edoc_bytes().to_vec(),
             encrypted_deks: edek_bytes,
             grants: encryption_result
                 .value
@@ -538,13 +545,9 @@ pub fn encrypt_document<
             .into_future()
             .and_then(move |r| {
                 let encryption_errs = r.encryption_errs.clone();
-                let enc_result = EncryptionResultWithHeader {
-                    header: generate_document_header(doc_id.clone(), auth.segment_id),
-                    value: r,
-                };
                 document_create(
                     &auth,
-                    enc_result,
+                    r.into_edoc_unmanaged(DocumentHeader::new(doc_id.clone(), auth.segment_id)),
                     doc_id,
                     &document_name,
                     [key_errs, encryption_errs].concat(),
@@ -653,8 +656,8 @@ where
                     &doc_id,
                     grants,
                 )?;
-                let enc_result = EncryptionResultWithHeader {
-                    header: generate_document_header(doc_id.clone(), auth.segment_id),
+                let enc_result = EncryptedDocUnmanaged {
+                    header: DocumentHeader::new(doc_id.clone(), auth.segment_id),
                     value: r,
                 };
                 let access_errs = [&key_errs[..], &enc_result.value.encryption_errs[..]].concat();
@@ -693,7 +696,7 @@ fn recrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
     encrypted_doc: AesEncryptedValue,
     doc_id: &DocumentId,
     grants: Vec<WithKey<UserOrGroup>>,
-) -> Result<EncryptionResult, IronOxideErr> {
+) -> Result<RecryptionResult, IronOxideErr> {
     // check to make sure that we are granting to something
     if grants.is_empty() {
         Err(IronOxideErr::ValidationError(
@@ -713,7 +716,7 @@ fn recrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
                 dedupe_grants(&grants),
             );
 
-            EncryptionResult {
+            RecryptionResult {
                 edeks: grants
                     .into_iter()
                     .map(|(wk, ev)| EncryptedDek {
@@ -808,40 +811,45 @@ impl TryFrom<&EncryptedDek> for EncryptedDekP {
 }
 
 #[derive(Debug, Clone)]
-pub struct EncryptionResult {
+struct RecryptionResult {
     edeks: Vec<EncryptedDek>,
     encrypted_data: AesEncryptedValue,
     encryption_errs: Vec<DocAccessEditErr>,
 }
 
-impl EncryptionResult {
-    pub fn with_header(self, header: DocHeaderPacked) -> EncryptionResultWithHeader {
-        EncryptionResultWithHeader {
+impl RecryptionResult {
+    fn into_edoc_unmanaged(self, header: DocumentHeader) -> EncryptedDocUnmanaged {
+        EncryptedDocUnmanaged {
             value: self,
             header,
         }
     }
 }
 
-pub struct DocHeaderPacked(Vec<u8>);
-
-// TODO struct EncryptedDoc?
-pub struct EncryptionResultWithHeader {
-    header: DocHeaderPacked,
-    value: EncryptionResult,
+struct EncryptedDocUnmanaged {
+    header: DocumentHeader,
+    value: RecryptionResult,
 }
 
-// TODO to_bytes isn't right
-impl EncryptionResultWithHeader {
-    fn to_bytes(&self) -> Vec<u8> {
-        [self.header.0.clone(), self.value.encrypted_data.bytes()].concat() //TODO
+// TODO is this a reasonable name?
+impl EncryptedDocUnmanaged {
+    fn edoc_bytes(&self) -> Vec<u8> {
+        [
+            &self.header.pack().0[..],
+            &self.value.encrypted_data.bytes(),
+        ]
+        .concat() //TODO
     }
+
+    //    fn edek_bytes(&self) -> &[u8] {
+    //        &self.value.edeks //TODO I could move the proto serialization here...
+    //    }
 }
 
 /// Creates an encrypted document entry in the IronCore webservice.
-pub fn document_create<'a>(
+fn document_create<'a>(
     auth: &'a RequestAuth,
-    encryption_result: EncryptionResultWithHeader,
+    encryption_result: EncryptedDocUnmanaged,
     doc_id: DocumentId,
     doc_name: &Option<DocumentName>,
     accum_errs: Vec<DocAccessEditErr>,
@@ -857,7 +865,7 @@ pub fn document_create<'a>(
         name: api_resp.name,
         created: api_resp.created,
         updated: api_resp.updated,
-        encrypted_data: encryption_result.to_bytes(),
+        encrypted_data: encryption_result.edoc_bytes().to_vec(),
         grants: api_resp.shared_with.iter().map(|sw| sw.into()).collect(),
         access_errs: [accum_errs, encryption_result.value.encryption_errs].concat(),
     })
@@ -887,7 +895,7 @@ pub fn document_update_bytes<
             aes::encrypt(&rng, &plaintext.to_vec(), *sym_key.bytes()).map(
                 move |encrypted_doc| {
                     let mut encrypted_payload =
-                        generate_document_header(document_id.clone(), auth.segment_id());
+                        DocumentHeader::new(document_id.clone(), auth.segment_id()).pack();
                     encrypted_payload.0.append(&mut encrypted_doc.bytes());
                     DocumentEncryptResult {
                         id: doc_meta.0.id,
@@ -943,7 +951,7 @@ pub fn decrypt_document_unmanaged<'a, CR: rand::CryptoRng + rand::RngCore>(
     encrypted_doc: &'a [u8],
     encrypted_deks: &'a [u8],
 ) -> impl Future<Item = DocumentDecryptUnmanagedResult, Error = IronOxideErr> + 'a {
-    requests::edek_transform::edek_transform(&auth, encrypted_deks)
+    requests::edek_transform::edek_transform(&auth, encrypted_deks) //TODO proto decode here?
         .join(parse_document_parts(encrypted_doc).into_future())
         .and_then(
             move |(
@@ -963,16 +971,17 @@ pub fn decrypt_document_unmanaged<'a, CR: rand::CryptoRng + rand::RngCore>(
                     .map(move |decrypted_doc| DocumentDecryptUnmanagedResult {
                         id: document_id,
                         access_via: user_or_group,
-                        decrypted_data: decrypted_doc.to_vec(),
+                        decrypted_data: DecryptedData(decrypted_doc.to_vec()),
                     })
             },
         )
 }
 
+struct DecryptedData(Vec<u8>);
 pub struct DocumentDecryptUnmanagedResult {
     id: DocumentId,
     access_via: UserOrGroup,
-    decrypted_data: Vec<u8>,
+    decrypted_data: DecryptedData,
 }
 
 impl DocumentDecryptUnmanagedResult {
@@ -986,7 +995,7 @@ impl DocumentDecryptUnmanagedResult {
     }
 
     pub fn decrypted_data(&self) -> &[u8] {
-        &self.decrypted_data
+        &self.decrypted_data.0
     }
 }
 
@@ -1349,10 +1358,10 @@ mod tests {
 
     #[test]
     fn generate_document_header_test() {
-        let header = generate_document_header("123abc".try_into().unwrap(), 18usize);
+        let header = DocumentHeader::new("123abc".try_into().unwrap(), 18usize);
 
         assert_that!(
-            &header.0,
+            &header.pack().0,
             eq(vec![
                 2, 0, 29, 123, 34, 95, 100, 105, 100, 95, 34, 58, 34, 49, 50, 51, 97, 98, 99, 34,
                 44, 34, 95, 115, 105, 100, 95, 34, 58, 49, 56, 125
@@ -1549,7 +1558,7 @@ mod tests {
             &doc_id,
             with_keys,
         )?
-        .with_header(generate_document_header(doc_id.clone(), seg_id));
+        .into_edoc_unmanaged(DocumentHeader::new(doc_id.clone(), seg_id));
 
         // create an unmanged result, which does the proto serialization
         let doc_encrypt_unmanaged_result =
