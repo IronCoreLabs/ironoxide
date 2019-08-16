@@ -536,6 +536,7 @@ fn doc_create_and_adjust_name() {
 #[test]
 fn doc_encrypt_decrypt_roundtrip() {
     let sdk = init_sdk();
+
     let doc = [43u8; 64];
     let encrypted_doc = sdk.document_encrypt(&doc, &Default::default()).unwrap();
 
@@ -546,6 +547,37 @@ fn doc_encrypt_decrypt_roundtrip() {
         .unwrap();
 
     assert_eq!(doc.to_vec(), decrypted.decrypted_data());
+}
+
+#[test]
+fn doc_decrypt_unmanaged_no_access() {
+    use std::borrow::Borrow;
+
+    let sdk = init_sdk();
+
+    let user2 = create_second_user();
+
+    let doc = [43u8; 64];
+    let encrypted_doc = sdk
+        .document_encrypt_unmanaged(
+            &doc,
+            &DocumentEncryptOpts::with_explicit_grants(
+                None,
+                None,
+                false,
+                vec![user2.account_id().borrow().into()],
+            ),
+        )
+        .unwrap();
+
+    let decrypt_err = sdk
+        .document_decrypt_unmanaged(
+            &encrypted_doc.encrypted_data(),
+            &encrypted_doc.encrypted_deks(),
+        )
+        .unwrap_err();
+
+    assert_that!(&decrypt_err, is_variant!(IronOxideErr::RequestServerErrors));
 }
 
 #[test]
@@ -621,7 +653,6 @@ fn doc_grant_access() {
             },
         ],
     );
-    //    dbg!(&grant_result);
     assert!(grant_result.is_ok());
     let grants = grant_result.unwrap();
     assert_eq!(3, grants.succeeded().len());

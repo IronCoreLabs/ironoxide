@@ -82,7 +82,7 @@ quick_error! {
             display("Provided document is not long enough to be an encrypted document.")
         }
         InvalidRecryptEncryptedValue(msg: String) {
-            display("Got an unexpcted Recrypt EncryptedValue: '{}'", msg)
+            display("Got an unexpected Recrypt EncryptedValue: '{}'", msg)
         }
         RecryptError(msg: String) {
             display("Recrypt operation failed with error '{}'", msg)
@@ -114,6 +114,13 @@ quick_error! {
         /// Protobuf decode succeeded, but the result is not valid
         ProtobufValidationError(msg: String) {
             display("Protobuf validation failed with '{}'", msg)
+        }
+        UnmanagedDecryptionError(edek_doc_id: String, edek_segment_id: i32,
+                                 edoc_doc_id: String, edoc_segment_id: i32) {
+            display("Edeks and EncryptedDocument do not match. \
+            Edeks are for DocumentId({}) and SegmentId({}) and\
+            Encrypted Document is DocumentId({}) and SegmentId({})",
+            edek_doc_id, edek_segment_id, edoc_doc_id, edoc_segment_id)
         }
     }
 }

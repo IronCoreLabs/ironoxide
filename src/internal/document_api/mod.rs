@@ -532,7 +532,7 @@ pub fn encrypt_document<
                 let encryption_errs = r.encryption_errs.clone();
                 document_create(
                     &auth,
-                    r.into_edoc_unmanaged(DocumentHeader::new(doc_id.clone(), auth.segment_id)),
+                    r.into_edoc(DocumentHeader::new(doc_id.clone(), auth.segment_id)),
                     doc_id,
                     &document_name,
                     [key_errs, encryption_errs].concat(),
@@ -800,7 +800,7 @@ struct RecryptionResult {
 }
 
 impl RecryptionResult {
-    fn into_edoc_unmanaged(self, header: DocumentHeader) -> EncryptedDoc {
+    fn into_edoc(self, header: DocumentHeader) -> EncryptedDoc {
         EncryptedDoc {
             value: self,
             header,
@@ -809,6 +809,7 @@ impl RecryptionResult {
 }
 
 /// An ironoxide encrypted document
+#[derive(Debug)]
 struct EncryptedDoc {
     header: DocumentHeader,
     value: RecryptionResult,
@@ -824,11 +825,12 @@ impl EncryptedDoc {
         .concat()
     }
 
-    /// vector of EDEKs
+    /// associated EncryptedDeks for this EncryptedDoc
     fn edek_vec(&self) -> Vec<EncryptedDek> {
         self.value.edeks.clone()
     }
 
+    /// binary blob for associated edeks, or error if encoding the edeks failed
     fn edek_bytes(&self) -> Result<Vec<u8>, IronOxideErr> {
         let proto_edek_vec_results: Result<Vec<_>, _> = self
             .value
@@ -957,18 +959,43 @@ pub fn decrypt_document_unmanaged<'a, CR: rand::CryptoRng + rand::RngCore>(
     protobuf::parse_from_bytes::<EncryptedDeksP>(encrypted_deks)
         .map_err(IronOxideErr::from)
         .into_future()
-        .join3(
-            requests::edek_transform::edek_transform(&auth, encrypted_deks),
-            parse_document_parts(encrypted_doc).into_future(),
+        .join(parse_document_parts(encrypted_doc))
+        .and_then(
+            |(
+                proto_edeks,
+                (
+                    DocumentHeader {
+                        document_id,
+                        segment_id,
+                    },
+                    aes_encrypted_value,
+                ),
+            )| {
+                if document_id.id() == proto_edeks.get_documentId()
+                    && segment_id as i32 == proto_edeks.get_segmentId()
+                {
+                    Ok((document_id, aes_encrypted_value))
+                } else {
+                    Err(IronOxideErr::UnmanagedDecryptionError(
+                        proto_edeks.get_documentId().into(),
+                        proto_edeks.get_segmentId(),
+                        document_id.0,
+                        segment_id as i32,
+                    ))
+                }
+            },
         )
+        .join(requests::edek_transform::edek_transform(
+            &auth,
+            encrypted_deks,
+        ))
         .and_then(
             move |(
-                _,
+                (document_id, mut enc_data),
                 requests::edek_transform::EdekTransformResponse {
                     user_or_group,
                     encrypted_symmetric_key,
                 },
-                (DocumentHeader { document_id, .. }, mut enc_data),
             )| {
                 let (_, sym_key) = transform::decrypt_plaintext(
                     &recrypt,
@@ -986,7 +1013,11 @@ pub fn decrypt_document_unmanaged<'a, CR: rand::CryptoRng + rand::RngCore>(
         )
 }
 
+#[derive(Clone, PartialEq, Debug)]
 struct DecryptedData(Vec<u8>);
+
+/// Result of successful unmanaged decryption
+#[derive(Clone, PartialEq, Debug)]
 pub struct DocumentDecryptUnmanagedResult {
     id: DocumentId,
     access_via: UserOrGroup,
@@ -1231,7 +1262,9 @@ mod tests {
     use galvanic_assert::matchers::{collection::*, *};
 
     use super::*;
+    use crate::internal::rest::IronCoreRequest;
     use std::borrow::Borrow;
+    use tokio::runtime::current_thread::Runtime;
 
     #[test]
     fn document_id_validate_good() {
@@ -1538,7 +1571,7 @@ mod tests {
     }
 
     #[test]
-    pub fn unmanged_edoc_header_properly_encoded() -> Result<(), IronOxideErr> {
+    pub fn unmanaged_edoc_header_properly_encoded() -> Result<(), IronOxideErr> {
         use crate::proto::transform::UserOrGroup as UserOrGroupP;
         use crate::proto::transform::UserOrGroup_oneof_UserOrGroupId as UserOrGroupIdP;
         use recrypt::prelude::*;
@@ -1566,7 +1599,7 @@ mod tests {
             &doc_id,
             with_keys,
         )?
-        .into_edoc_unmanaged(DocumentHeader::new(doc_id.clone(), seg_id));
+        .into_edoc(DocumentHeader::new(doc_id.clone(), seg_id));
 
         assert_eq!(&encryption_result.header.document_id, &doc_id);
         assert_eq!(&encryption_result.header.segment_id, &seg_id);
@@ -1607,7 +1640,7 @@ mod tests {
             &doc_id,
             with_keys,
         )?
-        .into_edoc_unmanaged(DocumentHeader::new(doc_id.clone(), seg_id));
+        .into_edoc(DocumentHeader::new(doc_id.clone(), seg_id));
 
         // create an unmanged result, which does the proto serialization
         let doc_encrypt_unmanaged_result =
@@ -1663,6 +1696,65 @@ mod tests {
             ])
         );
 
+        Ok(())
+    }
+
+    #[test]
+    pub fn unmanaged_decrypt_edek_edoc_no_match() -> Result<(), IronOxideErr> {
+        use crate::proto::transform::UserOrGroup as UserOrGroupP;
+        use crate::proto::transform::UserOrGroup_oneof_UserOrGroupId as UserOrGroupIdP;
+        use recrypt::prelude::*;
+
+        let recr = recrypt::api::Recrypt::new();
+        let signingkeys = DeviceSigningKeyPair::from(recr.generate_ed25519_key_pair());
+        let aes_value = AesEncryptedValue::try_from(&[42u8; 32][..])?;
+        let uid = UserId::unsafe_from_string("userid".into());
+        let gid = GroupId::unsafe_from_string("groupid".into());
+        let user: UserOrGroup = uid.borrow().into();
+        let group: UserOrGroup = gid.borrow().into();
+        let (priv_key, pubk) = recr.generate_key_pair()?;
+        let with_keys = vec![
+            WithKey::new(user, pubk.clone().into()),
+            WithKey::new(group, pubk.into()),
+        ];
+        let doc_id = DocumentId("docid".into());
+        let seg_id = 33;
+
+        let encryption_result = recrypt_document(
+            &signingkeys,
+            &recr,
+            recr.gen_plaintext(),
+            aes_value,
+            &doc_id,
+            with_keys,
+        )?;
+
+        let edoc1 = encryption_result
+            .clone()
+            .into_edoc(DocumentHeader::new(doc_id, seg_id));
+        let edoc2 =
+            encryption_result.into_edoc(DocumentHeader::new(DocumentId("other_docid".into()), 99));
+
+        let auth = RequestAuth {
+            account_id: uid,
+            segment_id: seg_id,
+            signing_keys: signingkeys,
+            request: IronCoreRequest::default(),
+        };
+
+        let decrypt_priv = priv_key.into();
+        let decrypt_edoc = edoc1.edoc_bytes();
+        let decrypt_edek = edoc2.edek_bytes()?;
+
+        let decrypt_result_f =
+            decrypt_document_unmanaged(&auth, &recr, &decrypt_priv, &decrypt_edoc, &decrypt_edek);
+
+        let result = Runtime::new().unwrap().block_on(decrypt_result_f);
+        assert_that!(&result, is_variant!(Result::Err));
+        assert_that!(
+            &result.unwrap_err(),
+            is_variant!(IronOxideErr::UnmanagedDecryptionError)
+        );
         Ok(())
     }
 }
