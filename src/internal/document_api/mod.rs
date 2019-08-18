@@ -917,7 +917,7 @@ pub fn document_update_bytes<
 }
 
 /// Decrypt the provided document with the provided device private key. Return metadata about the document
-/// that was decrypted along with it's decrypted bytes.
+/// that was decrypted along with its decrypted bytes.
 pub fn decrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -1612,7 +1612,7 @@ mod tests {
     }
 
     #[test]
-    pub fn unmanaged_edec_compare_grants() -> Result<(), IronOxideErr> {
+    pub fn unmanaged_edoc_compare_grants() -> Result<(), IronOxideErr> {
         use crate::proto::transform::UserOrGroup as UserOrGroupP;
         use crate::proto::transform::UserOrGroup_oneof_UserOrGroupId as UserOrGroupIdP;
         use recrypt::prelude::*;
