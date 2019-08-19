@@ -21,7 +21,7 @@ use chrono::{DateTime, Utc};
 use futures::prelude::*;
 use hex::encode;
 use itertools::{Either, Itertools};
-use protobuf::{Message, ProtobufError, RepeatedField};
+use protobuf::{Message, RepeatedField};
 use rand::{self, CryptoRng, RngCore};
 use recrypt::{api::Plaintext, prelude::*};
 pub use requests::policy_get::PolicyResult;
@@ -431,6 +431,32 @@ impl DocumentAccessResult {
         &self.failed
     }
 }
+#[derive(Clone, PartialEq, Debug)]
+struct DecryptedData(Vec<u8>);
+
+/// Result of successful unmanaged decryption
+#[derive(Clone, PartialEq, Debug)]
+pub struct DocumentDecryptUnmanagedResult {
+    id: DocumentId,
+    access_via: UserOrGroup,
+    decrypted_data: DecryptedData,
+}
+
+impl DocumentDecryptUnmanagedResult {
+    pub fn id(&self) -> &DocumentId {
+        &self.id
+    }
+
+    /// user or group that allowed the caller to decrypt the data
+    pub fn access_via(&self) -> &UserOrGroup {
+        &self.access_via
+    }
+
+    /// plaintext user data
+    pub fn decrypted_data(&self) -> &[u8] {
+        &self.decrypted_data.0
+    }
+}
 
 /// Either a user or a group. Allows for containing both.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -481,7 +507,7 @@ pub fn document_get_metadata(
     requests::document_get::document_get_request(auth, id).map(DocumentMetadataResult)
 }
 
-// Attempt to parse the provided encrypted document header and extract out the ID if present
+/// Attempt to parse the provided encrypted document header and extract out the ID if present
 pub fn get_id_from_bytes(encrypted_document: &[u8]) -> Result<DocumentId, IronOxideErr> {
     parse_document_parts(&encrypted_document).map(|header| header.0.document_id)
 }
@@ -649,12 +675,6 @@ where
                 DocumentEncryptUnmanagedResult::new(enc_result, access_errs)?
             })
         })
-}
-
-impl From<ProtobufError> for IronOxideErr {
-    fn from(e: ProtobufError) -> Self {
-        internal::IronOxideErr::ProtobufSerdeError(e)
-    }
 }
 
 /// Remove any duplicates in the grant list. Uses ids (not keys) for comparison.
@@ -1011,33 +1031,6 @@ pub fn decrypt_document_unmanaged<'a, CR: rand::CryptoRng + rand::RngCore>(
                     })
             },
         )
-}
-
-#[derive(Clone, PartialEq, Debug)]
-struct DecryptedData(Vec<u8>);
-
-/// Result of successful unmanaged decryption
-#[derive(Clone, PartialEq, Debug)]
-pub struct DocumentDecryptUnmanagedResult {
-    id: DocumentId,
-    access_via: UserOrGroup,
-    decrypted_data: DecryptedData,
-}
-
-impl DocumentDecryptUnmanagedResult {
-    pub fn id(&self) -> &DocumentId {
-        &self.id
-    }
-
-    /// user or group that allowed the caller to decrypt the data
-    pub fn access_via(&self) -> &UserOrGroup {
-        &self.access_via
-    }
-
-    /// plaintext user data
-    pub fn decrypted_data(&self) -> &[u8] {
-        &self.decrypted_data.0
-    }
 }
 
 // Update a documents name. Value can be updated to either a new name with a Some or the name value can be cleared out
@@ -1572,8 +1565,6 @@ mod tests {
 
     #[test]
     pub fn unmanaged_edoc_header_properly_encoded() -> Result<(), IronOxideErr> {
-        use crate::proto::transform::UserOrGroup as UserOrGroupP;
-        use crate::proto::transform::UserOrGroup_oneof_UserOrGroupId as UserOrGroupIdP;
         use recrypt::prelude::*;
 
         let recr = recrypt::api::Recrypt::new();
@@ -1701,8 +1692,6 @@ mod tests {
 
     #[test]
     pub fn unmanaged_decrypt_edek_edoc_no_match() -> Result<(), IronOxideErr> {
-        use crate::proto::transform::UserOrGroup as UserOrGroupP;
-        use crate::proto::transform::UserOrGroup_oneof_UserOrGroupId as UserOrGroupIdP;
         use recrypt::prelude::*;
 
         let recr = recrypt::api::Recrypt::new();

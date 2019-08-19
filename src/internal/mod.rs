@@ -9,6 +9,7 @@ use crate::internal::{
 use chrono::{DateTime, Utc};
 use log::error;
 use protobuf;
+use protobuf::ProtobufError;
 use recrypt::api::{
     Hashable, PrivateKey as RecryptPrivateKey, PublicKey as RecryptPublicKey, RecryptErr,
     SigningKeypair as RecryptSigningKeypair,
@@ -135,6 +136,12 @@ impl From<RecryptErr> for IronOxideErr {
             //Fallback for all other error types that Recrypt can have that we don't have specific mappings for
             other_recrypt_err => IronOxideErr::RecryptError(format!("{}", other_recrypt_err)),
         }
+    }
+}
+
+impl From<ProtobufError> for IronOxideErr {
+    fn from(e: ProtobufError) -> Self {
+        IronOxideErr::ProtobufSerdeError(e)
     }
 }
 
