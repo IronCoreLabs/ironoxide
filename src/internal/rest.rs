@@ -14,11 +14,18 @@ use serde::{de::DeserializeOwned, Serialize};
 use crate::internal::{
     user_api::UserId, DeviceSigningKeyPair, IronOxideErr, Jwt, RequestErrorCode, OUR_REQUEST,
 };
+use reqwest::r#async::RequestBuilder;
 
 lazy_static! {
     static ref DEFAULT_HEADERS: HeaderMap = {
         let mut headers: HeaderMap = Default::default();
         headers.append("Content-Type", "application/json".parse().unwrap());
+        headers
+    };
+    static ref RAW_BYTES_HEADERS: HeaderMap = {
+        let mut headers: HeaderMap = Default::default();
+        // this works with cloudflare. tried `application/x-protobuf` and `application/protobuf` and both were flagged as potentially malicious
+        headers.append("Content-Type", "application/octet-stream".parse().unwrap());
         headers
     };
 }
@@ -131,6 +138,30 @@ impl<'a> IronCoreRequest<'a> {
             auth.to_header(),
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
+    }
+
+    pub fn post_raw<B: DeserializeOwned>(
+        &self,
+        relative_url: &str,
+        body: &[u8],
+        error_code: RequestErrorCode,
+        auth: &Authorization,
+    ) -> impl Future<Item = B, Error = IronOxideErr> {
+        let client = RClient::new();
+        let mut builder = client.request(
+            Method::POST,
+            format!("{}{}", self.base_url, relative_url).as_str(),
+        );
+
+        //We want to add the body as raw bytes
+        builder = builder.body(body.to_vec());
+
+        let req = builder
+            .headers(RAW_BYTES_HEADERS.clone())
+            .headers(auth.to_header());
+        IronCoreRequest::send_req(req, error_code.clone(), move |server_resp| {
+            IronCoreRequest::deserialize_body(server_resp, error_code.clone())
+        })
     }
 
     ///PUT body to the resource at relative_url using auth for authorization.
@@ -273,6 +304,18 @@ impl<'a> IronCoreRequest<'a> {
             .fold(builder, |build, body| build.json(body));
 
         let req = builder.headers(DEFAULT_HEADERS.clone()).headers(headers);
+        IronCoreRequest::send_req(req, error_code, resp_handler)
+    }
+
+    fn send_req<B, F>(
+        req: RequestBuilder,
+        error_code: RequestErrorCode,
+        resp_handler: F,
+    ) -> impl Future<Item = B, Error = IronOxideErr>
+    where
+        B: DeserializeOwned,
+        F: FnOnce(&Chunk) -> Result<B, IronOxideErr>,
+    {
         req.send()
             //Parse the body content into bytes
             .and_then(|res| {

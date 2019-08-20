@@ -9,6 +9,7 @@ use crate::internal::{
 use chrono::{DateTime, Utc};
 use log::error;
 use protobuf;
+use protobuf::ProtobufError;
 use recrypt::api::{
     Hashable, PrivateKey as RecryptPrivateKey, PublicKey as RecryptPublicKey, RecryptErr,
     SigningKeypair as RecryptSigningKeypair,
@@ -56,6 +57,7 @@ pub enum RequestErrorCode {
     DocumentUpdate,
     DocumentGrantAccess,
     DocumentRevokeAccess,
+    EdekTransform,
     PolicyGet,
 }
 
@@ -81,7 +83,7 @@ quick_error! {
             display("Provided document is not long enough to be an encrypted document.")
         }
         InvalidRecryptEncryptedValue(msg: String) {
-            display("Got an unexpcted Recrypt EncryptedValue: '{}'", msg)
+            display("Got an unexpected Recrypt EncryptedValue: '{}'", msg)
         }
         RecryptError(msg: String) {
             display("Recrypt operation failed with error '{}'", msg)
@@ -114,6 +116,13 @@ quick_error! {
         ProtobufValidationError(msg: String) {
             display("Protobuf validation failed with '{}'", msg)
         }
+        UnmanagedDecryptionError(edek_doc_id: String, edek_segment_id: i32,
+                                 edoc_doc_id: String, edoc_segment_id: i32) {
+            display("Edeks and EncryptedDocument do not match. \
+            Edeks are for DocumentId({}) and SegmentId({}) and\
+            Encrypted Document is DocumentId({}) and SegmentId({})",
+            edek_doc_id, edek_segment_id, edoc_doc_id, edoc_segment_id)
+        }
     }
 }
 
@@ -127,6 +136,12 @@ impl From<RecryptErr> for IronOxideErr {
             //Fallback for all other error types that Recrypt can have that we don't have specific mappings for
             other_recrypt_err => IronOxideErr::RecryptError(format!("{}", other_recrypt_err)),
         }
+    }
+}
+
+impl From<ProtobufError> for IronOxideErr {
+    fn from(e: ProtobufError) -> Self {
+        IronOxideErr::ProtobufSerdeError(e)
     }
 }
 

@@ -179,6 +179,30 @@ pub mod document_get {
     }
 }
 
+pub mod edek_transform {
+    use super::*;
+
+    pub fn edek_transform(
+        auth: &RequestAuth,
+        edek_bytes: &[u8],
+    ) -> impl Future<Item = EdekTransformResponse, Error = IronOxideErr> {
+        auth.request.post_raw(
+            "edeks/transform",
+            edek_bytes,
+            RequestErrorCode::EdekTransform,
+            &auth.create_signature(Utc::now()),
+        )
+    }
+
+    #[derive(Serialize, Debug, Clone, Deserialize, PartialEq)]
+    #[serde(rename_all = "camelCase")]
+    pub struct EdekTransformResponse {
+        pub(in crate::internal::document_api) user_or_group: UserOrGroup,
+        pub(in crate::internal::document_api) encrypted_symmetric_key: TransformedEncryptedValue,
+    }
+
+}
+
 pub mod document_create {
     use super::*;
     use crate::internal::document_api::{DocumentName, EncryptedDek};
