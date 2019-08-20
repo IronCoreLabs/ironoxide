@@ -1,7 +1,11 @@
 # Changelog
 
+## 0.10.1
+- [[#32](https://github.com/IronCoreLabs/ironoxide/pull/32)]
+  - DocumentAdvancedOps::document_decrypt_unmanaged function added for advanced use cases. This decrypt operation is the inverse of DocumentAdvancedOps::document_encrypt_unmanaged
+
 ## 0.10.0
-- [[#27](https://github.com/IronCoreLabs/ironoxide/pull/23)]
+- [[#27](https://github.com/IronCoreLabs/ironoxide/pull/27)]
   - DocumentAdvancedOps::document_encrypt_unmanaged function added for advanced use cases where the calling application wants to manage both the encrypted data and the associated edeks instead of using the IronCore service for EDEK management.
 
 ## 0.9.0
