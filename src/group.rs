@@ -15,7 +15,7 @@ pub struct GroupCreateOpts {
     id: Option<GroupId>,
     /// human readable name of the group. Does not need to be unique.
     name: Option<GroupName>,
-    /// true (default) - creating user will be added to the group's membership;
+    /// true (default) - creating user will be added to the group's membership (in addition to being the group's admin);
     /// false - creating user will not be added to the group's membership
     add_as_member: bool,
 }

@@ -71,7 +71,7 @@ impl TryFrom<String> for DocumentId {
     }
 }
 
-/// Document name type. Validates that the provided document name isn't an empty string
+/// (unencrypted) name of a document. Construct via `try_from(&str)`
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentName(pub(crate) String);
 impl DocumentName {
@@ -447,7 +447,8 @@ impl DocumentDecryptUnmanagedResult {
         &self.id
     }
 
-    /// user or group that allowed the caller to decrypt the data
+    /// user/group that granted access to the encrypted data. More specifically, the
+    /// user/group associated with the EDEK that was chosen and transformed by the webservice
     pub fn access_via(&self) -> &UserOrGroup {
         &self.access_via
     }
