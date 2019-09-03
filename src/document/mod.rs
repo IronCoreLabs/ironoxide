@@ -23,7 +23,7 @@ pub mod advanced;
 pub struct DocumentEncryptOpts {
     id: Option<DocumentId>,
     name: Option<DocumentName>,
-    /// at least one user/group must be included either explicitly or via a policy
+    // at least one user/group must be included either explicitly or via a policy
     grants: EitherOrBoth<ExplicitGrant, PolicyGrant>,
 }
 #[derive(Debug, PartialEq, Clone)]
