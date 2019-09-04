@@ -23,15 +23,20 @@ pub mod advanced;
 pub struct DocumentEncryptOpts {
     id: Option<DocumentId>,
     name: Option<DocumentName>,
+    // at least one user/group must be included either explicitly or via a policy
     grants: EitherOrBoth<ExplicitGrant, PolicyGrant>,
 }
 #[derive(Debug, PartialEq, Clone)]
+
+/// Explicit users/groups that should have access to decrypt a document.
 pub struct ExplicitGrant {
     grant_to_author: bool,
     grants: Vec<UserOrGroup>,
 }
 
 impl ExplicitGrant {
+    /// `grant_to_author` - true if the calling user should have access to decrypt the document
+    /// `grants` - other UserOrGroups that should have access to the document
     pub fn new(grant_to_author: bool, grants: &[UserOrGroup]) -> ExplicitGrant {
         ExplicitGrant {
             grant_to_author,
