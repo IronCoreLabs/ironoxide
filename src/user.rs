@@ -99,11 +99,6 @@ pub trait UserOps {
     fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>>;
 }
 impl UserOps for IronOxide {
-    fn user_verify(jwt: &str) -> Result<Option<UserVerifyResult>> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(user_api::user_verify(jwt.try_into()?, OUR_REQUEST))
-    }
-
     fn user_create(jwt: &str, password: &str) -> Result<UserCreateKeyPair> {
         let recrypt = Recrypt::new();
         let mut rt = Runtime::new().unwrap();
@@ -113,6 +108,11 @@ impl UserOps for IronOxide {
             password.try_into()?,
             OUR_REQUEST,
         ))
+    }
+
+    fn user_list_devices(&self) -> Result<UserDeviceListResult> {
+        let mut rt = Runtime::new().unwrap();
+        rt.block_on(user_api::device_list(self.device.auth()))
     }
 
     fn generate_new_device(
@@ -134,18 +134,18 @@ impl UserOps for IronOxide {
         ))
     }
 
-    fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(user_api::user_key_list(self.device.auth(), &users.to_vec()))
-    }
-
-    fn user_list_devices(&self) -> Result<UserDeviceListResult> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(user_api::device_list(self.device.auth()))
-    }
-
     fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId> {
         let mut rt = Runtime::new().unwrap();
         rt.block_on(user_api::device_delete(self.device.auth(), device_id))
+    }
+
+    fn user_verify(jwt: &str) -> Result<Option<UserVerifyResult>> {
+        let mut rt = Runtime::new().unwrap();
+        rt.block_on(user_api::user_verify(jwt.try_into()?, OUR_REQUEST))
+    }
+
+    fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {
+        let mut rt = Runtime::new().unwrap();
+        rt.block_on(user_api::user_key_list(self.device.auth(), &users.to_vec()))
     }
 }
