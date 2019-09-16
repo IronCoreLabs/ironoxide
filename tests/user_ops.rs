@@ -74,6 +74,6 @@ fn user_create_with_needs_rotation() -> Result<(), IronOxideErr> {
         "foo",
         &UserCreateOpts::new(true),
     );
-    assert!(result?.needs_rotation(), false);
+    assert!(result?.needs_rotation());
     Ok(())
 }
