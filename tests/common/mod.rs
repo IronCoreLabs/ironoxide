@@ -1,5 +1,6 @@
 use ironoxide::{prelude::*, user::UserVerifyResult};
 use std::convert::TryInto;
+use std::default::Default;
 use uuid::Uuid;
 
 pub fn gen_jwt(
@@ -55,6 +56,7 @@ pub fn init_sdk_get_user() -> (UserId, IronOxide) {
     IronOxide::user_create(
         &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
         "foo",
+        &Default::default(),
     )
     .unwrap();
 
@@ -94,7 +96,7 @@ pub fn init_sdk_get_user() -> (UserId, IronOxide) {
 
 pub fn create_second_user() -> UserVerifyResult {
     let (jwt, _) = gen_jwt(1012, "test-segment", 551, None);
-    let create_result = IronOxide::user_create(&jwt, "foo");
+    let create_result = IronOxide::user_create(&jwt, "foo", &Default::default());
     assert!(create_result.is_ok());
 
     let verify_result = IronOxide::user_verify(&jwt);
