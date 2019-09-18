@@ -1,7 +1,9 @@
 mod common;
 use common::gen_jwt;
+use ironoxide::user::UserCreateOpts;
 use ironoxide::{prelude::*, user::DeviceCreateOpts};
 use std::convert::TryInto;
+use std::default::Default;
 use uuid::Uuid;
 
 #[macro_use]
@@ -21,6 +23,7 @@ fn user_verify_existing_user() {
     IronOxide::user_create(
         &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
         "foo",
+        &Default::default(),
     )
     .unwrap();
 
@@ -40,6 +43,7 @@ fn user_create_good_with_devices() {
     let result = IronOxide::user_create(
         &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
         "foo",
+        &Default::default(),
     );
     assert!(result.is_ok());
 
@@ -60,4 +64,16 @@ fn user_create_good_with_devices() {
         &"myDevice".to_string(),
         device_list.result()[0].name().unwrap().name()
     );
+}
+
+#[test]
+fn user_create_with_needs_rotation() -> Result<(), IronOxideErr> {
+    let account_id: UserId = Uuid::new_v4().to_string().try_into().unwrap();
+    let result = IronOxide::user_create(
+        &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
+        "foo",
+        &UserCreateOpts::new(true),
+    );
+    assert!(result?.needs_rotation());
+    Ok(())
 }

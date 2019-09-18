@@ -588,7 +588,7 @@ pub(crate) mod test {
     use std::fmt::Debug;
 
     /// String contains matcher to assert that the provided substring exists in the provided value
-    pub fn contains<'a>(expected: &'a str) -> Box<Matcher<String> + 'a> {
+    pub fn contains<'a>(expected: &'a str) -> Box<dyn Matcher<String> + 'a> {
         Box::new(move |actual: &String| {
             let builder = MatchResultBuilder::for_("contains");
             if actual.contains(expected) {
@@ -601,7 +601,7 @@ pub(crate) mod test {
     }
 
     /// Length matcher to assert that the provided iterable value has the expected size
-    pub fn length<'a, I, T>(expected: &'a usize) -> Box<Matcher<I> + 'a>
+    pub fn length<'a, I, T>(expected: &'a usize) -> Box<dyn Matcher<I> + 'a>
     where
         T: 'a,
         &'a I: Debug + Sized + IntoIterator<Item = &'a T> + 'a,

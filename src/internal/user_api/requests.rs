@@ -86,6 +86,7 @@ pub mod user_create {
         segment_id: usize,
         pub user_private_key: PrivateKey,
         pub user_master_public_key: PublicKey,
+        needs_rotation: bool,
     }
 
     #[derive(Serialize, Debug)]
@@ -93,17 +94,20 @@ pub mod user_create {
     struct UserCreateReq {
         user_public_key: PublicKey,
         user_private_key: PrivateKey,
+        needs_rotation: bool,
     }
 
     pub fn user_create(
         jwt: &Jwt,
         user_public_key: PublicKey,
         encrypted_user_private_key: PrivateKey,
+        needs_rotation: bool,
         request: IronCoreRequest,
     ) -> impl Future<Item = UserCreateResponse, Error = IronOxideErr> {
         let req_body = UserCreateReq {
             user_private_key: encrypted_user_private_key,
             user_public_key,
+            needs_rotation,
         };
         request.post(
             "users",
@@ -119,6 +123,7 @@ pub mod user_create {
             Ok(UserCreateKeyPair {
                 user_encrypted_master_key: resp.user_private_key.try_into()?,
                 user_public_key: resp.user_master_public_key.try_into()?,
+                needs_rotation: resp.needs_rotation,
             })
         }
     }
