@@ -134,6 +134,7 @@ pub struct UserVerifyResult {
     account_id: UserId,
     segment_id: usize,
     user_public_key: PublicKey,
+    needs_rotation: bool,
 }
 impl UserVerifyResult {
     pub fn user_public_key(&self) -> &PublicKey {
@@ -146,6 +147,10 @@ impl UserVerifyResult {
 
     pub fn segment_id(&self) -> usize {
         self.segment_id
+    }
+
+    pub fn needs_rotation(&self) -> bool {
+        self.needs_rotation
     }
 }
 

@@ -42,11 +42,12 @@ pub mod user_verify {
     #[derive(Deserialize, PartialEq, Debug)]
     #[serde(rename_all = "camelCase")]
     pub struct UserVerifyResponse {
-        pub id: String,
+        pub(crate) id: String,
         status: usize,
-        pub segment_id: usize,
-        pub user_private_key: PrivateKey,
-        pub user_master_public_key: PublicKey,
+        pub(crate) segment_id: usize,
+        pub(crate) user_private_key: PrivateKey,
+        pub(crate) user_master_public_key: PublicKey,
+        pub(crate) needs_rotation: bool,
     }
 
     pub fn user_verify(
@@ -68,7 +69,26 @@ pub mod user_verify {
                 account_id: body.id.try_into()?,
                 segment_id: body.segment_id,
                 user_public_key: body.user_master_public_key.try_into()?,
+                needs_rotation: body.needs_rotation,
             })
+        }
+    }
+    mod test {
+        use super::*;
+        use recrypt::prelude::*;
+        use crate::internal;
+
+        #[test]
+        fn user_verify_resp_to_result() {
+            let mut r = recrypt::api::Recrypt::new();
+            let (, pk) = r.generate_key_pair().unwrap();
+
+            //            UserVerifyResponse {
+            //                id: "valid_user_id".to_string(),
+            //                status: 100
+            //                segment_id: 200,
+            //                user_private_key
+            //            }
         }
     }
 }
