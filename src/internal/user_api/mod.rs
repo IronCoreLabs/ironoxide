@@ -1,6 +1,6 @@
 use crate::{
     crypto::aes::{self, EncryptedMasterKey},
-    internal::{rest::IronCoreRequest, *},
+    internal::{rest::IronCoreRequest, PublicKey, *},
 };
 use chrono::{DateTime, Utc};
 use futures::prelude::*;

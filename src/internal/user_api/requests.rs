@@ -35,7 +35,8 @@ impl TryFrom<PrivateKey> for EncryptedMasterKey {
 }
 
 pub mod user_verify {
-    use crate::internal::{user_api::UserVerifyResult, TryInto};
+    use crate::internal::user_api::UserVerifyResult;
+    use std::convert::TryInto;
 
     use super::*;
 
@@ -73,22 +74,48 @@ pub mod user_verify {
             })
         }
     }
+
+    #[cfg(test)]
     mod test {
         use super::*;
-        use recrypt::prelude::*;
         use crate::internal;
+        use galvanic_assert::matchers::*;
+        use recrypt::prelude::*;
 
         #[test]
-        fn user_verify_resp_to_result() {
-            let mut r = recrypt::api::Recrypt::new();
-            let (, pk) = r.generate_key_pair().unwrap();
+        fn user_verify_resp_to_result() -> Result<(), IronOxideErr> {
+            let r = recrypt::api::Recrypt::new();
+            let (_, r_pub) = r.generate_key_pair()?;
 
-            //            UserVerifyResponse {
-            //                id: "valid_user_id".to_string(),
-            //                status: 100
-            //                segment_id: 200,
-            //                user_private_key
-            //            }
+            // private key doesn't go through any validation as we don't return it in the Result
+            let priv_key: PrivateKey = PrivateKey(vec![1u8; 60]);
+            let pub_key: PublicKey = r_pub.into();
+
+            let t_account_id: UserId = UserId::unsafe_from_string("valid_user_id".to_string());
+            let t_segment_id: usize = 200;
+            let t_user_public_key: internal::PublicKey = r_pub.into();
+            let t_needs_rotation = true;
+
+            let resp = UserVerifyResponse {
+                id: t_account_id.id().to_string(),
+                status: 100,
+                segment_id: t_segment_id,
+                user_private_key: priv_key,
+                user_master_public_key: pub_key,
+                needs_rotation: t_needs_rotation,
+            };
+            let result: UserVerifyResult = resp.try_into().unwrap();
+
+            assert_that!(
+                &result,
+                has_structure!(UserVerifyResult {
+                    account_id: eq(t_account_id.clone()),
+                    segment_id: eq(t_segment_id),
+                    user_public_key: eq(t_user_public_key.clone()),
+                    needs_rotation: eq(t_needs_rotation)
+                })
+            );
+            Ok(())
         }
     }
 }
