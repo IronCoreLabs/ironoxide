@@ -67,6 +67,33 @@ fn user_create_good_with_devices() {
 }
 
 #[test]
+fn user_private_key_rotation() -> Result<(), IronOxideErr>{_
+    let (_, init_result) = common::init_sdk_get_init_result();
+
+    //    // case 1: don't handle RotationNeeded
+    //    let sdk: IronOxide = init_result.unwrap();
+    //
+    //    let (_, init_result) = common::init_sdk_get_init_result();
+    //    // case 2: handle with a standard pattern match
+    //    let sdk: IronOxide = match init_result {
+    //        IronOxideInitResult::Ok(io) => io,
+    //        IronOxideInitResult::RotationNeeded(with_rotation) => {
+    //            let rotation_result = with_rotation.soft_rotate_curr_user("users_master_password")?;
+    //            with_rotation.into_ironoxide()
+    //        }
+    //    };
+    //
+    //    let (_, init_result) = common::init_sdk_get_init_result();
+    //    // case 3: use a convenience function for handling rotation
+    //    let sdk: IronOxide = init_result.unwrap_or_handle_rotation(|with_rotation| {
+    //        let rotation_result = with_rotation.soft_rotate_curr_user("users_master_password")?;
+    //        Ok(with_rotation.into_ironoxide())
+    //    })?;
+
+    Ok(())
+}
+
+#[test]
 fn user_create_with_needs_rotation() -> Result<(), IronOxideErr> {
     let account_id: UserId = Uuid::new_v4().to_string().try_into().unwrap();
     let result = IronOxide::user_create(

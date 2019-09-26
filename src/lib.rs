@@ -62,9 +62,12 @@ pub mod policy;
 /// Convenience re-export of essential IronOxide types
 pub mod prelude;
 
+use crate::internal::group_api::GroupId;
+use crate::internal::user_api::UserId;
 pub use crate::internal::{
     DeviceContext, DeviceSigningKeyPair, IronOxideErr, KeyPair, PrivateKey, PublicKey,
 };
+use itertools::EitherOrBoth;
 use rand::rngs::adapter::ReseedingRng;
 use rand::rngs::EntropyRng;
 use rand::FromEntropy;
@@ -85,6 +88,38 @@ pub struct IronOxide {
     pub(crate) user_master_pub_key: PublicKey,
     pub(crate) device: DeviceContext,
     pub(crate) rng: Mutex<ReseedingRng<ChaChaCore, EntropyRng>>,
+}
+
+/// Result of calling `initialize_check_rotation`
+pub enum InitAndRotationCheck {
+    /// Initialization succeeded, and no requests for private key rotations were present
+    NoRotationNeeded(IronOxide),
+    /// Initialization succeeded, but some keys should be rotated
+    RotationNeeded(IronOxide, PrivateKeyRotationCheckResult),
+}
+
+impl InitAndRotationCheck {
+    pub fn unwrap(self) -> IronOxide {
+        match self {
+            InitAndRotationCheck::NoRotationNeeded(io) => io,
+            InitAndRotationCheck::RotationNeeded(io, _) => io,
+        }
+    }
+}
+
+/// Provides soft rotation capabilities for user and group keys
+pub struct PrivateKeyRotationCheckResult {
+    pub rotations_needed: EitherOrBoth<UserId, Vec<GroupId>>,
+}
+
+impl PrivateKeyRotationCheckResult {
+    pub fn user_rotation_needed() -> Option<UserId> {
+        unimplemented!()
+    }
+
+    //    pub fn group_rotation_needed() -> Option<Vec<GroupId>> {
+    //        unimplemented!()
+    //    }
 }
 
 /// Initialize the IronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
@@ -115,6 +150,13 @@ pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
             })
             .ok_or(IronOxideErr::InitializeError)
     })
+}
+
+/// Initialize the IronOxide SDK and check to see if the user that owns this `DeviceContext` is
+/// marked for private key rotation, or if any of the groups that the user is an admin of is marked
+/// for private key rotation.
+pub fn initialize_check_rotation(device_context: &DeviceContext) -> Result<InitAndRotationCheck> {
+    Ok(unimplemented!())
 }
 
 impl IronOxide {

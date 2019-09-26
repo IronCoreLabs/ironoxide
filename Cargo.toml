@@ -22,7 +22,7 @@ rand = "~0.6"
 rand_chacha = "~0.1"
 regex = "~1.1"
 ring = { version= "~0.16", features = ["std"] }
-recrypt = "~0.8.1"
+recrypt = "~0.8.2"
 reqwest = "~0.9"
 tokio = "~0.1"
 hex = "~0.3"

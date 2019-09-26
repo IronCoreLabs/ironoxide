@@ -1,4 +1,7 @@
-use ironoxide::{prelude::*, user::UserVerifyResult};
+use ironoxide::{
+    prelude::*, user::UserVerifyResult, InitAndRotationCheck, IronOxide,
+    PrivateKeyRotationCheckResult,
+};
 use std::convert::TryInto;
 use std::default::Default;
 use uuid::Uuid;
@@ -52,6 +55,10 @@ pub fn init_sdk() -> IronOxide {
 }
 
 pub fn init_sdk_get_user() -> (UserId, IronOxide) {
+    let (u, init_check) = init_sdk_get_init_result();
+    (u, init_check.unwrap())
+}
+pub fn init_sdk_get_init_result() -> (UserId, InitAndRotationCheck) {
     let account_id: UserId = Uuid::new_v4().to_string().try_into().unwrap();
     IronOxide::user_create(
         &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
@@ -90,8 +97,10 @@ pub fn init_sdk_get_user() -> (UserId, IronOxide) {
         users_private_device_key_bytes.try_into().unwrap(),
         users_signing_keys_bytes.try_into().unwrap(),
     );
-
-    (account_id, ironoxide::initialize(&device_init).unwrap())
+    (
+        account_id,
+        ironoxide::initialize_check_rotation(&device_init).unwrap(),
+    )
 }
 
 pub fn create_second_user() -> UserVerifyResult {

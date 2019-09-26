@@ -123,6 +123,9 @@ quick_error! {
             Encrypted Document is DocumentId({}) and SegmentId({})",
             edek_doc_id, edek_segment_id, edoc_doc_id, edoc_segment_id)
         }
+        UserPrivateKeyRotationError(msg: String) {
+            display("User private key rotation failed with '{}'", msg)
+        }
     }
 }
 
@@ -400,6 +403,30 @@ impl<'de> Deserialize<'de> for PrivateKey {
         let s = String::deserialize(deserializer)?;
         let keys_bytes = base64::decode(&s).map_err(|e| Error::custom(e.to_string()))?;
         PrivateKey::try_from(&keys_bytes[..]).map_err(|e| Error::custom(e.to_string()))
+    }
+}
+
+impl PrivateKey {
+    /// Augment this private key with another, producing An AugmentationFactor
+    fn augment(&self, augmenting_key: PrivateKey) -> Option<AugmentationFactor> {
+        use recrypt::Revealed;
+        let zero: RecryptPrivateKey = RecryptPrivateKey::new([0u8; 32]);
+        let augmented_key = self.0.clone() - augmenting_key.0;
+        // TODO might be nice if Revealed could hold a reference
+        if Revealed(augmented_key.clone()) == Revealed(zero) {
+            None
+        } else {
+            Some(AugmentationFactor(augmented_key.into()))
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct AugmentationFactor(PrivateKey);
+
+impl From<AugmentationFactor> for PrivateKey {
+    fn from(aug: AugmentationFactor) -> Self {
+        aug.0
     }
 }
 
@@ -781,5 +808,31 @@ pub(crate) mod test {
             (&proto_pubk.get_x().to_vec(), &proto_pubk.get_y().to_vec())
         );
         Ok(())
+    }
+
+    pub fn gen_priv_key() -> PrivateKey {
+        let recr = recrypt::api::Recrypt::new();
+        let (re_privk, _) = recr.generate_key_pair().unwrap();
+        re_privk.into()
+    }
+
+    #[test]
+    fn private_key_augment_with_self_is_none() {
+        let privk = gen_priv_key();
+
+        let result = privk.augment(privk.clone());
+        assert!(&result.is_none())
+    }
+
+    #[test]
+    fn private_key_augmentation_is_subtraction() {
+        use recrypt::Revealed;
+        let p1 = gen_priv_key();
+        let p2 = gen_priv_key();
+
+        let p3 = (p1.clone().0 - p2.clone().0).into();
+
+        let aug_p = p1.augment(p2);
+        assert_eq!(Revealed((aug_p.unwrap().0).0), Revealed(p3))
     }
 }

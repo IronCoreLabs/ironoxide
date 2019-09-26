@@ -1,6 +1,7 @@
 use crate::{
     crypto::aes::{self, EncryptedMasterKey},
     internal::{rest::IronCoreRequest, *},
+    IronOxide,
 };
 use chrono::{DateTime, Utc};
 use futures::prelude::*;
@@ -241,6 +242,35 @@ pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
         .and_then(|resp| resp.try_into())
 }
 
+pub struct UserPrivateKeyRotationResult;
+
+pub fn user_soft_rotate_key<CR: rand::CryptoRng + rand::RngCore>(
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    passphrase: Password,
+    auth: &RequestAuth,
+) -> Result<UserPrivateKeyRotationResult, IronOxideErr> {
+    get
+
+    // generate the augmentation factor
+    let aug_factor = generate_augmentation_factor()
+    // compute new private key for user
+    // encrypt new private key with passphrase
+    // invoke REST endpoint
+    unimplemented!()
+}
+
+fn generate_augmentation_factor<CO: CryptoOps>(
+    curr_priv_key: &PrivateKey,
+    recrypt: &CO,
+) -> Result<AugmentationFactor, IronOxideErr> {
+    let pt = recrypt.gen_plaintext();
+    let augmenting_key = recrypt.derive_private_key(&pt);
+    let aug_factor = curr_priv_key.augment(augmenting_key.into());
+    aug_factor.ok_or(IronOxideErr::UserPrivateKeyRotationError(
+        "Bad augmentation factor chosen".to_string(),
+    ))
+}
+
 /// Generate a device key for the user specified in the JWT.
 pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -452,6 +482,57 @@ fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::internal::test::gen_priv_key;
+    use recrypt::api::*;
+
+    #[derive(Clone)]
+    struct DummyRecrypt<'a> {
+        underlying: &'a Recrypt<Sha256, Ed25519, RandomBytes<DefaultRng>>,
+        //        plaintext: Option<Plaintext>,
+        private_key: Option<recrypt::api::PrivateKey>,
+    }
+    impl CryptoOps for DummyRecrypt<'_> {
+        fn gen_plaintext(&self) -> Plaintext {
+            //            Plaintext::new([0u8; 384])
+            self.underlying.gen_plaintext()
+        }
+
+        fn derive_symmetric_key(&self, decrypted_value: &Plaintext) -> DerivedSymmetricKey {
+            unimplemented!()
+        }
+
+        fn derive_private_key(&self, plaintext: &Plaintext) -> recrypt::api::PrivateKey {
+            self.clone()
+                .private_key
+                .unwrap_or_else(|| self.underlying.derive_private_key(plaintext))
+        }
+
+        fn encrypt(
+            &self,
+            plaintext: &Plaintext,
+            to_public_key: &recrypt::api::PublicKey,
+            signing_keypair: &SigningKeypair,
+        ) -> Result<EncryptedValue, RecryptErr> {
+            unimplemented!()
+        }
+
+        fn decrypt(
+            &self,
+            encrypted_value: EncryptedValue,
+            private_key: &recrypt::api::PrivateKey,
+        ) -> Result<Plaintext, RecryptErr> {
+            unimplemented!()
+        }
+
+        fn transform(
+            &self,
+            encrypted_value: EncryptedValue,
+            transform_key: recrypt::api::TransformKey,
+            signing_keypair: &SigningKeypair,
+        ) -> Result<EncryptedValue, RecryptErr> {
+            unimplemented!()
+        }
+    }
 
     #[test]
     fn user_id_validate_good() {
@@ -502,5 +583,32 @@ mod test {
             &user_id.unwrap_err(),
             is_variant!(IronOxideErr::ValidationError)
         );
+    }
+
+    #[test]
+    fn private_key_augmentation_aug_key_of_zero() {
+        // if the augmenting key is zero, the private key remains unchanged.
+        let r = DummyRecrypt {
+            underlying: &recrypt::api::Recrypt::new(),
+            private_key: Some(recrypt::api::PrivateKey::new([0u8; 32])),
+        };
+        let priv_key_orig = gen_priv_key();
+        let aug_factor = generate_augmentation_factor(&priv_key_orig.clone().into(), &r).unwrap();
+        assert_eq!(aug_factor.0.as_bytes(), priv_key_orig.as_bytes())
+    }
+
+    #[test]
+    fn private_key_augmentation_result_zero_is_err() {
+        let priv_key_orig = gen_priv_key();
+        let r = DummyRecrypt {
+            underlying: &recrypt::api::Recrypt::new(),
+            private_key: Some(priv_key_orig.clone().into()),
+        };
+        let result = generate_augmentation_factor(&priv_key_orig.clone().into(), &r);
+        assert_that!(&result, is_variant!(Result::Err));
+        assert_that!(
+            &result.unwrap_err(),
+            is_variant!(IronOxideErr::UserPrivateKeyRotationError)
+        )
     }
 }
