@@ -38,6 +38,22 @@ fn user_verify_existing_user() {
 }
 
 #[test]
+fn user_verify_after_create_with_needs_rotation() -> Result<(), IronOxideErr> {
+    let account_id: UserId = Uuid::new_v4().to_string().try_into().unwrap();
+    IronOxide::user_create(
+        &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
+        "foo",
+        &UserCreateOpts::new(true),
+    )?;
+
+    let result =
+        IronOxide::user_verify(&gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0)?;
+    assert_eq!(true, result.is_some());
+    let verify_resp = result.unwrap();
+
+    Ok(assert!(verify_resp.needs_rotation()))
+}
+#[test]
 fn user_create_good_with_devices() {
     let account_id: UserId = Uuid::new_v4().to_string().try_into().unwrap();
     let result = IronOxide::user_create(
