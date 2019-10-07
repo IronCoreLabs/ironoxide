@@ -2,6 +2,7 @@
 //! If it can be defined in API specific file, it should go there to keep this file's
 //! size to a minimum.
 
+use crate::internal::rest::SignatureUrlPath;
 use crate::internal::{
     rest::{Authorization, IronCoreRequest},
     user_api::UserId,
@@ -15,6 +16,7 @@ use recrypt::api::{
     SigningKeypair as RecryptSigningKeypair,
 };
 use regex::Regex;
+use reqwest::{Method, UrlError};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::sync::{Mutex, MutexGuard};
 use std::{
@@ -32,8 +34,9 @@ pub const OUR_REQUEST: IronCoreRequest =
     IronCoreRequest::new("https://api-staging.ironcorelabs.com/api/1/");
 
 #[cfg(not(feature = "senv"))]
-pub const OUR_REQUEST: IronCoreRequest =
-    IronCoreRequest::new("https://api.ironcorelabs.com/api/1/");
+pub const OUR_REQUEST: IronCoreRequest = //TODO REVERT THIS TO POINT BACK TO PROD
+    IronCoreRequest::new("https://api-dev1.ironcorelabs.com/api/1/");
+//IronCoreRequest::new("https://api.ironcorelabs.com/api/1/");
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum RequestErrorCode {
@@ -210,6 +213,29 @@ impl RequestAuth {
             &self.account_id,
             &self.signing_keys,
         )
+    }
+    pub fn create_signature_v2<'a>(
+        &'a self,
+        current_time: DateTime<Utc>,
+        method: Method,
+        percent_encoded_relative_url: &'a str,
+        body: Option<&'a [u8]>,
+    ) -> Result<Authorization<'a>, UrlError> {
+        let full_url = SignatureUrlPath::new(&format!(
+            "{}{}",
+            OUR_REQUEST.base_url(),
+            percent_encoded_relative_url
+        ))?;
+
+        Ok(Authorization::create_signatures_v2(
+            current_time,
+            self.segment_id,
+            &self.account_id,
+            method,
+            full_url,
+            body,
+            &self.signing_keys,
+        ))
     }
 
     pub fn account_id(&self) -> &UserId {
@@ -501,7 +527,7 @@ impl DeviceSigningKeyPair {
 ///     "iat" : issued_time_seconds,
 ///     "exp" : expire_time_seconds,
 ///     "sub" : unique_user_id
-///});
+/// });
 ///
 #[derive(Debug, PartialEq, Serialize, Clone)]
 pub struct Jwt(String);

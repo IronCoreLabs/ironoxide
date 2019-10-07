@@ -18,18 +18,18 @@ use crate::{
 };
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub struct PrivateKey(#[serde(with = "Base64Standard")] pub Vec<u8>);
+pub struct EncryptedPrivateKey(#[serde(with = "Base64Standard")] pub Vec<u8>);
 
-impl From<EncryptedMasterKey> for PrivateKey {
+impl From<EncryptedMasterKey> for EncryptedPrivateKey {
     fn from(enc_master_key: EncryptedMasterKey) -> Self {
-        PrivateKey(enc_master_key.bytes().to_vec())
+        EncryptedPrivateKey(enc_master_key.bytes().to_vec())
     }
 }
 
-impl TryFrom<PrivateKey> for EncryptedMasterKey {
+impl TryFrom<EncryptedPrivateKey> for EncryptedMasterKey {
     type Error = IronOxideErr;
 
-    fn try_from(value: PrivateKey) -> Result<Self, Self::Error> {
+    fn try_from(value: EncryptedPrivateKey) -> Result<Self, Self::Error> {
         EncryptedMasterKey::new_from_slice(&value.0)
     }
 }
@@ -46,7 +46,7 @@ pub mod user_verify {
         pub(crate) id: String,
         status: usize,
         pub(crate) segment_id: usize,
-        pub(crate) user_private_key: PrivateKey,
+        pub(crate) user_private_key: EncryptedPrivateKey,
         pub(crate) user_master_public_key: PublicKey,
         pub(crate) needs_rotation: bool,
     }
@@ -88,7 +88,7 @@ pub mod user_verify {
             let (_, r_pub) = r.generate_key_pair()?;
 
             // private key doesn't go through any validation as we don't return it in the Result
-            let priv_key: PrivateKey = PrivateKey(vec![1u8; 60]);
+            let priv_key: EncryptedPrivateKey = EncryptedPrivateKey(vec![1u8; 60]);
             let pub_key: PublicKey = r_pub.into();
 
             let t_account_id: UserId = UserId::unsafe_from_string("valid_user_id".to_string());
@@ -131,7 +131,7 @@ pub mod user_create {
         id: String,
         status: usize,
         segment_id: usize,
-        pub user_private_key: PrivateKey,
+        pub user_private_key: EncryptedPrivateKey,
         pub user_master_public_key: PublicKey,
         needs_rotation: bool,
     }
@@ -140,14 +140,14 @@ pub mod user_create {
     #[serde(rename_all = "camelCase")]
     struct UserCreateReq {
         user_public_key: PublicKey,
-        user_private_key: PrivateKey,
+        user_private_key: EncryptedPrivateKey,
         needs_rotation: bool,
     }
 
     pub fn user_create(
         jwt: &Jwt,
         user_public_key: PublicKey,
-        encrypted_user_private_key: PrivateKey,
+        encrypted_user_private_key: EncryptedPrivateKey,
         needs_rotation: bool,
         request: IronCoreRequest,
     ) -> impl Future<Item = UserCreateResponse, Error = IronOxideErr> {

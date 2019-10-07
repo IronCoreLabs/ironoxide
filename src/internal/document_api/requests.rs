@@ -190,7 +190,7 @@ pub mod edek_transform {
             "edeks/transform",
             edek_bytes,
             RequestErrorCode::EdekTransform,
-            &auth.create_signature(Utc::now()),
+            &auth,
         )
     }
 

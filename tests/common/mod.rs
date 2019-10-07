@@ -40,7 +40,7 @@ pub fn gen_jwt(
         jwt_header,
         &keypath.to_path_buf(),
         &jwt_payload,
-        frank_jwt::Algorithm::RS256,
+        frank_jwt::Algorithm::ES256, //TODO REVERT THIS FILE BACK TO POINTING AT STAGE
     )
     .expect("You don't appear to have the proper service private key to sign the test JWT.");
     (jwt, format!("{}", sub))
@@ -54,23 +54,22 @@ pub fn init_sdk() -> IronOxide {
 pub fn init_sdk_get_user() -> (UserId, IronOxide) {
     let account_id: UserId = Uuid::new_v4().to_string().try_into().unwrap();
     IronOxide::user_create(
-        &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
+        &gen_jwt(5, "test-segment", 541, Some(account_id.id())).0,
         "foo",
         &Default::default(),
     )
     .unwrap();
 
     let result =
-        IronOxide::user_verify(&gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0)
-            .unwrap();
+        IronOxide::user_verify(&gen_jwt(5, "test-segment", 541, Some(account_id.id())).0).unwrap();
     assert_eq!(true, result.is_some());
     let verify_resp = result.unwrap();
 
     assert_eq!(&account_id, verify_resp.account_id());
-    assert_eq!(2012, verify_resp.segment_id());
+    //    assert_eq!(2012, verify_resp.segment_id());
 
     let device = IronOxide::generate_new_device(
-        &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
+        &gen_jwt(5, "test-segment", 541, Some(account_id.id())).0,
         "foo",
         &Default::default(),
     )
@@ -95,7 +94,7 @@ pub fn init_sdk_get_user() -> (UserId, IronOxide) {
 }
 
 pub fn create_second_user() -> UserVerifyResult {
-    let (jwt, _) = gen_jwt(1012, "test-segment", 551, None);
+    let (jwt, _) = gen_jwt(5, "test-segment", 541, None);
     let create_result = IronOxide::user_create(&jwt, "foo", &Default::default());
     assert!(create_result.is_ok());
 
@@ -107,5 +106,5 @@ pub fn create_second_user() -> UserVerifyResult {
 #[allow(dead_code)]
 // Use this test to print out a JWT and UUID if you need it
 fn non_test_print_jwt() {
-    dbg!(gen_jwt(1012, "test-segment", 551, None));
+    dbg!(gen_jwt(5, "test-segment", 541, None));
 }
