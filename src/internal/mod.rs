@@ -334,6 +334,12 @@ impl From<PublicKey> for crate::proto::transform::PublicKey {
         proto_pub_key
     }
 }
+impl TryFrom<&[u8]> for PublicKey {
+    type Error = IronOxideErr;
+    fn try_from(key_bytes: &[u8]) -> Result<PublicKey, IronOxideErr> {
+        PublicKey::new_from_slice(key_bytes.split_at(RecryptPublicKey::ENCODED_SIZE_BYTES / 2))
+    }
+}
 impl PublicKey {
     fn to_bytes_x_y(&self) -> (Vec<u8>, Vec<u8>) {
         let (x, y) = self.0.bytes_x_y();
@@ -780,6 +786,17 @@ pub(crate) mod test {
             (&pubk.to_bytes_x_y().0, &pubk.to_bytes_x_y().1),
             (&proto_pubk.get_x().to_vec(), &proto_pubk.get_y().to_vec())
         );
+        Ok(())
+    }
+
+    #[test]
+    fn encode_public_key() -> Result<(), IronOxideErr> {
+        let recr = recrypt::api::Recrypt::new();
+        let (_, re_pubk) = recr.generate_key_pair()?;
+        let pubk: PublicKey = re_pubk.into();
+
+        let pubk2: PublicKey = pubk.as_bytes().as_slice().try_into()?;
+        assert_eq!(pubk2, pubk);
         Ok(())
     }
 }
