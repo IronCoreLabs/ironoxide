@@ -166,6 +166,7 @@ pub mod group_list {
 
 pub mod group_create {
     use super::*;
+    use crate::internal::auth_v2::AuthV2Builder;
     use crate::internal::{self, rest::json::EncryptedOnceValue};
     use futures::prelude::*;
     use std::convert::TryFrom;
@@ -213,11 +214,11 @@ pub mod group_create {
                     }),
                 };
 
-                auth.request.post(
+                auth.request.post2(
                     "groups",
                     &req,
                     RequestErrorCode::GroupCreate,
-                    &auth.create_signature(Utc::now()),
+                    AuthV2Builder::new(&auth, Utc::now()),
                 )
             })
     }
@@ -282,6 +283,7 @@ pub mod group_update {
 
 pub mod group_add_member {
     use super::*;
+    use crate::internal::auth_v2::AuthV2Builder;
 
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -303,17 +305,18 @@ pub mod group_add_member {
                 user_master_public_key: pk.into(),
             })
             .collect();
-        auth.request.post(
+        auth.request.post2(
             &format!("groups/{}/users", encoded_id),
             &GroupAddMembersReq { users },
             RequestErrorCode::GroupAddMember,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 }
 
 pub mod group_add_admin {
     use super::*;
+    use crate::internal::auth_v2::AuthV2Builder;
     use futures::prelude::*;
     use std::convert::TryInto;
 
@@ -344,11 +347,11 @@ pub mod group_add_admin {
             .collect::<Result<Vec<GroupAdmin>, IronOxideErr>>();
         users_or_error.into_future().and_then(move |admins| {
             let encoded_id = rest::url_encode(&id.0).to_string();
-            auth.request.post(
+            auth.request.post2(
                 &format!("groups/{}/admins", encoded_id),
                 &GroupAddAdminsReq { admins },
                 RequestErrorCode::GroupAddMember,
-                &auth.create_signature(Utc::now()),
+                AuthV2Builder::new(&auth, Utc::now()),
             )
         })
     }

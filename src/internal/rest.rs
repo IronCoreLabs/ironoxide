@@ -7,7 +7,7 @@ use futures::{stream::Stream, Future};
 use reqwest::{
     header::HeaderMap,
     r#async::{Chunk, Client as RClient},
-    Method, StatusCode, Url,
+    Method, StatusCode, Url, UrlError,
 };
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -156,6 +156,15 @@ impl SignatureUrlPath {
             parsed_url.query().map_or("".into(), query_str_format)
         )))
     }
+
+    //TODO test
+    pub fn from_parts(
+        base_url: &str,
+        percent_encoded_relative_url: &str,
+    ) -> Result<SignatureUrlPath, reqwest::UrlError> {
+        Self::new(format!("{}{}", base_url, percent_encoded_relative_url).as_str())
+    }
+
     fn path(&self) -> &str {
         &self.0
     }
@@ -292,6 +301,35 @@ impl<'a> IronCoreRequest<'a> {
         )
     }
 
+    ///POST body to the resource at relative_url using auth for authorization.
+    ///If the request fails a RequestError will be raised.
+    pub fn post2<A: Serialize, B: DeserializeOwned>(
+        &self,
+        relative_url: &str,
+        body: &A,
+        error_code: RequestErrorCode,
+        auth_b: crate::internal::auth_v2::AuthV2Builder,
+    ) -> impl Future<Item = B, Error = IronOxideErr> {
+        // TODO may be able to use RequestBuilder::build() to make a Request obj that I could get the body out of
+        // TODO if this possible, I may not have to copy the body!
+
+        let body_json_bytes = serde_json::to_vec(body.clone()).unwrap();
+        let auth = auth_b.finish_with(
+            SignatureUrlPath::from_parts(OUR_REQUEST.base_url(), relative_url).unwrap(),
+            Method::POST,
+            Some(&body_json_bytes),
+        );
+
+        self.request2::<A, _, String, _>(
+            relative_url,
+            Method::POST,
+            Some(body),
+            None,
+            error_code,
+            auth,
+            move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
+        )
+    }
     pub fn post_raw<B: DeserializeOwned>(
         &self,
         relative_url: &str,
@@ -309,9 +347,11 @@ impl<'a> IronCoreRequest<'a> {
         //We want to add the body as raw bytes
         builder = builder.body(body.to_vec());
 
-        let auth = req_auth
-            .create_signature_v2(Utc::now(), Method::POST, relative_url, Some(body))
-            .unwrap(); // TODO the reason for this to fail is a bad relative URL :-\
+        let sig_url = SignatureUrlPath::new(
+            format!("{}{}", req_auth.request.base_url(), relative_url).as_str(),
+        )
+        .unwrap(); //TODO unwrap
+        let auth = req_auth.create_signature_v2(Utc::now(), sig_url, Method::POST, Some(body));
         if let Authorization::Version2 {
             user_context,
             request_sig,
@@ -473,6 +513,56 @@ impl<'a> IronCoreRequest<'a> {
 
         let req = builder.headers(DEFAULT_HEADERS.clone()).headers(headers);
         IronCoreRequest::send_req(req, error_code, resp_handler)
+    }
+    ///Make a request to the url using the specified method. DEFAULT_HEADERS will be used as well as whatever headers are passed
+    /// in. The response will be sent to `resp_handler` so the caller can make the received bytes however they want.
+    pub fn request2<A, B, Q, F>(
+        &self,
+        relative_url: &str,
+        method: Method,
+        maybe_body: Option<&A>,
+        maybe_query_params: Option<&Q>,
+        error_code: RequestErrorCode,
+        auth: Authorization,
+        resp_handler: F,
+    ) -> impl Future<Item = B, Error = IronOxideErr>
+    where
+        A: Serialize,
+        B: DeserializeOwned,
+        Q: Serialize + ?Sized,
+        F: FnOnce(&Chunk) -> Result<B, IronOxideErr>,
+    {
+        use futures::future::IntoFuture;
+
+        let client = RClient::new();
+        let mut builder = client.request(
+            method,
+            format!("{}{}", self.base_url, relative_url).as_str(),
+        );
+        // add query params, if any
+        builder = maybe_query_params
+            .iter()
+            .fold(builder, |build, q| build.query(q));
+
+        //We want to add the body as json if it was specified
+        builder = maybe_body
+            .iter()
+            .fold(builder, |build, body| build.json(body));
+        if let Authorization::Version2 {
+            user_context,
+            request_sig,
+        } = &auth
+        {
+            let req = builder
+                .headers(DEFAULT_HEADERS.clone())
+                .headers(auth.to_auth_header())
+                .headers(user_context.to_header())
+                .headers(request_sig.to_header());
+
+            IronCoreRequest::send_req(req, error_code, resp_handler)
+        } else {
+            panic!("") //TODO error message
+        }
     }
 
     fn send_req<B, F>(

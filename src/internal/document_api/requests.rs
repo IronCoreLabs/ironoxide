@@ -205,6 +205,7 @@ pub mod edek_transform {
 
 pub mod document_create {
     use super::*;
+    use crate::internal::auth_v2::AuthV2Builder;
     use crate::internal::document_api::{DocumentName, EncryptedDek};
     use std::convert::TryInto;
 
@@ -249,11 +250,11 @@ pub mod document_create {
                         shared_with: req_grants,
                     },
                 };
-                Box::new(auth.request.post(
+                Box::new(auth.request.post2(
                     "documents",
                     &req,
                     RequestErrorCode::DocumentCreate,
-                    &auth.create_signature(Utc::now()),
+                    AuthV2Builder::new(&auth, Utc::now()),
                 ))
             }
             // the failure case here is that we couldn't convert the recrypt EncryptedValue because
@@ -332,7 +333,10 @@ pub mod document_update {
 
 pub mod document_access {
     use super::*;
+    use crate::internal::auth_v2::AuthV2Builder;
     use crate::internal::document_api::{requests::document_access::resp::*, UserOrGroup, WithKey};
+    use crate::internal::rest::url_encode;
+    use percent_encoding::utf8_percent_encode;
     use std::convert::TryInto;
 
     pub mod resp {
@@ -447,11 +451,11 @@ pub mod document_access {
                     from_public_key: from_pub_key.clone().into(),
                     to: req_grants,
                 };
-                Box::new(auth.request.post(
+                Box::new(auth.request.post2(
                     &format!("documents/{}/access", id.0),
                     &req,
                     RequestErrorCode::DocumentGrantAccess,
-                    &auth.create_signature(Utc::now()),
+                    AuthV2Builder::new(&auth, Utc::now()),
                 ))
             }
             // the failure case here is that we couldn't convert the recrypt EncryptedValue because

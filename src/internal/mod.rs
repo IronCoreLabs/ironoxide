@@ -192,6 +192,34 @@ pub fn validate_name(name: &str, name_type: &str) -> Result<String, IronOxideErr
     }
 }
 
+pub mod auth_v2 {
+    use super::*;
+
+    pub struct AuthV2Builder<'a> {
+        pub(in crate::internal::auth_v2) req_auth: &'a RequestAuth,
+        pub(in crate::internal::auth_v2) timestamp: DateTime<Utc>,
+    }
+
+    impl<'a> AuthV2Builder<'a> {
+        pub fn new(req_auth: &'a RequestAuth, timestamp: DateTime<Utc>) -> AuthV2Builder {
+            AuthV2Builder {
+                req_auth,
+                timestamp,
+            }
+        }
+
+        pub fn finish_with(
+            self,
+            sig_url: SignatureUrlPath,
+            method: Method,
+            body_bytes: Option<&'a [u8]>,
+        ) -> Authorization<'a> {
+            self.req_auth
+                .create_signature_v2(self.timestamp, sig_url, method, body_bytes)
+        }
+    }
+}
+
 ///Structure that contains all the info needed to make a signed API request from a device.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RequestAuth {
@@ -214,28 +242,23 @@ impl RequestAuth {
             &self.signing_keys,
         )
     }
+
     pub fn create_signature_v2<'a>(
         &'a self,
         current_time: DateTime<Utc>,
+        sig_url: SignatureUrlPath,
         method: Method,
-        percent_encoded_relative_url: &'a str,
         body: Option<&'a [u8]>,
-    ) -> Result<Authorization<'a>, UrlError> {
-        let full_url = SignatureUrlPath::new(&format!(
-            "{}{}",
-            OUR_REQUEST.base_url(),
-            percent_encoded_relative_url
-        ))?;
-
-        Ok(Authorization::create_signatures_v2(
+    ) -> Authorization<'a> {
+        Authorization::create_signatures_v2(
             current_time,
             self.segment_id,
             &self.account_id,
             method,
-            full_url,
+            sig_url,
             body,
             &self.signing_keys,
-        ))
+        )
     }
 
     pub fn account_id(&self) -> &UserId {
