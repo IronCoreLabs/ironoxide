@@ -261,6 +261,7 @@ pub mod group_delete {
 
 pub mod group_update {
     use super::*;
+    use crate::internal::auth_v2::AuthV2Builder;
 
     #[derive(Serialize, Debug, Clone, PartialEq)]
     struct GroupUpdateRequest<'a> {
@@ -276,7 +277,7 @@ pub mod group_update {
             &format!("groups/{}", rest::url_encode(&id.0)),
             &GroupUpdateRequest { name },
             RequestErrorCode::GroupUpdate,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 }

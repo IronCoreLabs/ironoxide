@@ -311,6 +311,7 @@ pub mod policy_get {
 
 pub mod document_update {
     use super::*;
+    use crate::internal::auth_v2::AuthV2Builder;
 
     #[derive(Serialize, Debug, Clone, PartialEq)]
     struct DocumentUpdateRequest<'a> {
@@ -326,7 +327,7 @@ pub mod document_update {
             &format!("documents/{}", rest::url_encode(&id.0)),
             &DocumentUpdateRequest { name },
             RequestErrorCode::DocumentUpdate,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 }

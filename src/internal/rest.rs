@@ -11,11 +11,14 @@ use reqwest::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 
+use crate::internal::auth_v2::AuthV2Builder;
 use crate::internal::rest::json::Base64Standard;
 use crate::internal::{
     user_api::UserId, DeviceSigningKeyPair, IronOxideErr, Jwt, RequestAuth, RequestErrorCode,
     OUR_REQUEST,
 };
+use crate::IronOxide;
+use futures::IntoFuture;
 use reqwest::r#async::RequestBuilder;
 use std::convert::TryFrom;
 
@@ -326,7 +329,7 @@ impl<'a> IronCoreRequest<'a> {
             Some(body),
             None,
             error_code,
-            auth,
+            &auth,
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
     }
@@ -362,7 +365,6 @@ impl<'a> IronCoreRequest<'a> {
                 .headers(auth.to_auth_header())
                 .headers(user_context.to_header())
                 .headers(request_sig.to_header());
-            dbg!(&req);
             IronCoreRequest::send_req(req, error_code.clone(), move |server_resp| {
                 IronCoreRequest::deserialize_body(server_resp, error_code.clone())
             })
@@ -378,15 +380,22 @@ impl<'a> IronCoreRequest<'a> {
         relative_url: &str,
         body: &A,
         error_code: RequestErrorCode,
-        auth: &Authorization,
+        auth_b: AuthV2Builder,
     ) -> impl Future<Item = B, Error = IronOxideErr> {
-        self.request::<A, _, String, _>(
+        let body_json_bytes = serde_json::to_vec(body.clone()).unwrap();
+        let auth = auth_b.finish_with(
+            SignatureUrlPath::from_parts(OUR_REQUEST.base_url(), relative_url).unwrap(),
+            Method::PUT,
+            Some(&body_json_bytes),
+        );
+
+        self.request2::<A, _, String, _>(
             relative_url,
             Method::PUT,
             Some(body),
             None,
             error_code,
-            auth.to_auth_header(),
+            &auth,
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
     }
@@ -523,7 +532,7 @@ impl<'a> IronCoreRequest<'a> {
         maybe_body: Option<&A>,
         maybe_query_params: Option<&Q>,
         error_code: RequestErrorCode,
-        auth: Authorization,
+        auth: &Authorization,
         resp_handler: F,
     ) -> impl Future<Item = B, Error = IronOxideErr>
     where
@@ -551,7 +560,7 @@ impl<'a> IronCoreRequest<'a> {
         if let Authorization::Version2 {
             user_context,
             request_sig,
-        } = &auth
+        } = auth
         {
             let req = builder
                 .headers(DEFAULT_HEADERS.clone())
@@ -685,6 +694,20 @@ impl<'a> IronCoreRequest<'a> {
             code: error_code,
             http_status: status_code.map(|s| s.as_u16()),
         }
+    }
+}
+
+//TODO
+impl From<serde_json::Error> for IronOxideErr {
+    fn from(_: serde_json::Error) -> Self {
+        unimplemented!()
+    }
+}
+
+//TODO
+impl From<reqwest::UrlError> for IronOxideErr {
+    fn from(_: reqwest::UrlError) -> Self {
+        unimplemented!()
     }
 }
 
