@@ -29,7 +29,7 @@ pub enum GroupEntity {
 #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Clone)]
 pub struct GroupId(pub(crate) String);
 impl GroupId {
-    pub fn id(&self) -> &String {
+    pub fn id(&self) -> &str {
         &self.0
     }
 

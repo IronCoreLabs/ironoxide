@@ -16,6 +16,8 @@ use futures::Future;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 
+use crate::internal::auth_v2::AuthV2Builder;
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Association {
     #[serde(rename = "type")]
@@ -159,7 +161,7 @@ pub mod document_list {
         auth.request.get(
             "documents",
             RequestErrorCode::DocumentList,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 }
@@ -174,7 +176,7 @@ pub mod document_get {
         auth.request.get(
             &format!("documents/{}", rest::url_encode(&id.0)),
             RequestErrorCode::DocumentGet,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 }
@@ -303,7 +305,7 @@ pub mod policy_get {
             "policies",
             &query_params,
             RequestErrorCode::PolicyGet,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 
@@ -311,7 +313,6 @@ pub mod policy_get {
 
 pub mod document_update {
     use super::*;
-    use crate::internal::auth_v2::AuthV2Builder;
 
     #[derive(Serialize, Debug, Clone, PartialEq)]
     struct DocumentUpdateRequest<'a> {

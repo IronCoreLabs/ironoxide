@@ -17,6 +17,7 @@ use crate::{
     },
 };
 
+use crate::internal::auth_v2::AuthV2Builder;
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct EncryptedPrivateKey(#[serde(with = "Base64Standard")] pub Vec<u8>);
 
@@ -156,7 +157,7 @@ pub mod user_create {
             user_public_key,
             needs_rotation,
         };
-        request.post(
+        request.post_jwt_auth(
             "users",
             &req_body,
             RequestErrorCode::UserCreate,
@@ -194,12 +195,12 @@ pub mod user_key_list {
         auth: &RequestAuth,
         users: &Vec<UserId>,
     ) -> impl Future<Item = UserKeyListResponse, Error = IronOxideErr> {
-        let encoded_user_ids: Vec<_> = users.iter().map(|user| rest::url_encode(&user.0)).collect();
+        let user_ids: Vec<&str> = users.iter().map(|user| user.id()).collect();
 
         auth.request.get(
-            &format!("users?id={}", encoded_user_ids.join(",")),
+            &format!("users?id={}", rest::url_encode(&user_ids.join(","))),
             RequestErrorCode::UserKeyList,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 }
@@ -253,7 +254,7 @@ pub mod device_add {
                 name: name.clone(),
             },
         };
-        request.post(
+        request.post_jwt_auth(
             "users/devices",
             &req_body,
             RequestErrorCode::UserDeviceAdd,
@@ -291,7 +292,7 @@ pub mod device_list {
         auth.request.get(
             &format!("users/{}/devices", rest::url_encode(&auth.account_id().0)),
             RequestErrorCode::UserDeviceList,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 

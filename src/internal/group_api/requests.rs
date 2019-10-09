@@ -13,6 +13,8 @@ use std::{
     convert::{TryFrom, TryInto},
 };
 
+use crate::internal::auth_v2::AuthV2Builder;
+
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum Permission {
@@ -143,7 +145,7 @@ pub mod group_list {
         Box::new(auth.request.get(
             "groups",
             RequestErrorCode::GroupList,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         ))
     }
 
@@ -152,14 +154,11 @@ pub mod group_list {
         auth: &RequestAuth,
         groups: &Vec<GroupId>,
     ) -> Box<dyn Future<Item = GroupListResponse, Error = IronOxideErr>> {
-        let encoded_group_ids: Vec<_> = groups
-            .iter()
-            .map(|group| rest::url_encode(&group.0))
-            .collect();
+        let group_ids: Vec<&str> = groups.iter().map(|group| group.id()).collect();
         Box::new(auth.request.get(
-            &format!("groups?id={}", encoded_group_ids.join(",")),
+            &format!("groups?id={}", rest::url_encode(&group_ids.join(","))),
             RequestErrorCode::GroupList,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         ))
     }
 }
@@ -234,7 +233,7 @@ pub mod group_get {
         auth.request.get(
             &format!("groups/{}", rest::url_encode(&id.0)),
             RequestErrorCode::GroupGet,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 }

@@ -44,7 +44,9 @@ pub struct ServerError {
 
 ///URL encode the provided string so it can be used within a URL
 pub fn url_encode(token: &str) -> String {
-    percent_encoding::utf8_percent_encode(token, percent_encoding::USERINFO_ENCODE_SET).to_string()
+    percent_encoding::utf8_percent_encode(token, percent_encoding::USERINFO_ENCODE_SET)
+        .to_string()
+        .replace(",", "%2C") //TODO workaround for what web-service currently expects, but not sure it's right
 }
 
 ///Enum representing all the ways that authorization can be done for the IronCoreRequest.
@@ -233,16 +235,9 @@ impl<'a> HeaderIronCoreRequestSig<'a> {
                 &ironcore_user_context.payload(),
                 &method,
                 url.path(),
-            )
-            .into_bytes();
-            let other_bytes = [
-                format!("{}", &ironcore_user_context.payload()).into_bytes(),
-                format!("{}", &method).into_bytes(),
-                format!("{}", url.path()).into_bytes(),
-            ]
-            .concat();
-            assert_eq!(&bytes, &other_bytes);
-            bytes
+            );
+            dbg!(&bytes);
+            bytes.into_bytes()
         };
 
         body.map_or_else(maybe_partial_bytes, |body_bytes| {
@@ -286,7 +281,7 @@ impl<'a> IronCoreRequest<'a> {
 
     ///POST body to the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
-    pub fn post<A: Serialize, B: DeserializeOwned>(
+    pub fn post_jwt_auth<A: Serialize, B: DeserializeOwned>(
         &self,
         relative_url: &str,
         body: &A,
@@ -406,16 +401,22 @@ impl<'a> IronCoreRequest<'a> {
         &self,
         relative_url: &str,
         error_code: RequestErrorCode,
-        auth: &Authorization,
+        auth_b: AuthV2Builder,
     ) -> impl Future<Item = A, Error = IronOxideErr> {
+        dbg!(&relative_url);
+        let auth = auth_b.finish_with(
+            SignatureUrlPath::from_parts(OUR_REQUEST.base_url(), relative_url).unwrap(),
+            Method::GET,
+            None,
+        );
         //A little lie here, String isn't actually the body type as it's unused
-        self.request::<String, _, String, _>(
+        self.request2::<String, _, String, _>(
             relative_url,
             Method::GET,
             None,
             None,
             error_code,
-            auth.to_auth_header(),
+            &auth,
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
     }
@@ -427,16 +428,22 @@ impl<'a> IronCoreRequest<'a> {
         relative_url: &str,
         query_params: &[(String, String)],
         error_code: RequestErrorCode,
-        auth: &Authorization,
+        auth_b: AuthV2Builder,
     ) -> impl Future<Item = A, Error = IronOxideErr> {
+        let auth = auth_b.finish_with(
+            SignatureUrlPath::from_parts(OUR_REQUEST.base_url(), relative_url).unwrap(),
+            Method::GET,
+            None,
+        );
+
         //A little lie here, String isn't actually the body type as it's unused
-        self.request::<String, _, [(String, String)], _>(
+        self.request2::<String, _, [(String, String)], _>(
             relative_url,
             Method::GET,
             None,
             Some(query_params),
             error_code,
-            auth.to_auth_header(),
+            &auth,
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
     }
@@ -567,7 +574,7 @@ impl<'a> IronCoreRequest<'a> {
                 .headers(auth.to_auth_header())
                 .headers(user_context.to_header())
                 .headers(request_sig.to_header());
-
+            dbg!(&req);
             IronCoreRequest::send_req(req, error_code, resp_handler)
         } else {
             panic!("") //TODO error message
