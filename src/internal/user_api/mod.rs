@@ -84,24 +84,14 @@ impl TryFrom<&str> for DeviceName {
 
 /// Keypair for a newly created user
 #[derive(Debug)]
-pub struct UserCreateKeyPair {
-    // user's private key encrypted with the provided passphrase
-    user_encrypted_master_key: EncryptedMasterKey,
+pub struct UserCreateResult {
     user_public_key: PublicKey,
     // does the private key of this key pair need to be rotated?
     needs_rotation: bool,
 }
 
-impl UserCreateKeyPair {
+impl UserCreateResult {
     /// user's private key encrypted with the provided passphrase
-    pub fn user_encrypted_master_key(&self) -> &EncryptedMasterKey {
-        &self.user_encrypted_master_key
-    }
-
-    pub fn user_encrypted_master_key_bytes(&self) -> [u8; 92] {
-        self.user_encrypted_master_key.bytes()
-    }
-
     pub fn user_public_key(&self) -> &PublicKey {
         &self.user_public_key
     }
@@ -221,7 +211,7 @@ pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
     passphrase: Password,
     needs_rotation: bool,
     request: IronCoreRequest<'static>,
-) -> impl Future<Item = UserCreateKeyPair, Error = IronOxideErr> {
+) -> impl Future<Item = UserCreateResult, Error = IronOxideErr> {
     recrypt
         .generate_key_pair()
         .map_err(IronOxideErr::from)
