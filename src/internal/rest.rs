@@ -6,8 +6,8 @@ use chrono::{DateTime, Utc};
 use futures::{stream::Stream, Future};
 use reqwest::{
     header::HeaderMap,
-    r#async::{Chunk, Client as RClient},
-    Method, StatusCode, Url, UrlError,
+    r#async::{Chunk, Client as RClient, Request as ARequest},
+    Method, Request, StatusCode, Url, UrlError,
 };
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -19,8 +19,11 @@ use crate::internal::{
 };
 use crate::IronOxide;
 use futures::IntoFuture;
+use itertools::Itertools;
+use reqwest::header::{HeaderValue, CONTENT_TYPE};
 use reqwest::r#async::RequestBuilder;
 use std::convert::TryFrom;
+use std::ops::Deref;
 
 lazy_static! {
     static ref DEFAULT_HEADERS: HeaderMap = {
@@ -430,20 +433,20 @@ impl<'a> IronCoreRequest<'a> {
         error_code: RequestErrorCode,
         auth_b: AuthV2Builder,
     ) -> impl Future<Item = A, Error = IronOxideErr> {
-        let auth = auth_b.finish_with(
-            SignatureUrlPath::from_parts(OUR_REQUEST.base_url(), relative_url).unwrap(),
-            Method::GET,
-            None,
-        );
+        //        let auth = auth_b.finish_with(
+        //            SignatureUrlPath::from_parts(OUR_REQUEST.base_url(), relative_url).unwrap(),
+        //            Method::GET,
+        //            None,
+        //        );
 
         //A little lie here, String isn't actually the body type as it's unused
-        self.request2::<String, _, [(String, String)], _>(
+        self.request3::<String, _, [(String, String)], _>(
             relative_url,
             Method::GET,
             None,
             Some(query_params),
             error_code,
-            &auth,
+            auth_b,
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
     }
@@ -530,6 +533,185 @@ impl<'a> IronCoreRequest<'a> {
         let req = builder.headers(DEFAULT_HEADERS.clone()).headers(headers);
         IronCoreRequest::send_req(req, error_code, resp_handler)
     }
+
+    ///Make a request to the url using the specified method. DEFAULT_HEADERS will be used as well as whatever headers are passed
+    /// in. The response will be sent to `resp_handler` so the caller can make the received bytes however they want.
+    pub fn request3<A, B, Q, F>(
+        &self,
+        relative_url: &str,
+        method: Method,
+        maybe_body: Option<&A>,
+        maybe_query_params: Option<&Q>,
+        error_code: RequestErrorCode,
+        auth_b: AuthV2Builder,
+        resp_handler: F,
+    ) -> impl Future<Item = B, Error = IronOxideErr>
+    where
+        A: Serialize,
+        B: DeserializeOwned,
+        Q: Serialize + ?Sized,
+        F: FnOnce(&Chunk) -> Result<B, IronOxideErr>,
+    {
+        use futures::future::IntoFuture;
+        use publicsuffix::IntoUrl;
+        let client = RClient::new();
+        //        let mut builder = client.request(
+        //            method.clone(),
+        //            format!("{}{}", self.base_url, relative_url).as_str(),
+        //        );
+
+        // BEGIN
+        //        // add query params, if any
+        //        builder = maybe_query_params
+        //            .iter()
+        //            .fold(builder, |build, q| build.query(q));
+        //
+        //        //We want to add the body as json if it was specified
+        //        builder = maybe_body
+        //            .iter()
+        //            .fold(builder, |build, body| build.json(body));
+        //
+        //        //        let req_no_headers = builder.build();
+
+        // END
+        //
+
+        // build up a request...
+        let mut req = ARequest::new(
+            method,
+            format!("{}{}", self.base_url(), relative_url)
+                .into_url()
+                .unwrap(),
+        );
+
+        // add query params
+        if let Some(query) = maybe_query_params {
+            //side-effect to the stars!
+            let url = req.url_mut();
+            let mut pairs = url.query_pairs_mut();
+            let serializer = serde_urlencoded::Serializer::new(&mut pairs);
+            query.serialize(serializer);
+            //            if let Err(err) = query.serialize(serializer) {
+            //                error = Some(::error::from(err));
+            //            }
+        }
+
+        // add the body
+        if let Some(json_se) = maybe_body {
+            match serde_json::to_vec(json_se) {
+                Ok(body) => {
+                    req.headers_mut()
+                        .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+                    *req.body_mut() = Some(body.into());
+                }
+                Err(err) => panic!(), //error = Some(::error::from(err)),
+            }
+        }
+
+        fn replace_headers(dst: &mut HeaderMap, src: HeaderMap) {
+            // IntoIter of HeaderMap yields (Option<HeaderName>, HeaderValue).
+            // The first time a name is yielded, it will be Some(name), and if
+            // there are more values with the same name, the next yield will be
+            // None.
+            //
+            // TODO: a complex exercise would be to optimize this to only
+            // require 1 hash/lookup of the key, but doing something fancy
+            // with header::Entry...
+
+            let mut prev_name = None;
+            for (key, value) in src {
+                match key {
+                    Some(key) => {
+                        dst.insert(key.clone(), value);
+                        prev_name = Some(key);
+                    }
+                    None => match prev_name {
+                        Some(ref key) => {
+                            dst.append(key.clone(), value);
+                        }
+                        None => unreachable!("HeaderMap::into_iter yielded None first"),
+                    },
+                }
+            }
+        }
+
+        // use the completed request to finish authorization v2 headers
+        let auth = auth_b.finish_with(
+            SignatureUrlPath::new(req.url().as_str()).unwrap(),
+            req.method().clone(),
+            None, //TODO
+        );
+
+        // we only support Authorization::Version2 with this call
+        if let Authorization::Version2 {
+            user_context,
+            request_sig,
+        } = &auth
+        {
+            replace_headers(req.headers_mut(), DEFAULT_HEADERS.clone());
+            replace_headers(req.headers_mut(), auth.to_auth_header());
+            replace_headers(req.headers_mut(), user_context.to_header());
+            replace_headers(req.headers_mut(), request_sig.to_header());
+            //                        IronCoreRequest::send_req(, error_code, resp_handler)
+            client
+                .execute(req)
+                //Parse the body content into bytes
+                .and_then(|res| {
+                    let status_code = res.status();
+                    res.into_body()
+                        .concat2()
+                        .map(move |body| (status_code, body))
+                })
+                //Now make the error type into the IronOxideErr and run the resp_handler which was passed to us.
+                .then(move |resp| {
+                    //Map the generic error from reqwest to our error type.
+                    let (status, server_resp) = resp.map_err(|err| {
+                        IronCoreRequest::create_request_err(
+                            err.to_string(),
+                            error_code,
+                            err.status(),
+                        )
+                    })?;
+                    //If the status code is a 5xx, return a fixed error code message
+                    if status.is_server_error() || status.is_client_error() {
+                        Err(IronCoreRequest::request_failure_to_error(
+                            status,
+                            error_code,
+                            &server_resp,
+                        ))
+                    } else {
+                        resp_handler(&server_resp)
+                    }
+                })
+        } else {
+            panic!()
+        }
+        //        req_no_headers.unwrap().body().map_or(None, )
+        //        let body_bytes: Option<&[u8]> =
+        //            maybe_body.and_then(|b| Some(serde_json::to_vec(b.clone()).unwrap().as_slice()));
+        //        let auth = auth_b.finish_with(
+        //            SignatureUrlPath::new(req_no_headers.unwrap().url().as_str()).unwrap(),
+        //            method,
+        //            body_bytes,
+        //        );
+
+        //        if let Authorization::Version2 {
+        //            user_context,
+        //            request_sig,
+        //        } = auth
+        //        {
+        //            let req = builder
+        //                .headers(DEFAULT_HEADERS.clone())
+        //                .headers(auth.to_auth_header())
+        //                .headers(user_context.to_header())
+        //                .headers(request_sig.to_header());
+        //            dbg!(&req);
+        //            IronCoreRequest::send_req(req, error_code, resp_handler)
+        //        } else {
+        //            panic!("") //TODO error message
+        //        }
+    }
+
     ///Make a request to the url using the specified method. DEFAULT_HEADERS will be used as well as whatever headers are passed
     /// in. The response will be sent to `resp_handler` so the caller can make the received bytes however they want.
     pub fn request2<A, B, Q, F>(
@@ -1215,5 +1397,4 @@ mod tests {
         let maybe_path = SignatureUrlPath::new("documents/some-doc-id");
         assert_that!(&maybe_path, is_variant!(Result::Err));
     }
-
 }
