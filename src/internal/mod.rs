@@ -337,7 +337,14 @@ impl From<PublicKey> for crate::proto::transform::PublicKey {
 impl TryFrom<&[u8]> for PublicKey {
     type Error = IronOxideErr;
     fn try_from(key_bytes: &[u8]) -> Result<PublicKey, IronOxideErr> {
-        PublicKey::new_from_slice(key_bytes.split_at(RecryptPublicKey::ENCODED_SIZE_BYTES / 2))
+        if key_bytes.len() == RecryptPublicKey::ENCODED_SIZE_BYTES {
+            PublicKey::new_from_slice(key_bytes.split_at(RecryptPublicKey::ENCODED_SIZE_BYTES / 2))
+        } else {
+            Err(IronOxideErr::WrongSizeError(
+                Some(RecryptPublicKey::ENCODED_SIZE_BYTES),
+                Some(key_bytes.len()),
+            ))
+        }
     }
 }
 impl PublicKey {
@@ -790,13 +797,19 @@ pub(crate) mod test {
     }
 
     #[test]
-    fn encode_public_key() -> Result<(), IronOxideErr> {
+    fn public_key_try_from_slice() -> Result<(), IronOxideErr> {
         let recr = recrypt::api::Recrypt::new();
         let (_, re_pubk) = recr.generate_key_pair()?;
         let pubk: PublicKey = re_pubk.into();
-
         let pubk2: PublicKey = pubk.as_bytes().as_slice().try_into()?;
-        assert_eq!(pubk2, pubk);
+        assert_eq!(pubk, pubk2);
         Ok(())
+    }
+
+    #[test]
+    fn public_key_try_from_slice_invalid() {
+        let bytes = [1u8; 8];
+        let maybe_public_key: Result<PublicKey, IronOxideErr> = bytes[..].try_into();
+        assert!(maybe_public_key.is_err())
     }
 }

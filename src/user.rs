@@ -1,5 +1,5 @@
 pub use crate::internal::user_api::{
-    UserCreateKeyPair, UserDevice, UserDeviceListResult, UserId, UserVerifyResult,
+    UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserVerifyResult,
 };
 use crate::{
     internal::{
@@ -64,14 +64,14 @@ pub trait UserOps {
     /// - `password` - Password used to encrypt and escrow the user's private master key
     /// - `user_create_opts` - see [`UserCreateOpts`](struct.UserCreateOpts.html)
     /// # Returns
-    /// Newly generated `UserCreateKeyPair` or Err. For most use cases this key pair can
+    /// Newly generated `UserCreateResult` or Err. For most use cases, this public key can
     /// be discarded as IronCore escrows your user's keys. The escrowed keys are unlocked
     /// by the provided password.
     fn user_create(
         jwt: &str,
         password: &str,
         user_create_opts: &UserCreateOpts,
-    ) -> Result<UserCreateKeyPair>;
+    ) -> Result<UserCreateResult>;
 
     /// Get all the devices for the current user
     ///
@@ -134,7 +134,7 @@ impl UserOps for IronOxide {
         jwt: &str,
         password: &str,
         user_create_opts: &UserCreateOpts,
-    ) -> Result<UserCreateKeyPair> {
+    ) -> Result<UserCreateResult> {
         let recrypt = Recrypt::new();
         let mut rt = Runtime::new().unwrap();
         rt.block_on(user_api::user_create(
