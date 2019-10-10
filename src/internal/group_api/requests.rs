@@ -253,7 +253,7 @@ pub mod group_delete {
         auth.request.delete_with_no_body(
             &format!("groups/{}", rest::url_encode(&id.0)),
             RequestErrorCode::GroupDelete,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 }
@@ -395,7 +395,7 @@ pub mod group_remove_entity {
                 users: removed_users,
             },
             error_code,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 }
@@ -439,5 +439,4 @@ mod tests {
         let de_result = serde_json::from_str(&result).unwrap();
         assert_eq!(item, de_result)
     }
-
 }

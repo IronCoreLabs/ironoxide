@@ -202,7 +202,6 @@ pub mod edek_transform {
         pub(in crate::internal::document_api) user_or_group: UserOrGroup,
         pub(in crate::internal::document_api) encrypted_symmetric_key: TransformedEncryptedValue,
     }
-
 }
 
 pub mod document_create {
@@ -308,7 +307,6 @@ pub mod policy_get {
             AuthV2Builder::new(&auth, Utc::now()),
         )
     }
-
 }
 
 pub mod document_update {
@@ -337,8 +335,6 @@ pub mod document_access {
     use super::*;
     use crate::internal::auth_v2::AuthV2Builder;
     use crate::internal::document_api::{requests::document_access::resp::*, UserOrGroup, WithKey};
-    use crate::internal::rest::url_encode;
-    use percent_encoding::utf8_percent_encode;
     use std::convert::TryInto;
 
     pub mod resp {
@@ -477,7 +473,7 @@ pub mod document_access {
                 user_or_groups: revoke_list,
             },
             RequestErrorCode::DocumentRevokeAccess,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 }

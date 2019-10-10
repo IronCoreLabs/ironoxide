@@ -16,7 +16,7 @@ use recrypt::api::{
     SigningKeypair as RecryptSigningKeypair,
 };
 use regex::Regex;
-use reqwest::{Method, UrlError};
+use reqwest::Method;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::sync::{Mutex, MutexGuard};
 use std::{
@@ -234,15 +234,6 @@ pub struct RequestAuth {
 }
 
 impl RequestAuth {
-    pub fn create_signature(&self, current_time: DateTime<Utc>) -> Authorization {
-        Authorization::create_message_signature_v1(
-            current_time,
-            self.segment_id,
-            &self.account_id,
-            &self.signing_keys,
-        )
-    }
-
     pub fn create_signature_v2<'a>(
         &'a self,
         current_time: DateTime<Utc>,

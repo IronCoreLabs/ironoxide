@@ -329,7 +329,7 @@ pub mod device_delete {
                 device_id.0
             ),
             RequestErrorCode::UserDeviceDelete,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         ))
     }
 
@@ -342,7 +342,7 @@ pub mod device_delete {
                 rest::url_encode(&auth.account_id().0)
             ),
             RequestErrorCode::UserDeviceDelete,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         ))
     }
 }
