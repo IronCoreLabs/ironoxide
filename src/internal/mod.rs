@@ -225,7 +225,7 @@ impl RequestAuth {
     }
 }
 
-/// Accounts device context. Needed to initialize the Sdk with a set of device keys. See `IronOxide.initialize()`
+/// Account's device context. Needed to initialize the Sdk with a set of device keys. See `IronOxide.initialize()`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceContext {
     auth: RequestAuth,

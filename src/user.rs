@@ -116,7 +116,7 @@ pub trait UserOps {
     /// - `jwt` - Valid IronCore JWT
     ///
     /// # Returns
-    /// Option of whether the users account record exists in the IronCore system or not. Err if the request couldn't be made.
+    /// Option of whether the user's account record exists in the IronCore system or not. Err if the request couldn't be made.
     fn user_verify(jwt: &str) -> Result<Option<UserVerifyResult>>;
 
     /// Get a list of user public keys given their IDs. Allows discovery of which user IDs have keys in the
