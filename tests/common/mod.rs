@@ -77,14 +77,16 @@ pub fn init_sdk_get_user() -> (UserId, IronOxide) {
     .unwrap();
 
     //Manually unwrap all of these types and rewrap them just to prove that we can construct the DeviceContext
-    //from it's raw parts as part of the exposed SDK
+    //from its raw parts as part of the exposed SDK
 
     let users_account_id = device.account_id().id();
     let users_segment_id = device.segment_id();
+    let users_device_id = *device.device_id().id(); //TODO: Should I be doing this differently? I don't have TryFrom<&u64>
     let users_private_device_key_bytes = &device.private_device_key().as_bytes()[..];
     let users_signing_keys_bytes = &device.signing_keys().as_bytes()[..];
 
     let device_init = DeviceContext::new(
+        users_device_id.try_into().unwrap(),
         users_account_id.try_into().unwrap(),
         users_segment_id,
         users_private_device_key_bytes.try_into().unwrap(),

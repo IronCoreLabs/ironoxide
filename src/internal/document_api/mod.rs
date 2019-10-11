@@ -547,7 +547,7 @@ pub fn encrypt_document<
         ))
         .and_then(move |(encrypted_doc, (grants, key_errs))| {
             recrypt_document(
-                &auth.signing_keys,
+                &auth.signing_private_key,
                 recrypt,
                 dek,
                 encrypted_doc,
@@ -661,7 +661,7 @@ where
         .and_then(move |(encryption_result, (grants, key_errs))| {
             Ok({
                 let r = recrypt_document(
-                    &auth.signing_keys,
+                    &auth.signing_private_key,
                     recrypt,
                     dek,
                     encryption_result,
@@ -1700,6 +1700,7 @@ mod tests {
         let aes_value = AesEncryptedValue::try_from(&[42u8; 32][..])?;
         let uid = UserId::unsafe_from_string("userid".into());
         let gid = GroupId::unsafe_from_string("groupid".into());
+        let did = TryFrom::try_from(1).unwrap();
         let user: UserOrGroup = uid.borrow().into();
         let group: UserOrGroup = gid.borrow().into();
         let (priv_key, pubk) = recr.generate_key_pair()?;
@@ -1726,9 +1727,10 @@ mod tests {
             encryption_result.into_edoc(DocumentHeader::new(DocumentId("other_docid".into()), 99));
 
         let auth = RequestAuth {
+            device_id: did,
             account_id: uid,
             segment_id: seg_id,
-            signing_keys: signingkeys,
+            signing_private_key: signingkeys,
             request: IronCoreRequest::default(),
         };
 
