@@ -191,7 +191,7 @@ impl GroupOps for crate::IronOxide {
         rt.block_on(group_api::group_add_members(
             &self.recrypt,
             self.device.auth(),
-            self.device.private_device_key(),
+            self.device.device_private_key(),
             id,
             &grant_list.to_vec(),
         ))
@@ -216,7 +216,7 @@ impl GroupOps for crate::IronOxide {
         rt.block_on(group_api::group_add_admins(
             &self.recrypt,
             self.device.auth(),
-            self.device.private_device_key(),
+            self.device.device_private_key(),
             id,
             &users.to_vec(),
         ))

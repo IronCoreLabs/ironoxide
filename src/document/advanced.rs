@@ -94,7 +94,7 @@ impl DocumentAdvancedOps for crate::IronOxide {
         rt.block_on(internal::document_api::decrypt_document_unmanaged(
             self.device.auth(),
             &self.recrypt,
-            self.device().private_device_key(),
+            self.device().device_private_key(),
             encrypted_data,
             encrypted_deks,
         ))

@@ -281,7 +281,7 @@ impl DeviceContext {
         &self.auth.device_id
     }
 
-    pub fn private_device_key(&self) -> &PrivateKey {
+    pub fn device_private_key(&self) -> &PrivateKey {
         &self.device_private_key
     }
 }

@@ -262,7 +262,7 @@ impl DocumentOps for crate::IronOxide {
         rt.block_on(document_api::document_update_bytes(
             self.device.auth(),
             &self.recrypt,
-            self.device.private_device_key(),
+            self.device.device_private_key(),
             &self.rng,
             id,
             &new_document_data,
@@ -275,7 +275,7 @@ impl DocumentOps for crate::IronOxide {
         rt.block_on(document_api::decrypt_document(
             self.device.auth(),
             &self.recrypt,
-            self.device.private_device_key(),
+            self.device.device_private_key(),
             encrypted_document,
         ))
     }
@@ -308,7 +308,7 @@ impl DocumentOps for crate::IronOxide {
             &self.recrypt,
             id,
             &self.user_master_pub_key,
-            &self.device.private_device_key(),
+            &self.device.device_private_key(),
             &users,
             &groups,
         ))
