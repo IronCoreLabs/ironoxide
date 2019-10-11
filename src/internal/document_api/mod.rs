@@ -1075,7 +1075,7 @@ pub fn document_grant_access<'a, CR: rand::CryptoRng + rand::RngCore>(
                 let (grant_errs, grants) = transform::encrypt_to_with_key(
                     recrypt,
                     &dek,
-                    &auth.signing_keys().into(),
+                    &auth.signing_private_key().into(),
                     users_and_groups,
                 );
 

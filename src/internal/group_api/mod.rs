@@ -297,7 +297,7 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                 let encrypted_group_key = recrypt.encrypt(
                     &plaintext,
                     &user_master_pub_key.into(),
-                    &auth.signing_keys().into(),
+                    &auth.signing_private_key().into(),
                 )?;
 
                 // compute a transform key if we are adding the caller as a group member as well
@@ -307,7 +307,7 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                             .generate_transform_key(
                                 &group_priv_key.into(),
                                 &user_master_pub_key.into(),
-                                &auth.signing_keys().into(),
+                                &auth.signing_private_key().into(),
                             )?
                             .into(),
                     )
@@ -382,7 +382,7 @@ pub fn group_add_members<'a, CR: rand::CryptoRng + rand::RngCore>(
             let (mut transform_fails, transform_success) = generate_transform_for_keys(
                 recrypt,
                 &group_private_key,
-                &auth.signing_keys().into(),
+                &auth.signing_private_key().into(),
                 successes,
             );
             acc_fails.append(&mut transform_fails);
@@ -436,7 +436,7 @@ pub fn group_add_admins<'a, CR: rand::CryptoRng + rand::RngCore>(
             let (recrypt_errors, transform_success) = transform::encrypt_to_with_key(
                 recrypt,
                 &plaintext,
-                &auth.signing_keys().into(),
+                &auth.signing_private_key().into(),
                 successes,
             );
             let mut transform_fails = recrypt_errors
