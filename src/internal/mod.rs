@@ -273,7 +273,7 @@ impl DeviceContext {
         self.auth.segment_id
     }
 
-    pub fn signing_keys(&self) -> &DeviceSigningKeyPair {
+    pub fn signing_private_key(&self) -> &DeviceSigningKeyPair {
         &self.auth.signing_private_key
     }
 
