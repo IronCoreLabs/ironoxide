@@ -141,7 +141,7 @@ pub mod group_list {
     ///List all the groups that the user is in or is an admin of.
     pub fn group_list_request(
         auth: &RequestAuth,
-    ) -> Box<dyn Future<Item = GroupListResponse, Error = IronOxideErr>> {
+    ) -> Box<dyn Future<Item = GroupListResponse, Error = IronOxideErr> + '_> {
         Box::new(auth.request.get(
             "groups",
             RequestErrorCode::GroupList,
@@ -150,10 +150,10 @@ pub mod group_list {
     }
 
     //List a specific set of groups given a list of group IDs
-    pub fn group_limited_list_request(
-        auth: &RequestAuth,
-        groups: &Vec<GroupId>,
-    ) -> Box<dyn Future<Item = GroupListResponse, Error = IronOxideErr>> {
+    pub fn group_limited_list_request<'a>(
+        auth: &'a RequestAuth,
+        groups: &'a Vec<GroupId>,
+    ) -> Box<dyn Future<Item = GroupListResponse, Error = IronOxideErr> + 'a> {
         let group_ids: Vec<&str> = groups.iter().map(|group| group.id()).collect();
         Box::new(auth.request.get(
             &format!("groups?id={}", rest::url_encode(&group_ids.join(","))),
@@ -226,10 +226,10 @@ pub mod group_create {
 pub mod group_get {
     use super::*;
 
-    pub fn group_get_request(
-        auth: &RequestAuth,
+    pub fn group_get_request<'a>(
+        auth: &'a RequestAuth,
         id: &GroupId,
-    ) -> impl Future<Item = GroupGetApiResponse, Error = IronOxideErr> {
+    ) -> impl Future<Item = GroupGetApiResponse, Error = IronOxideErr> + 'a {
         auth.request.get(
             &format!("groups/{}", rest::url_encode(&id.0)),
             RequestErrorCode::GroupGet,
@@ -246,10 +246,10 @@ pub mod group_delete {
         pub(crate) id: String,
     }
 
-    pub fn group_delete_request(
-        auth: &RequestAuth,
+    pub fn group_delete_request<'a>(
+        auth: &'a RequestAuth,
         id: &GroupId,
-    ) -> impl Future<Item = GroupDeleteApiResponse, Error = IronOxideErr> {
+    ) -> impl Future<Item = GroupDeleteApiResponse, Error = IronOxideErr> + 'a {
         auth.request.delete_with_no_body(
             &format!("groups/{}", rest::url_encode(&id.0)),
             RequestErrorCode::GroupDelete,
@@ -291,11 +291,11 @@ pub mod group_add_member {
         pub users: Vec<GroupMember>,
     }
 
-    pub fn group_add_member_request(
-        auth: &RequestAuth,
+    pub fn group_add_member_request<'a>(
+        auth: &'a RequestAuth,
         id: &GroupId,
         users: Vec<(UserId, PublicKey, TransformKey)>,
-    ) -> impl Future<Item = GroupUserEditResponse, Error = IronOxideErr> {
+    ) -> impl Future<Item = GroupUserEditResponse, Error = IronOxideErr> + 'a {
         let encoded_id = rest::url_encode(&id.0).to_string();
         let users = users
             .into_iter()

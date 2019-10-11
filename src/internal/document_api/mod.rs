@@ -492,7 +492,7 @@ impl From<&GroupId> for UserOrGroup {
 /// to them directly (owner) or documents shared to them via user (fromUser) or group (fromGroup).
 pub fn document_list(
     auth: &RequestAuth,
-) -> impl Future<Item = DocumentListResult, Error = IronOxideErr> {
+) -> impl Future<Item = DocumentListResult, Error = IronOxideErr> + '_ {
     requests::document_list::document_list_request(auth).map(
         |DocumentListApiResponse { result }| DocumentListResult {
             result: result.into_iter().map(DocumentListMeta).collect(),
@@ -501,10 +501,10 @@ pub fn document_list(
 }
 
 /// Get the metadata ane encrypted key for a specific document given its ID.
-pub fn document_get_metadata(
-    auth: &RequestAuth,
+pub fn document_get_metadata<'a>(
+    auth: &'a RequestAuth,
     id: &DocumentId,
-) -> impl Future<Item = DocumentMetadataResult, Error = IronOxideErr> {
+) -> impl Future<Item = DocumentMetadataResult, Error = IronOxideErr> + 'a {
     requests::document_get::document_get_request(auth, id).map(DocumentMetadataResult)
 }
 

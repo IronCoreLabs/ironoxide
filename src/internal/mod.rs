@@ -209,7 +209,7 @@ pub mod auth_v2 {
         }
 
         pub fn finish_with(
-            self,
+            &self,
             sig_url: SignatureUrlPath,
             method: Method,
             body_bytes: Option<&'a [u8]>,

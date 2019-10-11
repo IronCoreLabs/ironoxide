@@ -157,7 +157,7 @@ pub mod document_list {
     /// Make GET request to document list endpoint for the current user/device context
     pub fn document_list_request(
         auth: &RequestAuth,
-    ) -> impl Future<Item = DocumentListApiResponse, Error = IronOxideErr> {
+    ) -> impl Future<Item = DocumentListApiResponse, Error = IronOxideErr> + '_ {
         auth.request.get(
             "documents",
             RequestErrorCode::DocumentList,
@@ -169,10 +169,10 @@ pub mod document_list {
 pub mod document_get {
     use super::*;
 
-    pub fn document_get_request(
-        auth: &RequestAuth,
+    pub fn document_get_request<'a>(
+        auth: &'a RequestAuth,
         id: &DocumentId,
-    ) -> impl Future<Item = DocumentMetaApiResponse, Error = IronOxideErr> {
+    ) -> impl Future<Item = DocumentMetaApiResponse, Error = IronOxideErr> + 'a {
         auth.request.get(
             &format!("documents/{}", rest::url_encode(&id.0)),
             RequestErrorCode::DocumentGet,
@@ -233,12 +233,12 @@ pub mod document_create {
         pub(crate) shared_with: Vec<AccessGrant>,
     }
 
-    pub fn document_create_request(
-        auth: &RequestAuth,
+    pub fn document_create_request<'a>(
+        auth: &'a RequestAuth,
         id: DocumentId,
         name: Option<DocumentName>,
         grants: Vec<EncryptedDek>,
-    ) -> Box<dyn Future<Item = DocumentCreateResponse, Error = IronOxideErr>> {
+    ) -> Box<dyn Future<Item = DocumentCreateResponse, Error = IronOxideErr> + 'a> {
         let maybe_req_grants: Result<Vec<_>, _> =
             grants.into_iter().map(|g| g.try_into()).collect();
 
@@ -278,10 +278,10 @@ pub mod policy_get {
         pub(crate) invalid_users_and_groups: Vec<UserOrGroup>,
     }
 
-    pub fn policy_get_request(
-        auth: &RequestAuth,
+    pub fn policy_get_request<'a>(
+        auth: &'a RequestAuth,
         policy_grant: &PolicyGrant,
-    ) -> impl Future<Item = PolicyResult, Error = IronOxideErr> {
+    ) -> impl Future<Item = PolicyResult, Error = IronOxideErr> + 'a {
         let query_params: Vec<(String, String)> = [
             policy_grant
                 .category()
@@ -300,11 +300,13 @@ pub mod policy_get {
         .into_iter()
         .flatten()
         .collect();
+
+        let auth_b = AuthV2Builder::<'a>::new(&auth, Utc::now());
         auth.request.get_with_query_params(
             "policies",
             &query_params,
             RequestErrorCode::PolicyGet,
-            AuthV2Builder::new(&auth, Utc::now()),
+            auth_b,
         )
     }
 }
@@ -462,11 +464,11 @@ pub mod document_access {
         }
     }
 
-    pub fn revoke_access_request(
-        auth: &RequestAuth,
+    pub fn revoke_access_request<'a>(
+        auth: &'a RequestAuth,
         doc_id: &DocumentId,
         revoke_list: Vec<UserOrGroupAccess>,
-    ) -> impl Future<Item = DocumentAccessResponse, Error = IronOxideErr> {
+    ) -> impl Future<Item = DocumentAccessResponse, Error = IronOxideErr> + 'a {
         auth.request.delete(
             &format!("documents/{}/access", rest::url_encode(&doc_id.0)),
             &DocumentRevokeAccessRequest {

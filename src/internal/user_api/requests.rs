@@ -56,7 +56,7 @@ pub mod user_verify {
         jwt: &Jwt,
         request: &IronCoreRequest,
     ) -> impl Future<Item = Option<UserVerifyResponse>, Error = IronOxideErr> {
-        request.get_with_empty_result(
+        request.get_with_empty_result_jwt_auth(
             "users/verify?returnKeys=true",
             RequestErrorCode::UserVerify,
             &Authorization::JwtAuth(jwt),
@@ -191,10 +191,10 @@ pub mod user_key_list {
         pub(crate) result: Vec<UserPublicKey>,
     }
 
-    pub fn user_key_list_request(
-        auth: &RequestAuth,
+    pub fn user_key_list_request<'a>(
+        auth: &'a RequestAuth,
         users: &Vec<UserId>,
-    ) -> impl Future<Item = UserKeyListResponse, Error = IronOxideErr> {
+    ) -> impl Future<Item = UserKeyListResponse, Error = IronOxideErr> + 'a {
         let user_ids: Vec<&str> = users.iter().map(|user| user.id()).collect();
 
         auth.request.get(
@@ -288,7 +288,7 @@ pub mod device_list {
 
     pub fn device_list(
         auth: &RequestAuth,
-    ) -> impl Future<Item = DeviceListResponse, Error = IronOxideErr> {
+    ) -> impl Future<Item = DeviceListResponse, Error = IronOxideErr> + '_ {
         auth.request.get(
             &format!("users/{}/devices", rest::url_encode(&auth.account_id().0)),
             RequestErrorCode::UserDeviceList,
@@ -318,10 +318,10 @@ pub mod device_delete {
         pub(crate) id: DeviceId,
     }
 
-    pub fn device_delete(
-        auth: &RequestAuth,
+    pub fn device_delete<'a>(
+        auth: &'a RequestAuth,
         device_id: &DeviceId,
-    ) -> Box<dyn Future<Item = DeviceDeleteResponse, Error = IronOxideErr>> {
+    ) -> Box<dyn Future<Item = DeviceDeleteResponse, Error = IronOxideErr> + 'a> {
         Box::new(auth.request.delete_with_no_body(
             &format!(
                 "users/{}/devices/{}",
@@ -335,7 +335,7 @@ pub mod device_delete {
 
     pub fn device_delete_current(
         auth: &RequestAuth,
-    ) -> Box<dyn Future<Item = DeviceDeleteResponse, Error = IronOxideErr>> {
+    ) -> Box<dyn Future<Item = DeviceDeleteResponse, Error = IronOxideErr> + '_> {
         Box::new(auth.request.delete_with_no_body(
             &format!(
                 "users/{}/devices/current",

@@ -1,8 +1,7 @@
 //! Helpers for talking to the ironcore service.
 
-use std::marker::PhantomData;
-
 use chrono::{DateTime, Utc};
+use futures::IntoFuture;
 use futures::{stream::Stream, Future};
 use reqwest::{
     header::HeaderMap,
@@ -10,6 +9,7 @@ use reqwest::{
     Method, StatusCode, Url,
 };
 use serde::{de::DeserializeOwned, Serialize};
+use std::marker::PhantomData;
 
 use crate::internal::auth_v2::AuthV2Builder;
 use crate::internal::{
@@ -249,14 +249,14 @@ impl<'a> IronCoreRequest<'a> {
 
     ///POST body to the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
-    pub fn post2<A: Serialize, B: DeserializeOwned>(
+    pub fn post2<A: Serialize + 'a, B: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
         body: &A,
         error_code: RequestErrorCode,
-        auth_b: crate::internal::auth_v2::AuthV2Builder,
-    ) -> impl Future<Item = B, Error = IronOxideErr> {
-        self.request3::<A, _, String, _>(
+        auth_b: crate::internal::auth_v2::AuthV2Builder<'a>,
+    ) -> impl Future<Item = B, Error = IronOxideErr> + 'a {
+        self.request_ironcore_auth::<A, _, String, _>(
             relative_url,
             Method::POST,
             Some(body),
@@ -298,7 +298,7 @@ impl<'a> IronCoreRequest<'a> {
                 .headers(auth.to_auth_header())
                 .headers(user_context.to_header())
                 .headers(request_sig.to_header());
-            IronCoreRequest::send_req(req, error_code.clone(), move |server_resp| {
+            IronCoreRequest::send_req_with_builder(req, error_code.clone(), move |server_resp| {
                 IronCoreRequest::deserialize_body(server_resp, error_code.clone())
             })
         } else {
@@ -308,14 +308,14 @@ impl<'a> IronCoreRequest<'a> {
 
     ///PUT body to the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
-    pub fn put<A: Serialize, B: DeserializeOwned>(
+    pub fn put<A: Serialize + 'a, B: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
         body: &A,
         error_code: RequestErrorCode,
-        auth_b: AuthV2Builder,
-    ) -> impl Future<Item = B, Error = IronOxideErr> {
-        self.request3::<A, _, String, _>(
+        auth_b: AuthV2Builder<'a>,
+    ) -> impl Future<Item = B, Error = IronOxideErr> + 'a {
+        self.request_ironcore_auth::<A, _, String, _>(
             relative_url,
             Method::PUT,
             Some(body),
@@ -328,14 +328,14 @@ impl<'a> IronCoreRequest<'a> {
 
     ///GET the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
-    pub fn get<A: DeserializeOwned>(
+    pub fn get<A: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
         error_code: RequestErrorCode,
-        auth_b: AuthV2Builder,
-    ) -> impl Future<Item = A, Error = IronOxideErr> {
+        auth_b: AuthV2Builder<'a>,
+    ) -> impl Future<Item = A, Error = IronOxideErr> + 'a {
         //A little lie here, String isn't actually the body type as it's unused
-        self.request3::<String, _, String, _>(
+        self.request_ironcore_auth::<String, _, String, _>(
             relative_url,
             Method::GET,
             None,
@@ -348,14 +348,14 @@ impl<'a> IronCoreRequest<'a> {
 
     ///GET the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
-    pub fn get_with_query_params<A: DeserializeOwned>(
+    pub fn get_with_query_params<A: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
         query_params: &[(String, String)],
         error_code: RequestErrorCode,
-        auth_b: AuthV2Builder,
-    ) -> impl Future<Item = A, Error = IronOxideErr> {
-        self.request3::<String, _, [(String, String)], _>(
+        auth_b: AuthV2Builder<'a>,
+    ) -> impl Future<Item = A, Error = IronOxideErr> + 'a {
+        self.request_ironcore_auth::<String, _, [(String, String)], _>(
             relative_url,
             Method::GET,
             None,
@@ -367,7 +367,7 @@ impl<'a> IronCoreRequest<'a> {
     }
 
     ///This should be used for a GET where the result can be empty. If the result is empty the returned value will be None.
-    pub fn get_with_empty_result<A: DeserializeOwned>(
+    pub fn get_with_empty_result_jwt_auth<A: DeserializeOwned>(
         &self,
         relative_url: &str,
         error_code: RequestErrorCode,
@@ -394,14 +394,14 @@ impl<'a> IronCoreRequest<'a> {
 
     /// DELETE body to the resource at relative_url using auth for authorization.
     /// If the request fails a RequestError will be raised.
-    pub fn delete<A: Serialize, B: DeserializeOwned>(
+    pub fn delete<A: Serialize + 'a, B: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
         body: &A,
         error_code: RequestErrorCode,
-        auth_b: AuthV2Builder,
-    ) -> impl Future<Item = B, Error = IronOxideErr> {
-        self.request3::<A, _, String, _>(
+        auth_b: AuthV2Builder<'a>,
+    ) -> impl Future<Item = B, Error = IronOxideErr> + 'a {
+        self.request_ironcore_auth::<A, _, String, _>(
             relative_url,
             Method::DELETE,
             Some(body),
@@ -447,147 +447,122 @@ impl<'a> IronCoreRequest<'a> {
             .fold(builder, |build, body| build.json(body));
 
         let req = builder.headers(DEFAULT_HEADERS.clone()).headers(headers);
-        IronCoreRequest::send_req(req, error_code, resp_handler)
+        IronCoreRequest::send_req_with_builder(req, error_code, resp_handler)
     }
 
     ///Make a request to the url using the specified method. DEFAULT_HEADERS will be used as well as whatever headers are passed
     /// in. The response will be sent to `resp_handler` so the caller can make the received bytes however they want.
-    pub fn request3<A, B, Q, F>(
+    pub fn request_ironcore_auth<A, B, Q, F>(
         &self,
         relative_url: &str,
         method: Method,
         maybe_body: Option<&A>,
         maybe_query_params: Option<&Q>,
         error_code: RequestErrorCode,
-        auth_b: AuthV2Builder,
+        auth_b: AuthV2Builder<'a>,
         resp_handler: F,
-    ) -> impl Future<Item = B, Error = IronOxideErr>
+    ) -> impl Future<Item = B, Error = IronOxideErr> + 'a
     where
         A: Serialize,
-        B: DeserializeOwned,
+        B: DeserializeOwned + 'a,
         Q: Serialize + ?Sized,
-        F: FnOnce(&Chunk) -> Result<B, IronOxideErr>,
+        F: FnOnce(&Chunk) -> Result<B, IronOxideErr> + 'a,
     {
         use publicsuffix::IntoUrl;
-        let client = RClient::new();
+        let make_req = || {
+            Ok({
+                let client = RClient::new();
+                // build up a request...
+                let mut req = ARequest::new(
+                    method,
+                    format!("{}{}", self.base_url(), relative_url).into_url()?,
+                );
 
-        // build up a request...
-        let mut req = ARequest::new(
-            method,
-            format!("{}{}", self.base_url(), relative_url)
-                .into_url()
-                .unwrap(),
-        );
+                // add query params
+                if let Some(query) = maybe_query_params {
+                    //side-effect to the stars!
+                    let url = req.url_mut();
+                    let mut pairs = url.query_pairs_mut();
+                    let serializer = serde_urlencoded::Serializer::new(&mut pairs);
+                    query.serialize(serializer)?;
+                }
 
-        // add query params
-        if let Some(query) = maybe_query_params {
-            //side-effect to the stars!
-            let url = req.url_mut();
-            let mut pairs = url.query_pairs_mut();
-            let serializer = serde_urlencoded::Serializer::new(&mut pairs);
-            query.serialize(serializer);
-            //            if let Err(err) = query.serialize(serializer) {
-            //                error = Some(::error::from(err));
-            //            }
-        }
-
-        // add the body
-        let body_bytes: Vec<u8> = if let Some(json_se) = maybe_body {
-            match serde_json::to_vec(json_se) {
-                Ok(body) => {
+                // add the body
+                let body_bytes: Vec<u8> = if let Some(json_se) = maybe_body {
+                    let body = serde_json::to_vec(&json_se)?;
                     req.headers_mut()
                         .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
                     *req.body_mut() = Some(body.clone().into());
                     body
-                }
-                Err(err) => panic!(), //error = Some(::error::from(err)),
-            }
-        } else {
-            vec![]
+                } else {
+                    vec![]
+                };
+
+                (client, req, body_bytes)
+            })
         };
+        make_req()
+            .into_future()
+            .and_then(move |(client, mut req, body_bytes)| {
+                // use the completed request to finish authorization v2 headers
+                let maybe_auth = if let Ok(sig_path) = SignatureUrlPath::new(req.url().as_str()) {
+                    Ok(auth_b.finish_with(sig_path, req.method().clone(), Some(&body_bytes)))
+                } else {
+                    Err(IronOxideErr::KeyGenerationError) //TODO
+                };
 
-        // brought this private function in from reqwest
-        fn replace_headers(dst: &mut HeaderMap, src: HeaderMap) {
-            // IntoIter of HeaderMap yields (Option<HeaderName>, HeaderValue).
-            // The first time a name is yielded, it will be Some(name), and if
-            // there are more values with the same name, the next yield will be
-            // None.
-            //
-            // TODO: a complex exercise would be to optimize this to only
-            // require 1 hash/lookup of the key, but doing something fancy
-            // with header::Entry...
-
-            let mut prev_name = None;
-            for (key, value) in src {
-                match key {
-                    Some(key) => {
-                        dst.insert(key.clone(), value);
-                        prev_name = Some(key);
-                    }
-                    None => match prev_name {
-                        Some(ref key) => {
-                            dst.append(key.clone(), value);
+                // we only support Authorization::Version2 with this call
+                match maybe_auth {
+                    Ok(auth) => {
+                        if let Authorization::Version2 {
+                            user_context,
+                            request_sig,
+                        } = &auth
+                        {
+                            replace_headers(req.headers_mut(), DEFAULT_HEADERS.clone());
+                            replace_headers(req.headers_mut(), auth.to_auth_header());
+                            replace_headers(req.headers_mut(), user_context.to_header());
+                            replace_headers(req.headers_mut(), request_sig.to_header());
+                            //                        IronCoreRequest::send_req(, error_code, resp_handler)
+                            client
+                                .execute(req)
+                                //Parse the body content into bytes
+                                .and_then(|res| {
+                                    let status_code = res.status();
+                                    res.into_body()
+                                        .concat2()
+                                        .map(move |body| (status_code, body))
+                                })
+                                //Now make the error type into the IronOxideErr and run the resp_handler which was passed to us.
+                                .then(move |resp| {
+                                    //Map the generic error from reqwest to our error type.
+                                    let (status, server_resp) = resp.map_err(|err| {
+                                        IronCoreRequest::create_request_err(
+                                            err.to_string(),
+                                            error_code,
+                                            err.status(),
+                                        )
+                                    })?;
+                                    //If the status code is a 5xx, return a fixed error code message
+                                    if status.is_server_error() || status.is_client_error() {
+                                        Err(IronCoreRequest::request_failure_to_error(
+                                            status,
+                                            error_code,
+                                            &server_resp,
+                                        ))
+                                    } else {
+                                        resp_handler(&server_resp)
+                                    }
+                                })
+                        } else {
+                            panic!("authorized requests must use version 2 of API authentication")
                         }
-                        None => unreachable!("HeaderMap::into_iter yielded None first"),
-                    },
-                }
-            }
-        }
-
-        // use the completed request to finish authorization v2 headers
-        let auth = auth_b.finish_with(
-            SignatureUrlPath::new(req.url().as_str()).unwrap(),
-            req.method().clone(),
-            Some(&body_bytes),
-        );
-
-        // we only support Authorization::Version2 with this call
-        if let Authorization::Version2 {
-            user_context,
-            request_sig,
-        } = &auth
-        {
-            replace_headers(req.headers_mut(), DEFAULT_HEADERS.clone());
-            replace_headers(req.headers_mut(), auth.to_auth_header());
-            replace_headers(req.headers_mut(), user_context.to_header());
-            replace_headers(req.headers_mut(), request_sig.to_header());
-            //                        IronCoreRequest::send_req(, error_code, resp_handler)
-            client
-                .execute(req)
-                //Parse the body content into bytes
-                .and_then(|res| {
-                    let status_code = res.status();
-                    res.into_body()
-                        .concat2()
-                        .map(move |body| (status_code, body))
-                })
-                //Now make the error type into the IronOxideErr and run the resp_handler which was passed to us.
-                .then(move |resp| {
-                    //Map the generic error from reqwest to our error type.
-                    let (status, server_resp) = resp.map_err(|err| {
-                        IronCoreRequest::create_request_err(
-                            err.to_string(),
-                            error_code,
-                            err.status(),
-                        )
-                    })?;
-                    //If the status code is a 5xx, return a fixed error code message
-                    if status.is_server_error() || status.is_client_error() {
-                        Err(IronCoreRequest::request_failure_to_error(
-                            status,
-                            error_code,
-                            &server_resp,
-                        ))
-                    } else {
-                        resp_handler(&server_resp)
                     }
-                })
-        } else {
-            panic!() //TODO
-        }
+                    Err(e) => panic!(),
+                }
+            })
     }
-
-    fn send_req<B, F>(
+    fn send_req_with_builder<B, F>(
         req: RequestBuilder,
         error_code: RequestErrorCode,
         resp_handler: F,
@@ -624,12 +599,12 @@ impl<'a> IronCoreRequest<'a> {
             })
     }
 
-    pub fn delete_with_no_body<B: DeserializeOwned>(
+    pub fn delete_with_no_body<B: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
         error_code: RequestErrorCode,
-        auth_b: AuthV2Builder,
-    ) -> impl Future<Item = B, Error = IronOxideErr> {
+        auth_b: AuthV2Builder<'a>,
+    ) -> impl Future<Item = B, Error = IronOxideErr> + 'a {
         self.delete(
             relative_url,
             &PhantomData::<u8>, // BS type, maybe there's a better way?
@@ -709,20 +684,59 @@ impl<'a> IronCoreRequest<'a> {
         }
     }
 }
+// brought this private function in from reqwest
+fn replace_headers(dst: &mut HeaderMap, src: HeaderMap) {
+    // IntoIter of HeaderMap yields (Option<HeaderName>, HeaderValue).
+    // The first time a name is yielded, it will be Some(name), and if
+    // there are more values with the same name, the next yield will be
+    // None.
+    //
+    // TODO: a complex exercise would be to optimize this to only
+    // require 1 hash/lookup of the key, but doing something fancy
+    // with header::Entry...
+
+    let mut prev_name = None;
+    for (key, value) in src {
+        match key {
+            Some(key) => {
+                dst.insert(key.clone(), value);
+                prev_name = Some(key);
+            }
+            None => match prev_name {
+                Some(ref key) => {
+                    dst.append(key.clone(), value);
+                }
+                None => unreachable!("HeaderMap::into_iter yielded None first"),
+            },
+        }
+    }
+}
 
 ////TODO
-//impl From<serde_json::Error> for IronOxideErr {
-//    fn from(_: serde_json::Error) -> Self {
-//        unimplemented!()
-//    }
-//}
+impl From<serde_json::Error> for IronOxideErr {
+    fn from(_: serde_json::Error) -> Self {
+        unimplemented!()
+    }
+}
+
+impl From<serde_urlencoded::ser::Error> for IronOxideErr {
+    fn from(_: serde_urlencoded::ser::Error) -> Self {
+        unimplemented!()
+    }
+}
 
 ////TODO
-//impl From<reqwest::UrlError> for IronOxideErr {
-//    fn from(_: reqwest::UrlError) -> Self {
-//        unimplemented!()
-//    }
-//}
+impl From<reqwest::UrlError> for IronOxideErr {
+    fn from(_: reqwest::UrlError) -> Self {
+        unimplemented!()
+    }
+}
+
+impl From<publicsuffix::errors::Error> for IronOxideErr {
+    fn from(_: publicsuffix::errors::Error) -> Self {
+        unimplemented!()
+    }
+}
 
 /// Common types for use across different internal apis
 pub mod json {
