@@ -2,7 +2,7 @@
 
 ## 0.12.0
 
-- []
+- [[#52](https://github.com/IronCoreLabs/ironoxide/pull/52)]
   - Added `device_id` as a parameter to `DeviceContext::new`, renamed other parameters.
   - Changed Serialization/Deserialization of `DeviceContext`.
 
