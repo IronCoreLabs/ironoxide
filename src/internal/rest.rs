@@ -16,6 +16,7 @@ use crate::internal::{
     user_api::UserId, DeviceSigningKeyPair, IronOxideErr, Jwt, RequestAuth, RequestErrorCode,
     OUR_REQUEST,
 };
+use crate::IronOxide;
 use reqwest::header::{HeaderValue, CONTENT_TYPE};
 use reqwest::r#async::RequestBuilder;
 
@@ -141,13 +142,8 @@ impl HeaderIronCoreUserContext {
         )
     }
 
-    pub fn payload_bytes(&self) -> Vec<u8> {
-        //TODO remove
-        self.payload().into_bytes()
-    }
-
     pub fn signature(&self, signing_keys: &DeviceSigningKeyPair) -> [u8; 64] {
-        signing_keys.sign(&self.payload_bytes())
+        signing_keys.sign(&self.payload().into_bytes())
     }
 
     fn to_header(&self) -> HeaderMap {
@@ -161,8 +157,8 @@ impl HeaderIronCoreUserContext {
 pub struct HeaderIronCoreRequestSig<'a> {
     ironcore_user_context: HeaderIronCoreUserContext,
     method: Method,
-    url: SignatureUrlPath,  //TODO better type?
-    body: Option<&'a [u8]>, //TODO serialization of this body has to be identical to that in IronCoreRequest
+    url: SignatureUrlPath,
+    body: Option<&'a [u8]>, //serialization of this body has to be identical to that in IronCoreRequest
     signing_keys: &'a DeviceSigningKeyPair,
 }
 
@@ -266,46 +262,60 @@ impl<'a> IronCoreRequest<'a> {
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
     }
-    pub fn post_raw<B: DeserializeOwned>(
+    pub fn post_raw<B: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
-        body: &[u8],
+        body: &'a [u8],
         error_code: RequestErrorCode,
-        req_auth: &RequestAuth,
-    ) -> impl Future<Item = B, Error = IronOxideErr> {
-        let client = RClient::new();
-        dbg!(&relative_url);
-        let mut builder = client.request(
-            Method::POST,
-            format!("{}{}", self.base_url, relative_url).as_str(),
-        );
+        auth_b: AuthV2Builder<'a>,
+    ) -> impl Future<Item = B, Error = IronOxideErr> + 'a {
+        use publicsuffix::IntoUrl;
 
-        //We want to add the body as raw bytes
-        builder = builder.body(body.to_vec());
-
-        let sig_url = SignatureUrlPath::new(
-            format!("{}{}", req_auth.request.base_url(), relative_url).as_str(),
-        )
-        .unwrap(); //TODO unwrap
-        let auth = req_auth.create_signature_v2(Utc::now(), sig_url, Method::POST, Some(body));
-        if let Authorization::Version2 {
-            user_context,
-            request_sig,
-        } = &auth
-        {
-            let req = builder
-                .headers(RAW_BYTES_HEADERS.clone())
-                .headers(auth.to_auth_header())
-                .headers(user_context.to_header())
-                .headers(request_sig.to_header());
-            IronCoreRequest::send_req_with_builder(req, error_code.clone(), move |server_resp| {
-                IronCoreRequest::deserialize_body(server_resp, error_code.clone())
+        let make_req = || {
+            Ok({
+                // build up a request...
+                let mut req = ARequest::new(
+                    Method::POST,
+                    format!("{}{}", self.base_url(), relative_url).into_url()?,
+                );
+                *req.body_mut() = Some(body.to_vec().into());
+                (req, body.to_vec())
             })
-        } else {
-            panic!("v1 or jwt Authorization not supported") // TODO
-        }
-    }
+        };
+        make_req()
+            .into_future()
+            .and_then(move |(mut req, body_bytes)| {
+                // use the completed request to finish authorization v2 headers
+                let maybe_auth = if let Ok(sig_path) = SignatureUrlPath::new(req.url().as_str()) {
+                    Ok(auth_b.finish_with(sig_path, req.method().clone(), Some(&body_bytes)))
+                } else {
+                    Err(IronOxideErr::KeyGenerationError) //TODO
+                };
 
+                // we only support Authorization::Version2 with this call
+                match maybe_auth {
+                    Ok(auth) => {
+                        if let Authorization::Version2 {
+                            user_context,
+                            request_sig,
+                        } = &auth
+                        {
+                            replace_headers(req.headers_mut(), RAW_BYTES_HEADERS.clone());
+                            replace_headers(req.headers_mut(), auth.to_auth_header());
+                            replace_headers(req.headers_mut(), user_context.to_header());
+                            replace_headers(req.headers_mut(), request_sig.to_header());
+
+                            Self::send_req(req, error_code, move |server_resp| {
+                                IronCoreRequest::deserialize_body(server_resp, error_code.clone())
+                            })
+                        } else {
+                            panic!("authorized requests must use version 2 of API authentication")
+                        }
+                    }
+                    Err(e) => panic!(),
+                }
+            })
+    }
     ///PUT body to the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
     pub fn put<A: Serialize + 'a, B: DeserializeOwned + 'a>(
@@ -471,7 +481,6 @@ impl<'a> IronCoreRequest<'a> {
         use publicsuffix::IntoUrl;
         let make_req = || {
             Ok({
-                let client = RClient::new();
                 // build up a request...
                 let mut req = ARequest::new(
                     method,
@@ -498,12 +507,12 @@ impl<'a> IronCoreRequest<'a> {
                     vec![]
                 };
 
-                (client, req, body_bytes)
+                (req, body_bytes)
             })
         };
         make_req()
             .into_future()
-            .and_then(move |(client, mut req, body_bytes)| {
+            .and_then(move |(mut req, body_bytes)| {
                 // use the completed request to finish authorization v2 headers
                 let maybe_auth = if let Ok(sig_path) = SignatureUrlPath::new(req.url().as_str()) {
                     Ok(auth_b.finish_with(sig_path, req.method().clone(), Some(&body_bytes)))
@@ -523,42 +532,51 @@ impl<'a> IronCoreRequest<'a> {
                             replace_headers(req.headers_mut(), auth.to_auth_header());
                             replace_headers(req.headers_mut(), user_context.to_header());
                             replace_headers(req.headers_mut(), request_sig.to_header());
-                            //                        IronCoreRequest::send_req(, error_code, resp_handler)
-                            client
-                                .execute(req)
-                                //Parse the body content into bytes
-                                .and_then(|res| {
-                                    let status_code = res.status();
-                                    res.into_body()
-                                        .concat2()
-                                        .map(move |body| (status_code, body))
-                                })
-                                //Now make the error type into the IronOxideErr and run the resp_handler which was passed to us.
-                                .then(move |resp| {
-                                    //Map the generic error from reqwest to our error type.
-                                    let (status, server_resp) = resp.map_err(|err| {
-                                        IronCoreRequest::create_request_err(
-                                            err.to_string(),
-                                            error_code,
-                                            err.status(),
-                                        )
-                                    })?;
-                                    //If the status code is a 5xx, return a fixed error code message
-                                    if status.is_server_error() || status.is_client_error() {
-                                        Err(IronCoreRequest::request_failure_to_error(
-                                            status,
-                                            error_code,
-                                            &server_resp,
-                                        ))
-                                    } else {
-                                        resp_handler(&server_resp)
-                                    }
-                                })
+
+                            Self::send_req(req, error_code, resp_handler)
                         } else {
                             panic!("authorized requests must use version 2 of API authentication")
                         }
                     }
                     Err(e) => panic!(),
+                }
+            })
+    }
+
+    fn send_req<B, F>(
+        req: ARequest,
+        error_code: RequestErrorCode,
+        resp_handler: F,
+    ) -> impl Future<Item = B, Error = IronOxideErr>
+    where
+        B: DeserializeOwned + 'a,
+        F: FnOnce(&Chunk) -> Result<B, IronOxideErr> + 'a,
+    {
+        let client = RClient::new();
+        client
+            .execute(req)
+            //Parse the body content into bytes
+            .and_then(|res| {
+                let status_code = res.status();
+                res.into_body()
+                    .concat2()
+                    .map(move |body| (status_code, body))
+            })
+            //Now make the error type into the IronOxideErr and run the resp_handler which was passed to us.
+            .then(move |resp| {
+                //Map the generic error from reqwest to our error type.
+                let (status, server_resp) = resp.map_err(|err| {
+                    IronCoreRequest::create_request_err(err.to_string(), error_code, err.status())
+                })?;
+                //If the status code is a 5xx, return a fixed error code message
+                if status.is_server_error() || status.is_client_error() {
+                    Err(IronCoreRequest::request_failure_to_error(
+                        status,
+                        error_code,
+                        &server_resp,
+                    ))
+                } else {
+                    resp_handler(&server_resp)
                 }
             })
     }
@@ -1046,7 +1064,7 @@ mod tests {
             user_id,
             public_signing_key: key_pair.public_key(),
         };
-        let payload_bytes = user_context.payload_bytes();
+        let payload_bytes = user_context.payload().into_bytes();
 
         let expected = "123456,1,user-10,xsqf+oiBpQPDr69jb+TvKxMSdnYATr7igNNR/uA1wtw=";
 

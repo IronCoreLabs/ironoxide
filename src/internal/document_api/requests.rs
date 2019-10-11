@@ -184,15 +184,15 @@ pub mod document_get {
 pub mod edek_transform {
     use super::*;
 
-    pub fn edek_transform(
-        auth: &RequestAuth,
-        edek_bytes: &[u8],
-    ) -> impl Future<Item = EdekTransformResponse, Error = IronOxideErr> {
+    pub fn edek_transform<'a>(
+        auth: &'a RequestAuth,
+        edek_bytes: &'a [u8],
+    ) -> impl Future<Item = EdekTransformResponse, Error = IronOxideErr> + 'a {
         auth.request.post_raw(
             "edeks/transform",
             edek_bytes,
             RequestErrorCode::EdekTransform,
-            &auth,
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 
