@@ -316,7 +316,7 @@ impl<'a> IronCoreRequest<'a> {
                             panic!("authorized requests must use version 2 of API authentication")
                         }
                     }
-                    Err(e) => panic!(),
+                    Err(e) => panic!(), //cannot seem to convince the compiler to allow this to fail the future
                 }
             })
     }
