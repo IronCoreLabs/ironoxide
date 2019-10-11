@@ -59,7 +59,9 @@ pub enum Authorization<'a> {
 impl<'a> Authorization<'a> {
     pub fn to_auth_header(&self) -> HeaderMap {
         let auth_value = match self {
-            Authorization::JwtAuth(jwt) => format!("jwt {}", jwt.0).parse().unwrap(),
+            Authorization::JwtAuth(jwt) => format!("jwt {}", jwt.0)
+                .parse()
+                .expect("IronCore JWTs should be ASCII"),
             Authorization::Version2 {
                 user_context,
                 request_sig,
@@ -69,10 +71,10 @@ impl<'a> Authorization<'a> {
                 base64::encode(&user_context.signature(request_sig.signing_keys).to_vec())
             )
             .parse()
-            .unwrap(),
+            .expect("Auth v2 headers should only contain ASCII"),
         };
         let mut headers: HeaderMap = Default::default();
-        headers.append("authorization", auth_value); //We're assuming that the JWT is ASCII.
+        headers.append("authorization", auth_value);
         headers
     }
 
@@ -276,7 +278,9 @@ impl<'a> IronCoreRequest<'a> {
                 // build up a request...
                 let mut req = ARequest::new(
                     Method::POST,
-                    format!("{}{}", self.base_url(), relative_url).into_url()?,
+                    format!("{}{}", self.base_url(), relative_url)
+                        .into_url()
+                        .map_err(|e| IronOxideErr::from((e, error_code)))?,
                 );
                 *req.body_mut() = Some(body.to_vec().into());
                 (req, body.to_vec())
@@ -286,11 +290,11 @@ impl<'a> IronCoreRequest<'a> {
             .into_future()
             .and_then(move |(mut req, body_bytes)| {
                 // use the completed request to finish authorization v2 headers
-                let maybe_auth = if let Ok(sig_path) = SignatureUrlPath::new(req.url().as_str()) {
-                    Ok(auth_b.finish_with(sig_path, req.method().clone(), Some(&body_bytes)))
-                } else {
-                    Err(IronOxideErr::KeyGenerationError) //TODO
-                };
+                let maybe_auth = SignatureUrlPath::new(req.url().as_str())
+                    .map(|sig_url| {
+                        auth_b.finish_with(sig_url, req.method().clone(), Some(&body_bytes))
+                    })
+                    .map_err(|e| IronOxideErr::from((e, error_code)));
 
                 // we only support Authorization::Version2 with this call
                 match maybe_auth {
@@ -383,7 +387,6 @@ impl<'a> IronCoreRequest<'a> {
         error_code: RequestErrorCode,
         auth: &Authorization,
     ) -> impl Future<Item = Option<A>, Error = IronOxideErr> {
-        //TODO using request method
         //A little lie here, String isn't actually the body type as it's unused
         self.request::<String, _, String, _>(
             relative_url,
@@ -484,7 +487,9 @@ impl<'a> IronCoreRequest<'a> {
                 // build up a request...
                 let mut req = ARequest::new(
                     method,
-                    format!("{}{}", self.base_url(), relative_url).into_url()?,
+                    format!("{}{}", self.base_url(), relative_url)
+                        .into_url()
+                        .map_err(|e| IronOxideErr::from((e, error_code)))?,
                 );
 
                 // add query params
@@ -514,11 +519,11 @@ impl<'a> IronCoreRequest<'a> {
             .into_future()
             .and_then(move |(mut req, body_bytes)| {
                 // use the completed request to finish authorization v2 headers
-                let maybe_auth = if let Ok(sig_path) = SignatureUrlPath::new(req.url().as_str()) {
-                    Ok(auth_b.finish_with(sig_path, req.method().clone(), Some(&body_bytes)))
-                } else {
-                    Err(IronOxideErr::KeyGenerationError) //TODO
-                };
+                let maybe_auth = SignatureUrlPath::new(req.url().as_str())
+                    .map(|sig_url| {
+                        auth_b.finish_with(sig_url, req.method().clone(), Some(&body_bytes))
+                    })
+                    .map_err(|e| IronOxideErr::from((e, error_code)));
 
                 // we only support Authorization::Version2 with this call
                 match maybe_auth {
@@ -743,16 +748,23 @@ impl From<serde_urlencoded::ser::Error> for IronOxideErr {
     }
 }
 
-////TODO
-impl From<reqwest::UrlError> for IronOxideErr {
-    fn from(_: reqwest::UrlError) -> Self {
-        unimplemented!()
+impl From<(reqwest::UrlError, RequestErrorCode)> for IronOxideErr {
+    fn from((e, code): (reqwest::UrlError, RequestErrorCode)) -> Self {
+        IronOxideErr::RequestError {
+            message: e.to_string(),
+            code,
+            http_status: None,
+        }
     }
 }
 
-impl From<publicsuffix::errors::Error> for IronOxideErr {
-    fn from(_: publicsuffix::errors::Error) -> Self {
-        unimplemented!()
+impl From<(publicsuffix::errors::Error, RequestErrorCode)> for IronOxideErr {
+    fn from((e, code): (publicsuffix::errors::Error, RequestErrorCode)) -> Self {
+        IronOxideErr::RequestError {
+            message: e.to_string(),
+            code,
+            http_status: None,
+        }
     }
 }
 
@@ -1143,8 +1155,6 @@ mod tests {
             body: Some(&fake_req_json_bytes),
             signing_keys: &signing_keys,
         };
-
-        let json_encoded_body = fake_req_json;
 
         assert_eq!(&request_sig.payload(), &expected.to_string().into_bytes());
 
