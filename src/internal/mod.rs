@@ -214,9 +214,6 @@ impl RequestAuth {
             &self.signing_private_key,
         )
     }
-    pub fn device_id(&self) -> &DeviceId {
-        &self.device_id
-    }
 
     pub fn account_id(&self) -> &UserId {
         &self.account_id
