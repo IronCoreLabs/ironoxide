@@ -155,8 +155,9 @@ pub mod group_list {
         groups: &'a Vec<GroupId>,
     ) -> Box<dyn Future<Item = GroupListResponse, Error = IronOxideErr> + 'a> {
         let group_ids: Vec<&str> = groups.iter().map(|group| group.id()).collect();
-        Box::new(auth.request.get(
-            &format!("groups?id={}", rest::url_encode(&group_ids.join(","))),
+        Box::new(auth.request.get_with_query_params(
+            &format!("groups"),
+            &vec![("id".into(), rest::url_encode(&group_ids.join(",")))],
             RequestErrorCode::GroupList,
             AuthV2Builder::new(&auth, Utc::now()),
         ))

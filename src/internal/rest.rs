@@ -13,12 +13,15 @@ use std::marker::PhantomData;
 
 use crate::internal::auth_v2::AuthV2Builder;
 use crate::internal::{
-    user_api::UserId, DeviceSigningKeyPair, IronOxideErr, Jwt, RequestAuth, RequestErrorCode,
-    OUR_REQUEST,
+    user_api::UserId, DeviceSigningKeyPair, IronOxideErr, Jwt, RequestErrorCode, OUR_REQUEST,
 };
-use crate::IronOxide;
+use percent_encoding::SIMPLE_ENCODE_SET;
 use reqwest::header::{HeaderValue, CONTENT_TYPE};
 use reqwest::r#async::RequestBuilder;
+use serde::export::fmt::{Display, Error};
+use serde::export::Formatter;
+use std::borrow::BorrowMut;
+use std::ops::Deref;
 
 lazy_static! {
     static ref DEFAULT_HEADERS: HeaderMap = {
@@ -40,11 +43,135 @@ pub struct ServerError {
     code: u32,
 }
 
+define_encode_set! {
+    /// This encode set should be used for path components and query strings.
+    /// `A-Z a-z 0-9 - _ . ! ~ * ' ( )` are the only characters we _don't_ want to encode.
+    ///
+    /// If this is changed it will potentially need be changed in the webservice and all other SDKs.
+    #[rustfmt::skip]
+    pub ICL_ENCODE_SET = [SIMPLE_ENCODE_SET] | {
+        /* 0x20:   */ ' ',
+        /* 0x21: ! */ // ... no encode ..
+        /* 0x22: " */ '"',
+        /* 0x23: # */ '#',
+        /* 0x24: $ */ '$',
+        /* 0x25: % */ '%',
+        /* 0x26: & */ '&',
+        /* 0x27: ' */ '\'',
+        /* 0x28: ( */ // ... no encode ..
+        /* 0x29: ) */ // ... no encode ..
+        /* 0x2a: * */ // ... no encode ..
+        /* 0x2b: + */ '+',
+        /* 0x2c: , */ ',',
+        /* 0x2d: - */ // ... no encode ...
+        /* 0x2e: . */ // ... no encode ...
+        /* 0x2f: / */ '/',
+        //BEGIN numbers (don't encode)
+        /* 0x30: 0 */ // ... no encode ...
+        /* 0x31: 1 */ // ... no encode ...
+        /* 0x32: 2 */ // ... no encode ...
+        /* 0x33: 3 */ // ... no encode ...
+        /* 0x34: 4 */ // ... no encode ...
+        /* 0x35: 5 */ // ... no encode ...
+        /* 0x36: 6 */ // ... no encode ...
+        /* 0x37: 7 */ // ... no encode ...
+        /* 0x38: 8 */ // ... no encode ...
+        /* 0x39: 9 */ // ... no encode ...
+        // END numbers
+        /* 0x3a: : */ ':',
+        /* 0x3b: ; */ ';',
+        /* 0x3c: < */ '<',
+        /* 0x3d: = */ '=',
+        /* 0x3e: > */ '>',
+        /* 0x3f: ? */ '?',
+        /* 0x40: @ */ '@',
+        // BEGIN letters (don't encode)
+        /* 0x41: A */ // ... no encode ...
+        /* 0x42: B */ // ... no encode ...
+        /* 0x43: C */ // ... no encode ...
+        /* 0x44: D */ // ... no encode ...
+        /* 0x45: E */ // ... no encode ...
+        /* 0x46: F */ // ... no encode ...
+        /* 0x47: G */ // ... no encode ...
+        /* 0x48: H */ // ... no encode ...
+        /* 0x49: I */ // ... no encode ...
+        /* 0x4a: J */ // ... no encode ...
+        /* 0x4b: K */ // ... no encode ...
+        /* 0x4c: L */ // ... no encode ...
+        /* 0x4d: M */ // ... no encode ...
+        /* 0x4e: N */ // ... no encode ...
+        /* 0x4f: O */ // ... no encode ...
+        /* 0x50: P */ // ... no encode ...
+        /* 0x51: Q */ // ... no encode ...
+        /* 0x52: R */ // ... no encode ...
+        /* 0x53: S */ // ... no encode ...
+        /* 0x54: T */ // ... no encode ...
+        /* 0x55: U */ // ... no encode ...
+        /* 0x56: V */ // ... no encode ...
+        /* 0x57: W */ // ... no encode ...
+        /* 0x58: X */ // ... no encode ...
+        /* 0x59: Y */ // ... no encode ...
+        /* 0x5a: Z */ // ... no encode ...
+        /* 0x5b: [ */ // ... no encode ...
+        /* 0x5c: \ */ // ... no encode ...
+        /* 0x5d: ] */ // ... no encode ...
+        /* 0x5e: ^ */ // ... no encode ...
+        /* 0x5f: _ */ // ... no encode ...
+        /* 0x60: ` */ // ... no encode ...
+        /* 0x61: a */ // ... no encode ...
+        /* 0x62: b */ // ... no encode ...
+        /* 0x63: c */ // ... no encode ...
+        /* 0x64: d */ // ... no encode ...
+        /* 0x65: e */ // ... no encode ...
+        /* 0x66: f */ // ... no encode ...
+        /* 0x67: g */ // ... no encode ...
+        /* 0x68: h */ // ... no encode ...
+        /* 0x69: i */ // ... no encode ...
+        /* 0x6a: j */ // ... no encode ...
+        /* 0x6b: k */ // ... no encode ...
+        /* 0x6c: l */ // ... no encode ...
+        /* 0x6d: m */ // ... no encode ...
+        /* 0x6e: n */ // ... no encode ...
+        /* 0x6f: o */ // ... no encode ...
+        /* 0x70: p */ // ... no encode ...
+        /* 0x71: q */ // ... no encode ...
+        /* 0x72: r */ // ... no encode ...
+        /* 0x73: s */ // ... no encode ...
+        /* 0x74: t */ // ... no encode ...
+        /* 0x75: u */ // ... no encode ...
+        /* 0x76: v */ // ... no encode ...
+        /* 0x77: w */ // ... no encode ...
+        /* 0x78: x */ // ... no encode ...
+        /* 0x79: y */ // ... no encode ...
+        /* 0x7a: z */ // ... no encode ...
+        // END letters
+        /* 0x7b: { */ '{',
+        /* 0x7c: | */ '|',
+        /* 0x7d: } */ '}'
+        /* 0x7e: ~ */ // ... no encode ...
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct PercentEncodedString(pub(crate) String);
+
+impl Deref for PercentEncodedString {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Display for PercentEncodedString {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        write!(f, "{}", self.0)
+    }
+}
+
 ///URL encode the provided string so it can be used within a URL
-pub fn url_encode(token: &str) -> String {
-    percent_encoding::utf8_percent_encode(token, percent_encoding::USERINFO_ENCODE_SET)
-        .to_string()
-        .replace(",", "%2C") //TODO workaround for what web-service currently expects, but not sure it's right
+pub fn url_encode(token: &str) -> PercentEncodedString {
+    PercentEncodedString(percent_encoding::utf8_percent_encode(token, ICL_ENCODE_SET).to_string())
 }
 
 ///Enum representing all the ways that authorization can be done for the IronCoreRequest.
@@ -150,7 +277,7 @@ impl HeaderIronCoreUserContext {
 
     fn to_header(&self) -> HeaderMap {
         let mut headers: HeaderMap = Default::default();
-        headers.append("X-IronCore-User-Context", self.payload().parse().unwrap());
+        headers.append("X-IronCore-User-Context", self.payload().parse().unwrap()); //TODO
         headers
     }
 }
@@ -182,7 +309,6 @@ impl<'a> HeaderIronCoreRequestSig<'a> {
                 &method,
                 url.path(),
             );
-            dbg!(&bytes);
             bytes.into_bytes()
         };
 
@@ -254,7 +380,7 @@ impl<'a> IronCoreRequest<'a> {
         error_code: RequestErrorCode,
         auth_b: crate::internal::auth_v2::AuthV2Builder<'a>,
     ) -> impl Future<Item = B, Error = IronOxideErr> + 'a {
-        self.request_ironcore_auth::<A, _, String, _>(
+        self.request_ironcore_auth::<A, _, _>(
             relative_url,
             Method::POST,
             Some(body),
@@ -329,7 +455,7 @@ impl<'a> IronCoreRequest<'a> {
         error_code: RequestErrorCode,
         auth_b: AuthV2Builder<'a>,
     ) -> impl Future<Item = B, Error = IronOxideErr> + 'a {
-        self.request_ironcore_auth::<A, _, String, _>(
+        self.request_ironcore_auth::<A, _, _>(
             relative_url,
             Method::PUT,
             Some(body),
@@ -349,7 +475,7 @@ impl<'a> IronCoreRequest<'a> {
         auth_b: AuthV2Builder<'a>,
     ) -> impl Future<Item = A, Error = IronOxideErr> + 'a {
         //A little lie here, String isn't actually the body type as it's unused
-        self.request_ironcore_auth::<String, _, String, _>(
+        self.request_ironcore_auth::<String, _, _>(
             relative_url,
             Method::GET,
             None,
@@ -365,11 +491,11 @@ impl<'a> IronCoreRequest<'a> {
     pub fn get_with_query_params<A: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
-        query_params: &[(String, String)],
+        query_params: &[(String, PercentEncodedString)],
         error_code: RequestErrorCode,
         auth_b: AuthV2Builder<'a>,
     ) -> impl Future<Item = A, Error = IronOxideErr> + 'a {
-        self.request_ironcore_auth::<String, _, [(String, String)], _>(
+        self.request_ironcore_auth::<String, _, _>(
             relative_url,
             Method::GET,
             None,
@@ -414,7 +540,7 @@ impl<'a> IronCoreRequest<'a> {
         error_code: RequestErrorCode,
         auth_b: AuthV2Builder<'a>,
     ) -> impl Future<Item = B, Error = IronOxideErr> + 'a {
-        self.request_ironcore_auth::<A, _, String, _>(
+        self.request_ironcore_auth::<A, _, _>(
             relative_url,
             Method::DELETE,
             Some(body),
@@ -465,12 +591,12 @@ impl<'a> IronCoreRequest<'a> {
 
     ///Make a request to the url using the specified method. DEFAULT_HEADERS will be used as well as whatever headers are passed
     /// in. The response will be sent to `resp_handler` so the caller can make the received bytes however they want.
-    pub fn request_ironcore_auth<A, B, Q, F>(
+    pub fn request_ironcore_auth<A, B, F>(
         &self,
         relative_url: &str,
         method: Method,
         maybe_body: Option<&A>,
-        maybe_query_params: Option<&Q>,
+        maybe_query_params: Option<&[(String, PercentEncodedString)]>,
         error_code: RequestErrorCode,
         auth_b: AuthV2Builder<'a>,
         resp_handler: F,
@@ -478,7 +604,6 @@ impl<'a> IronCoreRequest<'a> {
     where
         A: Serialize,
         B: DeserializeOwned + 'a,
-        Q: Serialize + ?Sized,
         F: FnOnce(&Chunk) -> Result<B, IronOxideErr> + 'a,
     {
         use publicsuffix::IntoUrl;
@@ -494,11 +619,7 @@ impl<'a> IronCoreRequest<'a> {
 
                 // add query params
                 if let Some(query) = maybe_query_params {
-                    //side-effect to the stars!
-                    let url = req.url_mut();
-                    let mut pairs = url.query_pairs_mut();
-                    let serializer = serde_urlencoded::Serializer::new(&mut pairs);
-                    query.serialize(serializer)?;
+                    Self::req_add_query(req.borrow_mut(), &query);
                 }
 
                 // add the body
@@ -546,6 +667,17 @@ impl<'a> IronCoreRequest<'a> {
                     Err(e) => panic!(),
                 }
             })
+    }
+
+    fn req_add_query(req: &mut ARequest, query_params: &[(String, PercentEncodedString)]) {
+        //side-effect to the stars!
+        let query_string: String = query_params
+            .iter()
+            .map(|(k, v)| format!("{}={}", k, v.0))
+            .collect::<Vec<_>>()
+            .join("&");
+
+        req.url_mut().set_query(Some(&query_string));
     }
 
     fn send_req<B, F>(
@@ -738,12 +870,6 @@ fn replace_headers(dst: &mut HeaderMap, src: HeaderMap) {
 ////TODO
 impl From<serde_json::Error> for IronOxideErr {
     fn from(_: serde_json::Error) -> Self {
-        unimplemented!()
-    }
-}
-
-impl From<serde_urlencoded::ser::Error> for IronOxideErr {
-    fn from(_: serde_urlencoded::ser::Error) -> Self {
         unimplemented!()
     }
 }
@@ -949,7 +1075,6 @@ mod tests {
     use chrono::TimeZone;
     use galvanic_assert::matchers::{variant::*, *};
     use recrypt::api::{Ed25519Signature, PublicSigningKey};
-    use recrypt::prelude::Ed25519;
     use std::borrow::Borrow;
 
     #[test]
@@ -1051,8 +1176,8 @@ mod tests {
         let not_url_safe_id = "'=#.other|/$non@;safe'-:;id_";
         let url_encoded = url_encode(&not_url_safe_id);
         assert_eq!(
-            "\'%3D%23.other%7C%2F$non%40%3Bsafe\'-%3A%3Bid_",
-            url_encoded
+            "%27%3D%23.other%7C%2F%24non%40%3Bsafe%27-%3A%3Bid_",
+            *url_encoded
         )
     }
 
@@ -1221,7 +1346,7 @@ mod tests {
         assert_that!(&maybe_path, is_variant!(Result::Ok));
         assert_eq!(
             maybe_path.unwrap().path(),
-            "/api/1/users?id=abcABC012_.$%23%7C%40%2F%3A%3B%3D+\'-"
+            "/api/1/users?id=abcABC012_.%24%23%7C%40%2F%3A%3B%3D%2B%27-"
         );
 
         let maybe_path =
@@ -1242,4 +1367,34 @@ mod tests {
         let maybe_path = SignatureUrlPath::new("documents/some-doc-id");
         assert_that!(&maybe_path, is_variant!(Result::Err));
     }
+
+    //    #[test]
+    //    fn query_params_encoded_correctly() {
+    //        use publicsuffix::IntoUrl;
+    //
+    //        let icl_req = IronCoreRequest::new("https://example.com");
+    //
+    //        let mut req = ARequest::new(
+    //            Method::GET,
+    //            format!("{}/{}", icl_req.base_url(), "users")
+    //                .into_url()
+    //                .unwrap(),
+    //        );
+    //        //        req.
+    //
+    //        let q = format!("{},{}", "abcABC012_.$#|@/:;=+'-", "a-nice_id");
+    //
+    //        println!("original query string: {}", &q);
+    //        dbg!(&url_encode(&q));
+    //
+    //        let result =
+    //            IronCoreRequest::req_add_query(&mut req, &[("id".to_string(), url_encode(&q))]);
+    //
+    //        dbg!(req.url().query());
+    //
+    //        //        IronCoreRequest::req_add_query(&mut req, &[("id", "abcABC012_.$#|@/:;=+'-,-a-nice-id")]);
+    //        dbg!(&result);
+    //        //        req.
+    //        dbg!(req.url());
+    //    }
 }

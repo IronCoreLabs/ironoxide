@@ -41,6 +41,8 @@ extern crate lazy_static;
 #[cfg(test)]
 #[macro_use]
 extern crate galvanic_assert;
+#[macro_use]
+extern crate percent_encoding;
 
 mod crypto;
 mod internal;

@@ -197,8 +197,9 @@ pub mod user_key_list {
     ) -> impl Future<Item = UserKeyListResponse, Error = IronOxideErr> + 'a {
         let user_ids: Vec<&str> = users.iter().map(|user| user.id()).collect();
 
-        auth.request.get(
-            &format!("users?id={}", rest::url_encode(&user_ids.join(","))),
+        auth.request.get_with_query_params(
+            "users".into(),
+            &vec![("id".into(), rest::url_encode(&user_ids.join(",")))],
             RequestErrorCode::UserKeyList,
             AuthV2Builder::new(&auth, Utc::now()),
         )

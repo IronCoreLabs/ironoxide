@@ -267,6 +267,7 @@ pub mod document_create {
 
 pub mod policy_get {
     use super::*;
+    use crate::internal::rest::PercentEncodedString;
     use crate::policy::{Category, DataSubject, PolicyGrant, Sensitivity};
 
     pub(crate) const SUBSTITUTE_ID_QUERY_PARAM: &'static str = "substituteId";
@@ -282,19 +283,31 @@ pub mod policy_get {
         auth: &'a RequestAuth,
         policy_grant: &PolicyGrant,
     ) -> impl Future<Item = PolicyResult, Error = IronOxideErr> + 'a {
-        let query_params: Vec<(String, String)> = [
-            policy_grant
-                .category()
-                .map(|c| (Category::QUERY_PARAM.to_string(), c.0.clone())),
-            policy_grant
-                .sensitivity()
-                .map(|s| (Sensitivity::QUERY_PARAM.to_string(), s.0.clone())),
-            policy_grant
-                .data_subject()
-                .map(|d| (DataSubject::QUERY_PARAM.to_string(), d.0.clone())),
-            policy_grant
-                .substitute_user()
-                .map(|UserId(u)| (SUBSTITUTE_ID_QUERY_PARAM.to_string(), u.clone())),
+        let query_params: Vec<(String, PercentEncodedString)> = [
+            policy_grant.category().map(|c| {
+                (
+                    Category::QUERY_PARAM.to_string(),
+                    PercentEncodedString(c.0.clone()),
+                )
+            }),
+            policy_grant.sensitivity().map(|s| {
+                (
+                    Sensitivity::QUERY_PARAM.to_string(),
+                    PercentEncodedString(s.0.clone()),
+                )
+            }),
+            policy_grant.data_subject().map(|d| {
+                (
+                    DataSubject::QUERY_PARAM.to_string(),
+                    PercentEncodedString(d.0.clone()),
+                )
+            }),
+            policy_grant.substitute_user().map(|UserId(u)| {
+                (
+                    SUBSTITUTE_ID_QUERY_PARAM.to_string(),
+                    PercentEncodedString(u.clone()),
+                )
+            }),
         ]
         .to_vec()
         .into_iter()
