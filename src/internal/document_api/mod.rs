@@ -47,7 +47,7 @@ const CURRENT_DOCUMENT_ID_VERSION: u8 = 2;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentId(pub(crate) String);
 impl DocumentId {
-    pub fn id(&self) -> &String {
+    pub fn id(&self) -> &str {
         &self.0
     }
 
@@ -863,7 +863,7 @@ impl EncryptedDoc {
 
         let mut proto_edeks = EncryptedDeksP::default();
         proto_edeks.edeks = RepeatedField::from_vec(proto_edek_vec);
-        proto_edeks.documentId = self.header.document_id.id().as_str().into();
+        proto_edeks.documentId = self.header.document_id.id().into();
         proto_edeks.segmentId = self.header.segment_id as i32; // okay since the ironcore-ws defines this to be an i32
 
         let edek_bytes = proto_edeks.write_to_bytes()?;

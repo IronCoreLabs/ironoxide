@@ -251,7 +251,7 @@ pub mod document_create {
                         shared_with: req_grants,
                     },
                 };
-                Box::new(auth.request.post2(
+                Box::new(auth.request.post(
                     "documents",
                     &req,
                     RequestErrorCode::DocumentCreate,
@@ -284,6 +284,7 @@ pub mod policy_get {
         policy_grant: &PolicyGrant,
     ) -> impl Future<Item = PolicyResult, Error = IronOxideErr> + 'a {
         let query_params: Vec<(String, PercentEncodedString)> = [
+            // all query params here are just letters, so no need to percent encode
             policy_grant.category().map(|c| {
                 (
                     Category::QUERY_PARAM.to_string(),
@@ -464,8 +465,8 @@ pub mod document_access {
                     from_public_key: from_pub_key.clone().into(),
                     to: req_grants,
                 };
-                Box::new(auth.request.post2(
-                    &format!("documents/{}/access", id.0),
+                Box::new(auth.request.post(
+                    &format!("documents/{}/access", rest::url_encode(id.id())),
                     &req,
                     RequestErrorCode::DocumentGrantAccess,
                     AuthV2Builder::new(&auth, Utc::now()),

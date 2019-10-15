@@ -154,6 +154,7 @@ define_encode_set! {
 }
 
 #[derive(Clone, Debug)]
+/// Newtype for strings that have been percent encoded
 pub struct PercentEncodedString(pub(crate) String);
 
 impl Deref for PercentEncodedString {
@@ -234,6 +235,12 @@ impl<'a> Authorization<'a> {
     }
 }
 
+/// For API auth, we sign over the path + query string percent encoded with specific rules.
+///
+/// For the URL: `https://api.ironcorelabs.com/api/1/users?id=abcABC012_.$#|@/:;=+'-`
+/// We sign over: `/api/1/users?id=abcABC012_.%24%23%7C%40%2F%3A%3B%3D%2B%27-`
+///
+/// Anyone wanting to verify this signature will need to be able to match this exact encoding.
 #[derive(Debug, Clone)]
 pub struct SignatureUrlPath(String);
 
@@ -388,7 +395,7 @@ impl<'a> IronCoreRequest<'a> {
 
     ///POST body to the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
-    pub fn post2<A: Serialize + 'a, B: DeserializeOwned + 'a>(
+    pub fn post<A: Serialize + 'a, B: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
         body: &A,

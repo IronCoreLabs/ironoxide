@@ -214,7 +214,7 @@ pub mod group_create {
                     }),
                 };
 
-                auth.request.post2(
+                auth.request.post(
                     "groups",
                     &req,
                     RequestErrorCode::GroupCreate,
@@ -306,7 +306,7 @@ pub mod group_add_member {
                 user_master_public_key: pk.into(),
             })
             .collect();
-        auth.request.post2(
+        auth.request.post(
             &format!("groups/{}/users", encoded_id),
             &GroupAddMembersReq { users },
             RequestErrorCode::GroupAddMember,
@@ -348,7 +348,7 @@ pub mod group_add_admin {
             .collect::<Result<Vec<GroupAdmin>, IronOxideErr>>();
         users_or_error.into_future().and_then(move |admins| {
             let encoded_id = rest::url_encode(&id.0).to_string();
-            auth.request.post2(
+            auth.request.post(
                 &format!("groups/{}/admins", encoded_id),
                 &GroupAddAdminsReq { admins },
                 RequestErrorCode::GroupAddMember,

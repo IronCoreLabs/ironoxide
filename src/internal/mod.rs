@@ -194,6 +194,10 @@ pub fn validate_name(name: &str, name_type: &str) -> Result<String, IronOxideErr
 pub mod auth_v2 {
     use super::*;
 
+    /// API Auth version 2.
+    /// Fully constructing a valid auth v2 header is a two step process.
+    /// Step 1 is done on construction via `new`
+    /// Step 2 is done via `finish_with` as a request is being sent out and the bytes of the body are available.
     pub struct AuthV2Builder<'a> {
         pub(in crate::internal::auth_v2) req_auth: &'a RequestAuth,
         pub(in crate::internal::auth_v2) timestamp: DateTime<Utc>,
@@ -207,6 +211,15 @@ pub mod auth_v2 {
             }
         }
 
+        /// Always returns Authorization::Version2
+        /// # Arguments
+        /// `sig_url`       URL path to be signed over
+        /// `method`        Method of request (POST, GET, PUT, etc)
+        /// `body_bytes`    Reference to the bytes of the body (or none)
+        ///
+        /// # Returns
+        /// Authorization::Version2 that contains all the information necessary to make an
+        /// IronCore authenticated request to the webservice.
         pub fn finish_with(
             &self,
             sig_url: SignatureUrlPath,
