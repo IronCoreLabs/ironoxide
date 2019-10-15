@@ -1,9 +1,10 @@
 mod common;
 use common::gen_jwt;
-use ironoxide::user::UserCreateOpts;
-use ironoxide::{prelude::*, user::DeviceCreateOpts};
-use std::convert::TryInto;
-use std::default::Default;
+use ironoxide::{
+    prelude::*,
+    user::{DeviceCreateOpts, UserCreateOpts},
+};
+use std::{convert::TryInto, default::Default};
 use uuid::Uuid;
 
 #[macro_use]

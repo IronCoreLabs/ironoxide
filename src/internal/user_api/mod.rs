@@ -6,11 +6,11 @@ use chrono::{DateTime, Utc};
 use futures::prelude::*;
 use itertools::{Either, Itertools};
 use recrypt::prelude::*;
-use std::sync::Mutex;
 use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
     result::Result,
+    sync::Mutex,
 };
 
 /// private module that handles interaction with ironcore-id
@@ -287,11 +287,11 @@ pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
         )
         // call device_add
         .and_then(move |(device_add, account_id, segment_id)| {
-            // discard successful response as it only has the device public key in it, which we already have
             requests::device_add::user_device_add(&jwt, &device_add, &device_name, &request)
                 // on successful response, assemble a DeviceContext for the caller
-                .map(move |_| {
+                .map(move |response| {
                     DeviceContext::new(
+                        response.device_id,
                         account_id,
                         segment_id,
                         device_add.device_keys.private_key,

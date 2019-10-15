@@ -65,9 +65,10 @@ pub mod prelude;
 pub use crate::internal::{
     DeviceContext, DeviceSigningKeyPair, IronOxideErr, KeyPair, PrivateKey, PublicKey,
 };
-use rand::rngs::adapter::ReseedingRng;
-use rand::rngs::EntropyRng;
-use rand::FromEntropy;
+use rand::{
+    rngs::{adapter::ReseedingRng, EntropyRng},
+    FromEntropy,
+};
 use rand_chacha::ChaChaCore;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
 use std::sync::Mutex;

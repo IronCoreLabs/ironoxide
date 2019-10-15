@@ -436,5 +436,4 @@ mod tests {
         let de_result = serde_json::from_str(&result).unwrap();
         assert_eq!(item, de_result)
     }
-
 }
