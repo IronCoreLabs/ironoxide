@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.0
+
+- [[#52](https://github.com/IronCoreLabs/ironoxide/pull/52)]
+  - Added `device_id` as a parameter to `DeviceContext::new`, renamed other parameters.
+  - Changed Serialization/Deserialization of `DeviceContext`.
+
 ## 0.11.0
 
 - Added `TryFrom<&[u8]>` for `PublicKey`
@@ -24,20 +30,20 @@
 ## 0.9.0
 
 - [[#23](https://github.com/IronCoreLabs/ironoxide/pull/23)]
-  - IronOxide no longer has mutable references in it's API, making it possible to share an IronOxide between threads.
-  - The RNG used for for AES now periodically reseeds itself.
+  - IronOxide no longer has mutable references in its API, making it possible to share an IronOxide between threads.
+  - The RNG used for AES now periodically reseeds itself.
 
 ## 0.8.0
 
-- add the ability to encrypt via policy
+- Added the ability to encrypt via policy.
 
 ## 0.7.0
 
-- add the ability to encrypt without granting to the author
+- Added the ability to encrypt without granting to the author.
 
 ## 0.6.1
 
-- [[#1](#1)]
+- [[#1](https://github.com/IronCoreLabs/ironoxide/pull/1)]
   - added `UserCreateKeyPair` to public API
   - added `IronOxideErr` to the `prelude`
   - added `From<IronOxideErr> for String` to lib.rs

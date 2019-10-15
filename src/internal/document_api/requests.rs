@@ -1,8 +1,7 @@
 use super::{AssociationType, DocumentId, DocumentName};
-use crate::internal::document_api::EncryptedDek;
 use crate::internal::{
     self,
-    document_api::{UserOrGroup, VisibleGroup, VisibleUser, WithKey},
+    document_api::{EncryptedDek, UserOrGroup, VisibleGroup, VisibleUser, WithKey},
     group_api::GroupId,
     rest::{
         self,
@@ -13,8 +12,7 @@ use crate::internal::{
 };
 use chrono::{DateTime, Utc};
 use futures::Future;
-use std::convert::TryFrom;
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 
 use crate::internal::auth_v2::AuthV2Builder;
 
@@ -267,7 +265,7 @@ pub mod document_create {
 
 pub mod policy_get {
     use super::*;
-    use crate::internal::rest::PercentEncodedString;
+    use crate::internal::rest::{url_encode, PercentEncodedString};
     use crate::policy::{Category, DataSubject, PolicyGrant, Sensitivity};
 
     pub(crate) const SUBSTITUTE_ID_QUERY_PARAM: &'static str = "substituteId";
@@ -285,30 +283,18 @@ pub mod policy_get {
     ) -> impl Future<Item = PolicyResult, Error = IronOxideErr> + 'a {
         let query_params: Vec<(String, PercentEncodedString)> = [
             // all query params here are just letters, so no need to percent encode
-            policy_grant.category().map(|c| {
-                (
-                    Category::QUERY_PARAM.to_string(),
-                    PercentEncodedString(c.0.clone()),
-                )
-            }),
-            policy_grant.sensitivity().map(|s| {
-                (
-                    Sensitivity::QUERY_PARAM.to_string(),
-                    PercentEncodedString(s.0.clone()),
-                )
-            }),
-            policy_grant.data_subject().map(|d| {
-                (
-                    DataSubject::QUERY_PARAM.to_string(),
-                    PercentEncodedString(d.0.clone()),
-                )
-            }),
-            policy_grant.substitute_user().map(|UserId(u)| {
-                (
-                    SUBSTITUTE_ID_QUERY_PARAM.to_string(),
-                    PercentEncodedString(u.clone()),
-                )
-            }),
+            policy_grant
+                .category()
+                .map(|c| (Category::QUERY_PARAM.to_string(), url_encode(c.inner()))),
+            policy_grant
+                .sensitivity()
+                .map(|s| (Sensitivity::QUERY_PARAM.to_string(), url_encode(s.inner()))),
+            policy_grant
+                .data_subject()
+                .map(|d| (DataSubject::QUERY_PARAM.to_string(), url_encode(d.inner()))),
+            policy_grant
+                .substitute_user()
+                .map(|UserId(u)| (SUBSTITUTE_ID_QUERY_PARAM.to_string(), url_encode(u))),
         ]
         .to_vec()
         .into_iter()
