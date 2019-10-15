@@ -58,10 +58,10 @@ define_encode_set! {
         /* 0x24: $ */ '$',
         /* 0x25: % */ '%',
         /* 0x26: & */ '&',
-        /* 0x27: ' */ '\'',
-        /* 0x28: ( */ // ... no encode ..
-        /* 0x29: ) */ // ... no encode ..
-        /* 0x2a: * */ // ... no encode ..
+        /* 0x27: ' */ // ... no encode ...
+        /* 0x28: ( */ // ... no encode ...
+        /* 0x29: ) */ // ... no encode ...
+        /* 0x2a: * */ // ... no encode ...
         /* 0x2b: + */ '+',
         /* 0x2c: , */ ',',
         /* 0x2d: - */ // ... no encode ...
@@ -86,7 +86,7 @@ define_encode_set! {
         /* 0x3e: > */ '>',
         /* 0x3f: ? */ '?',
         /* 0x40: @ */ '@',
-        // BEGIN letters (don't encode)
+        // BEGIN uppercase letters (don't encode)
         /* 0x41: A */ // ... no encode ...
         /* 0x42: B */ // ... no encode ...
         /* 0x43: C */ // ... no encode ...
@@ -113,12 +113,14 @@ define_encode_set! {
         /* 0x58: X */ // ... no encode ...
         /* 0x59: Y */ // ... no encode ...
         /* 0x5a: Z */ // ... no encode ...
-        /* 0x5b: [ */ // ... no encode ...
-        /* 0x5c: \ */ // ... no encode ...
-        /* 0x5d: ] */ // ... no encode ...
-        /* 0x5e: ^ */ // ... no encode ...
+        // END uppercase letters
+        /* 0x5b: [ */ '[',
+        /* 0x5c: \ */ '\\',
+        /* 0x5d: ] */ ']',
+        /* 0x5e: ^ */ '^',
         /* 0x5f: _ */ // ... no encode ...
-        /* 0x60: ` */ // ... no encode ...
+        /* 0x60: ` */ '`',
+        // BEGIN lowercase letters
         /* 0x61: a */ // ... no encode ...
         /* 0x62: b */ // ... no encode ...
         /* 0x63: c */ // ... no encode ...
@@ -145,7 +147,7 @@ define_encode_set! {
         /* 0x78: x */ // ... no encode ...
         /* 0x79: y */ // ... no encode ...
         /* 0x7a: z */ // ... no encode ...
-        // END letters
+        // END lowercase letters
         /* 0x7b: { */ '{',
         /* 0x7c: | */ '|',
         /* 0x7d: } */ '}'
@@ -1226,8 +1228,8 @@ mod tests {
         let not_url_safe_id = "'=#.other|/$non@;safe'-:;id_";
         let url_encoded = url_encode(&not_url_safe_id);
         assert_eq!(
-            "%27%3D%23.other%7C%2F%24non%40%3Bsafe%27-%3A%3Bid_",
-            *url_encoded
+            *url_encoded,
+            "\'%3D%23.other%7C%2F%24non%40%3Bsafe\'-%3A%3Bid_"
         )
     }
 
@@ -1404,7 +1406,7 @@ mod tests {
         assert_that!(&maybe_path, is_variant!(Result::Ok));
         assert_eq!(
             maybe_path.unwrap().signature_string(),
-            "/api/1/users?id=abcABC012_.%24%23%7C%40%2F%3A%3B%3D%2B%27-"
+            "/api/1/users?id=abcABC012_.%24%23%7C%40%2F%3A%3B%3D%2B\'-"
         );
 
         let maybe_path =
@@ -1444,6 +1446,6 @@ mod tests {
 
         let q =  "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
         IronCoreRequest::req_add_query(&mut req, &[("id".to_string(), url_encode(&q))]);
-        assert_eq!(req.url().query(), Some("id=!%22%23%24%25%26%27()*%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"))
+        assert_eq!(req.url().query(), Some("id=!%22%23%24%25%26\'()*%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"))
     }
 }
