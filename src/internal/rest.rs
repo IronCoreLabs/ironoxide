@@ -212,7 +212,7 @@ impl<'a> Authorization<'a> {
         segment_id: usize,
         user_id: &UserId,
         method: Method,
-        signature_url: SignatureUrlPath,
+        signature_url: SignatureUrlString,
         body: Option<&'a [u8]>,
         signing_keys: &'a DeviceSigningKeyPair,
     ) -> Authorization<'a> {
@@ -242,24 +242,27 @@ impl<'a> Authorization<'a> {
 ///
 /// Anyone wanting to verify this signature will need to be able to match this exact encoding.
 #[derive(Debug, Clone)]
-pub struct SignatureUrlPath(String);
+pub struct SignatureUrlString(String);
 
-impl SignatureUrlPath {
-    pub fn new(encoded_full_url: &str) -> Result<SignatureUrlPath, reqwest::UrlError> {
+impl SignatureUrlString {
+    pub fn new(encoded_full_url: &str) -> Result<SignatureUrlString, reqwest::UrlError> {
         let parsed_url = Url::parse(encoded_full_url)?;
         let query_str_format = |q: &str| format!("?{}", q);
 
-        Ok(SignatureUrlPath(format!(
+        Ok(SignatureUrlString(format!(
             "{}{}",
             parsed_url.path(),
             parsed_url.query().map_or("".into(), query_str_format)
         )))
     }
 
-    fn path(&self) -> &str {
+    /// String to sign over
+    fn signature_string(&self) -> &str {
         &self.0
     }
 }
+
+/// Representation of X-IronCore-User-Context header
 #[derive(Clone, Debug)]
 pub struct HeaderIronCoreUserContext {
     timestamp: DateTime<Utc>,
@@ -269,7 +272,8 @@ pub struct HeaderIronCoreUserContext {
 }
 
 impl HeaderIronCoreUserContext {
-    pub fn payload(&self) -> String {
+    /// Payload of the header
+    fn payload(&self) -> String {
         format!(
             "{},{},{},{}",
             self.timestamp.timestamp_millis(),
@@ -279,10 +283,12 @@ impl HeaderIronCoreUserContext {
         )
     }
 
-    pub fn signature(&self, signing_keys: &DeviceSigningKeyPair) -> [u8; 64] {
+    /// Signature over the header's payload
+    fn signature(&self, signing_keys: &DeviceSigningKeyPair) -> [u8; 64] {
         signing_keys.sign(&self.payload().into_bytes())
     }
 
+    /// To a reqwest-compatible header
     fn to_header(&self, error_code: RequestErrorCode) -> Result<HeaderMap, IronOxideErr> {
         let mut headers: HeaderMap = Default::default();
         self.payload()
@@ -302,17 +308,19 @@ impl HeaderIronCoreUserContext {
     }
 }
 
+/// Representation of X-IronCore-Request-Sig header
 #[derive(Clone, Debug)]
 pub struct HeaderIronCoreRequestSig<'a> {
     ironcore_user_context: HeaderIronCoreUserContext,
     method: Method,
-    url: SignatureUrlPath,
+    url: SignatureUrlString,
     body: Option<&'a [u8]>, //serialization of this body has to be identical to that in IronCoreRequest
     signing_keys: &'a DeviceSigningKeyPair,
 }
 
 impl<'a> HeaderIronCoreRequestSig<'a> {
-    pub fn payload(&self) -> Vec<u8> {
+    /// Payload of the header
+    fn payload(&self) -> Vec<u8> {
         let HeaderIronCoreRequestSig {
             body,
             ironcore_user_context,
@@ -327,7 +335,7 @@ impl<'a> HeaderIronCoreRequestSig<'a> {
                 "{}{}{}",
                 &ironcore_user_context.payload(),
                 &method,
-                url.path(),
+                url.signature_string(),
             );
             bytes.into_bytes()
         };
@@ -337,7 +345,8 @@ impl<'a> HeaderIronCoreRequestSig<'a> {
         })
     }
 
-    pub fn signature(&self) -> [u8; 64] {
+    /// Signature over the header's payload
+    fn signature(&self) -> [u8; 64] {
         self.signing_keys.sign(&self.payload())
     }
     fn to_header(&self) -> HeaderMap {
@@ -393,7 +402,7 @@ impl<'a> IronCoreRequest<'a> {
         )
     }
 
-    ///POST body to the resource at relative_url using auth for authorization.
+    ///POST body to the resource at relative_url using IronCore authorization.
     ///If the request fails a RequestError will be raised.
     pub fn post<A: Serialize + 'a, B: DeserializeOwned + 'a>(
         &self,
@@ -438,7 +447,7 @@ impl<'a> IronCoreRequest<'a> {
             .into_future()
             .and_then(move |(mut req, body_bytes)| {
                 // use the completed request to finish authorization v2 headers
-                let maybe_auth = SignatureUrlPath::new(req.url().as_str())
+                let maybe_auth = SignatureUrlString::new(req.url().as_str())
                     .map(|sig_url| {
                         auth_b.finish_with(sig_url, req.method().clone(), Some(&body_bytes))
                     })
@@ -671,7 +680,7 @@ impl<'a> IronCoreRequest<'a> {
             .into_future()
             .and_then(move |(mut req, body_bytes)| {
                 // use the completed request to finish authorization v2 headers
-                let maybe_auth = SignatureUrlPath::new(req.url().as_str())
+                let maybe_auth = SignatureUrlString::new(req.url().as_str())
                     .map(|sig_url| {
                         auth_b.finish_with(sig_url, req.method().clone(), Some(&body_bytes))
                     })
@@ -1322,7 +1331,7 @@ mod tests {
         let request_sig = HeaderIronCoreRequestSig {
             ironcore_user_context: user_context.clone(),
             method: Method::GET,
-            url: SignatureUrlPath::new(&build_url("users?id=user-10")).unwrap(),
+            url: SignatureUrlString::new(&build_url("users?id=user-10")).unwrap(),
             body: Some(&fake_req_json_bytes),
             signing_keys: &signing_keys,
         };
@@ -1340,7 +1349,7 @@ mod tests {
         let request_sig = HeaderIronCoreRequestSig {
             ironcore_user_context: user_context,
             method: Method::GET,
-            url: SignatureUrlPath::new(&build_url("users?id=user-10")).unwrap(),
+            url: SignatureUrlString::new(&build_url("users?id=user-10")).unwrap(),
             body: None,
             signing_keys: &signing_keys,
         };
@@ -1382,35 +1391,41 @@ mod tests {
                 url_encode(not_encoded_user)
             )
         };
-        let maybe_path = SignatureUrlPath::new(&user_list_url("user-10"));
+        let maybe_path = SignatureUrlString::new(&user_list_url("user-10"));
         assert_that!(&maybe_path, is_variant!(Result::Ok));
-        assert_eq!(maybe_path.unwrap().path(), "/api/1/users?id=user-10");
+        assert_eq!(
+            maybe_path.unwrap().signature_string(),
+            "/api/1/users?id=user-10"
+        );
 
         // test a user id that uses more allowed characters
-        let maybe_path = SignatureUrlPath::new(&user_list_url("abcABC012_.$#|@/:;=+'-"));
+        let maybe_path = SignatureUrlString::new(&user_list_url("abcABC012_.$#|@/:;=+'-"));
 
         assert_that!(&maybe_path, is_variant!(Result::Ok));
         assert_eq!(
-            maybe_path.unwrap().path(),
+            maybe_path.unwrap().signature_string(),
             "/api/1/users?id=abcABC012_.%24%23%7C%40%2F%3A%3B%3D%2B%27-"
         );
 
         let maybe_path =
-            SignatureUrlPath::new("https://api.ironcorelabs.com/api/1/documents/some-doc-id");
+            SignatureUrlString::new("https://api.ironcorelabs.com/api/1/documents/some-doc-id");
 
         assert_that!(&maybe_path, is_variant!(Result::Ok));
-        assert_eq!(maybe_path.unwrap().path(), "/api/1/documents/some-doc-id");
+        assert_eq!(
+            maybe_path.unwrap().signature_string(),
+            "/api/1/documents/some-doc-id"
+        );
     }
 
     #[test]
     fn signature_url_new_rejects_malformed_urls() {
-        let maybe_path = SignatureUrlPath::new("not a url");
+        let maybe_path = SignatureUrlString::new("not a url");
         assert_that!(&maybe_path, is_variant!(Result::Err));
 
-        let maybe_path = SignatureUrlPath::new("://api?");
+        let maybe_path = SignatureUrlString::new("://api?");
         assert_that!(&maybe_path, is_variant!(Result::Err));
 
-        let maybe_path = SignatureUrlPath::new("documents/some-doc-id");
+        let maybe_path = SignatureUrlString::new("documents/some-doc-id");
         assert_that!(&maybe_path, is_variant!(Result::Err));
     }
 

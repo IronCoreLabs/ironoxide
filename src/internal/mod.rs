@@ -2,7 +2,7 @@
 //! If it can be defined in API specific file, it should go there to keep this file's
 //! size to a minimum.
 
-use crate::internal::rest::SignatureUrlPath;
+use crate::internal::rest::SignatureUrlString;
 use crate::internal::{
     rest::{Authorization, IronCoreRequest},
     user_api::UserId,
@@ -222,7 +222,7 @@ pub mod auth_v2 {
         /// IronCore authenticated request to the webservice.
         pub fn finish_with(
             &self,
-            sig_url: SignatureUrlPath,
+            sig_url: SignatureUrlString,
             method: Method,
             body_bytes: Option<&'a [u8]>,
         ) -> Authorization<'a> {
@@ -249,7 +249,7 @@ impl RequestAuth {
     pub fn create_signature_v2<'a>(
         &'a self,
         current_time: DateTime<Utc>,
-        sig_url: SignatureUrlPath,
+        sig_url: SignatureUrlString,
         method: Method,
         body: Option<&'a [u8]>,
     ) -> Authorization<'a> {
