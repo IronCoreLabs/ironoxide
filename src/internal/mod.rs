@@ -277,7 +277,7 @@ impl RequestAuth {
     }
 }
 
-/// Accounts device context. Needed to initialize the Sdk with a set of device keys. See `IronOxide.initialize()`
+/// Account's device context. Needed to initialize the Sdk with a set of device keys. See `IronOxide.initialize()`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceContext {
     auth: RequestAuth,
@@ -384,6 +384,19 @@ impl From<PublicKey> for crate::proto::transform::PublicKey {
         proto_pub_key.set_x(pubk.to_bytes_x_y().0.into());
         proto_pub_key.set_y(pubk.to_bytes_x_y().1.into());
         proto_pub_key
+    }
+}
+impl TryFrom<&[u8]> for PublicKey {
+    type Error = IronOxideErr;
+    fn try_from(key_bytes: &[u8]) -> Result<PublicKey, IronOxideErr> {
+        if key_bytes.len() == RecryptPublicKey::ENCODED_SIZE_BYTES {
+            PublicKey::new_from_slice(key_bytes.split_at(RecryptPublicKey::ENCODED_SIZE_BYTES / 2))
+        } else {
+            Err(IronOxideErr::WrongSizeError(
+                Some(RecryptPublicKey::ENCODED_SIZE_BYTES),
+                Some(key_bytes.len()),
+            ))
+        }
     }
 }
 impl PublicKey {
@@ -833,5 +846,22 @@ pub(crate) mod test {
             (&proto_pubk.get_x().to_vec(), &proto_pubk.get_y().to_vec())
         );
         Ok(())
+    }
+
+    #[test]
+    fn public_key_try_from_slice() -> Result<(), IronOxideErr> {
+        let recr = recrypt::api::Recrypt::new();
+        let (_, re_pubk) = recr.generate_key_pair()?;
+        let pubk: PublicKey = re_pubk.into();
+        let pubk2: PublicKey = pubk.as_bytes().as_slice().try_into()?;
+        assert_eq!(pubk, pubk2);
+        Ok(())
+    }
+
+    #[test]
+    fn public_key_try_from_slice_invalid() {
+        let bytes = [1u8; 8];
+        let maybe_public_key: Result<PublicKey, IronOxideErr> = bytes[..].try_into();
+        assert!(maybe_public_key.is_err())
     }
 }

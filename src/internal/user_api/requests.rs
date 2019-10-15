@@ -122,7 +122,7 @@ pub mod user_verify {
 }
 
 pub mod user_create {
-    use crate::internal::{user_api::UserCreateKeyPair, TryInto};
+    use crate::internal::{user_api::UserCreateResult, TryInto};
 
     use super::*;
 
@@ -164,12 +164,11 @@ pub mod user_create {
             &Authorization::JwtAuth(jwt),
         )
     }
-    impl TryFrom<UserCreateResponse> for UserCreateKeyPair {
+    impl TryFrom<UserCreateResponse> for UserCreateResult {
         type Error = IronOxideErr;
 
         fn try_from(resp: UserCreateResponse) -> Result<Self, Self::Error> {
-            Ok(UserCreateKeyPair {
-                user_encrypted_master_key: resp.user_private_key.try_into()?,
+            Ok(UserCreateResult {
                 user_public_key: resp.user_master_public_key.try_into()?,
                 needs_rotation: resp.needs_rotation,
             })
