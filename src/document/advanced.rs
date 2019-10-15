@@ -1,9 +1,10 @@
-use crate::document::{partition_user_or_group, DocumentEncryptOpts};
-use crate::internal;
 pub use crate::internal::document_api::{
     DocumentDecryptUnmanagedResult, DocumentEncryptUnmanagedResult,
 };
-use crate::Result;
+use crate::{
+    document::{partition_user_or_group, DocumentEncryptOpts},
+    internal, Result,
+};
 use itertools::EitherOrBoth;
 use tokio::runtime::current_thread::Runtime;
 

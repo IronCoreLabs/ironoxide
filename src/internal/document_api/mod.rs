@@ -1,7 +1,3 @@
-use crate::internal::take_lock;
-use crate::proto::transform::EncryptedDek as EncryptedDekP;
-use crate::proto::transform::EncryptedDekData as EncryptedDekDataP;
-use crate::proto::transform::EncryptedDeks as EncryptedDeksP;
 use crate::{
     crypto::{
         aes::{self, AesEncryptedValue},
@@ -11,10 +7,15 @@ use crate::{
         self,
         document_api::requests::UserOrGroupWithKey,
         group_api::{GroupId, GroupName},
+        take_lock,
         user_api::UserId,
         validate_id, validate_name, IronOxideErr, PrivateKey, PublicKey, RequestAuth, WithKey,
     },
     policy::PolicyGrant,
+    proto::transform::{
+        EncryptedDek as EncryptedDekP, EncryptedDekData as EncryptedDekDataP,
+        EncryptedDeks as EncryptedDeksP,
+    },
     DeviceSigningKeyPair,
 };
 use chrono::{DateTime, Utc};
@@ -30,11 +31,11 @@ use requests::{
     document_list::{DocumentListApiResponse, DocumentListApiResponseItem},
     DocumentMetaApiResponse,
 };
-use std::ops::DerefMut;
-use std::sync::Mutex;
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Formatter,
+    ops::DerefMut,
+    sync::Mutex,
 };
 
 mod requests;
@@ -1252,6 +1253,7 @@ fn process_policy(
 #[cfg(test)]
 mod tests {
     use crate::internal::test::contains;
+    use crate::internal::user_api::DeviceId;
     use base64::decode;
     use galvanic_assert::matchers::{collection::*, *};
 
@@ -1465,8 +1467,7 @@ mod tests {
 
     #[test]
     fn encode_encrypted_dek_proto() {
-        use recrypt::api::Hashable;
-        use recrypt::prelude::*;
+        use recrypt::{api::Hashable, prelude::*};
         let recrypt_api = recrypt::api::Recrypt::new();
         let (_, pubk) = recrypt_api.generate_key_pair().unwrap();
         let signing_keys = recrypt_api.generate_ed25519_key_pair();
@@ -1605,8 +1606,9 @@ mod tests {
 
     #[test]
     pub fn unmanaged_edoc_compare_grants() -> Result<(), IronOxideErr> {
-        use crate::proto::transform::UserOrGroup as UserOrGroupP;
-        use crate::proto::transform::UserOrGroup_oneof_UserOrGroupId as UserOrGroupIdP;
+        use crate::proto::transform::{
+            UserOrGroup as UserOrGroupP, UserOrGroup_oneof_UserOrGroupId as UserOrGroupIdP,
+        };
         use recrypt::prelude::*;
 
         let recr = recrypt::api::Recrypt::new();
@@ -1700,7 +1702,7 @@ mod tests {
         let aes_value = AesEncryptedValue::try_from(&[42u8; 32][..])?;
         let uid = UserId::unsafe_from_string("userid".into());
         let gid = GroupId::unsafe_from_string("groupid".into());
-        let did = TryFrom::try_from(1).unwrap();
+        let did: DeviceId = 1.try_into()?;
         let user: UserOrGroup = uid.borrow().into();
         let group: UserOrGroup = gid.borrow().into();
         let (priv_key, pubk) = recr.generate_key_pair()?;

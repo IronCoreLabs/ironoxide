@@ -4,23 +4,21 @@
 
 use crate::internal::{
     rest::{Authorization, IronCoreRequest},
-    user_api::DeviceId,
-    user_api::UserId,
+    user_api::{DeviceId, UserId},
 };
 use chrono::{DateTime, Utc};
 use log::error;
-use protobuf;
-use protobuf::ProtobufError;
+use protobuf::{self, ProtobufError};
 use recrypt::api::{
     Hashable, PrivateKey as RecryptPrivateKey, PublicKey as RecryptPublicKey, RecryptErr,
     SigningKeypair as RecryptSigningKeypair,
 };
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::sync::{Mutex, MutexGuard};
 use std::{
     convert::{TryFrom, TryInto},
     result::Result,
+    sync::{Mutex, MutexGuard},
 };
 
 pub mod document_api;
@@ -647,15 +645,13 @@ pub(crate) mod test {
     }
 
     #[test]
-    fn serde_devicecontext_roundtrip() {
+    fn serde_devicecontext_roundtrip() -> Result<(), IronOxideErr> {
         use serde_json;
         let priv_key: recrypt::api::PrivateKey = recrypt::api::PrivateKey::new_from_slice(
             base64::decode("bzb0Rlg0u7gx9wDuk1ppRI77OH/0ferXleenJ3Ag6Jg=")
                 .unwrap()
                 .as_slice(),
-        )
-        .unwrap();
-
+        )?;
         let dev_keys = recrypt::api::SigningKeypair::from_byte_slice(&[
             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
             1, 1, 1, 138, 136, 227, 221, 116, 9, 241, 149, 253, 82, 219, 45, 60, 186, 93, 114, 202,
@@ -663,18 +659,19 @@ pub(crate) mod test {
         ])
         .unwrap();
         let context = DeviceContext::new(
-            TryFrom::try_from(314).unwrap(),
-            TryFrom::try_from("account_id").unwrap(),
+            314.try_into()?,
+            "account_id".try_into()?,
             22,
             priv_key.into(),
             DeviceSigningKeyPair::from(dev_keys),
         );
-
         let json = serde_json::to_string(&context).unwrap();
+        let expect_json = r#"{"deviceId":314,"accountId":"account_id","segmentId":22,"signingPrivateKey":"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQGKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXA==","devicePrivateKey":"bzb0Rlg0u7gx9wDuk1ppRI77OH/0ferXleenJ3Ag6Jg="}"#;
 
-        assert_eq!(json, "{\"deviceId\":314,\"accountId\":\"account_id\",\"segmentId\":22,\"signingPrivateKey\":\"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQGKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXA==\",\"devicePrivateKey\":\"bzb0Rlg0u7gx9wDuk1ppRI77OH/0ferXleenJ3Ag6Jg=\"}");
+        assert_eq!(json, expect_json);
 
         let de: DeviceContext = serde_json::from_str(&json).unwrap();
+
         assert_eq!(context.account_id(), de.account_id());
         assert_eq!(context.device_id(), de.device_id());
         assert_eq!(
@@ -685,6 +682,7 @@ pub(crate) mod test {
             context.device_private_key.as_bytes().to_vec(),
             de.device_private_key.as_bytes().to_vec()
         );
+        Ok(())
     }
 
     #[test]

@@ -6,11 +6,11 @@ use chrono::{DateTime, Utc};
 use futures::prelude::*;
 use itertools::{Either, Itertools};
 use recrypt::prelude::*;
-use std::sync::Mutex;
 use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
     result::Result,
+    sync::Mutex,
 };
 
 /// private module that handles interaction with ironcore-id

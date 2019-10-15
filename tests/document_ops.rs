@@ -2,11 +2,17 @@ mod common;
 use crate::common::init_sdk_get_user;
 use common::{create_second_user, init_sdk};
 use galvanic_assert::matchers::{collection::*, *};
-use ironoxide::group::GroupCreateOpts;
-use ironoxide::{document::advanced::*, document::*, prelude::*, IronOxide};
+use ironoxide::{
+    document::{advanced::*, *},
+    group::GroupCreateOpts,
+    prelude::*,
+    IronOxide,
+};
 use itertools::EitherOrBoth;
-use std::convert::{TryFrom, TryInto};
-use std::sync::Arc;
+use std::{
+    convert::{TryFrom, TryInto},
+    sync::Arc,
+};
 
 #[cfg(test)]
 #[macro_use]

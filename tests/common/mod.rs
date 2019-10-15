@@ -1,6 +1,5 @@
 use ironoxide::{prelude::*, user::UserVerifyResult};
-use std::convert::TryInto;
-use std::default::Default;
+use std::{convert::TryInto, default::Default};
 use uuid::Uuid;
 
 pub fn gen_jwt(
@@ -81,7 +80,7 @@ pub fn init_sdk_get_user() -> (UserId, IronOxide) {
 
     let users_account_id = device.account_id().id();
     let users_segment_id = device.segment_id();
-    let users_device_id = *device.device_id().id(); //TODO: Should I be doing this differently? I don't have TryFrom<&u64>
+    let users_device_id = *device.device_id().id();
     let users_device_private_key_bytes = &device.device_private_key().as_bytes()[..];
     let users_signing_keys_bytes = &device.signing_private_key().as_bytes()[..];
 
