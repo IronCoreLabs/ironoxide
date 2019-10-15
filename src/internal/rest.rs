@@ -15,6 +15,7 @@ use crate::internal::auth_v2::AuthV2Builder;
 use crate::internal::{
     user_api::UserId, DeviceSigningKeyPair, IronOxideErr, Jwt, RequestErrorCode, OUR_REQUEST,
 };
+use futures::future::Either;
 use percent_encoding::SIMPLE_ENCODE_SET;
 use reqwest::header::{HeaderValue, CONTENT_TYPE};
 use reqwest::r#async::RequestBuilder;
@@ -275,10 +276,22 @@ impl HeaderIronCoreUserContext {
         signing_keys.sign(&self.payload().into_bytes())
     }
 
-    fn to_header(&self) -> HeaderMap {
+    fn to_header(&self, error_code: RequestErrorCode) -> Result<HeaderMap, IronOxideErr> {
         let mut headers: HeaderMap = Default::default();
-        headers.append("X-IronCore-User-Context", self.payload().parse().unwrap()); //TODO
-        headers
+        self.payload()
+            .parse()
+            .map_err(|_| IronOxideErr::RequestError {
+                message: format!(
+                    "Failed to encode '{}' into a X-IronCore-User-Context header",
+                    &self.payload()
+                ),
+                code: error_code,
+                http_status: None,
+            })
+            .map(|url| {
+                headers.append("X-IronCore-User-Context", url);
+                headers
+            })
     }
 }
 
@@ -324,7 +337,9 @@ impl<'a> HeaderIronCoreRequestSig<'a> {
         let mut headers: HeaderMap = Default::default();
         headers.append(
             "X-IronCore-Request-Sig",
-            base64::encode(&self.signature().to_vec()).parse().unwrap(),
+            base64::encode(&self.signature().to_vec())
+                .parse()
+                .expect("signature as base64 can always be encoded as ASCII"),
         );
         headers
     }
@@ -430,19 +445,27 @@ impl<'a> IronCoreRequest<'a> {
                             request_sig,
                         } = &auth
                         {
-                            replace_headers(req.headers_mut(), RAW_BYTES_HEADERS.clone());
-                            replace_headers(req.headers_mut(), auth.to_auth_header());
-                            replace_headers(req.headers_mut(), user_context.to_header());
-                            replace_headers(req.headers_mut(), request_sig.to_header());
+                            match user_context.to_header(error_code) {
+                                Ok(user_context_header) => {
+                                    replace_headers(req.headers_mut(), user_context_header);
+                                    replace_headers(req.headers_mut(), DEFAULT_HEADERS.clone());
+                                    replace_headers(req.headers_mut(), auth.to_auth_header());
+                                    replace_headers(req.headers_mut(), request_sig.to_header());
 
-                            Self::send_req(req, error_code, move |server_resp| {
-                                IronCoreRequest::deserialize_body(server_resp, error_code.clone())
-                            })
+                                    Either::A(Self::send_req(req, error_code, move |server_resp| {
+                                        IronCoreRequest::deserialize_body(
+                                            server_resp,
+                                            error_code.clone(),
+                                        )
+                                    }))
+                                }
+                                Err(e) => Either::B(futures::future::err(e)),
+                            }
                         } else {
                             panic!("authorized requests must use version 2 of API authentication")
                         }
                     }
-                    Err(e) => panic!(), //cannot seem to convince the compiler to allow this to fail the future
+                    Err(e) => Either::B(futures::future::err(e)),
                 }
             })
     }
@@ -624,7 +647,8 @@ impl<'a> IronCoreRequest<'a> {
 
                 // add the body
                 let body_bytes: Vec<u8> = if let Some(json_se) = maybe_body {
-                    let body = serde_json::to_vec(&json_se)?;
+                    let body = serde_json::to_vec(&json_se)
+                        .map_err(|e| IronOxideErr::from((e, error_code)))?;
                     req.headers_mut()
                         .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
                     *req.body_mut() = Some(body.clone().into());
@@ -654,23 +678,29 @@ impl<'a> IronCoreRequest<'a> {
                             request_sig,
                         } = &auth
                         {
-                            replace_headers(req.headers_mut(), DEFAULT_HEADERS.clone());
-                            replace_headers(req.headers_mut(), auth.to_auth_header());
-                            replace_headers(req.headers_mut(), user_context.to_header());
-                            replace_headers(req.headers_mut(), request_sig.to_header());
+                            match user_context.to_header(error_code) {
+                                Ok(user_context_header) => {
+                                    replace_headers(req.headers_mut(), user_context_header);
+                                    replace_headers(req.headers_mut(), DEFAULT_HEADERS.clone());
+                                    replace_headers(req.headers_mut(), auth.to_auth_header());
+                                    replace_headers(req.headers_mut(), request_sig.to_header());
 
-                            Self::send_req(req, error_code, resp_handler)
+                                    Either::A(Self::send_req(req, error_code, resp_handler))
+                                }
+                                Err(e) => Either::B(futures::future::err(e)),
+                            }
                         } else {
                             panic!("authorized requests must use version 2 of API authentication")
                         }
                     }
-                    Err(e) => panic!(),
+                    Err(e) => Either::B(futures::future::err(e)),
                 }
             })
     }
 
     fn req_add_query(req: &mut ARequest, query_params: &[(String, PercentEncodedString)]) {
-        //side-effect to the stars!
+        // side-effect to the stars!
+        // can't use serde_urlencoded here as we need a custom percent encoding
         let query_string: String = query_params
             .iter()
             .map(|(k, v)| format!("{}={}", k, v.0))
@@ -867,10 +897,13 @@ fn replace_headers(dst: &mut HeaderMap, src: HeaderMap) {
     }
 }
 
-////TODO
-impl From<serde_json::Error> for IronOxideErr {
-    fn from(_: serde_json::Error) -> Self {
-        unimplemented!()
+impl From<(serde_json::Error, RequestErrorCode)> for IronOxideErr {
+    fn from((e, code): (serde_json::Error, RequestErrorCode)) -> Self {
+        IronOxideErr::RequestError {
+            message: e.to_string(),
+            code,
+            http_status: None,
+        }
     }
 }
 
@@ -893,6 +926,8 @@ impl From<(publicsuffix::errors::Error, RequestErrorCode)> for IronOxideErr {
         }
     }
 }
+
+//impl From
 
 /// Common types for use across different internal apis
 pub mod json {
@@ -1075,7 +1110,6 @@ mod tests {
     use chrono::TimeZone;
     use galvanic_assert::matchers::{variant::*, *};
     use recrypt::api::{Ed25519Signature, PublicSigningKey};
-    use std::borrow::Borrow;
 
     #[test]
     fn deserialize_errors() {
@@ -1215,7 +1249,12 @@ mod tests {
         let mut header = HeaderMap::default();
         header.append("X-IronCore-User-Context", expected.parse().unwrap());
 
-        assert_eq!(user_context.to_header(), header);
+        assert_eq!(
+            user_context
+                .to_header(RequestErrorCode::UserKeyList)
+                .unwrap(),
+            header
+        );
 
         // assert that the signature() implementation can be verified with the included public signing key
         let signature = user_context.signature(&key_pair);
@@ -1368,33 +1407,21 @@ mod tests {
         assert_that!(&maybe_path, is_variant!(Result::Err));
     }
 
-    //    #[test]
-    //    fn query_params_encoded_correctly() {
-    //        use publicsuffix::IntoUrl;
-    //
-    //        let icl_req = IronCoreRequest::new("https://example.com");
-    //
-    //        let mut req = ARequest::new(
-    //            Method::GET,
-    //            format!("{}/{}", icl_req.base_url(), "users")
-    //                .into_url()
-    //                .unwrap(),
-    //        );
-    //        //        req.
-    //
-    //        let q = format!("{},{}", "abcABC012_.$#|@/:;=+'-", "a-nice_id");
-    //
-    //        println!("original query string: {}", &q);
-    //        dbg!(&url_encode(&q));
-    //
-    //        let result =
-    //            IronCoreRequest::req_add_query(&mut req, &[("id".to_string(), url_encode(&q))]);
-    //
-    //        dbg!(req.url().query());
-    //
-    //        //        IronCoreRequest::req_add_query(&mut req, &[("id", "abcABC012_.$#|@/:;=+'-,-a-nice-id")]);
-    //        dbg!(&result);
-    //        //        req.
-    //        dbg!(req.url());
-    //    }
+    #[test]
+    fn query_params_encoded_correctly() {
+        use publicsuffix::IntoUrl;
+
+        let icl_req = IronCoreRequest::new("https://example.com");
+
+        let mut req = ARequest::new(
+            Method::GET,
+            format!("{}/{}", icl_req.base_url(), "users")
+                .into_url()
+                .unwrap(),
+        );
+
+        let q =  "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+        IronCoreRequest::req_add_query(&mut req, &[("id".to_string(), url_encode(&q))]);
+        assert_eq!(req.url().query(), Some("id=!%22%23%24%25%26%27()*%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"))
+    }
 }

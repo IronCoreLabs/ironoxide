@@ -34,9 +34,8 @@ pub const OUR_REQUEST: IronCoreRequest =
     IronCoreRequest::new("https://api-staging.ironcorelabs.com/api/1/");
 
 #[cfg(not(feature = "senv"))]
-pub const OUR_REQUEST: IronCoreRequest = //TODO REVERT THIS TO POINT BACK TO PROD
-    IronCoreRequest::new("https://api-dev1.ironcorelabs.com/api/1/");
-//IronCoreRequest::new("https://api.ironcorelabs.com/api/1/");
+pub const OUR_REQUEST: IronCoreRequest =
+    IronCoreRequest::new("https://api.ironcorelabs.com/api/1/");
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum RequestErrorCode {
