@@ -244,10 +244,8 @@ pub fn user_soft_rotate_key<CR: rand::CryptoRng + rand::RngCore>(
     passphrase: Password,
     auth: &RequestAuth,
 ) -> Result<UserPrivateKeyRotationResult, IronOxideErr> {
-    get
-
     // generate the augmentation factor
-    let aug_factor = generate_augmentation_factor()
+    //    let aug_factor = generate_augmentation_factor();
     // compute new private key for user
     // encrypt new private key with passphrase
     // invoke REST endpoint
