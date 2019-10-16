@@ -1,8 +1,7 @@
 use std::{fmt, num::NonZeroU32};
 
 use rand::{self, CryptoRng, RngCore};
-use ring::aead::BoundKey;
-use ring::{aead, digest, error::Unspecified, pbkdf2};
+use ring::{aead, aead::BoundKey, digest, error::Unspecified, pbkdf2};
 
 use crate::internal::{take_lock, IronOxideErr};
 use futures::Future;
@@ -222,8 +221,7 @@ pub fn encrypt<R: CryptoRng + RngCore>(
 }
 
 use futures::future::IntoFuture;
-use std::ops::DerefMut;
-use std::sync::Mutex;
+use std::{ops::DerefMut, sync::Mutex};
 
 /// Like `encrypt`, just wrapped in a Future for convenience
 pub fn encrypt_future<R: CryptoRng + RngCore>(

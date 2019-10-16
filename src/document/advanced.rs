@@ -1,9 +1,10 @@
-use crate::document::{partition_user_or_group, DocumentEncryptOpts};
-use crate::internal;
 pub use crate::internal::document_api::{
     DocumentDecryptUnmanagedResult, DocumentEncryptUnmanagedResult,
 };
-use crate::Result;
+use crate::{
+    document::{partition_user_or_group, DocumentEncryptOpts},
+    internal, Result,
+};
 use itertools::EitherOrBoth;
 use tokio::runtime::current_thread::Runtime;
 
@@ -94,7 +95,7 @@ impl DocumentAdvancedOps for crate::IronOxide {
         rt.block_on(internal::document_api::decrypt_document_unmanaged(
             self.device.auth(),
             &self.recrypt,
-            self.device().private_device_key(),
+            self.device().device_private_key(),
             encrypted_data,
             encrypted_deks,
         ))

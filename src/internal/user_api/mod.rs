@@ -7,11 +7,11 @@ use chrono::{DateTime, Utc};
 use futures::prelude::*;
 use itertools::{Either, Itertools};
 use recrypt::prelude::*;
-use std::sync::Mutex;
 use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
     result::Result,
+    sync::Mutex,
 };
 
 /// private module that handles interaction with ironcore-id
@@ -85,24 +85,14 @@ impl TryFrom<&str> for DeviceName {
 
 /// Keypair for a newly created user
 #[derive(Debug)]
-pub struct UserCreateKeyPair {
-    // user's private key encrypted with the provided passphrase
-    user_encrypted_master_key: EncryptedMasterKey,
+pub struct UserCreateResult {
     user_public_key: PublicKey,
     // does the private key of this key pair need to be rotated?
     needs_rotation: bool,
 }
 
-impl UserCreateKeyPair {
+impl UserCreateResult {
     /// user's private key encrypted with the provided passphrase
-    pub fn user_encrypted_master_key(&self) -> &EncryptedMasterKey {
-        &self.user_encrypted_master_key
-    }
-
-    pub fn user_encrypted_master_key_bytes(&self) -> [u8; 92] {
-        self.user_encrypted_master_key.bytes()
-    }
-
     pub fn user_public_key(&self) -> &PublicKey {
         &self.user_public_key
     }
@@ -135,6 +125,7 @@ pub struct UserVerifyResult {
     account_id: UserId,
     segment_id: usize,
     user_public_key: PublicKey,
+    needs_rotation: bool,
 }
 impl UserVerifyResult {
     pub fn user_public_key(&self) -> &PublicKey {
@@ -147,6 +138,10 @@ impl UserVerifyResult {
 
     pub fn segment_id(&self) -> usize {
         self.segment_id
+    }
+
+    pub fn needs_rotation(&self) -> bool {
+        self.needs_rotation
     }
 }
 
@@ -217,7 +212,7 @@ pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
     passphrase: Password,
     needs_rotation: bool,
     request: IronCoreRequest<'static>,
-) -> impl Future<Item = UserCreateKeyPair, Error = IronOxideErr> {
+) -> impl Future<Item = UserCreateResult, Error = IronOxideErr> {
     recrypt
         .generate_key_pair()
         .map_err(IronOxideErr::from)
@@ -322,11 +317,11 @@ pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
         )
         // call device_add
         .and_then(move |(device_add, account_id, segment_id)| {
-            // discard successful response as it only has the device public key in it, which we already have
             requests::device_add::user_device_add(&jwt, &device_add, &device_name, &request)
                 // on successful response, assemble a DeviceContext for the caller
-                .map(move |_| {
+                .map(move |response| {
                     DeviceContext::new(
+                        response.device_id,
                         account_id,
                         segment_id,
                         device_add.device_keys.private_key,

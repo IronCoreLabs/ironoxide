@@ -1,8 +1,7 @@
 use super::{AssociationType, DocumentId, DocumentName};
-use crate::internal::document_api::EncryptedDek;
 use crate::internal::{
     self,
-    document_api::{UserOrGroup, VisibleGroup, VisibleUser, WithKey},
+    document_api::{EncryptedDek, UserOrGroup, VisibleGroup, VisibleUser, WithKey},
     group_api::GroupId,
     rest::{
         self,
@@ -13,8 +12,7 @@ use crate::internal::{
 };
 use chrono::{DateTime, Utc};
 use futures::Future;
-use std::convert::TryFrom;
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Association {
@@ -200,7 +198,6 @@ pub mod edek_transform {
         pub(in crate::internal::document_api) user_or_group: UserOrGroup,
         pub(in crate::internal::document_api) encrypted_symmetric_key: TransformedEncryptedValue,
     }
-
 }
 
 pub mod document_create {
@@ -305,7 +302,6 @@ pub mod policy_get {
             &auth.create_signature(Utc::now()),
         )
     }
-
 }
 
 pub mod document_update {

@@ -1,6 +1,6 @@
 use crate::internal::user_api::UserPrivateKeyRotationResult;
 pub use crate::internal::user_api::{
-    UserCreateKeyPair, UserDevice, UserDeviceListResult, UserId, UserVerifyResult,
+    UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserVerifyResult,
 };
 use crate::internal::Password;
 use crate::{
@@ -66,14 +66,14 @@ pub trait UserOps {
     /// - `password` - Password used to encrypt and escrow the user's private master key
     /// - `user_create_opts` - see [`UserCreateOpts`](struct.UserCreateOpts.html)
     /// # Returns
-    /// Newly generated `UserCreateKeyPair` or Err. For most use cases this key pair can
+    /// Newly generated `UserCreateResult` or Err. For most use cases, this public key can
     /// be discarded as IronCore escrows your user's keys. The escrowed keys are unlocked
     /// by the provided password.
     fn user_create(
         jwt: &str,
         password: &str,
         user_create_opts: &UserCreateOpts,
-    ) -> Result<UserCreateKeyPair>;
+    ) -> Result<UserCreateResult>;
 
     /// Get all the devices for the current user
     ///
@@ -118,7 +118,7 @@ pub trait UserOps {
     /// - `jwt` - Valid IronCore JWT
     ///
     /// # Returns
-    /// Option of whether the users account record exists in the IronCore system or not. Err if the request couldn't be made.
+    /// Option of whether the user's account record exists in the IronCore system or not. Err if the request couldn't be made.
     fn user_verify(jwt: &str) -> Result<Option<UserVerifyResult>>;
 
     /// Get a list of user public keys given their IDs. Allows discovery of which user IDs have keys in the
@@ -138,7 +138,7 @@ impl UserOps for IronOxide {
         jwt: &str,
         password: &str,
         user_create_opts: &UserCreateOpts,
-    ) -> Result<UserCreateKeyPair> {
+    ) -> Result<UserCreateResult> {
         let recrypt = Recrypt::new();
         let mut rt = Runtime::new().unwrap();
         rt.block_on(user_api::user_create(
