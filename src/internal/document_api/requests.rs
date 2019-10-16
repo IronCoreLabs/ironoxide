@@ -301,12 +301,11 @@ pub mod policy_get {
         .flatten()
         .collect();
 
-        let auth_b = AuthV2Builder::<'a>::new(&auth, Utc::now());
         auth.request.get_with_query_params(
             "policies",
             &query_params,
             RequestErrorCode::PolicyGet,
-            auth_b,
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 }
