@@ -84,8 +84,17 @@ fn user_create_good_with_devices() {
 }
 
 #[test]
+fn user_get_current() -> Result<(), IronOxideErr> {
+    let io = common::init_sdk();
+
+    dbg!(io.user_rotate_private_key("asdf"));
+
+    Ok(())
+}
+
+#[test]
 fn user_private_key_rotation() -> Result<(), IronOxideErr> {
-    let (_, init_result) = common::init_sdk_get_init_result();
+    //    let (_, init_result) = common::init_sdk_get_init_result();
 
     //    // case 1: don't handle RotationNeeded
     //    let sdk: IronOxide = init_result.unwrap();

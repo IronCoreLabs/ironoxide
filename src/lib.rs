@@ -157,7 +157,8 @@ pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
 /// marked for private key rotation, or if any of the groups that the user is an admin of is marked
 /// for private key rotation.
 pub fn initialize_check_rotation(device_context: &DeviceContext) -> Result<InitAndRotationCheck> {
-    Ok(unimplemented!())
+    initialize(&device_context).map(|io| InitAndRotationCheck::NoRotationNeeded(io))
+    //TODO passthrough
 }
 
 impl IronOxide {

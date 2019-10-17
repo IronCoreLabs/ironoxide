@@ -1,9 +1,6 @@
 //! User operation requests.
 //! Types and functions defined here should remain private to `user_api`
 
-use chrono::Utc;
-use futures::Future;
-
 use crate::{
     crypto::aes::EncryptedMasterKey,
     internal::{
@@ -13,9 +10,12 @@ use crate::{
             Authorization, IronCoreRequest,
         },
         user_api::{DeviceName, UserId},
-        IronOxideErr, Jwt, RequestAuth, RequestErrorCode, TryFrom,
+        IronOxideErr, Jwt, RequestAuth, RequestErrorCode,
     },
 };
+use chrono::Utc;
+use futures::Future;
+use std::convert::TryFrom;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct PrivateKey(#[serde(with = "Base64Standard")] pub Vec<u8>);
@@ -118,6 +118,51 @@ pub mod user_verify {
             Ok(())
         }
     }
+}
+
+pub mod user_get {
+    use super::*;
+
+    #[derive(Deserialize, PartialEq, Debug)]
+    #[serde(rename_all = "camelCase")]
+    pub struct CurrentUserResponse {
+        pub(in crate::internal) current_key_id: usize,
+        pub(in crate::internal) id: String,
+        pub(in crate::internal) status: usize,
+        pub(in crate::internal) segment_id: usize,
+        pub(in crate::internal) user_master_public_key: PublicKey,
+        pub(in crate::internal) user_private_key: PrivateKey,
+        pub(in crate::internal) needs_rotation: bool,
+        pub(in crate::internal) groups_needing_rotation: Vec<String>,
+    }
+
+    pub fn get_curr_user(
+        auth: &RequestAuth,
+    ) -> impl Future<Item = CurrentUserResponse, Error = IronOxideErr> {
+        auth.request.get(
+            "users/current",
+            RequestErrorCode::EdekTransform,
+            &auth.create_signature(Utc::now()),
+        )
+    }
+}
+
+pub mod user_update_private_key {
+    //    use super::*;
+    //
+    //    #[derive(Serialize, Debug)]
+    //    #[serde(rename_all = "camelCase")]
+    //    pub struct UserUpdatePrivateKey {
+    //        user_private_key: PrivateKey,
+    //        augmentation_factor: PrivateKey,
+    //    }
+    //
+    //    pub fn update_private_key(
+    //        auth: &RequestAuth,
+    //        new_encrypted_private_key: PrivateKey,
+    //        augmenting_key: PrivateKey,
+    //    ) {
+    //    }
 }
 
 pub mod user_create {

@@ -1,11 +1,11 @@
 use crate::{
     crypto::aes::{self, EncryptedMasterKey},
     internal::{rest::IronCoreRequest, *},
-    IronOxide,
 };
 use chrono::{DateTime, Utc};
 use futures::prelude::*;
 use itertools::{Either, Itertools};
+use rand::rngs::EntropyRng;
 use recrypt::prelude::*;
 use std::{
     collections::HashMap,
@@ -237,31 +237,40 @@ pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
         .and_then(|resp| resp.try_into())
 }
 
+#[derive(Debug, Clone)]
 pub struct UserPrivateKeyRotationResult;
 
-pub fn user_soft_rotate_key<CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+pub fn user_soft_rotate_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
+    recrypt: &'apicall Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     passphrase: Password,
-    auth: &RequestAuth,
-) -> Result<UserPrivateKeyRotationResult, IronOxideErr> {
+    auth: &'apicall RequestAuth,
+) -> impl Future<Item = UserPrivateKeyRotationResult, Error = IronOxideErr> + 'apicall {
+    requests::user_get::get_curr_user(&auth).and_then(move |curr_user| {
+        Ok({
+            let password_string = passphrase.0;
+            let encrypt_priv_key = curr_user.user_private_key;
+            let priv_key: PrivateKey = aes::decrypt_user_master_key(
+                &password_string,
+                &aes::EncryptedMasterKey::new_from_slice(&encrypt_priv_key.0)?,
+            )?
+            .into();
+            let aug_factor = AugmentationFactor::generate_new(recrypt);
+            // TODO retry augfactor internally?
+            let new_encrypted_priv_key = aes::encrypt_user_master_key(
+                &Mutex::new(EntropyRng::default()),
+                &password_string,
+                priv_key.augment(aug_factor)?.as_bytes(),
+            )?;
+
+            UserPrivateKeyRotationResult
+        })
+    })
+
     // generate the augmentation factor
-    //    let aug_factor = generate_augmentation_factor();
+    //        let aug_factor = generate_augmentation_factor();
     // compute new private key for user
     // encrypt new private key with passphrase
     // invoke REST endpoint
-    unimplemented!()
-}
-
-fn generate_augmentation_factor<CO: CryptoOps>(
-    curr_priv_key: &PrivateKey,
-    recrypt: &CO,
-) -> Result<AugmentationFactor, IronOxideErr> {
-    let pt = recrypt.gen_plaintext();
-    let augmenting_key = recrypt.derive_private_key(&pt);
-    let aug_factor = curr_priv_key.augment(augmenting_key.into());
-    aug_factor.ok_or(IronOxideErr::UserPrivateKeyRotationError(
-        "Bad augmentation factor chosen".to_string(),
-    ))
 }
 
 /// Generate a device key for the user specified in the JWT.
@@ -576,32 +585,5 @@ mod test {
             &user_id.unwrap_err(),
             is_variant!(IronOxideErr::ValidationError)
         );
-    }
-
-    #[test]
-    fn private_key_augmentation_aug_key_of_zero() {
-        // if the augmenting key is zero, the private key remains unchanged.
-        let r = DummyRecrypt {
-            underlying: &recrypt::api::Recrypt::new(),
-            private_key: Some(recrypt::api::PrivateKey::new([0u8; 32])),
-        };
-        let priv_key_orig = gen_priv_key();
-        let aug_factor = generate_augmentation_factor(&priv_key_orig.clone().into(), &r).unwrap();
-        assert_eq!(aug_factor.0.as_bytes(), priv_key_orig.as_bytes())
-    }
-
-    #[test]
-    fn private_key_augmentation_result_zero_is_err() {
-        let priv_key_orig = gen_priv_key();
-        let r = DummyRecrypt {
-            underlying: &recrypt::api::Recrypt::new(),
-            private_key: Some(priv_key_orig.clone().into()),
-        };
-        let result = generate_augmentation_factor(&priv_key_orig.clone().into(), &r);
-        assert_that!(&result, is_variant!(Result::Err));
-        assert_that!(
-            &result.unwrap_err(),
-            is_variant!(IronOxideErr::UserPrivateKeyRotationError)
-        )
     }
 }

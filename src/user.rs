@@ -2,7 +2,6 @@ use crate::internal::user_api::UserPrivateKeyRotationResult;
 pub use crate::internal::user_api::{
     UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserVerifyResult,
 };
-use crate::internal::Password;
 use crate::{
     internal::{
         user_api::{self, DeviceId, DeviceName},
@@ -190,16 +189,12 @@ impl UserOps for IronOxide {
     }
 
     fn user_rotate_private_key(&self, password: &str) -> Result<UserPrivateKeyRotationResult> {
-        use futures::future::IntoFuture;
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(
-            user_api::user_soft_rotate_key(
-                &self.recrypt,
-                password.try_into()?,
-                self.device().auth(),
-            )
-            .into_future(),
-        )
+        rt.block_on(user_api::user_soft_rotate_key(
+            &self.recrypt,
+            password.try_into()?,
+            self.device().auth(),
+        ))
     }
 }
 

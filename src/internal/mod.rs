@@ -10,8 +10,8 @@ use chrono::{DateTime, Utc};
 use log::error;
 use protobuf::{self, ProtobufError};
 use recrypt::api::{
-    Hashable, PrivateKey as RecryptPrivateKey, PublicKey as RecryptPublicKey, RecryptErr,
-    SigningKeypair as RecryptSigningKeypair,
+    CryptoOps, Hashable, PrivateKey as RecryptPrivateKey, PublicKey as RecryptPublicKey,
+    RecryptErr, SigningKeypair as RecryptSigningKeypair,
 };
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -398,6 +398,11 @@ impl From<PrivateKey> for RecryptPrivateKey {
         priv_key.0
     }
 }
+impl From<[u8; 32]> for PrivateKey {
+    fn from(bytes: [u8; 32]) -> Self {
+        PrivateKey(RecryptPrivateKey::new(bytes))
+    }
+}
 impl TryFrom<&[u8]> for PrivateKey {
     type Error = IronOxideErr;
     fn try_from(key_bytes: &[u8]) -> Result<PrivateKey, IronOxideErr> {
@@ -429,16 +434,24 @@ impl<'de> Deserialize<'de> for PrivateKey {
 }
 
 impl PrivateKey {
-    /// Augment this private key with another, producing An AugmentationFactor
-    fn augment(&self, augmenting_key: PrivateKey) -> Option<AugmentationFactor> {
+    /// Augment this private key with another, producing a new PrivateKey
+    fn augment(&self, augmenting_key: AugmentationFactor) -> Result<PrivateKey, IronOxideErr> {
         use recrypt::Revealed;
         let zero: RecryptPrivateKey = RecryptPrivateKey::new([0u8; 32]);
-        let augmented_key = self.0.clone() - augmenting_key.0;
-        // TODO might be nice if Revealed could hold a reference
-        if Revealed(augmented_key.clone()) == Revealed(zero) {
-            None
+        if Revealed((augmenting_key.clone().0).0) == Revealed(zero.clone()) {
+            Err(IronOxideErr::UserPrivateKeyRotationError(
+                "Augmenting key cannot be zero".into(),
+            ))
         } else {
-            Some(AugmentationFactor(augmented_key.into()))
+            let augmented_key = self.0.clone() - augmenting_key.into();
+            // TODO might be nice if Revealed could hold a reference
+            if Revealed(augmented_key.clone()) == Revealed(zero) {
+                Err(IronOxideErr::UserPrivateKeyRotationError(
+                    "PrivateKey augmentation failed with a zero value".into(),
+                ))
+            } else {
+                Ok(augmented_key.into())
+            }
         }
     }
 }
@@ -446,9 +459,16 @@ impl PrivateKey {
 #[derive(Clone, Debug)]
 pub(crate) struct AugmentationFactor(PrivateKey);
 
-impl From<AugmentationFactor> for PrivateKey {
+impl AugmentationFactor {
+    pub fn generate_new<CO: CryptoOps>(recrypt: &CO) -> AugmentationFactor {
+        let pt = recrypt.gen_plaintext();
+        AugmentationFactor(recrypt.derive_private_key(&pt).into())
+    }
+}
+
+impl From<AugmentationFactor> for RecryptPrivateKey {
     fn from(aug: AugmentationFactor) -> Self {
-        aug.0
+        (aug.0).0
     }
 }
 
@@ -591,6 +611,12 @@ impl TryFrom<&str> for Password {
     }
 }
 
+impl Password {
+    pub fn inner(&self) -> &str {
+        &self.0
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct WithKey<T> {
     pub(crate) id: T,
@@ -634,6 +660,8 @@ pub(crate) mod test {
     use super::*;
     use galvanic_assert::{matchers::*, MatchResultBuilder, Matcher};
     use recrypt::api::KeyGenOps;
+    use recrypt::prelude::*;
+    use recrypt::Revealed;
     use std::fmt::Debug;
 
     /// String contains matcher to assert that the provided substring exists in the provided value
@@ -868,8 +896,12 @@ pub(crate) mod test {
     fn private_key_augment_with_self_is_none() {
         let privk = gen_priv_key();
 
-        let result = privk.augment(privk.clone());
-        assert!(&result.is_none())
+        let result = privk.augment(AugmentationFactor(privk.clone()));
+        assert_that!(&result, is_variant!(Err));
+        assert_that!(
+            &result.unwrap_err(),
+            is_variant!(IronOxideErr::UserPrivateKeyRotationError)
+        )
     }
 
     #[test]
@@ -880,7 +912,19 @@ pub(crate) mod test {
 
         let p3 = (p1.clone().0 - p2.clone().0).into();
 
-        let aug_p = p1.augment(p2);
-        assert_eq!(Revealed((aug_p.unwrap().0).0), Revealed(p3))
+        let aug_p = p1.augment(AugmentationFactor(p2)).unwrap();
+        assert_eq!(Revealed(aug_p.0), Revealed(p3))
+    }
+
+    #[test]
+    fn private_key_augmentation_aug_key_of_zero() {
+        let priv_key_orig = gen_priv_key();
+        let zero_aug_factor = AugmentationFactor(PrivateKey(RecryptPrivateKey::new([0u8; 32])));
+        let new_priv_key = priv_key_orig.augment(zero_aug_factor);
+        assert_that!(&new_priv_key, is_variant!(Err));
+        assert_that!(
+            &new_priv_key.unwrap_err(),
+            is_variant!(IronOxideErr::UserPrivateKeyRotationError)
+        )
     }
 }
