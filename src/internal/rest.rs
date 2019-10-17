@@ -280,18 +280,18 @@ impl<'a> HeaderIronCoreRequestSig<'a> {
         } = self;
 
         // use closure here to delay computation until we know if we need to append the body or not
-        let maybe_partial_bytes = || {
-            let bytes = format!(
+        let bytes_no_body = || {
+            format!(
                 "{}{}{}",
                 &ironcore_user_context.payload(),
                 &method,
                 url.signature_string(),
-            );
-            bytes.into_bytes()
+            )
+            .into_bytes()
         };
 
-        body.map_or_else(maybe_partial_bytes, |body_bytes| {
-            [&maybe_partial_bytes(), body_bytes].concat()
+        body.map_or_else(bytes_no_body, |body_bytes| {
+            [&bytes_no_body(), body_bytes].concat()
         })
     }
 
@@ -836,11 +836,6 @@ fn replace_headers(dst: &mut HeaderMap, src: HeaderMap) {
     // The first time a name is yielded, it will be Some(name), and if
     // there are more values with the same name, the next yield will be
     // None.
-    //
-    // TODO: a complex exercise would be to optimize this to only
-    // require 1 hash/lookup of the key, but doing something fancy
-    // with header::Entry...
-
     let mut prev_name = None;
     for (key, value) in src {
         match key {
@@ -1379,14 +1374,12 @@ mod tests {
         use publicsuffix::IntoUrl;
 
         let icl_req = IronCoreRequest::new("https://example.com");
-
         let mut req = ARequest::new(
             Method::GET,
             format!("{}/{}", icl_req.base_url(), "users")
                 .into_url()
                 .unwrap(),
         );
-
         let q =  "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
         IronCoreRequest::req_add_query(&mut req, &[("id".to_string(), url_encode(&q))]);
         assert_eq!(req.url().query(), Some("id=!%22%23%24%25%26\'()*%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"))
