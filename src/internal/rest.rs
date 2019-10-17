@@ -67,11 +67,7 @@ define_encode_set! {
         /* 0x2d: - */ // ... no encode ...
         /* 0x2e: . */ // ... no encode ...
         /* 0x2f: / */ '/',
-        //BEGIN numbers (don't encode)
-        /* 0x30: 0 */ // ... no encode ...
-        /* ....... */
-        /* 0x39: 9 */ // ... no encode ...
-        // END numbers
+        // 0x30 - 0x39 are 0-9 (don't encode)
         /* 0x3a: : */ ':',
         /* 0x3b: ; */ ';',
         /* 0x3c: < */ '<',
@@ -79,22 +75,14 @@ define_encode_set! {
         /* 0x3e: > */ '>',
         /* 0x3f: ? */ '?',
         /* 0x40: @ */ '@',
-        // BEGIN uppercase letters (don't encode)
-        /* 0x41: A */ // ... no encode ...
-        /* ....... */
-        /* 0x5a: Z */ // ... no encode ...
-        // END uppercase letters
+        // 0x41 - 0x5a are A-Z (don't encode)
         /* 0x5b: [ */ '[',
         /* 0x5c: \ */ '\\',
         /* 0x5d: ] */ ']',
         /* 0x5e: ^ */ '^',
         /* 0x5f: _ */ // ... no encode ...
         /* 0x60: ` */ '`',
-        // BEGIN lowercase letters
-        /* 0x61: a */ // ... no encode ...
-        /* ....... */
-        /* 0x7a: z */ // ... no encode ...
-        // END lowercase letters
+        // 0x61 - 0x7a are a-z (don't encode)
         /* 0x7b: { */ '{',
         /* 0x7c: | */ '|',
         /* 0x7d: } */ '}'
@@ -279,20 +267,18 @@ impl<'a> HeaderIronCoreRequestSig<'a> {
             ..
         } = self;
 
-        // use closure here to delay computation until we know if we need to append the body or not
-        let bytes_no_body = || {
-            format!(
-                "{}{}{}",
-                &ironcore_user_context.payload(),
-                &method,
-                url.signature_string(),
-            )
-            .into_bytes()
-        };
+        let bytes_no_body = format!(
+            "{}{}{}",
+            &ironcore_user_context.payload(),
+            &method,
+            url.signature_string(),
+        )
+        .into_bytes();
 
-        body.map_or_else(bytes_no_body, |body_bytes| {
-            [&bytes_no_body(), body_bytes].concat()
-        })
+        match body {
+            &Some(body_bytes) => [&bytes_no_body, body_bytes].concat(),
+            None => bytes_no_body,
+        }
     }
 
     /// Signature over the header's payload
@@ -1217,8 +1203,6 @@ mod tests {
         let pub_signing_key: PublicSigningKey =
             PublicSigningKey::new(user_context.public_signing_key);
         assert!(pub_signing_key.verify(&payload_bytes, &Ed25519Signature::new(signature)));
-
-        //TODO add to_auth_header test
     }
 
     #[derive(Serialize)]
@@ -1230,7 +1214,7 @@ mod tests {
     }
 
     #[test]
-    fn ironcore_request_sig_signing() {
+    fn ironcore_auth_v2_produces_expected_values() {
         let ts = Utc.timestamp_millis(123456);
         let signing_key_bytes: [u8; 64] = [
             38, 218, 141, 117, 248, 58, 31, 187, 17, 183, 163, 49, 109, 66, 9, 132, 131, 77, 196,
@@ -1246,9 +1230,12 @@ mod tests {
         let user_context = HeaderIronCoreUserContext {
             timestamp: ts,
             segment_id,
-            user_id,
+            user_id: user_id.clone(),
             public_signing_key: signing_keys.public_key(),
         };
+
+        let build_url = |relative_url| format!("{}{}", OUR_REQUEST.base_url(), relative_url);
+        let signing_url_string = SignatureUrlString::new(&build_url("users?id=user-10")).unwrap();
 
         // note that this and the expected value must correspond
         let fake_req = FakeRequest {
@@ -1257,8 +1244,6 @@ mod tests {
             k3: "Fake text for a fake request".to_string(),
             k4: -482949i64,
         };
-
-        let build_url = |relative_url| format!("{}{}", OUR_REQUEST.base_url(), relative_url);
 
         let expected = "123456,1,user-10,xsqf+oiBpQPDr69jb+TvKxMSdnYATr7igNNR/uA1wtw=GET/api/1/users?id=user-10{\"k1\":[42,42,42,42,42,42,42,42,42,42],\"k2\":64,\"k3\":\"Fake text for a fake request\",\"k4\":-482949}";
         let expected_no_body = "123456,1,user-10,xsqf+oiBpQPDr69jb+TvKxMSdnYATr7igNNR/uA1wtw=GET/api/1/users?id=user-10";
@@ -1271,7 +1256,7 @@ mod tests {
         let request_sig = HeaderIronCoreRequestSig {
             ironcore_user_context: user_context.clone(),
             method: Method::GET,
-            url: SignatureUrlString::new(&build_url("users?id=user-10")).unwrap(),
+            url: signing_url_string.clone(),
             body: Some(&fake_req_json_bytes),
             signing_keys: &signing_keys,
         };
@@ -1289,7 +1274,7 @@ mod tests {
         let request_sig = HeaderIronCoreRequestSig {
             ironcore_user_context: user_context,
             method: Method::GET,
-            url: SignatureUrlString::new(&build_url("users?id=user-10")).unwrap(),
+            url: signing_url_string.clone(),
             body: None,
             signing_keys: &signing_keys,
         };
@@ -1320,6 +1305,21 @@ mod tests {
             &Ed25519Signature::new_from_slice(&base64::decode(expected_request_sig).unwrap())
                 .unwrap()
         ));
+
+        // verify that the authorization header is expected
+        let auth = Authorization::create_signatures_v2(
+            ts.clone(),
+            segment_id,
+            &user_id,
+            Method::POST,
+            signing_url_string,
+            None,
+            &signing_keys,
+        );
+
+        let mut auth_header_expected = HeaderMap::default();
+        auth_header_expected.append("authorization", "IronCore 2.CzATu+yKHO9edYZ6L27EXE4jKlk9p9hBhQsTJjj5ENFk2VhMfLp1ADKfaDQ/Q6u/Q7yHawq9L5Y1BFivdUYSCQ==".parse().unwrap());
+        assert_eq!(auth.to_auth_header(), auth_header_expected);
     }
 
     #[test]
@@ -1380,7 +1380,7 @@ mod tests {
                 .into_url()
                 .unwrap(),
         );
-        let q =  "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+        let q = "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
         IronCoreRequest::req_add_query(&mut req, &[("id".to_string(), url_encode(&q))]);
         assert_eq!(req.url().query(), Some("id=!%22%23%24%25%26\'()*%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"))
     }
