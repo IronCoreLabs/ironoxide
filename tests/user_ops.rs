@@ -1,5 +1,5 @@
 mod common;
-use common::gen_jwt;
+use common::{create_id_all_classes, gen_jwt};
 use ironoxide::{
     prelude::*,
     user::{DeviceCreateOpts, UserCreateOpts},
@@ -20,7 +20,7 @@ fn user_verify_non_existing_user() {
 
 #[test]
 fn user_verify_existing_user() {
-    let account_id: UserId = Uuid::new_v4().to_string().try_into().unwrap();
+    let account_id: UserId = create_id_all_classes("").try_into().unwrap();
     IronOxide::user_create(
         &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
         "foo",

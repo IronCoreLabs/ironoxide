@@ -48,7 +48,7 @@ const CURRENT_DOCUMENT_ID_VERSION: u8 = 2;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentId(pub(crate) String);
 impl DocumentId {
-    pub fn id(&self) -> &String {
+    pub fn id(&self) -> &str {
         &self.0
     }
 
@@ -493,7 +493,7 @@ impl From<&GroupId> for UserOrGroup {
 /// to them directly (owner) or documents shared to them via user (fromUser) or group (fromGroup).
 pub fn document_list(
     auth: &RequestAuth,
-) -> impl Future<Item = DocumentListResult, Error = IronOxideErr> {
+) -> impl Future<Item = DocumentListResult, Error = IronOxideErr> + '_ {
     requests::document_list::document_list_request(auth).map(
         |DocumentListApiResponse { result }| DocumentListResult {
             result: result.into_iter().map(DocumentListMeta).collect(),
@@ -502,10 +502,10 @@ pub fn document_list(
 }
 
 /// Get the metadata ane encrypted key for a specific document given its ID.
-pub fn document_get_metadata(
-    auth: &RequestAuth,
+pub fn document_get_metadata<'a>(
+    auth: &'a RequestAuth,
     id: &DocumentId,
-) -> impl Future<Item = DocumentMetadataResult, Error = IronOxideErr> {
+) -> impl Future<Item = DocumentMetadataResult, Error = IronOxideErr> + 'a {
     requests::document_get::document_get_request(auth, id).map(DocumentMetadataResult)
 }
 
@@ -864,7 +864,7 @@ impl EncryptedDoc {
 
         let mut proto_edeks = EncryptedDeksP::default();
         proto_edeks.edeks = RepeatedField::from_vec(proto_edek_vec);
-        proto_edeks.documentId = self.header.document_id.id().as_str().into();
+        proto_edeks.documentId = self.header.document_id.id().into();
         proto_edeks.segmentId = self.header.segment_id as i32; // okay since the ironcore-ws defines this to be an i32
 
         let edek_bytes = proto_edeks.write_to_bytes()?;

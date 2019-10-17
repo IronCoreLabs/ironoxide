@@ -1,6 +1,6 @@
 mod common;
 use crate::common::init_sdk_get_user;
-use common::{create_second_user, init_sdk};
+use common::{create_id_all_classes, create_second_user, init_sdk};
 use galvanic_assert::matchers::{collection::*, *};
 use ironoxide::{
     document::{advanced::*, *},
@@ -378,7 +378,7 @@ fn setup_encrypt_with_explicit_and_policy_grants(
 fn doc_create_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
     let (curr_user, sdk) = init_sdk_get_user();
     // this group doesn't exist, so it should show up in the errors
-    let bad_group: GroupId = "bad_group".try_into().unwrap();
+    let bad_group: GroupId = create_id_all_classes("bad_group").try_into().unwrap();
 
     let doc = [0u8; 64];
     let (opts, ex_group_id, data_rec_group_id) =
@@ -399,7 +399,7 @@ fn doc_create_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
 fn doc_encrypt_unmanaged_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
     let (curr_user, sdk) = init_sdk_get_user();
     // this group doesn't exist, so it should show up in the errors
-    let bad_group: GroupId = "bad_group".try_into().unwrap();
+    let bad_group: GroupId = create_id_all_classes("bad_group").try_into().unwrap();
 
     let doc = [0u8; 64];
     let (opts, ex_group_id, data_rec_group_id) =
@@ -449,7 +449,7 @@ fn doc_create_without_self_grant() {
         .document_encrypt(
             &doc,
             &DocumentEncryptOpts::with_explicit_grants(
-                None,
+                Some(create_id_all_classes("").try_into().unwrap()),
                 Some("first name".try_into().unwrap()),
                 false,
                 vec![UserOrGroup::User {
@@ -513,7 +513,7 @@ fn doc_create_and_adjust_name() {
         .document_encrypt(
             &doc,
             &DocumentEncryptOpts::with_explicit_grants(
-                None,
+                Some(create_id_all_classes("").try_into().unwrap()),
                 Some("first name".try_into().unwrap()),
                 true,
                 vec![UserOrGroup::User {
@@ -568,7 +568,7 @@ fn doc_decrypt_unmanaged_no_access() {
         .document_encrypt_unmanaged(
             &doc,
             &DocumentEncryptOpts::with_explicit_grants(
-                None,
+                Some(create_id_all_classes("").try_into().unwrap()),
                 None,
                 false,
                 vec![user2.account_id().borrow().into()],
@@ -652,10 +652,10 @@ fn doc_grant_access() {
             UserOrGroup::Group { id: group_id },
             UserOrGroup::Group { id: group2_id },
             UserOrGroup::User {
-                id: "bad-user-id".try_into().unwrap(),
+                id: create_id_all_classes("bad-user-id").try_into().unwrap(),
             },
             UserOrGroup::Group {
-                id: "bad-group-id".try_into().unwrap(),
+                id: create_id_all_classes("bad-group-id").try_into().unwrap(),
             },
         ],
     );
@@ -670,7 +670,15 @@ fn doc_revoke_access() {
     let sdk = init_sdk();
 
     let doc = [0u8; 64];
-    let doc_result = sdk.document_encrypt(&doc, &Default::default());
+    let doc_result = sdk.document_encrypt(
+        &doc,
+        &DocumentEncryptOpts::with_explicit_grants(
+            Some(create_id_all_classes("").try_into().unwrap()),
+            None,
+            true,
+            vec![],
+        ),
+    );
     assert!(doc_result.is_ok());
     let doc_id = doc_result.unwrap().id().clone();
 

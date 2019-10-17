@@ -1,20 +1,28 @@
 //! Helpers for talking to the ironcore service.
 
-use std::marker::PhantomData;
-
 use chrono::{DateTime, Utc};
+use futures::IntoFuture;
 use futures::{stream::Stream, Future};
 use reqwest::{
     header::HeaderMap,
-    r#async::{Chunk, Client as RClient},
-    Method, StatusCode,
+    r#async::{Chunk, Client as RClient, Request as ARequest},
+    Method, StatusCode, Url,
 };
 use serde::{de::DeserializeOwned, Serialize};
+use std::marker::PhantomData;
 
+use crate::internal::auth_v2::AuthV2Builder;
 use crate::internal::{
     user_api::UserId, DeviceSigningKeyPair, IronOxideErr, Jwt, RequestErrorCode, OUR_REQUEST,
 };
+use futures::future::Either;
+use percent_encoding::SIMPLE_ENCODE_SET;
+use reqwest::header::{HeaderValue, CONTENT_TYPE};
 use reqwest::r#async::RequestBuilder;
+use serde::export::fmt::{Display, Error};
+use serde::export::Formatter;
+use std::borrow::BorrowMut;
+use std::ops::Deref;
 
 lazy_static! {
     static ref DEFAULT_HEADERS: HeaderMap = {
@@ -36,66 +44,256 @@ pub struct ServerError {
     code: u32,
 }
 
+define_encode_set! {
+    /// This encode set should be used for path components and query strings.
+    /// `A-Z a-z 0-9 - _ . ! ~ * ' ( )` are the only characters we _don't_ want to encode.
+    ///
+    /// If this is changed it will potentially need be changed in the webservice and all other SDKs.
+    #[rustfmt::skip]
+    pub ICL_ENCODE_SET = [SIMPLE_ENCODE_SET] | {
+        /* 0x20:   */ ' ',
+        /* 0x21: ! */ // ... no encode ..
+        /* 0x22: " */ '"',
+        /* 0x23: # */ '#',
+        /* 0x24: $ */ '$',
+        /* 0x25: % */ '%',
+        /* 0x26: & */ '&',
+        /* 0x27: ' */ // ... no encode ...
+        /* 0x28: ( */ // ... no encode ...
+        /* 0x29: ) */ // ... no encode ...
+        /* 0x2a: * */ // ... no encode ...
+        /* 0x2b: + */ '+',
+        /* 0x2c: , */ ',',
+        /* 0x2d: - */ // ... no encode ...
+        /* 0x2e: . */ // ... no encode ...
+        /* 0x2f: / */ '/',
+        // 0x30 - 0x39 are 0-9 (don't encode)
+        /* 0x3a: : */ ':',
+        /* 0x3b: ; */ ';',
+        /* 0x3c: < */ '<',
+        /* 0x3d: = */ '=',
+        /* 0x3e: > */ '>',
+        /* 0x3f: ? */ '?',
+        /* 0x40: @ */ '@',
+        // 0x41 - 0x5a are A-Z (don't encode)
+        /* 0x5b: [ */ '[',
+        /* 0x5c: \ */ '\\',
+        /* 0x5d: ] */ ']',
+        /* 0x5e: ^ */ '^',
+        /* 0x5f: _ */ // ... no encode ...
+        /* 0x60: ` */ '`',
+        // 0x61 - 0x7a are a-z (don't encode)
+        /* 0x7b: { */ '{',
+        /* 0x7c: | */ '|',
+        /* 0x7d: } */ '}'
+        /* 0x7e: ~ */ // ... no encode ...
+    }
+}
+
+#[derive(Clone, Debug)]
+/// Newtype for strings that have been percent encoded
+pub struct PercentEncodedString(pub(crate) String);
+
+impl Deref for PercentEncodedString {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Display for PercentEncodedString {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        write!(f, "{}", self.0)
+    }
+}
+
 ///URL encode the provided string so it can be used within a URL
-pub fn url_encode(token: &str) -> String {
-    percent_encoding::utf8_percent_encode(token, percent_encoding::USERINFO_ENCODE_SET).to_string()
+pub fn url_encode(token: &str) -> PercentEncodedString {
+    PercentEncodedString(percent_encoding::utf8_percent_encode(token, ICL_ENCODE_SET).to_string())
 }
 
 ///Enum representing all the ways that authorization can be done for the IronCoreRequest.
-/// Currently just JWT, but will be ed25519 signed values soon.
 pub enum Authorization<'a> {
     JwtAuth(&'a Jwt),
-    MessageSignature {
-        version: u8,
-        message: String,
-        signature: [u8; 64],
+    Version2 {
+        user_context: HeaderIronCoreUserContext,
+        request_sig: HeaderIronCoreRequestSig<'a>,
     },
 }
 
 impl<'a> Authorization<'a> {
-    pub fn to_header(&self) -> HeaderMap {
+    const VERSION_NUM: u8 = 2;
+    pub fn to_auth_header(&self) -> HeaderMap {
         let auth_value = match self {
-            Authorization::JwtAuth(jwt) => format!("jwt {}", jwt.0).parse().unwrap(),
-            Authorization::MessageSignature {
-                version,
-                message,
-                signature,
+            Authorization::JwtAuth(jwt) => format!("jwt {}", jwt.0)
+                .parse()
+                .expect("IronCore JWTs should be ASCII"),
+            Authorization::Version2 {
+                user_context,
+                request_sig,
             } => format!(
-                "ironcore {}.{}.{}",
-                version,
-                base64::encode(message),
-                base64::encode(&signature[..])
+                "IronCore {}.{}",
+                Authorization::VERSION_NUM,
+                base64::encode(&user_context.signature(request_sig.signing_keys).to_vec())
             )
             .parse()
-            .unwrap(),
+            .expect("Auth v2 headers should only contain ASCII"),
         };
         let mut headers: HeaderMap = Default::default();
-        headers.append("authorization", auth_value); //We're assuming that the JWT is ASCII.
+        headers.append("authorization", auth_value);
         headers
     }
 
-    pub fn create_message_signature_v1(
+    pub fn create_signatures_v2(
         time: DateTime<Utc>,
         segment_id: usize,
         user_id: &UserId,
-        signing_keys: &DeviceSigningKeyPair,
+        method: Method,
+        signature_url: SignatureUrlString,
+        body: Option<&'a [u8]>,
+        signing_keys: &'a DeviceSigningKeyPair,
     ) -> Authorization<'a> {
-        //This may seem like it'd be easier to use serde-json or something here, but for doing it in a single spot and needing to verify
-        //that the fields are in the correct order and the spacing is exact it was actually easier to do like this. We have a static test to verify
-        //the safety of this value.
-        let payload = format!(
-            r#"{{"ts":{},"sid":{},"uid":"{}","x":"{}"}}"#,
-            time.timestamp_millis(),
+        let user_context = HeaderIronCoreUserContext {
+            timestamp: time,
             segment_id,
-            user_id.0,
-            base64::encode(&signing_keys.public_key())
-        );
-        let signature = signing_keys.sign(payload.as_bytes());
-        Authorization::MessageSignature {
-            version: 1,
-            message: payload,
-            signature,
+            user_id: user_id.clone(),
+            public_signing_key: signing_keys.public_key(),
+        };
+        Authorization::Version2 {
+            user_context: user_context.clone(),
+            request_sig: HeaderIronCoreRequestSig {
+                signing_keys,
+                url: signature_url,
+                method,
+                ironcore_user_context: user_context,
+                body,
+            },
         }
+    }
+}
+
+/// For API auth, we sign over the path + query string percent encoded with specific rules.
+///
+/// For the URL: `https://api.ironcorelabs.com/api/1/users?id=abcABC012_.$#|@/:;=+'-`
+/// We sign over: `/api/1/users?id=abcABC012_.%24%23%7C%40%2F%3A%3B%3D%2B%27-`
+///
+/// Anyone wanting to verify this signature will need to be able to match this exact encoding.
+#[derive(Debug, Clone)]
+pub struct SignatureUrlString(String);
+
+impl SignatureUrlString {
+    pub fn new(encoded_full_url: &str) -> Result<SignatureUrlString, reqwest::UrlError> {
+        let parsed_url = Url::parse(encoded_full_url)?;
+        let query_str_format = |q: &str| format!("?{}", q);
+
+        Ok(SignatureUrlString(format!(
+            "{}{}",
+            parsed_url.path(),
+            parsed_url.query().map_or("".into(), query_str_format)
+        )))
+    }
+
+    /// String to sign over
+    fn signature_string(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Representation of X-IronCore-User-Context header
+#[derive(Clone, Debug)]
+pub struct HeaderIronCoreUserContext {
+    timestamp: DateTime<Utc>,
+    segment_id: usize,
+    user_id: UserId,
+    public_signing_key: [u8; 32],
+}
+
+impl HeaderIronCoreUserContext {
+    /// Payload of the header
+    fn payload(&self) -> String {
+        format!(
+            "{},{},{},{}",
+            self.timestamp.timestamp_millis(),
+            self.segment_id,
+            self.user_id.id(),
+            base64::encode(&self.public_signing_key)
+        )
+    }
+
+    /// Signature over the header's payload
+    fn signature(&self, signing_keys: &DeviceSigningKeyPair) -> [u8; 64] {
+        signing_keys.sign(&self.payload().into_bytes())
+    }
+
+    /// To a reqwest-compatible header
+    fn to_header(&self, error_code: RequestErrorCode) -> Result<HeaderMap, IronOxideErr> {
+        let mut headers: HeaderMap = Default::default();
+        self.payload()
+            .parse()
+            .map_err(|_| IronOxideErr::RequestError {
+                message: format!(
+                    "Failed to encode '{}' into a X-IronCore-User-Context header",
+                    &self.payload()
+                ),
+                code: error_code,
+                http_status: None,
+            })
+            .map(|url| {
+                headers.append("X-IronCore-User-Context", url);
+                headers
+            })
+    }
+}
+
+/// Representation of X-IronCore-Request-Sig header
+#[derive(Clone, Debug)]
+pub struct HeaderIronCoreRequestSig<'a> {
+    ironcore_user_context: HeaderIronCoreUserContext,
+    method: Method,
+    url: SignatureUrlString,
+    body: Option<&'a [u8]>, //serialization of this body has to be identical to that in IronCoreRequest
+    signing_keys: &'a DeviceSigningKeyPair,
+}
+
+impl<'a> HeaderIronCoreRequestSig<'a> {
+    /// Payload of the header
+    fn payload(&self) -> Vec<u8> {
+        let HeaderIronCoreRequestSig {
+            body,
+            ironcore_user_context,
+            method,
+            url,
+            ..
+        } = self;
+
+        let bytes_no_body = format!(
+            "{}{}{}",
+            &ironcore_user_context.payload(),
+            &method,
+            url.signature_string(),
+        )
+        .into_bytes();
+
+        match body {
+            &Some(body_bytes) => [&bytes_no_body, body_bytes].concat(),
+            None => bytes_no_body,
+        }
+    }
+
+    /// Signature over the header's payload
+    fn signature(&self) -> [u8; 64] {
+        self.signing_keys.sign(&self.payload())
+    }
+    fn to_header(&self) -> HeaderMap {
+        let mut headers: HeaderMap = Default::default();
+        headers.append(
+            "X-IronCore-Request-Sig",
+            base64::encode(&self.signature().to_vec())
+                .parse()
+                .expect("signature as base64 can always be encoded as ASCII"),
+        );
+        headers
     }
 }
 
@@ -122,7 +320,7 @@ impl<'a> IronCoreRequest<'a> {
 
     ///POST body to the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
-    pub fn post<A: Serialize, B: DeserializeOwned>(
+    pub fn post_jwt_auth<A: Serialize, B: DeserializeOwned>(
         &self,
         relative_url: &str,
         body: &A,
@@ -135,98 +333,153 @@ impl<'a> IronCoreRequest<'a> {
             Some(body),
             None,
             error_code,
-            auth.to_header(),
+            auth.to_auth_header(),
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
     }
 
-    pub fn post_raw<B: DeserializeOwned>(
-        &self,
-        relative_url: &str,
-        body: &[u8],
-        error_code: RequestErrorCode,
-        auth: &Authorization,
-    ) -> impl Future<Item = B, Error = IronOxideErr> {
-        let client = RClient::new();
-        let mut builder = client.request(
-            Method::POST,
-            format!("{}{}", self.base_url, relative_url).as_str(),
-        );
-
-        //We want to add the body as raw bytes
-        builder = builder.body(body.to_vec());
-
-        let req = builder
-            .headers(RAW_BYTES_HEADERS.clone())
-            .headers(auth.to_header());
-        IronCoreRequest::send_req(req, error_code.clone(), move |server_resp| {
-            IronCoreRequest::deserialize_body(server_resp, error_code.clone())
-        })
-    }
-
-    ///PUT body to the resource at relative_url using auth for authorization.
+    ///POST body to the resource at relative_url using IronCore authorization.
     ///If the request fails a RequestError will be raised.
-    pub fn put<A: Serialize, B: DeserializeOwned>(
+    pub fn post<A: Serialize + 'a, B: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
         body: &A,
         error_code: RequestErrorCode,
-        auth: &Authorization,
-    ) -> impl Future<Item = B, Error = IronOxideErr> {
-        self.request::<A, _, String, _>(
+        auth_b: crate::internal::auth_v2::AuthV2Builder<'a>,
+    ) -> impl Future<Item = B, Error = IronOxideErr> + 'a {
+        self.request_ironcore_auth::<A, _, _>(
+            relative_url,
+            Method::POST,
+            Some(body),
+            None,
+            error_code,
+            auth_b,
+            move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
+        )
+    }
+    pub fn post_raw<B: DeserializeOwned + 'a>(
+        &self,
+        relative_url: &str,
+        body: &'a [u8],
+        error_code: RequestErrorCode,
+        auth_b: AuthV2Builder<'a>,
+    ) -> impl Future<Item = B, Error = IronOxideErr> + 'a {
+        use publicsuffix::IntoUrl;
+
+        let make_req = || {
+            Ok({
+                // build up a request...
+                let mut req = ARequest::new(
+                    Method::POST,
+                    format!("{}{}", self.base_url(), relative_url)
+                        .into_url()
+                        .map_err(|e| IronOxideErr::from((e, error_code)))?,
+                );
+                *req.body_mut() = Some(body.to_vec().into());
+                (req, body.to_vec())
+            })
+        };
+        make_req()
+            .into_future()
+            .and_then(move |(mut req, body_bytes)| {
+                // use the completed request to finish authorization v2 headers
+                let maybe_auth = SignatureUrlString::new(req.url().as_str())
+                    .map(|sig_url| {
+                        auth_b.finish_with(sig_url, req.method().clone(), Some(&body_bytes))
+                    })
+                    .map_err(|e| IronOxideErr::from((e, error_code)));
+
+                // we only support Authorization::Version2 with this call
+                match maybe_auth {
+                    Ok(auth) => {
+                        if let Authorization::Version2 {
+                            user_context,
+                            request_sig,
+                        } = &auth
+                        {
+                            match user_context.to_header(error_code) {
+                                Ok(user_context_header) => {
+                                    replace_headers(req.headers_mut(), user_context_header);
+                                    replace_headers(req.headers_mut(), DEFAULT_HEADERS.clone());
+                                    replace_headers(req.headers_mut(), auth.to_auth_header());
+                                    replace_headers(req.headers_mut(), request_sig.to_header());
+
+                                    Either::A(Self::send_req(req, error_code, move |server_resp| {
+                                        IronCoreRequest::deserialize_body(server_resp, error_code)
+                                    }))
+                                }
+                                Err(e) => Either::B(futures::future::err(e)),
+                            }
+                        } else {
+                            panic!("authorized requests must use version 2 of API authentication")
+                        }
+                    }
+                    Err(e) => Either::B(futures::future::err(e)),
+                }
+            })
+    }
+    ///PUT body to the resource at relative_url using auth for authorization.
+    ///If the request fails a RequestError will be raised.
+    pub fn put<A: Serialize + 'a, B: DeserializeOwned + 'a>(
+        &self,
+        relative_url: &str,
+        body: &A,
+        error_code: RequestErrorCode,
+        auth_b: AuthV2Builder<'a>,
+    ) -> impl Future<Item = B, Error = IronOxideErr> + 'a {
+        self.request_ironcore_auth::<A, _, _>(
             relative_url,
             Method::PUT,
             Some(body),
             None,
             error_code,
-            auth.to_header(),
+            auth_b,
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
     }
 
     ///GET the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
-    pub fn get<A: DeserializeOwned>(
+    pub fn get<A: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
         error_code: RequestErrorCode,
-        auth: &Authorization,
-    ) -> impl Future<Item = A, Error = IronOxideErr> {
+        auth_b: AuthV2Builder<'a>,
+    ) -> impl Future<Item = A, Error = IronOxideErr> + 'a {
         //A little lie here, String isn't actually the body type as it's unused
-        self.request::<String, _, String, _>(
+        self.request_ironcore_auth::<String, _, _>(
             relative_url,
             Method::GET,
             None,
             None,
             error_code,
-            auth.to_header(),
+            auth_b,
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
     }
 
     ///GET the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
-    pub fn get_with_query_params<A: DeserializeOwned>(
+    pub fn get_with_query_params<A: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
-        query_params: &[(String, String)],
+        query_params: &[(String, PercentEncodedString)],
         error_code: RequestErrorCode,
-        auth: &Authorization,
-    ) -> impl Future<Item = A, Error = IronOxideErr> {
-        //A little lie here, String isn't actually the body type as it's unused
-        self.request::<String, _, [(String, String)], _>(
+        auth_b: AuthV2Builder<'a>,
+    ) -> impl Future<Item = A, Error = IronOxideErr> + 'a {
+        self.request_ironcore_auth::<String, _, _>(
             relative_url,
             Method::GET,
             None,
             Some(query_params),
             error_code,
-            auth.to_header(),
+            auth_b,
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
     }
 
     ///This should be used for a GET where the result can be empty. If the result is empty the returned value will be None.
-    pub fn get_with_empty_result<A: DeserializeOwned>(
+    pub fn get_with_empty_result_jwt_auth<A: DeserializeOwned>(
         &self,
         relative_url: &str,
         error_code: RequestErrorCode,
@@ -239,7 +492,7 @@ impl<'a> IronCoreRequest<'a> {
             None,
             None,
             error_code,
-            auth.to_header(),
+            auth.to_auth_header(),
             move |server_resp| {
                 if server_resp.len() > 0 {
                     IronCoreRequest::deserialize_body(&server_resp, error_code).map(|a| Some(a))
@@ -252,20 +505,20 @@ impl<'a> IronCoreRequest<'a> {
 
     /// DELETE body to the resource at relative_url using auth for authorization.
     /// If the request fails a RequestError will be raised.
-    pub fn delete<A: Serialize, B: DeserializeOwned>(
+    pub fn delete<A: Serialize + 'a, B: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
         body: &A,
         error_code: RequestErrorCode,
-        auth: &Authorization,
-    ) -> impl Future<Item = B, Error = IronOxideErr> {
-        self.request::<A, _, String, _>(
+        auth_b: AuthV2Builder<'a>,
+    ) -> impl Future<Item = B, Error = IronOxideErr> + 'a {
+        self.request_ironcore_auth::<A, _, _>(
             relative_url,
             Method::DELETE,
             Some(body),
             None,
             error_code,
-            auth.to_header(),
+            auth_b,
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
     }
@@ -304,10 +557,145 @@ impl<'a> IronCoreRequest<'a> {
             .fold(builder, |build, body| build.json(body));
 
         let req = builder.headers(DEFAULT_HEADERS.clone()).headers(headers);
-        IronCoreRequest::send_req(req, error_code, resp_handler)
+        IronCoreRequest::send_req_with_builder(req, error_code, resp_handler)
+    }
+
+    ///Make a request to the url using the specified method. DEFAULT_HEADERS will be used as well as whatever headers are passed
+    /// in. The response will be sent to `resp_handler` so the caller can make the received bytes however they want.
+    pub fn request_ironcore_auth<A, B, F>(
+        &self,
+        relative_url: &str,
+        method: Method,
+        maybe_body: Option<&A>,
+        maybe_query_params: Option<&[(String, PercentEncodedString)]>,
+        error_code: RequestErrorCode,
+        auth_b: AuthV2Builder<'a>,
+        resp_handler: F,
+    ) -> impl Future<Item = B, Error = IronOxideErr> + 'a
+    where
+        A: Serialize,
+        B: DeserializeOwned + 'a,
+        F: FnOnce(&Chunk) -> Result<B, IronOxideErr> + 'a,
+    {
+        use publicsuffix::IntoUrl;
+        let make_req = || {
+            Ok({
+                // build up a request...
+                let mut req = ARequest::new(
+                    method,
+                    format!("{}{}", self.base_url(), relative_url)
+                        .into_url()
+                        .map_err(|e| IronOxideErr::from((e, error_code)))?,
+                );
+
+                // add query params
+                if let Some(query) = maybe_query_params {
+                    Self::req_add_query(req.borrow_mut(), &query);
+                }
+
+                // add the body
+                let body_bytes: Vec<u8> = if let Some(json_se) = maybe_body {
+                    let body = serde_json::to_vec(&json_se)
+                        .map_err(|e| IronOxideErr::from((e, error_code)))?;
+                    req.headers_mut()
+                        .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+                    *req.body_mut() = Some(body.clone().into());
+                    body
+                } else {
+                    vec![]
+                };
+
+                (req, body_bytes)
+            })
+        };
+        make_req()
+            .into_future()
+            .and_then(move |(mut req, body_bytes)| {
+                // use the completed request to finish authorization v2 headers
+                let maybe_auth = SignatureUrlString::new(req.url().as_str())
+                    .map(|sig_url| {
+                        auth_b.finish_with(sig_url, req.method().clone(), Some(&body_bytes))
+                    })
+                    .map_err(|e| IronOxideErr::from((e, error_code)));
+
+                // we only support Authorization::Version2 with this call
+                match maybe_auth {
+                    Ok(auth) => {
+                        if let Authorization::Version2 {
+                            user_context,
+                            request_sig,
+                        } = &auth
+                        {
+                            match user_context.to_header(error_code) {
+                                Ok(user_context_header) => {
+                                    replace_headers(req.headers_mut(), user_context_header);
+                                    replace_headers(req.headers_mut(), DEFAULT_HEADERS.clone());
+                                    replace_headers(req.headers_mut(), auth.to_auth_header());
+                                    replace_headers(req.headers_mut(), request_sig.to_header());
+
+                                    Either::A(Self::send_req(req, error_code, resp_handler))
+                                }
+                                Err(e) => Either::B(futures::future::err(e)),
+                            }
+                        } else {
+                            panic!("authorized requests must use version 2 of API authentication")
+                        }
+                    }
+                    Err(e) => Either::B(futures::future::err(e)),
+                }
+            })
+    }
+
+    fn req_add_query(req: &mut ARequest, query_params: &[(String, PercentEncodedString)]) {
+        // side-effect to the stars!
+        // can't use serde_urlencoded here as we need a custom percent encoding
+        let query_string: String = query_params
+            .iter()
+            .map(|(k, v)| format!("{}={}", k, v.0))
+            .collect::<Vec<_>>()
+            .join("&");
+
+        req.url_mut().set_query(Some(&query_string));
     }
 
     fn send_req<B, F>(
+        req: ARequest,
+        error_code: RequestErrorCode,
+        resp_handler: F,
+    ) -> impl Future<Item = B, Error = IronOxideErr>
+    where
+        B: DeserializeOwned + 'a,
+        F: FnOnce(&Chunk) -> Result<B, IronOxideErr> + 'a,
+    {
+        let client = RClient::new();
+        client
+            .execute(req)
+            //Parse the body content into bytes
+            .and_then(|res| {
+                let status_code = res.status();
+                res.into_body()
+                    .concat2()
+                    .map(move |body| (status_code, body))
+            })
+            //Now make the error type into the IronOxideErr and run the resp_handler which was passed to us.
+            .then(move |resp| {
+                //Map the generic error from reqwest to our error type.
+                let (status, server_resp) = resp.map_err(|err| {
+                    IronCoreRequest::create_request_err(err.to_string(), error_code, err.status())
+                })?;
+                //If the status code is a 5xx, return a fixed error code message
+                if status.is_server_error() || status.is_client_error() {
+                    Err(IronCoreRequest::request_failure_to_error(
+                        status,
+                        error_code,
+                        &server_resp,
+                    ))
+                } else {
+                    resp_handler(&server_resp)
+                }
+            })
+    }
+    fn send_req_with_builder<B, F>(
         req: RequestBuilder,
         error_code: RequestErrorCode,
         resp_handler: F,
@@ -343,17 +731,17 @@ impl<'a> IronCoreRequest<'a> {
             })
     }
 
-    pub fn delete_with_no_body<B: DeserializeOwned>(
+    pub fn delete_with_no_body<B: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
         error_code: RequestErrorCode,
-        auth: &Authorization,
-    ) -> impl Future<Item = B, Error = IronOxideErr> {
+        auth_b: AuthV2Builder<'a>,
+    ) -> impl Future<Item = B, Error = IronOxideErr> + 'a {
         self.delete(
             relative_url,
             &PhantomData::<u8>, // BS type, maybe there's a better way?
             error_code,
-            auth,
+            auth_b,
         )
     }
 
@@ -428,6 +816,60 @@ impl<'a> IronCoreRequest<'a> {
         }
     }
 }
+// brought this private function in from reqwest
+fn replace_headers(dst: &mut HeaderMap, src: HeaderMap) {
+    // IntoIter of HeaderMap yields (Option<HeaderName>, HeaderValue).
+    // The first time a name is yielded, it will be Some(name), and if
+    // there are more values with the same name, the next yield will be
+    // None.
+    let mut prev_name = None;
+    for (key, value) in src {
+        match key {
+            Some(key) => {
+                dst.insert(key.clone(), value);
+                prev_name = Some(key);
+            }
+            None => match prev_name {
+                Some(ref key) => {
+                    dst.append(key.clone(), value);
+                }
+                None => unreachable!("HeaderMap::into_iter yielded None first"),
+            },
+        }
+    }
+}
+
+impl From<(serde_json::Error, RequestErrorCode)> for IronOxideErr {
+    fn from((e, code): (serde_json::Error, RequestErrorCode)) -> Self {
+        IronOxideErr::RequestError {
+            message: e.to_string(),
+            code,
+            http_status: None,
+        }
+    }
+}
+
+impl From<(reqwest::UrlError, RequestErrorCode)> for IronOxideErr {
+    fn from((e, code): (reqwest::UrlError, RequestErrorCode)) -> Self {
+        IronOxideErr::RequestError {
+            message: e.to_string(),
+            code,
+            http_status: None,
+        }
+    }
+}
+
+impl From<(publicsuffix::errors::Error, RequestErrorCode)> for IronOxideErr {
+    fn from((e, code): (publicsuffix::errors::Error, RequestErrorCode)) -> Self {
+        IronOxideErr::RequestError {
+            message: e.to_string(),
+            code,
+            http_status: None,
+        }
+    }
+}
+
+//impl From
 
 /// Common types for use across different internal apis
 pub mod json {
@@ -609,27 +1051,7 @@ mod tests {
     use crate::internal::test::{contains, length};
     use chrono::TimeZone;
     use galvanic_assert::matchers::{variant::*, *};
-
-    #[test]
-    fn create_message_signature_for_canned_values() {
-        let expected_header = "ironcore 1.eyJ0cyI6MTIzNDU2LCJzaWQiOjEsInVpZCI6InVzZXItMTAiLCJ4IjoieHNxZitvaUJwUVBEcjY5amIrVHZLeE1TZG5ZQVRyN2lnTk5SL3VBMXd0dz0ifQ==.yzPtBfhoo6d2QxrY3OWdnSV4lyhHMwomPBCpKB4/Brt4X13nCqJWdEUe5/dBTUMawZhu8zOkwu6CQud8R+DtDg==";
-        let ts = Utc.timestamp_millis(123456);
-        let signing_key_bytes: [u8; 64] = [
-            38, 218, 141, 117, 248, 58, 31, 187, 17, 183, 163, 49, 109, 66, 9, 132, 131, 77, 196,
-            31, 117, 15, 61, 29, 171, 119, 177, 31, 219, 164, 218, 221, 198, 202, 159, 250, 136,
-            129, 165, 3, 195, 175, 175, 99, 111, 228, 239, 43, 19, 18, 118, 118, 0, 78, 190, 226,
-            128, 211, 81, 254, 224, 53, 194, 220,
-        ];
-        let key_pair = DeviceSigningKeyPair(
-            recrypt::api::SigningKeypair::from_bytes(&signing_key_bytes).unwrap(),
-        );
-        let segment_id = 1;
-        let user_id = UserId("user-10".to_string());
-        let auth = Authorization::create_message_signature_v1(ts, segment_id, &user_id, &key_pair);
-        let headers = auth.to_header();
-        let header_result = headers.get("authorization").unwrap();
-        assert_eq!(header_result, expected_header);
-    }
+    use recrypt::api::{Ed25519Signature, PublicSigningKey};
 
     #[test]
     fn deserialize_errors() {
@@ -730,8 +1152,236 @@ mod tests {
         let not_url_safe_id = "'=#.other|/$non@;safe'-:;id_";
         let url_encoded = url_encode(&not_url_safe_id);
         assert_eq!(
-            "\'%3D%23.other%7C%2F$non%40%3Bsafe\'-%3A%3Bid_",
-            url_encoded
+            *url_encoded,
+            "\'%3D%23.other%7C%2F%24non%40%3Bsafe\'-%3A%3Bid_"
         )
+    }
+
+    #[test]
+    fn ironcore_user_context_signing_and_headers_are_correct() {
+        let ts = Utc.timestamp_millis(123456);
+        let signing_key_bytes: [u8; 64] = [
+            38, 218, 141, 117, 248, 58, 31, 187, 17, 183, 163, 49, 109, 66, 9, 132, 131, 77, 196,
+            31, 117, 15, 61, 29, 171, 119, 177, 31, 219, 164, 218, 221, 198, 202, 159, 250, 136,
+            129, 165, 3, 195, 175, 175, 99, 111, 228, 239, 43, 19, 18, 118, 118, 0, 78, 190, 226,
+            128, 211, 81, 254, 224, 53, 194, 220,
+        ];
+        let key_pair = DeviceSigningKeyPair(
+            recrypt::api::SigningKeypair::from_bytes(&signing_key_bytes).unwrap(),
+        );
+        let segment_id = 1;
+        let user_id = UserId("user-10".to_string());
+        let user_context = HeaderIronCoreUserContext {
+            timestamp: ts,
+            segment_id,
+            user_id,
+            public_signing_key: key_pair.public_key(),
+        };
+        let payload_bytes = user_context.payload().into_bytes();
+
+        let expected = "123456,1,user-10,xsqf+oiBpQPDr69jb+TvKxMSdnYATr7igNNR/uA1wtw=";
+
+        // assert that the payload is constructed in the right order
+        assert_eq!(
+            expected.to_string(),
+            String::from_utf8(payload_bytes.clone()).unwrap()
+        );
+
+        // assert that the associated header has the correct form
+        let mut header = HeaderMap::default();
+        header.append("X-IronCore-User-Context", expected.parse().unwrap());
+
+        assert_eq!(
+            user_context
+                .to_header(RequestErrorCode::UserKeyList)
+                .unwrap(),
+            header
+        );
+
+        // assert that the signature() implementation can be verified with the included public signing key
+        let signature = user_context.signature(&key_pair);
+        let pub_signing_key: PublicSigningKey =
+            PublicSigningKey::new(user_context.public_signing_key);
+        assert!(pub_signing_key.verify(&payload_bytes, &Ed25519Signature::new(signature)));
+    }
+
+    #[derive(Serialize)]
+    struct FakeRequest {
+        k1: Vec<u8>,
+        k2: u64,
+        k3: String,
+        k4: i64,
+    }
+
+    #[test]
+    fn ironcore_auth_v2_produces_expected_values() {
+        let ts = Utc.timestamp_millis(123456);
+        let signing_key_bytes: [u8; 64] = [
+            38, 218, 141, 117, 248, 58, 31, 187, 17, 183, 163, 49, 109, 66, 9, 132, 131, 77, 196,
+            31, 117, 15, 61, 29, 171, 119, 177, 31, 219, 164, 218, 221, 198, 202, 159, 250, 136,
+            129, 165, 3, 195, 175, 175, 99, 111, 228, 239, 43, 19, 18, 118, 118, 0, 78, 190, 226,
+            128, 211, 81, 254, 224, 53, 194, 220,
+        ];
+        let signing_keys = DeviceSigningKeyPair(
+            recrypt::api::SigningKeypair::from_bytes(&signing_key_bytes).unwrap(),
+        );
+        let segment_id = 1;
+        let user_id = UserId("user-10".to_string());
+        let user_context = HeaderIronCoreUserContext {
+            timestamp: ts,
+            segment_id,
+            user_id: user_id.clone(),
+            public_signing_key: signing_keys.public_key(),
+        };
+
+        let build_url = |relative_url| format!("{}{}", OUR_REQUEST.base_url(), relative_url);
+        let signing_url_string = SignatureUrlString::new(&build_url("users?id=user-10")).unwrap();
+
+        // note that this and the expected value must correspond
+        let fake_req = FakeRequest {
+            k1: vec![42u8; 10],
+            k2: 64u64,
+            k3: "Fake text for a fake request".to_string(),
+            k4: -482949i64,
+        };
+
+        let expected = "123456,1,user-10,xsqf+oiBpQPDr69jb+TvKxMSdnYATr7igNNR/uA1wtw=GET/api/1/users?id=user-10{\"k1\":[42,42,42,42,42,42,42,42,42,42],\"k2\":64,\"k3\":\"Fake text for a fake request\",\"k4\":-482949}";
+        let expected_no_body = "123456,1,user-10,xsqf+oiBpQPDr69jb+TvKxMSdnYATr7igNNR/uA1wtw=GET/api/1/users?id=user-10";
+
+        //
+        // first test the signature over a JSON encoded request
+        //
+        let fake_req_json = serde_json::to_string(&fake_req).unwrap();
+        let fake_req_json_bytes = fake_req_json.clone().into_bytes();
+        let request_sig = HeaderIronCoreRequestSig {
+            ironcore_user_context: user_context.clone(),
+            method: Method::GET,
+            url: signing_url_string.clone(),
+            body: Some(&fake_req_json_bytes),
+            signing_keys: &signing_keys,
+        };
+
+        assert_eq!(&request_sig.payload(), &expected.to_string().into_bytes());
+
+        // assert that the corresponding header also has the correct form
+        let mut header = HeaderMap::default();
+        header.append("X-IronCore-Request-Sig", "EdXNi3mkmHfEcFxhKfl3dri/Z1E0uGq6H+wbitD3N/Ooi9cq9tpmlkjoV4dnEFSKs/xxkOwlLOTwtVsM1f2lAw==".parse().unwrap());
+        assert_eq!(&request_sig.to_header(), &header);
+
+        //
+        // show that no body also works
+        //
+        let request_sig = HeaderIronCoreRequestSig {
+            ironcore_user_context: user_context,
+            method: Method::GET,
+            url: signing_url_string.clone(),
+            body: None,
+            signing_keys: &signing_keys,
+        };
+
+        assert_eq!(
+            &request_sig.payload(),
+            &expected_no_body.to_string().into_bytes()
+        );
+
+        // signature matches known value
+        let expected_request_sig = "7zvbj5mGKir4LxrQCcHCNc6md/487MMiBokumIIq4wEk+kJEFIKP1iBRK2cX8cs9h4XrdvXju3kEh0xdJBTlBw==";
+        assert_eq!(
+            base64::encode(&request_sig.signature().to_vec()),
+            expected_request_sig
+        );
+
+        // X-IronCore-Request-Sig header is well formed
+        let mut header = HeaderMap::default();
+        header.append(
+            "X-IronCore-Request-Sig",
+            expected_request_sig.parse().unwrap(),
+        );
+        assert_eq!(&request_sig.to_header(), &header);
+
+        // verify that the signature produced matches can be verified
+        assert!(signing_keys.0.public_key().verify(
+            &request_sig.payload(),
+            &Ed25519Signature::new_from_slice(&base64::decode(expected_request_sig).unwrap())
+                .unwrap()
+        ));
+
+        // verify that the authorization header is expected
+        let auth = Authorization::create_signatures_v2(
+            ts.clone(),
+            segment_id,
+            &user_id,
+            Method::POST,
+            signing_url_string,
+            None,
+            &signing_keys,
+        );
+
+        let mut auth_header_expected = HeaderMap::default();
+        auth_header_expected.append("authorization", "IronCore 2.CzATu+yKHO9edYZ6L27EXE4jKlk9p9hBhQsTJjj5ENFk2VhMfLp1ADKfaDQ/Q6u/Q7yHawq9L5Y1BFivdUYSCQ==".parse().unwrap());
+        assert_eq!(auth.to_auth_header(), auth_header_expected);
+    }
+
+    #[test]
+    fn signature_url_new_works() {
+        let user_list_url = |not_encoded_user| {
+            format!(
+                "{}{}",
+                "https://api.ironcorelabs.com/api/1/users?id=",
+                url_encode(not_encoded_user)
+            )
+        };
+        let maybe_path = SignatureUrlString::new(&user_list_url("user-10"));
+        assert_that!(&maybe_path, is_variant!(Result::Ok));
+        assert_eq!(
+            maybe_path.unwrap().signature_string(),
+            "/api/1/users?id=user-10"
+        );
+
+        // test a user id that uses more allowed characters
+        let maybe_path = SignatureUrlString::new(&user_list_url("abcABC012_.$#|@/:;=+'-"));
+
+        assert_that!(&maybe_path, is_variant!(Result::Ok));
+        assert_eq!(
+            maybe_path.unwrap().signature_string(),
+            "/api/1/users?id=abcABC012_.%24%23%7C%40%2F%3A%3B%3D%2B\'-"
+        );
+
+        let maybe_path =
+            SignatureUrlString::new("https://api.ironcorelabs.com/api/1/documents/some-doc-id");
+
+        assert_that!(&maybe_path, is_variant!(Result::Ok));
+        assert_eq!(
+            maybe_path.unwrap().signature_string(),
+            "/api/1/documents/some-doc-id"
+        );
+    }
+
+    #[test]
+    fn signature_url_new_rejects_malformed_urls() {
+        let maybe_path = SignatureUrlString::new("not a url");
+        assert_that!(&maybe_path, is_variant!(Result::Err));
+
+        let maybe_path = SignatureUrlString::new("://api?");
+        assert_that!(&maybe_path, is_variant!(Result::Err));
+
+        let maybe_path = SignatureUrlString::new("documents/some-doc-id");
+        assert_that!(&maybe_path, is_variant!(Result::Err));
+    }
+
+    #[test]
+    fn query_params_encoded_correctly() {
+        use publicsuffix::IntoUrl;
+
+        let icl_req = IronCoreRequest::new("https://example.com");
+        let mut req = ARequest::new(
+            Method::GET,
+            format!("{}/{}", icl_req.base_url(), "users")
+                .into_url()
+                .unwrap(),
+        );
+        let q = "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+        IronCoreRequest::req_add_query(&mut req, &[("id".to_string(), url_encode(&q))]);
+        assert_eq!(req.url().query(), Some("id=!%22%23%24%25%26\'()*%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"))
     }
 }

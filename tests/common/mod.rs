@@ -58,7 +58,7 @@ pub fn init_sdk_get_user() -> (UserId, IronOxide) {
     (u, init_check.unwrap())
 }
 pub fn init_sdk_get_init_result() -> (UserId, InitAndRotationCheck) {
-    let account_id: UserId = Uuid::new_v4().to_string().try_into().unwrap();
+    let account_id: UserId = create_id_all_classes("").try_into().unwrap();
     IronOxide::user_create(
         &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
         "foo",
@@ -105,13 +105,22 @@ pub fn init_sdk_get_init_result() -> (UserId, InitAndRotationCheck) {
 }
 
 pub fn create_second_user() -> UserVerifyResult {
-    let (jwt, _) = gen_jwt(1012, "test-segment", 551, None);
+    let (jwt, _) = gen_jwt(1012, "test-segment", 551, Some(&create_id_all_classes("")));
     let create_result = IronOxide::user_create(&jwt, "foo", &Default::default());
     assert!(create_result.is_ok());
 
     let verify_result = IronOxide::user_verify(&jwt);
     assert!(verify_result.is_ok());
     verify_result.unwrap().unwrap()
+}
+
+pub fn create_id_all_classes(prefix: &str) -> String {
+    format!(
+        "{}{}{}",
+        prefix,
+        "abcABC012_.$#|@/:;=+'-",
+        Uuid::new_v4().to_string()
+    )
 }
 
 #[allow(dead_code)]

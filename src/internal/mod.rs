@@ -2,6 +2,7 @@
 //! If it can be defined in API specific file, it should go there to keep this file's
 //! size to a minimum.
 
+use crate::internal::rest::SignatureUrlString;
 use crate::internal::{
     rest::{Authorization, IronCoreRequest},
     user_api::{DeviceId, UserId},
@@ -14,6 +15,7 @@ use recrypt::api::{
     RecryptErr, SigningKeypair as RecryptSigningKeypair,
 };
 use regex::Regex;
+use reqwest::Method;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     convert::{TryFrom, TryInto},
@@ -191,6 +193,47 @@ pub fn validate_name(name: &str, name_type: &str) -> Result<String, IronOxideErr
     }
 }
 
+pub mod auth_v2 {
+    use super::*;
+
+    /// API Auth version 2.
+    /// Fully constructing a valid auth v2 header is a two step process.
+    /// Step 1 is done on construction via `new`
+    /// Step 2 is done via `finish_with` as a request is being sent out and the bytes of the body are available.
+    pub struct AuthV2Builder<'a> {
+        pub(in crate::internal::auth_v2) req_auth: &'a RequestAuth,
+        pub(in crate::internal::auth_v2) timestamp: DateTime<Utc>,
+    }
+
+    impl<'a> AuthV2Builder<'a> {
+        pub fn new(req_auth: &'a RequestAuth, timestamp: DateTime<Utc>) -> AuthV2Builder {
+            AuthV2Builder {
+                req_auth,
+                timestamp,
+            }
+        }
+
+        /// Always returns Authorization::Version2
+        /// # Arguments
+        /// `sig_url`       URL path to be signed over
+        /// `method`        Method of request (POST, GET, PUT, etc)
+        /// `body_bytes`    Reference to the bytes of the body (or none)
+        ///
+        /// # Returns
+        /// Authorization::Version2 that contains all the information necessary to make an
+        /// IronCore authenticated request to the webservice.
+        pub fn finish_with(
+            &self,
+            sig_url: SignatureUrlString,
+            method: Method,
+            body_bytes: Option<&'a [u8]>,
+        ) -> Authorization<'a> {
+            self.req_auth
+                .create_signature_v2(self.timestamp, sig_url, method, body_bytes)
+        }
+    }
+}
+
 ///Structure that contains all the info needed to make a signed API request from a device.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -207,11 +250,20 @@ pub struct RequestAuth {
 }
 
 impl RequestAuth {
-    pub fn create_signature(&self, current_time: DateTime<Utc>) -> Authorization {
-        Authorization::create_message_signature_v1(
+    pub fn create_signature_v2<'a>(
+        &'a self,
+        current_time: DateTime<Utc>,
+        sig_url: SignatureUrlString,
+        method: Method,
+        body: Option<&'a [u8]>,
+    ) -> Authorization<'a> {
+        Authorization::create_signatures_v2(
             current_time,
             self.segment_id,
             &self.account_id,
+            method,
+            sig_url,
+            body,
             &self.signing_private_key,
         )
     }
@@ -570,7 +622,7 @@ impl DeviceSigningKeyPair {
 ///     "iat" : issued_time_seconds,
 ///     "exp" : expire_time_seconds,
 ///     "sub" : unique_user_id
-///});
+/// });
 ///
 #[derive(Debug, PartialEq, Serialize, Clone)]
 pub struct Jwt(String);

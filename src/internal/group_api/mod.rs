@@ -29,7 +29,7 @@ pub enum GroupEntity {
 #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Clone)]
 pub struct GroupId(pub(crate) String);
 impl GroupId {
-    pub fn id(&self) -> &String {
+    pub fn id(&self) -> &str {
         &self.0
     }
 
@@ -213,10 +213,10 @@ impl GroupAccessEditResult {
 }
 
 // List all of the groups that the requesting user is either a member or admin of
-pub fn list(
-    auth: &RequestAuth,
-    ids: Option<&Vec<GroupId>>,
-) -> impl Future<Item = GroupListResult, Error = IronOxideErr> {
+pub fn list<'a>(
+    auth: &'a RequestAuth,
+    ids: Option<&'a Vec<GroupId>>,
+) -> impl Future<Item = GroupListResult, Error = IronOxideErr> + 'a {
     let resp = match ids {
         Some(group_ids) => requests::group_list::group_limited_list_request(auth, &group_ids),
         None => requests::group_list::group_list_request(auth),
@@ -334,18 +334,18 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
 }
 
 /// Get the metadata for a group given its ID
-pub fn get_metadata(
-    auth: &RequestAuth,
+pub fn get_metadata<'a>(
+    auth: &'a RequestAuth,
     id: &GroupId,
-) -> impl Future<Item = GroupGetResult, Error = IronOxideErr> {
+) -> impl Future<Item = GroupGetResult, Error = IronOxideErr> + 'a {
     requests::group_get::group_get_request(auth, id).and_then(|resp| resp.try_into())
 }
 
 //Delete the provided group given it's ID
-pub fn group_delete(
-    auth: &RequestAuth,
+pub fn group_delete<'a>(
+    auth: &'a RequestAuth,
     group_id: &GroupId,
-) -> impl Future<Item = GroupId, Error = IronOxideErr> {
+) -> impl Future<Item = GroupId, Error = IronOxideErr> + 'a {
     requests::group_delete::group_delete_request(auth, &group_id)
         .and_then(|resp| resp.id.try_into())
 }
