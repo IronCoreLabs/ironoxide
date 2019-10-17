@@ -18,7 +18,7 @@ fn group_create_no_member() {
         false,
     ));
 
-    assert!(group_result.is_ok())
+    assert_eq!(group_result.unwrap().needs_rotation(), Some(false))
 }
 
 #[test]
@@ -26,8 +26,28 @@ fn group_create_also_member() {
     let sdk = init_sdk();
 
     let group_result = sdk.group_create(&Default::default());
+    assert_eq!(group_result.unwrap().needs_rotation(), Some(false))
+}
 
-    assert!(group_result.is_ok())
+#[test]
+fn group_get_metadata() {
+    let admin_sdk = init_sdk();
+    let member_sdk = init_sdk();
+    let nonmember_sdk = init_sdk();
+
+    let member_id = member_sdk.device().account_id().clone();
+    let group = admin_sdk.group_create(&Default::default());
+    let group_id = &group.unwrap().id().clone();
+
+    let _ = admin_sdk.group_add_members(&group_id, &[member_id]);
+
+    let admin_group_get = admin_sdk.group_get_metadata(group_id).unwrap();
+    let member_group_get = member_sdk.group_get_metadata(group_id).unwrap();
+    let nonmember_group_get = nonmember_sdk.group_get_metadata(group_id).unwrap();
+
+    assert_eq!(admin_group_get.needs_rotation(), Some(false));
+    assert_eq!(member_group_get.needs_rotation(), None);
+    assert_eq!(nonmember_group_get.needs_rotation(), None);
 }
 
 #[test]
