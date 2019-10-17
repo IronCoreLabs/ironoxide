@@ -1,4 +1,5 @@
-use common::init_sdk;
+use crate::common::create_second_user;
+use common::{create_id_all_classes, init_sdk};
 use ironoxide::{group::*, prelude::*};
 use std::convert::TryInto;
 use uuid::Uuid;
@@ -13,7 +14,7 @@ fn group_create_no_member() {
     let sdk = init_sdk();
 
     let group_result = sdk.group_create(&GroupCreateOpts::new(
-        Some(Uuid::new_v4().to_string().try_into().unwrap()),
+        Some(create_id_all_classes("").try_into().unwrap()),
         Some("test group name".try_into().unwrap()),
         false,
     ));
@@ -34,7 +35,11 @@ fn group_create_also_member() {
 fn group_delete() {
     let sdk = init_sdk();
 
-    let group_result = sdk.group_create(&Default::default());
+    let group_result = sdk.group_create(&GroupCreateOpts::new(
+        Some(create_id_all_classes("").try_into().unwrap()),
+        None,
+        true,
+    ));
     assert!(group_result.is_ok());
 
     let group_id = group_result.unwrap().id().clone();
@@ -50,7 +55,7 @@ fn group_update_name() {
 
     let group_result = sdk
         .group_create(&GroupCreateOpts::new(
-            Some(Uuid::new_v4().to_string().try_into().unwrap()),
+            Some(create_id_all_classes("").try_into().unwrap()),
             Some("first name".try_into().unwrap()),
             false,
         ))
@@ -80,7 +85,11 @@ fn group_add_member() {
     let sdk = init_sdk();
     let account_id = sdk.device().account_id().clone();
 
-    let group_result = sdk.group_create(&GroupCreateOpts::new(None, None, false));
+    let group_result = sdk.group_create(&GroupCreateOpts::new(
+        Some(create_id_all_classes("").try_into().unwrap()),
+        None,
+        false,
+    ));
     assert!(group_result.is_ok());
 
     let group_id = group_result.unwrap().id().clone();
@@ -119,7 +128,11 @@ fn group_remove_member() {
     let sdk = init_sdk();
     let account_id = sdk.device().account_id().clone();
 
-    let group_result = sdk.group_create(&Default::default());
+    let group_result = sdk.group_create(&GroupCreateOpts::new(
+        Some(create_id_all_classes("").try_into().unwrap()),
+        None,
+        true,
+    ));
     assert!(group_result.is_ok());
     let group_id = group_result.unwrap().id().clone();
 
@@ -142,7 +155,11 @@ fn group_add_admin() {
     let account_id = sdk.device().account_id().clone();
     let second_account_id = init_sdk().device().account_id().clone();
 
-    let group_result = sdk.group_create(&GroupCreateOpts::default());
+    let group_result = sdk.group_create(&GroupCreateOpts::new(
+        Some(create_id_all_classes("").try_into().unwrap()),
+        None,
+        false,
+    ));
     assert!(group_result.is_ok());
 
     let group_id = group_result.unwrap().id().clone();
@@ -161,7 +178,7 @@ fn group_add_admin() {
 fn group_remove_admin() {
     let sdk = init_sdk();
 
-    let second_account_id = init_sdk().device().account_id().clone();
+    let second_account_id = create_second_user().account_id().clone();
 
     let group_result = sdk.group_create(&GroupCreateOpts::default());
     assert!(group_result.is_ok());

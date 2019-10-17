@@ -17,19 +17,20 @@ use crate::{
     },
 };
 
+use crate::internal::auth_v2::AuthV2Builder;
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub struct PrivateKey(#[serde(with = "Base64Standard")] pub Vec<u8>);
+pub struct EncryptedPrivateKey(#[serde(with = "Base64Standard")] pub Vec<u8>);
 
-impl From<EncryptedMasterKey> for PrivateKey {
+impl From<EncryptedMasterKey> for EncryptedPrivateKey {
     fn from(enc_master_key: EncryptedMasterKey) -> Self {
-        PrivateKey(enc_master_key.bytes().to_vec())
+        EncryptedPrivateKey(enc_master_key.bytes().to_vec())
     }
 }
 
-impl TryFrom<PrivateKey> for EncryptedMasterKey {
+impl TryFrom<EncryptedPrivateKey> for EncryptedMasterKey {
     type Error = IronOxideErr;
 
-    fn try_from(value: PrivateKey) -> Result<Self, Self::Error> {
+    fn try_from(value: EncryptedPrivateKey) -> Result<Self, Self::Error> {
         EncryptedMasterKey::new_from_slice(&value.0)
     }
 }
@@ -46,7 +47,7 @@ pub mod user_verify {
         pub(crate) id: String,
         status: usize,
         pub(crate) segment_id: usize,
-        pub(crate) user_private_key: PrivateKey,
+        pub(crate) user_private_key: EncryptedPrivateKey,
         pub(crate) user_master_public_key: PublicKey,
         pub(crate) needs_rotation: bool,
     }
@@ -55,7 +56,7 @@ pub mod user_verify {
         jwt: &Jwt,
         request: &IronCoreRequest,
     ) -> impl Future<Item = Option<UserVerifyResponse>, Error = IronOxideErr> {
-        request.get_with_empty_result(
+        request.get_with_empty_result_jwt_auth(
             "users/verify?returnKeys=true",
             RequestErrorCode::UserVerify,
             &Authorization::JwtAuth(jwt),
@@ -88,7 +89,7 @@ pub mod user_verify {
             let (_, r_pub) = r.generate_key_pair()?;
 
             // private key doesn't go through any validation as we don't return it in the Result
-            let priv_key: PrivateKey = PrivateKey(vec![1u8; 60]);
+            let priv_key: EncryptedPrivateKey = EncryptedPrivateKey(vec![1u8; 60]);
             let pub_key: PublicKey = r_pub.into();
 
             let t_account_id: UserId = UserId::unsafe_from_string("valid_user_id".to_string());
@@ -131,7 +132,7 @@ pub mod user_create {
         id: String,
         status: usize,
         segment_id: usize,
-        pub user_private_key: PrivateKey,
+        pub user_private_key: EncryptedPrivateKey,
         pub user_master_public_key: PublicKey,
         needs_rotation: bool,
     }
@@ -140,14 +141,14 @@ pub mod user_create {
     #[serde(rename_all = "camelCase")]
     struct UserCreateReq {
         user_public_key: PublicKey,
-        user_private_key: PrivateKey,
+        user_private_key: EncryptedPrivateKey,
         needs_rotation: bool,
     }
 
     pub fn user_create(
         jwt: &Jwt,
         user_public_key: PublicKey,
-        encrypted_user_private_key: PrivateKey,
+        encrypted_user_private_key: EncryptedPrivateKey,
         needs_rotation: bool,
         request: IronCoreRequest,
     ) -> impl Future<Item = UserCreateResponse, Error = IronOxideErr> {
@@ -156,7 +157,7 @@ pub mod user_create {
             user_public_key,
             needs_rotation,
         };
-        request.post(
+        request.post_jwt_auth(
             "users",
             &req_body,
             RequestErrorCode::UserCreate,
@@ -189,16 +190,17 @@ pub mod user_key_list {
         pub(crate) result: Vec<UserPublicKey>,
     }
 
-    pub fn user_key_list_request(
-        auth: &RequestAuth,
+    pub fn user_key_list_request<'a>(
+        auth: &'a RequestAuth,
         users: &Vec<UserId>,
-    ) -> impl Future<Item = UserKeyListResponse, Error = IronOxideErr> {
-        let encoded_user_ids: Vec<_> = users.iter().map(|user| rest::url_encode(&user.0)).collect();
+    ) -> impl Future<Item = UserKeyListResponse, Error = IronOxideErr> + 'a {
+        let user_ids: Vec<&str> = users.iter().map(|user| user.id()).collect();
 
-        auth.request.get(
-            &format!("users?id={}", encoded_user_ids.join(",")),
+        auth.request.get_with_query_params(
+            "users".into(),
+            &vec![("id".into(), rest::url_encode(&user_ids.join(",")))],
             RequestErrorCode::UserKeyList,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 }
@@ -252,7 +254,7 @@ pub mod device_add {
                 name: name.clone(),
             },
         };
-        request.post(
+        request.post_jwt_auth(
             "users/devices",
             &req_body,
             RequestErrorCode::UserDeviceAdd,
@@ -286,11 +288,11 @@ pub mod device_list {
 
     pub fn device_list(
         auth: &RequestAuth,
-    ) -> impl Future<Item = DeviceListResponse, Error = IronOxideErr> {
+    ) -> impl Future<Item = DeviceListResponse, Error = IronOxideErr> + '_ {
         auth.request.get(
             &format!("users/{}/devices", rest::url_encode(&auth.account_id().0)),
             RequestErrorCode::UserDeviceList,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 
@@ -316,10 +318,10 @@ pub mod device_delete {
         pub(crate) id: DeviceId,
     }
 
-    pub fn device_delete(
-        auth: &RequestAuth,
+    pub fn device_delete<'a>(
+        auth: &'a RequestAuth,
         device_id: &DeviceId,
-    ) -> Box<dyn Future<Item = DeviceDeleteResponse, Error = IronOxideErr>> {
+    ) -> Box<dyn Future<Item = DeviceDeleteResponse, Error = IronOxideErr> + 'a> {
         Box::new(auth.request.delete_with_no_body(
             &format!(
                 "users/{}/devices/{}",
@@ -327,20 +329,20 @@ pub mod device_delete {
                 device_id.0
             ),
             RequestErrorCode::UserDeviceDelete,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         ))
     }
 
     pub fn device_delete_current(
         auth: &RequestAuth,
-    ) -> Box<dyn Future<Item = DeviceDeleteResponse, Error = IronOxideErr>> {
+    ) -> Box<dyn Future<Item = DeviceDeleteResponse, Error = IronOxideErr> + '_> {
         Box::new(auth.request.delete_with_no_body(
             &format!(
                 "users/{}/devices/current",
                 rest::url_encode(&auth.account_id().0)
             ),
             RequestErrorCode::UserDeviceDelete,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         ))
     }
 }

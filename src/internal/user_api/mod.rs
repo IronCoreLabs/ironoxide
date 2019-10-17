@@ -303,7 +303,7 @@ pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
 
 pub fn device_list(
     auth: &RequestAuth,
-) -> impl Future<Item = UserDeviceListResult, Error = IronOxideErr> {
+) -> impl Future<Item = UserDeviceListResult, Error = IronOxideErr> + '_ {
     requests::device_list::device_list(auth).map(|resp| {
         let mut vec: Vec<UserDevice> = resp.result.into_iter().map(UserDevice::from).collect();
         // sort the devices by device_id
@@ -312,10 +312,10 @@ pub fn device_list(
     })
 }
 
-pub fn device_delete(
-    auth: &RequestAuth,
-    device_id: Option<&DeviceId>,
-) -> impl Future<Item = DeviceId, Error = IronOxideErr> {
+pub fn device_delete<'a>(
+    auth: &'a RequestAuth,
+    device_id: Option<&'a DeviceId>,
+) -> impl Future<Item = DeviceId, Error = IronOxideErr> + 'a {
     match device_id {
         Some(device_id) => requests::device_delete::device_delete(auth, device_id),
         None => requests::device_delete::device_delete_current(auth),
@@ -325,7 +325,7 @@ pub fn device_delete(
 
 /// Get a list of users public keys given a list of user account IDs
 pub fn user_key_list<'a>(
-    auth: &RequestAuth,
+    auth: &'a RequestAuth,
     user_ids: &'a Vec<UserId>,
 ) -> impl Future<Item = HashMap<UserId, PublicKey>, Error = IronOxideErr> + 'a {
     requests::user_key_list::user_key_list_request(auth, user_ids).map(

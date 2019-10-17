@@ -14,6 +14,8 @@ use chrono::{DateTime, Utc};
 use futures::Future;
 use std::convert::{TryFrom, TryInto};
 
+use crate::internal::auth_v2::AuthV2Builder;
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Association {
     #[serde(rename = "type")]
@@ -153,11 +155,11 @@ pub mod document_list {
     /// Make GET request to document list endpoint for the current user/device context
     pub fn document_list_request(
         auth: &RequestAuth,
-    ) -> impl Future<Item = DocumentListApiResponse, Error = IronOxideErr> {
+    ) -> impl Future<Item = DocumentListApiResponse, Error = IronOxideErr> + '_ {
         auth.request.get(
             "documents",
             RequestErrorCode::DocumentList,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 }
@@ -165,14 +167,14 @@ pub mod document_list {
 pub mod document_get {
     use super::*;
 
-    pub fn document_get_request(
-        auth: &RequestAuth,
+    pub fn document_get_request<'a>(
+        auth: &'a RequestAuth,
         id: &DocumentId,
-    ) -> impl Future<Item = DocumentMetaApiResponse, Error = IronOxideErr> {
+    ) -> impl Future<Item = DocumentMetaApiResponse, Error = IronOxideErr> + 'a {
         auth.request.get(
             &format!("documents/{}", rest::url_encode(&id.0)),
             RequestErrorCode::DocumentGet,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 }
@@ -180,15 +182,15 @@ pub mod document_get {
 pub mod edek_transform {
     use super::*;
 
-    pub fn edek_transform(
-        auth: &RequestAuth,
-        edek_bytes: &[u8],
-    ) -> impl Future<Item = EdekTransformResponse, Error = IronOxideErr> {
+    pub fn edek_transform<'a>(
+        auth: &'a RequestAuth,
+        edek_bytes: &'a [u8],
+    ) -> impl Future<Item = EdekTransformResponse, Error = IronOxideErr> + 'a {
         auth.request.post_raw(
             "edeks/transform",
             edek_bytes,
             RequestErrorCode::EdekTransform,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 
@@ -202,6 +204,7 @@ pub mod edek_transform {
 
 pub mod document_create {
     use super::*;
+    use crate::internal::auth_v2::AuthV2Builder;
     use crate::internal::document_api::{DocumentName, EncryptedDek};
     use std::convert::TryInto;
 
@@ -228,12 +231,12 @@ pub mod document_create {
         pub(crate) shared_with: Vec<AccessGrant>,
     }
 
-    pub fn document_create_request(
-        auth: &RequestAuth,
+    pub fn document_create_request<'a>(
+        auth: &'a RequestAuth,
         id: DocumentId,
         name: Option<DocumentName>,
         grants: Vec<EncryptedDek>,
-    ) -> Box<dyn Future<Item = DocumentCreateResponse, Error = IronOxideErr>> {
+    ) -> Box<dyn Future<Item = DocumentCreateResponse, Error = IronOxideErr> + 'a> {
         let maybe_req_grants: Result<Vec<_>, _> =
             grants.into_iter().map(|g| g.try_into()).collect();
 
@@ -250,7 +253,7 @@ pub mod document_create {
                     "documents",
                     &req,
                     RequestErrorCode::DocumentCreate,
-                    &auth.create_signature(Utc::now()),
+                    AuthV2Builder::new(&auth, Utc::now()),
                 ))
             }
             // the failure case here is that we couldn't convert the recrypt EncryptedValue because
@@ -262,6 +265,7 @@ pub mod document_create {
 
 pub mod policy_get {
     use super::*;
+    use crate::internal::rest::{url_encode, PercentEncodedString};
     use crate::policy::{Category, DataSubject, PolicyGrant, Sensitivity};
 
     pub(crate) const SUBSTITUTE_ID_QUERY_PARAM: &'static str = "substituteId";
@@ -273,33 +277,35 @@ pub mod policy_get {
         pub(crate) invalid_users_and_groups: Vec<UserOrGroup>,
     }
 
-    pub fn policy_get_request(
-        auth: &RequestAuth,
+    pub fn policy_get_request<'a>(
+        auth: &'a RequestAuth,
         policy_grant: &PolicyGrant,
-    ) -> impl Future<Item = PolicyResult, Error = IronOxideErr> {
-        let query_params: Vec<(String, String)> = [
+    ) -> impl Future<Item = PolicyResult, Error = IronOxideErr> + 'a {
+        let query_params: Vec<(String, PercentEncodedString)> = [
+            // all query params here are just letters, so no need to percent encode
             policy_grant
                 .category()
-                .map(|c| (Category::QUERY_PARAM.to_string(), c.0.clone())),
+                .map(|c| (Category::QUERY_PARAM.to_string(), url_encode(c.inner()))),
             policy_grant
                 .sensitivity()
-                .map(|s| (Sensitivity::QUERY_PARAM.to_string(), s.0.clone())),
+                .map(|s| (Sensitivity::QUERY_PARAM.to_string(), url_encode(s.inner()))),
             policy_grant
                 .data_subject()
-                .map(|d| (DataSubject::QUERY_PARAM.to_string(), d.0.clone())),
+                .map(|d| (DataSubject::QUERY_PARAM.to_string(), url_encode(d.inner()))),
             policy_grant
                 .substitute_user()
-                .map(|UserId(u)| (SUBSTITUTE_ID_QUERY_PARAM.to_string(), u.clone())),
+                .map(|UserId(u)| (SUBSTITUTE_ID_QUERY_PARAM.to_string(), url_encode(u))),
         ]
         .to_vec()
         .into_iter()
         .flatten()
         .collect();
+
         auth.request.get_with_query_params(
             "policies",
             &query_params,
             RequestErrorCode::PolicyGet,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 }
@@ -321,13 +327,14 @@ pub mod document_update {
             &format!("documents/{}", rest::url_encode(&id.0)),
             &DocumentUpdateRequest { name },
             RequestErrorCode::DocumentUpdate,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 }
 
 pub mod document_access {
     use super::*;
+    use crate::internal::auth_v2::AuthV2Builder;
     use crate::internal::document_api::{requests::document_access::resp::*, UserOrGroup, WithKey};
     use std::convert::TryInto;
 
@@ -444,10 +451,10 @@ pub mod document_access {
                     to: req_grants,
                 };
                 Box::new(auth.request.post(
-                    &format!("documents/{}/access", id.0),
+                    &format!("documents/{}/access", rest::url_encode(id.id())),
                     &req,
                     RequestErrorCode::DocumentGrantAccess,
-                    &auth.create_signature(Utc::now()),
+                    AuthV2Builder::new(&auth, Utc::now()),
                 ))
             }
             // the failure case here is that we couldn't convert the recrypt EncryptedValue because
@@ -456,18 +463,18 @@ pub mod document_access {
         }
     }
 
-    pub fn revoke_access_request(
-        auth: &RequestAuth,
+    pub fn revoke_access_request<'a>(
+        auth: &'a RequestAuth,
         doc_id: &DocumentId,
         revoke_list: Vec<UserOrGroupAccess>,
-    ) -> impl Future<Item = DocumentAccessResponse, Error = IronOxideErr> {
+    ) -> impl Future<Item = DocumentAccessResponse, Error = IronOxideErr> + 'a {
         auth.request.delete(
             &format!("documents/{}/access", rest::url_encode(&doc_id.0)),
             &DocumentRevokeAccessRequest {
                 user_or_groups: revoke_list,
             },
             RequestErrorCode::DocumentRevokeAccess,
-            &auth.create_signature(Utc::now()),
+            AuthV2Builder::new(&auth, Utc::now()),
         )
     }
 }
