@@ -44,6 +44,7 @@ pub enum RequestErrorCode {
     UserDeviceDelete,
     UserDeviceList,
     UserKeyList,
+    UserKeyUpdate,
     GroupCreate,
     GroupDelete,
     GroupList,

@@ -4,6 +4,7 @@
 use crate::{
     crypto::aes::EncryptedMasterKey,
     internal::{
+        self,
         rest::{
             self,
             json::{Base64Standard, PublicKey},
@@ -20,6 +21,15 @@ use std::convert::TryFrom;
 use crate::internal::auth_v2::AuthV2Builder;
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct EncryptedPrivateKey(#[serde(with = "Base64Standard")] pub Vec<u8>);
+
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+pub struct AugmentationFactor(#[serde(with = "Base64Standard")] pub Vec<u8>);
+
+impl From<internal::AugmentationFactor> for AugmentationFactor {
+    fn from(af: internal::AugmentationFactor) -> Self {
+        AugmentationFactor(af.as_bytes().to_vec())
+    }
+}
 
 impl From<EncryptedMasterKey> for EncryptedPrivateKey {
     fn from(enc_master_key: EncryptedMasterKey) -> Self {
@@ -156,8 +166,7 @@ pub mod user_update_private_key {
     #[serde(rename_all = "camelCase")]
     pub struct UserUpdatePrivateKey {
         user_private_key: EncryptedPrivateKey,
-        #[serde(with = "Base64Standard")]
-        augmentation_factor: Vec<u8>, //TODO
+        augmentation_factor: AugmentationFactor,
     }
 
     #[derive(Deserialize, PartialEq, Debug)]
@@ -172,6 +181,10 @@ pub mod user_update_private_key {
         fn from(resp: UserUpdatePrivateKeyResponse) -> Self {
             UserUpdatePrivateKeyResult {
                 user_key_id: resp.current_key_id,
+                user_master_private_key: internal::user_api::EncryptedPrivateKey(
+                    resp.user_private_key.0,
+                ),
+                needs_rotation: resp.needs_rotation,
             }
         }
     }
@@ -181,7 +194,7 @@ pub mod user_update_private_key {
         user_id: UserId,
         user_key_id: usize, //TODO type
         new_encrypted_private_key: EncryptedPrivateKey,
-        augmenting_key: Vec<u8>, //TODO this isn't a good type here
+        augmenting_key: AugmentationFactor,
     ) -> impl Future<Item = UserUpdatePrivateKeyResponse, Error = IronOxideErr> + 'a {
         auth.request.put(
             &format!(
@@ -193,7 +206,7 @@ pub mod user_update_private_key {
                 user_private_key: new_encrypted_private_key,
                 augmentation_factor: augmenting_key,
             },
-            RequestErrorCode::EdekTransform, //TODO
+            RequestErrorCode::UserKeyUpdate,
             AuthV2Builder::new(&auth, Utc::now()),
         )
     }

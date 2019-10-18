@@ -238,9 +238,32 @@ pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
         .and_then(|resp| resp.try_into())
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EncryptedPrivateKey(Vec<u8>);
+
+impl EncryptedPrivateKey {
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct UserUpdatePrivateKeyResult {
     user_key_id: usize,
+    user_master_private_key: EncryptedPrivateKey,
+    needs_rotation: bool,
+}
+
+impl UserUpdatePrivateKeyResult {
+    pub fn user_key_id(&self) -> usize {
+        self.user_key_id
+    }
+    pub fn user_master_private_key(&self) -> &EncryptedPrivateKey {
+        &self.user_master_private_key
+    }
+    pub fn needs_rotation(&self) -> bool {
+        self.needs_rotation
+    }
 }
 
 pub fn user_soft_rotate_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
@@ -270,7 +293,7 @@ pub fn user_soft_rotate_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
                     UserId(curr_user.id),
                     curr_user.current_key_id,
                     new_encrypted_priv_key,
-                    aug_factor.as_bytes().to_vec(),
+                    aug_factor,
                 )
             })
         })
@@ -281,17 +304,11 @@ pub fn user_soft_rotate_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
                     user_id,
                     curr_key_id,
                     new_encrypted_priv_key.into(),
-                    aug_factor,
+                    aug_factor.into(),
                 )
                 .map(|resp| resp.into())
             },
         )
-
-    // generate the augmentation factor
-    //        let aug_factor = generate_augmentation_factor();
-    // compute new private key for user
-    // encrypt new private key with passphrase
-    // invoke REST endpoint
 }
 
 /// Generate a device key for the user specified in the JWT.
