@@ -124,6 +124,8 @@ impl GroupMetaResult {
     pub fn group_master_public_key(&self) -> &PublicKey {
         &self.group_master_public_key
     }
+    /// `Some(boolean)` indicating if the group needs rotation if the calling user is a group admin.
+    /// `None` if the calling user is not a group admin.
     pub fn needs_rotation(&self) -> Option<bool> {
         self.needs_rotation
     }
