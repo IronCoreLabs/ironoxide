@@ -87,7 +87,7 @@ fn user_create_good_with_devices() {
 fn user_get_current() -> Result<(), IronOxideErr> {
     let io = common::init_sdk();
 
-    dbg!(io.user_rotate_private_key("asdf"));
+    dbg!(io.user_rotate_private_key("foo"));
 
     Ok(())
 }

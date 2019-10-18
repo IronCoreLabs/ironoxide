@@ -149,21 +149,54 @@ pub mod user_get {
 }
 
 pub mod user_update_private_key {
-    //    use super::*;
-    //
-    //    #[derive(Serialize, Debug)]
-    //    #[serde(rename_all = "camelCase")]
-    //    pub struct UserUpdatePrivateKey {
-    //        user_private_key: PrivateKey,
-    //        augmentation_factor: PrivateKey,
-    //    }
-    //
-    //    pub fn update_private_key(
-    //        auth: &RequestAuth,
-    //        new_encrypted_private_key: PrivateKey,
-    //        augmenting_key: PrivateKey,
-    //    ) {
-    //    }
+    use super::*;
+    use crate::internal::user_api::UserUpdatePrivateKeyResult;
+
+    #[derive(Serialize, Debug)]
+    #[serde(rename_all = "camelCase")]
+    pub struct UserUpdatePrivateKey {
+        user_private_key: EncryptedPrivateKey,
+        #[serde(with = "Base64Standard")]
+        augmentation_factor: Vec<u8>, //TODO
+    }
+
+    #[derive(Deserialize, PartialEq, Debug)]
+    #[serde(rename_all = "camelCase")]
+    pub struct UserUpdatePrivateKeyResponse {
+        current_key_id: usize,
+        user_private_key: EncryptedPrivateKey,
+        needs_rotation: bool,
+    }
+
+    impl From<UserUpdatePrivateKeyResponse> for UserUpdatePrivateKeyResult {
+        fn from(resp: UserUpdatePrivateKeyResponse) -> Self {
+            UserUpdatePrivateKeyResult {
+                user_key_id: resp.current_key_id,
+            }
+        }
+    }
+
+    pub fn update_private_key<'a>(
+        auth: &'a RequestAuth,
+        user_id: UserId,
+        user_key_id: usize, //TODO type
+        new_encrypted_private_key: EncryptedPrivateKey,
+        augmenting_key: Vec<u8>, //TODO this isn't a good type here
+    ) -> impl Future<Item = UserUpdatePrivateKeyResponse, Error = IronOxideErr> + 'a {
+        auth.request.put(
+            &format!(
+                "users/{}/keys/{}",
+                rest::url_encode(user_id.id()),
+                user_key_id
+            ),
+            &UserUpdatePrivateKey {
+                user_private_key: new_encrypted_private_key,
+                augmentation_factor: augmenting_key,
+            },
+            RequestErrorCode::EdekTransform, //TODO
+            AuthV2Builder::new(&auth, Utc::now()),
+        )
+    }
 }
 
 pub mod user_create {

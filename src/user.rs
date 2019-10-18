@@ -1,4 +1,4 @@
-use crate::internal::user_api::UserPrivateKeyRotationResult;
+use crate::internal::user_api::UserUpdatePrivateKeyResult;
 pub use crate::internal::user_api::{
     UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserVerifyResult,
 };
@@ -130,7 +130,7 @@ pub trait UserOps {
     /// Map from user ID to users public key. Only users who have public keys will be returned in the map.
     fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>>;
 
-    fn user_rotate_private_key(&self, password: &str) -> Result<UserPrivateKeyRotationResult>;
+    fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult>;
 }
 impl UserOps for IronOxide {
     fn user_create(
@@ -188,7 +188,7 @@ impl UserOps for IronOxide {
         rt.block_on(user_api::user_key_list(self.device.auth(), &users.to_vec()))
     }
 
-    fn user_rotate_private_key(&self, password: &str) -> Result<UserPrivateKeyRotationResult> {
+    fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult> {
         let mut rt = Runtime::new().unwrap();
         rt.block_on(user_api::user_soft_rotate_key(
             &self.recrypt,

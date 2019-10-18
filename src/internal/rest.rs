@@ -667,6 +667,7 @@ impl<'a> IronCoreRequest<'a> {
         B: DeserializeOwned + 'a,
         F: FnOnce(&Chunk) -> Result<B, IronOxideErr> + 'a,
     {
+        dbg!(&req);
         let client = RClient::new();
         client
             .execute(req)
@@ -679,6 +680,7 @@ impl<'a> IronCoreRequest<'a> {
             })
             //Now make the error type into the IronOxideErr and run the resp_handler which was passed to us.
             .then(move |resp| {
+                dbg!(&resp);
                 //Map the generic error from reqwest to our error type.
                 let (status, server_resp) = resp.map_err(|err| {
                     IronCoreRequest::create_request_err(err.to_string(), error_code, err.status())

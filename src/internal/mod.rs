@@ -487,7 +487,7 @@ impl<'de> Deserialize<'de> for PrivateKey {
 
 impl PrivateKey {
     /// Augment this private key with another, producing a new PrivateKey
-    fn augment(&self, augmenting_key: AugmentationFactor) -> Result<PrivateKey, IronOxideErr> {
+    fn augment(&self, augmenting_key: &AugmentationFactor) -> Result<PrivateKey, IronOxideErr> {
         use recrypt::Revealed;
         let zero: RecryptPrivateKey = RecryptPrivateKey::new([0u8; 32]);
         if Revealed((augmenting_key.clone().0).0) == Revealed(zero.clone()) {
@@ -495,7 +495,7 @@ impl PrivateKey {
                 "Augmenting key cannot be zero".into(),
             ))
         } else {
-            let augmented_key = self.0.clone() - augmenting_key.into();
+            let augmented_key = self.0.clone() - augmenting_key.clone().into();
             // TODO might be nice if Revealed could hold a reference
             if Revealed(augmented_key.clone()) == Revealed(zero) {
                 Err(IronOxideErr::UserPrivateKeyRotationError(
@@ -515,6 +515,10 @@ impl AugmentationFactor {
     pub fn generate_new<CO: CryptoOps>(recrypt: &CO) -> AugmentationFactor {
         let pt = recrypt.gen_plaintext();
         AugmentationFactor(recrypt.derive_private_key(&pt).into())
+    }
+
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        self.0.as_bytes()
     }
 }
 
@@ -948,7 +952,7 @@ pub(crate) mod test {
     fn private_key_augment_with_self_is_none() {
         let privk = gen_priv_key();
 
-        let result = privk.augment(AugmentationFactor(privk.clone()));
+        let result = privk.augment(&AugmentationFactor(privk.clone()));
         assert_that!(&result, is_variant!(Err));
         assert_that!(
             &result.unwrap_err(),
@@ -964,7 +968,7 @@ pub(crate) mod test {
 
         let p3 = (p1.clone().0 - p2.clone().0).into();
 
-        let aug_p = p1.augment(AugmentationFactor(p2)).unwrap();
+        let aug_p = p1.augment(&AugmentationFactor(p2)).unwrap();
         assert_eq!(Revealed(aug_p.0), Revealed(p3))
     }
 
@@ -972,7 +976,7 @@ pub(crate) mod test {
     fn private_key_augmentation_aug_key_of_zero() {
         let priv_key_orig = gen_priv_key();
         let zero_aug_factor = AugmentationFactor(PrivateKey(RecryptPrivateKey::new([0u8; 32])));
-        let new_priv_key = priv_key_orig.augment(zero_aug_factor);
+        let new_priv_key = priv_key_orig.augment(&zero_aug_factor);
         assert_that!(&new_priv_key, is_variant!(Err));
         assert_that!(
             &new_priv_key.unwrap_err(),

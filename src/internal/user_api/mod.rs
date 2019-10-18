@@ -1,3 +1,4 @@
+use crate::internal::user_api::requests::user_update_private_key::UserUpdatePrivateKeyResponse;
 use crate::{
     crypto::aes::{self, EncryptedMasterKey},
     internal::{rest::IronCoreRequest, *},
@@ -238,33 +239,53 @@ pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
 }
 
 #[derive(Debug, Clone)]
-pub struct UserPrivateKeyRotationResult;
+pub struct UserUpdatePrivateKeyResult {
+    user_key_id: usize,
+}
 
 pub fn user_soft_rotate_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'apicall Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     passphrase: Password,
     auth: &'apicall RequestAuth,
-) -> impl Future<Item = UserPrivateKeyRotationResult, Error = IronOxideErr> + 'apicall {
-    requests::user_get::get_curr_user(&auth).and_then(move |curr_user| {
-        Ok({
-            let password_string = passphrase.0;
-            let encrypt_priv_key = curr_user.user_private_key;
-            let priv_key: PrivateKey = aes::decrypt_user_master_key(
-                &password_string,
-                &aes::EncryptedMasterKey::new_from_slice(&encrypt_priv_key.0)?,
-            )?
-            .into();
-            let aug_factor = AugmentationFactor::generate_new(recrypt);
-            // TODO retry augfactor internally?
-            let new_encrypted_priv_key = aes::encrypt_user_master_key(
-                &Mutex::new(EntropyRng::default()),
-                &password_string,
-                priv_key.augment(aug_factor)?.as_bytes(),
-            )?;
+) -> impl Future<Item = UserUpdatePrivateKeyResult, Error = IronOxideErr> + 'apicall {
+    requests::user_get::get_curr_user(&auth)
+        .and_then(move |curr_user| {
+            Ok({
+                let password_string = passphrase.0;
+                let encrypt_priv_key = curr_user.user_private_key;
+                let priv_key: PrivateKey = aes::decrypt_user_master_key(
+                    &password_string,
+                    &aes::EncryptedMasterKey::new_from_slice(&encrypt_priv_key.0)?,
+                )?
+                .into();
+                let aug_factor = AugmentationFactor::generate_new(recrypt);
+                // TODO retry augfactor internally?
+                let new_encrypted_priv_key = aes::encrypt_user_master_key(
+                    &Mutex::new(EntropyRng::default()),
+                    &password_string,
+                    priv_key.augment(&aug_factor)?.as_bytes(),
+                )?;
 
-            UserPrivateKeyRotationResult
+                (
+                    UserId(curr_user.id),
+                    curr_user.current_key_id,
+                    new_encrypted_priv_key,
+                    aug_factor.as_bytes().to_vec(),
+                )
+            })
         })
-    })
+        .and_then(
+            move |(user_id, curr_key_id, new_encrypted_priv_key, aug_factor)| {
+                requests::user_update_private_key::update_private_key(
+                    &auth,
+                    user_id,
+                    curr_key_id,
+                    new_encrypted_priv_key.into(),
+                    aug_factor,
+                )
+                .map(|resp| resp.into())
+            },
+        )
 
     // generate the augmentation factor
     //        let aug_factor = generate_augmentation_factor();

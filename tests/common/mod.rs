@@ -118,7 +118,8 @@ pub fn create_id_all_classes(prefix: &str) -> String {
     format!(
         "{}{}{}",
         prefix,
-        "abcABC012_.$#|@/:;=+'-",
+        "",
+        //        "abcABC012_.$#|@/:;=+'-", //TODO
         Uuid::new_v4().to_string()
     )
 }
