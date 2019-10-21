@@ -81,6 +81,7 @@ use tokio::runtime::current_thread::Runtime;
 
 /// Result of an Sdk operation
 pub type Result<T> = std::result::Result<T, IronOxideErr>;
+use futures::prelude::*;
 
 /// Struct that is used to make authenticated requests to the IronCore API. Instantiated with the details
 /// of an account's various ids, device, and signing keys. Once instantiated all operations will be
@@ -116,13 +117,18 @@ pub struct PrivateKeyRotationCheckResult {
 }
 
 impl PrivateKeyRotationCheckResult {
-    pub fn user_rotation_needed() -> Option<UserId> {
-        unimplemented!()
+    pub fn user_rotation_needed(&self) -> Option<UserId> {
+        match &self.rotations_needed {
+            EitherOrBoth::Left(u) | EitherOrBoth::Both(u, _) => Some(u.clone()),
+            _ => None,
+        }
     }
 
     //    pub fn group_rotation_needed() -> Option<Vec<GroupId>> {
     //        unimplemented!()
     //    }
+
+    //    pub fn rotate_all(ironoxide: &IronOxide) -> (UserId, Vec<GroupId>) //TODO?
 }
 
 /// Initialize the IronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
@@ -133,6 +139,7 @@ pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
     let mut rt = Runtime::new().unwrap();
     let account_id = device_context.account_id();
     rt.block_on(crate::internal::user_api::user_key_list(
+        //TODO replace with fancy new user GET
         &device_context.auth(),
         &vec![account_id.clone()],
     ))
@@ -159,7 +166,34 @@ pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
 /// marked for private key rotation, or if any of the groups that the user is an admin of is marked
 /// for private key rotation.
 pub fn initialize_check_rotation(device_context: &DeviceContext) -> Result<InitAndRotationCheck> {
-    initialize(&device_context).map(|io| InitAndRotationCheck::NoRotationNeeded(io))
+    // 1 MB
+    const BYTES_BEFORE_RESEEDING: u64 = 1 * 1024 * 1024;
+    Runtime::new().unwrap().block_on(
+        internal::user_api::user_get_current(device_context.auth()).and_then(|curr_user| {
+            let ironoxide = IronOxide {
+                recrypt: Recrypt::new(),
+                device: device_context.clone(),
+                user_master_pub_key: curr_user.user_public_key().clone(),
+                rng: Mutex::new(ReseedingRng::new(
+                    rand_chacha::ChaChaCore::from_entropy(),
+                    BYTES_BEFORE_RESEEDING,
+                    EntropyRng::new(),
+                )),
+            };
+
+            if curr_user.needs_rotation() {
+                Ok(InitAndRotationCheck::RotationNeeded(
+                    ironoxide,
+                    PrivateKeyRotationCheckResult {
+                        rotations_needed: EitherOrBoth::Left(curr_user.account_id().clone()),
+                    },
+                ))
+            } else {
+                Ok(InitAndRotationCheck::NoRotationNeeded(ironoxide))
+            }
+        }),
+    )
+    //    initialize(&device_context).map(|io| InitAndRotationCheck::NoRotationNeeded(io))
     //TODO passthrough
 }
 

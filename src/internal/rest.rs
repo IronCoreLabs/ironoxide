@@ -793,7 +793,7 @@ impl<'a> IronCoreRequest<'a> {
                 Some(status_code),
             )
         } else {
-            //If the status code is an error we can try and rip off the ServerErrors which ironcore-id
+            //If the status code is an error we can try and rip off the ServerErrors which the webservice
             //returns, otherwise process it the way the user wants.
             IronCoreRequest::deserialize_body::<Vec<ServerError>>(&body, error_code)
                 .map(|error_response| IronOxideErr::RequestServerErrors {

@@ -15,7 +15,7 @@ use std::{
     sync::Mutex,
 };
 
-/// private module that handles interaction with ironcore-id
+/// private module that handles interaction with the IronCore webservice
 mod requests;
 
 /// ID of a user. Unique with in a segment. Must match the regex `^[a-zA-Z0-9_.$#|@/:;=+'-]+$`
@@ -266,7 +266,21 @@ impl UserUpdatePrivateKeyResult {
     }
 }
 
-pub fn user_soft_rotate_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
+pub fn user_get_current(
+    auth: &RequestAuth,
+) -> impl Future<Item = UserVerifyResult, Error = IronOxideErr> + '_ {
+    //TODO type
+    requests::user_get::get_curr_user(auth).and_then(|result| {
+        Ok(UserVerifyResult {
+            needs_rotation: result.needs_rotation,
+            user_public_key: result.user_master_public_key.try_into()?,
+            segment_id: result.segment_id,
+            account_id: UserId::unsafe_from_string(result.id),
+        })
+    })
+}
+
+pub fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'apicall Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     passphrase: Password,
     auth: &'apicall RequestAuth,
@@ -477,7 +491,7 @@ fn generate_device_add<CR: rand::CryptoRng + rand::RngCore>(
     })
 }
 
-/// Generate a schnorr signature for calling the device add endpoint in ironcore-id
+/// Generate a schnorr signature for calling the device add endpoint in the IronCore service
 fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: &Jwt,

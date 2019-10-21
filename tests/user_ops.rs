@@ -102,28 +102,25 @@ fn user_private_key_rotation() -> Result<(), IronOxideErr> {
 
 #[test]
 fn sdk_init_with_private_key_rotation() -> Result<(), IronOxideErr> {
-    let (_, init_result) = common::init_sdk_get_init_result();
+    use ironoxide::InitAndRotationCheck;
+
+    let (_, init_result) = common::init_sdk_get_init_result(true);
 
     //    // case 1: don't handle RotationNeeded
-    //    let sdk: IronOxide = init_result.unwrap();
-    //
-    //    let (_, init_result) = common::init_sdk_get_init_result();
-    //    // case 2: handle with a standard pattern match
-    //    let sdk: IronOxide = match init_result {
-    //        IronOxideInitResult::Ok(io) => io,
-    //        IronOxideInitResult::RotationNeeded(with_rotation) => {
-    //            let rotation_result = with_rotation.soft_rotate_curr_user("users_master_password")?;
-    //            with_rotation.into_ironoxide()
-    //        }
-    //    };
-    //
-    //    let (_, init_result) = common::init_sdk_get_init_result();
-    //    // case 3: use a convenience function for handling rotation
-    //    let sdk: IronOxide = init_result.unwrap_or_handle_rotation(|with_rotation| {
-    //        let rotation_result = with_rotation.soft_rotate_curr_user("users_master_password")?;
-    //        Ok(with_rotation.into_ironoxide())
-    //    })?;
+    let sdk: IronOxide = init_result.unwrap();
 
+    let (user_id, init_result) = common::init_sdk_get_init_result(true);
+    // case 2: handle with a standard pattern match
+    let sdk: IronOxide = match init_result {
+        InitAndRotationCheck::NoRotationNeeded(io) => panic!("user should need rotation"),
+        InitAndRotationCheck::RotationNeeded(io, rotation_check) => {
+            // TODO should we have a rotate_all() function?
+            assert_eq!(rotation_check.user_rotation_needed(), Some(user_id));
+            let rotation_result = io.user_rotate_private_key(common::USER_PASSWORD)?;
+            assert_eq!(rotation_result.needs_rotation(), false);
+            io
+        }
+    };
     Ok(())
 }
 

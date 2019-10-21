@@ -190,7 +190,7 @@ impl UserOps for IronOxide {
 
     fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult> {
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(user_api::user_soft_rotate_key(
+        rt.block_on(user_api::user_rotate_private_key(
             &self.recrypt,
             password.try_into()?,
             self.device().auth(),
