@@ -362,7 +362,7 @@ impl DocumentEncryptResult {
     }
 }
 /// Result of decrypting a document. Includes minimal metadata as well as the decrypted bytes.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct DocumentDecryptResult {
     id: DocumentId,
     name: Option<DocumentName>,

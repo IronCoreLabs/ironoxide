@@ -100,6 +100,8 @@ fn user_private_key_rotation() -> Result<(), IronOxideErr> {
     Ok(())
 }
 
+// TODO test device add using rotated private key
+
 #[test]
 fn sdk_init_with_private_key_rotation() -> Result<(), IronOxideErr> {
     use ironoxide::InitAndRotationCheck;

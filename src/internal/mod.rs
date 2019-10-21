@@ -496,6 +496,7 @@ impl PrivateKey {
                 "Augmenting key cannot be zero".into(),
             ))
         } else {
+            //TODO is this the right direction?
             let augmented_key = self.0.clone() - augmenting_key.clone().into();
             // TODO might be nice if Revealed could hold a reference
             if Revealed(augmented_key.clone()) == Revealed(zero) {

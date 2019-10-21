@@ -6,7 +6,7 @@ use ironoxide::{
     document::{advanced::*, *},
     group::GroupCreateOpts,
     prelude::*,
-    IronOxide,
+    InitAndRotationCheck, IronOxide,
 };
 use itertools::EitherOrBoth;
 use std::{
@@ -584,6 +584,29 @@ fn doc_decrypt_unmanaged_no_access() {
         .unwrap_err();
 
     assert_that!(&decrypt_err, is_variant!(IronOxideErr::RequestServerErrors));
+}
+
+#[test]
+fn decrypt_with_rotated_user_private_key() -> Result<(), IronOxideErr> {
+    let (_, init_result) = common::init_sdk_get_init_result(true);
+
+    let sdk = init_result.unwrap();
+
+    println!("after init");
+    let encrypted_doc = sdk.document_encrypt(
+        &[42u8, 43u8],
+        &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![]),
+    )?;
+    dbg!(&encrypted_doc);
+    let decrypt_result1 = sdk.document_decrypt(encrypted_doc.encrypted_data())?;
+    dbg!(&decrypt_result1);
+    let rotation_result = sdk.user_rotate_private_key(common::USER_PASSWORD)?;
+    //    rotation_result.
+    let decrypt_result2 = sdk.document_decrypt(encrypted_doc.encrypted_data())?;
+    dbg!(&decrypt_result2);
+
+    assert_eq!(&decrypt_result1, &decrypt_result2);
+    Ok(())
 }
 
 #[test]
