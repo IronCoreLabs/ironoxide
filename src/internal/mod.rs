@@ -2,9 +2,8 @@
 //! If it can be defined in API specific file, it should go there to keep this file's
 //! size to a minimum.
 
-use crate::internal::rest::SignatureUrlString;
 use crate::internal::{
-    rest::{Authorization, IronCoreRequest},
+    rest::{Authorization, IronCoreRequest, SignatureUrlString},
     user_api::{DeviceId, UserId},
 };
 use chrono::{DateTime, Utc};
@@ -496,9 +495,9 @@ impl PrivateKey {
                 "Augmenting key cannot be zero".into(),
             ))
         } else {
-            // this subtractions needs to be the additive inverse of what the service is doing
+            // this subtraction needs to be the additive inverse of what the service is doing
             let augmented_key = self.0.clone() - augmenting_key.clone().into();
-            // TODO might be nice if Revealed could hold a reference
+            // This clone can be removed once https://github.com/IronCoreLabs/recrypt-rs/issues/91 is fixed
             if Revealed(augmented_key.clone()) == Revealed(zero) {
                 Err(IronOxideErr::UserPrivateKeyRotationError(
                     "PrivateKey augmentation failed with a zero value".into(),
@@ -510,10 +509,12 @@ impl PrivateKey {
     }
 }
 
+/// Private key used to augment another PrivateKey
 #[derive(Clone, Debug)]
 pub(crate) struct AugmentationFactor(PrivateKey);
 
 impl AugmentationFactor {
+    /// Use recrypt to generate a new AugmentationFactor
     pub fn generate_new<CO: CryptoOps>(recrypt: &CO) -> AugmentationFactor {
         let pt = recrypt.gen_plaintext();
         AugmentationFactor(recrypt.derive_private_key(&pt).into())
@@ -669,12 +670,6 @@ impl TryFrom<&str> for Password {
     }
 }
 
-impl Password {
-    pub fn inner(&self) -> &str {
-        &self.0
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct WithKey<T> {
     pub(crate) id: T,
@@ -718,8 +713,6 @@ pub(crate) mod test {
     use super::*;
     use galvanic_assert::{matchers::*, MatchResultBuilder, Matcher};
     use recrypt::api::KeyGenOps;
-    use recrypt::prelude::*;
-    use recrypt::Revealed;
     use std::fmt::Debug;
 
     /// String contains matcher to assert that the provided substring exists in the provided value
@@ -975,7 +968,7 @@ pub(crate) mod test {
     }
 
     #[test]
-    fn private_key_augmentation_aug_key_of_zero() {
+    fn private_key_augmentation_aug_key_of_zero_is_err() {
         let priv_key_orig = gen_priv_key();
         let zero_aug_factor = AugmentationFactor(PrivateKey(RecryptPrivateKey::new([0u8; 32])));
         let new_priv_key = priv_key_orig.augment(&zero_aug_factor);

@@ -166,8 +166,7 @@ pub mod group_list {
 
 pub mod group_create {
     use super::*;
-    use crate::internal::auth_v2::AuthV2Builder;
-    use crate::internal::{self, rest::json::EncryptedOnceValue};
+    use crate::internal::{self, auth_v2::AuthV2Builder, rest::json::EncryptedOnceValue};
     use futures::prelude::*;
     use std::convert::TryFrom;
 

@@ -1,7 +1,7 @@
 mod common;
 use common::{create_id_all_classes, gen_jwt};
-use ironoxide::document::DocumentEncryptOpts;
 use ironoxide::{
+    document::DocumentEncryptOpts,
     prelude::*,
     user::{DeviceCreateOpts, UserCreateOpts},
 };
@@ -105,15 +105,9 @@ fn user_private_key_rotation() -> Result<(), IronOxideErr> {
 fn sdk_init_with_private_key_rotation() -> Result<(), IronOxideErr> {
     use ironoxide::InitAndRotationCheck;
 
-    let (_, init_result) = common::init_sdk_get_init_result(true);
-
-    //    // case 1: don't handle RotationNeeded
-    let sdk: IronOxide = init_result.unwrap();
-
     let (user_id, init_result) = common::init_sdk_get_init_result(true);
-    // case 2: handle with a standard pattern match
-    let sdk: IronOxide = match init_result {
-        InitAndRotationCheck::NoRotationNeeded(io) => panic!("user should need rotation"),
+    let _: IronOxide = match init_result {
+        InitAndRotationCheck::NoRotationNeeded(_ironoxide) => panic!("user should need rotation"),
         InitAndRotationCheck::RotationNeeded(io, rotation_check) => {
             assert_eq!(rotation_check.user_rotation_needed(), Some(user_id));
             let rotation_result = io.user_rotate_private_key(common::USER_PASSWORD)?;

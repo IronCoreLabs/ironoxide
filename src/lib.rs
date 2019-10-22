@@ -64,8 +64,10 @@ pub mod policy;
 /// Convenience re-export of essential IronOxide types
 pub mod prelude;
 
-use crate::internal::group_api::GroupId;
-use crate::internal::user_api::UserId;
+use crate::internal::{
+    group_api::GroupId,
+    user_api::{UserId, UserResult},
+};
 pub use crate::internal::{
     DeviceContext, DeviceSigningKeyPair, IronOxideErr, KeyPair, PrivateKey, PublicKey,
 };
@@ -103,13 +105,18 @@ pub enum InitAndRotationCheck {
 }
 
 impl InitAndRotationCheck {
+    /// Caller asked to check rotation on initialize, but doesn't want to handle the result.
+    /// Consider using [initialize](fn.initialize.html) instead.
     pub fn unwrap(self) -> IronOxide {
         match self {
-            InitAndRotationCheck::NoRotationNeeded(io) => io,
-            InitAndRotationCheck::RotationNeeded(io, _) => io,
+            InitAndRotationCheck::NoRotationNeeded(io)
+            | InitAndRotationCheck::RotationNeeded(io, _) => io,
         }
     }
 }
+
+/// number of bytes that can be read from the RNG before it is reseeded. 1 MB
+const BYTES_BEFORE_RESEEDING: u64 = 1 * 1024 * 1024;
 
 /// Provides soft rotation capabilities for user and group keys
 pub struct PrivateKeyRotationCheckResult {
@@ -134,52 +141,26 @@ impl PrivateKeyRotationCheckResult {
 /// Initialize the IronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
 /// keys are valid and exist for the provided account. If successful returns an instance of the IronOxide SDK
 pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
-    // 1 MB
-    const BYTES_BEFORE_RESEEDING: u64 = 1 * 1024 * 1024;
     let mut rt = Runtime::new().unwrap();
-    let account_id = device_context.account_id();
-    rt.block_on(crate::internal::user_api::user_key_list(
-        //TODO replace with fancy new user GET
+    rt.block_on(crate::internal::user_api::user_get_current(
         &device_context.auth(),
-        &vec![account_id.clone()],
     ))
-    .and_then(|mut users| {
-        users
-            //We're using remove here because we don't actually need this HashMap anymore and remove
-            //returns us ownership so we can avoid a clone.
-            .remove(&device_context.account_id())
-            .map(|current_user_public_key| IronOxide {
-                recrypt: Recrypt::new(),
-                device: device_context.clone(),
-                user_master_pub_key: current_user_public_key,
-                rng: Mutex::new(ReseedingRng::new(
-                    rand_chacha::ChaChaCore::from_entropy(),
-                    BYTES_BEFORE_RESEEDING,
-                    EntropyRng::new(),
-                )),
-            })
-            .ok_or(IronOxideErr::InitializeError)
+    .and_then(|current_user| {
+        Ok(IronOxide::create_with_side_effects(
+            &current_user,
+            device_context,
+        ))
     })
+    .map_err(|_| IronOxideErr::InitializeError)
 }
 
 /// Initialize the IronOxide SDK and check to see if the user that owns this `DeviceContext` is
 /// marked for private key rotation, or if any of the groups that the user is an admin of is marked
 /// for private key rotation.
 pub fn initialize_check_rotation(device_context: &DeviceContext) -> Result<InitAndRotationCheck> {
-    // 1 MB
-    const BYTES_BEFORE_RESEEDING: u64 = 1 * 1024 * 1024;
     Runtime::new().unwrap().block_on(
         internal::user_api::user_get_current(device_context.auth()).and_then(|curr_user| {
-            let ironoxide = IronOxide {
-                recrypt: Recrypt::new(),
-                device: device_context.clone(),
-                user_master_pub_key: curr_user.user_public_key().clone(),
-                rng: Mutex::new(ReseedingRng::new(
-                    rand_chacha::ChaChaCore::from_entropy(),
-                    BYTES_BEFORE_RESEEDING,
-                    EntropyRng::new(),
-                )),
-            };
+            let ironoxide = IronOxide::create_with_side_effects(&curr_user, &device_context);
 
             if curr_user.needs_rotation() {
                 Ok(InitAndRotationCheck::RotationNeeded(
@@ -199,6 +180,22 @@ impl IronOxide {
     /// Get the `DeviceContext` instance that was used to create this SDK instance
     pub fn device(&self) -> &DeviceContext {
         &self.device
+    }
+
+    fn create_with_side_effects(
+        curr_user: &UserResult,
+        device_context: &DeviceContext,
+    ) -> IronOxide {
+        IronOxide {
+            recrypt: Recrypt::new(),
+            device: device_context.clone(),
+            user_master_pub_key: curr_user.user_public_key().to_owned(),
+            rng: Mutex::new(ReseedingRng::new(
+                rand_chacha::ChaChaCore::from_entropy(),
+                BYTES_BEFORE_RESEEDING,
+                EntropyRng::new(),
+            )),
+        }
     }
 }
 

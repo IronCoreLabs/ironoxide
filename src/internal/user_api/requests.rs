@@ -46,7 +46,7 @@ impl TryFrom<EncryptedPrivateKey> for EncryptedMasterKey {
 }
 
 pub mod user_verify {
-    use crate::internal::user_api::UserVerifyResult;
+    use crate::internal::user_api::UserResult;
     use std::convert::TryInto;
 
     use super::*;
@@ -73,11 +73,11 @@ pub mod user_verify {
         )
     }
 
-    impl TryFrom<UserVerifyResponse> for UserVerifyResult {
+    impl TryFrom<UserVerifyResponse> for UserResult {
         type Error = IronOxideErr;
 
         fn try_from(body: UserVerifyResponse) -> Result<Self, Self::Error> {
-            Ok(UserVerifyResult {
+            Ok(UserResult {
                 account_id: body.id.try_into()?,
                 segment_id: body.segment_id,
                 user_public_key: body.user_master_public_key.try_into()?,
@@ -115,11 +115,11 @@ pub mod user_verify {
                 user_master_public_key: pub_key,
                 needs_rotation: t_needs_rotation,
             };
-            let result: UserVerifyResult = resp.try_into().unwrap();
+            let result: UserResult = resp.try_into().unwrap();
 
             assert_that!(
                 &result,
-                has_structure!(UserVerifyResult {
+                has_structure!(UserResult {
                     account_id: eq(t_account_id.clone()),
                     segment_id: eq(t_segment_id),
                     user_public_key: eq(t_user_public_key.clone()),
@@ -158,6 +158,7 @@ pub mod user_get {
     }
 }
 
+/// PUT /users/{userId}/keys/{userKeyId}
 pub mod user_update_private_key {
     use super::*;
     use crate::internal::user_api::UserUpdatePrivateKeyResult;
@@ -213,7 +214,7 @@ pub mod user_update_private_key {
 }
 
 pub mod user_create {
-    use crate::internal::{user_api::UserResult, TryInto};
+    use crate::internal::{user_api::UserCreateResult, TryInto};
 
     use super::*;
 
@@ -255,11 +256,11 @@ pub mod user_create {
             &Authorization::JwtAuth(jwt),
         )
     }
-    impl TryFrom<UserCreateResponse> for UserResult {
+    impl TryFrom<UserCreateResponse> for UserCreateResult {
         type Error = IronOxideErr;
 
         fn try_from(resp: UserCreateResponse) -> Result<Self, Self::Error> {
-            Ok(UserResult {
+            Ok(UserCreateResult {
                 user_public_key: resp.user_master_public_key.try_into()?,
                 needs_rotation: resp.needs_rotation,
             })

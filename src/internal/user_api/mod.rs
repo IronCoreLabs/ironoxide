@@ -1,4 +1,3 @@
-use crate::internal::user_api::requests::user_update_private_key::UserUpdatePrivateKeyResponse;
 use crate::{
     crypto::aes::{self, EncryptedMasterKey},
     internal::{rest::IronCoreRequest, *},
@@ -86,13 +85,13 @@ impl TryFrom<&str> for DeviceName {
 
 /// Keypair for a newly created user
 #[derive(Debug)]
-pub struct UserResult {
+pub struct UserCreateResult {
     user_public_key: PublicKey,
     // does the private key of this key pair need to be rotated?
     needs_rotation: bool,
 }
 
-impl UserResult {
+impl UserCreateResult {
     /// user's private key encrypted with the provided passphrase
     pub fn user_public_key(&self) -> &PublicKey {
         &self.user_public_key
@@ -122,13 +121,13 @@ pub struct DeviceAdd {
 
 /// IDs and public key for existing user on verify result
 #[derive(Debug)]
-pub struct UserVerifyResult {
+pub struct UserResult {
     account_id: UserId,
     segment_id: usize,
     user_public_key: PublicKey,
     needs_rotation: bool,
 }
-impl UserVerifyResult {
+impl UserResult {
     pub fn user_public_key(&self) -> &PublicKey {
         &self.user_public_key
     }
@@ -201,7 +200,7 @@ impl UserDevice {
 pub fn user_verify(
     jwt: Jwt,
     request: IronCoreRequest,
-) -> impl Future<Item = Option<UserVerifyResult>, Error = IronOxideErr> {
+) -> impl Future<Item = Option<UserResult>, Error = IronOxideErr> {
     requests::user_verify::user_verify(&jwt, &request)
         .and_then(|e| e.map(|resp| resp.try_into()).transpose())
 }
@@ -213,7 +212,7 @@ pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
     passphrase: Password,
     needs_rotation: bool,
     request: IronCoreRequest<'static>,
-) -> impl Future<Item = UserResult, Error = IronOxideErr> {
+) -> impl Future<Item = UserCreateResult, Error = IronOxideErr> {
     recrypt
         .generate_key_pair()
         .map_err(IronOxideErr::from)
@@ -255,22 +254,28 @@ pub struct UserUpdatePrivateKeyResult {
 }
 
 impl UserUpdatePrivateKeyResult {
+    /// Numeric id of the user private key
     pub fn user_key_id(&self) -> u64 {
         self.user_key_id
     }
+
+    /// The updated encrypted user private key
     pub fn user_master_private_key(&self) -> &EncryptedPrivateKey {
         &self.user_master_private_key
     }
+
+    /// True if this user's master key requires rotation
     pub fn needs_rotation(&self) -> bool {
         self.needs_rotation
     }
 }
 
+/// Get metadata about the current user
 pub fn user_get_current(
     auth: &RequestAuth,
-) -> impl Future<Item = UserVerifyResult, Error = IronOxideErr> + '_ {
+) -> impl Future<Item = UserResult, Error = IronOxideErr> + '_ {
     requests::user_get::get_curr_user(auth).and_then(|result| {
-        Ok(UserVerifyResult {
+        Ok(UserResult {
             needs_rotation: result.needs_rotation,
             user_public_key: result.user_master_public_key.try_into()?,
             segment_id: result.segment_id,
@@ -279,15 +284,16 @@ pub fn user_get_current(
     })
 }
 
+/// Rotate the user's private key. The public key for the user remains unchanged.
 pub fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'apicall Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
-    passphrase: Password,
+    password: Password,
     auth: &'apicall RequestAuth,
 ) -> impl Future<Item = UserUpdatePrivateKeyResult, Error = IronOxideErr> + 'apicall {
     requests::user_get::get_curr_user(&auth)
         .and_then(move |curr_user| {
             Ok({
-                let password_string = passphrase.0;
+                let password_string = password.0;
                 let encrypt_priv_key = curr_user.user_private_key;
                 let priv_key: PrivateKey = aes::decrypt_user_master_key(
                     &password_string,
@@ -295,7 +301,7 @@ pub fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
                 )?
                 .into();
                 let aug_factor = AugmentationFactor::generate_new(recrypt);
-                // TODO retry augfactor internally?
+                // TODO reviewers: should retry augfactor internally?
                 let new_encrypted_priv_key = aes::encrypt_user_master_key(
                     &Mutex::new(EntropyRng::default()),
                     &password_string,
@@ -351,6 +357,7 @@ pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
                   }| {
                 Ok((
                     {
+                        //TODO remove
                         println!(
                             "User Verify - EncryptedPrivateKey - {:?}",
                             &user_private_key
@@ -539,57 +546,6 @@ fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::internal::test::gen_priv_key;
-    use recrypt::api::*;
-
-    #[derive(Clone)]
-    struct DummyRecrypt<'a> {
-        underlying: &'a Recrypt<Sha256, Ed25519, RandomBytes<DefaultRng>>,
-        //        plaintext: Option<Plaintext>,
-        private_key: Option<recrypt::api::PrivateKey>,
-    }
-    impl CryptoOps for DummyRecrypt<'_> {
-        fn gen_plaintext(&self) -> Plaintext {
-            //            Plaintext::new([0u8; 384])
-            self.underlying.gen_plaintext()
-        }
-
-        fn derive_symmetric_key(&self, decrypted_value: &Plaintext) -> DerivedSymmetricKey {
-            unimplemented!()
-        }
-
-        fn derive_private_key(&self, plaintext: &Plaintext) -> recrypt::api::PrivateKey {
-            self.clone()
-                .private_key
-                .unwrap_or_else(|| self.underlying.derive_private_key(plaintext))
-        }
-
-        fn encrypt(
-            &self,
-            plaintext: &Plaintext,
-            to_public_key: &recrypt::api::PublicKey,
-            signing_keypair: &SigningKeypair,
-        ) -> Result<EncryptedValue, RecryptErr> {
-            unimplemented!()
-        }
-
-        fn decrypt(
-            &self,
-            encrypted_value: EncryptedValue,
-            private_key: &recrypt::api::PrivateKey,
-        ) -> Result<Plaintext, RecryptErr> {
-            unimplemented!()
-        }
-
-        fn transform(
-            &self,
-            encrypted_value: EncryptedValue,
-            transform_key: recrypt::api::TransformKey,
-            signing_keypair: &SigningKeypair,
-        ) -> Result<EncryptedValue, RecryptErr> {
-            unimplemented!()
-        }
-    }
 
     #[test]
     fn user_id_validate_good() {

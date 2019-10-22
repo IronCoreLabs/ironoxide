@@ -1,7 +1,7 @@
-use ironoxide::user::UserCreateOpts;
 use ironoxide::{
-    prelude::*, user::UserVerifyResult, InitAndRotationCheck, IronOxide,
-    PrivateKeyRotationCheckResult,
+    prelude::*,
+    user::{UserCreateOpts, UserResult},
+    InitAndRotationCheck, IronOxide,
 };
 use std::{convert::TryInto, default::Default};
 use uuid::Uuid;
@@ -105,7 +105,7 @@ pub fn init_sdk_get_init_result(user_needs_rotation: bool) -> (UserId, InitAndRo
     )
 }
 
-pub fn create_second_user() -> UserVerifyResult {
+pub fn create_second_user() -> UserResult {
     let (jwt, _) = gen_jwt(1012, "test-segment", 551, Some(&create_id_all_classes("")));
     let create_result = IronOxide::user_create(&jwt, USER_PASSWORD, &Default::default());
     assert!(create_result.is_ok());

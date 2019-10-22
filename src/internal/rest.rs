@@ -1,8 +1,7 @@
 //! Helpers for talking to the ironcore service.
 
 use chrono::{DateTime, Utc};
-use futures::IntoFuture;
-use futures::{stream::Stream, Future};
+use futures::{stream::Stream, Future, IntoFuture};
 use reqwest::{
     header::HeaderMap,
     r#async::{Chunk, Client as RClient, Request as ARequest},
@@ -11,19 +10,21 @@ use reqwest::{
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 
-use crate::internal::auth_v2::AuthV2Builder;
 use crate::internal::{
-    user_api::UserId, DeviceSigningKeyPair, IronOxideErr, Jwt, RequestErrorCode, OUR_REQUEST,
+    auth_v2::AuthV2Builder, user_api::UserId, DeviceSigningKeyPair, IronOxideErr, Jwt,
+    RequestErrorCode, OUR_REQUEST,
 };
 use futures::future::Either;
 use percent_encoding::SIMPLE_ENCODE_SET;
-use reqwest::header::{HeaderValue, CONTENT_TYPE};
-use reqwest::r#async::RequestBuilder;
-use serde::export::fmt::{Display, Error};
-use serde::export::Formatter;
-use std::borrow::BorrowMut;
-use std::ops::Deref;
-use std::str::from_utf8;
+use reqwest::{
+    header::{HeaderValue, CONTENT_TYPE},
+    r#async::RequestBuilder,
+};
+use serde::export::{
+    fmt::{Display, Error},
+    Formatter,
+};
+use std::{borrow::BorrowMut, ops::Deref, str::from_utf8};
 
 lazy_static! {
     static ref DEFAULT_HEADERS: HeaderMap = {
