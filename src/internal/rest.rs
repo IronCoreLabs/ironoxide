@@ -23,6 +23,7 @@ use serde::export::fmt::{Display, Error};
 use serde::export::Formatter;
 use std::borrow::BorrowMut;
 use std::ops::Deref;
+use std::str::from_utf8;
 
 lazy_static! {
     static ref DEFAULT_HEADERS: HeaderMap = {
@@ -605,6 +606,11 @@ impl<'a> IronCoreRequest<'a> {
                     vec![]
                 };
 
+                println!(
+                    "REQUEST: {:?} \n-->with BODY {:?}",
+                    &req,
+                    from_utf8(&body_bytes)
+                );
                 (req, body_bytes)
             })
         };
@@ -667,7 +673,6 @@ impl<'a> IronCoreRequest<'a> {
         B: DeserializeOwned + 'a,
         F: FnOnce(&Chunk) -> Result<B, IronOxideErr> + 'a,
     {
-        dbg!(&req);
         let client = RClient::new();
         client
             .execute(req)

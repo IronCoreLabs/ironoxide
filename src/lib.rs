@@ -128,7 +128,7 @@ impl PrivateKeyRotationCheckResult {
     //        unimplemented!()
     //    }
 
-    //    pub fn rotate_all(ironoxide: &IronOxide) -> (UserId, Vec<GroupId>) //TODO?
+    //    pub fn rotate_all(ironoxide: &IronOxide) -> (UserId, Vec<GroupId>) //TODO consider when group private key rotation is added
 }
 
 /// Initialize the IronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
@@ -193,8 +193,6 @@ pub fn initialize_check_rotation(device_context: &DeviceContext) -> Result<InitA
             }
         }),
     )
-    //    initialize(&device_context).map(|io| InitAndRotationCheck::NoRotationNeeded(io))
-    //TODO passthrough
 }
 
 impl IronOxide {

@@ -1,6 +1,6 @@
 use crate::internal::user_api::UserUpdatePrivateKeyResult;
 pub use crate::internal::user_api::{
-    UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserVerifyResult,
+    UserDevice, UserDeviceListResult, UserId, UserResult, UserVerifyResult,
 };
 use crate::{
     internal::{
@@ -72,7 +72,7 @@ pub trait UserOps {
         jwt: &str,
         password: &str,
         user_create_opts: &UserCreateOpts,
-    ) -> Result<UserCreateResult>;
+    ) -> Result<UserResult>;
 
     /// Get all the devices for the current user
     ///
@@ -137,7 +137,7 @@ impl UserOps for IronOxide {
         jwt: &str,
         password: &str,
         user_create_opts: &UserCreateOpts,
-    ) -> Result<UserCreateResult> {
+    ) -> Result<UserResult> {
         let recrypt = Recrypt::new();
         let mut rt = Runtime::new().unwrap();
         rt.block_on(user_api::user_create(

@@ -137,7 +137,7 @@ pub mod user_get {
     #[derive(Deserialize, PartialEq, Debug)]
     #[serde(rename_all = "camelCase")]
     pub struct CurrentUserResponse {
-        pub(in crate::internal) current_key_id: usize,
+        pub(in crate::internal) current_key_id: u64,
         pub(in crate::internal) id: String,
         pub(in crate::internal) status: usize,
         pub(in crate::internal) segment_id: usize,
@@ -172,7 +172,7 @@ pub mod user_update_private_key {
     #[derive(Deserialize, PartialEq, Debug)]
     #[serde(rename_all = "camelCase")]
     pub struct UserUpdatePrivateKeyResponse {
-        current_key_id: usize,
+        current_key_id: u64,
         user_private_key: EncryptedPrivateKey,
         needs_rotation: bool,
     }
@@ -192,7 +192,7 @@ pub mod user_update_private_key {
     pub fn update_private_key<'a>(
         auth: &'a RequestAuth,
         user_id: UserId,
-        user_key_id: usize, //TODO type
+        user_key_id: u64,
         new_encrypted_private_key: EncryptedPrivateKey,
         augmenting_key: AugmentationFactor,
     ) -> impl Future<Item = UserUpdatePrivateKeyResponse, Error = IronOxideErr> + 'a {
@@ -213,7 +213,7 @@ pub mod user_update_private_key {
 }
 
 pub mod user_create {
-    use crate::internal::{user_api::UserCreateResult, TryInto};
+    use crate::internal::{user_api::UserResult, TryInto};
 
     use super::*;
 
@@ -255,11 +255,11 @@ pub mod user_create {
             &Authorization::JwtAuth(jwt),
         )
     }
-    impl TryFrom<UserCreateResponse> for UserCreateResult {
+    impl TryFrom<UserCreateResponse> for UserResult {
         type Error = IronOxideErr;
 
         fn try_from(resp: UserCreateResponse) -> Result<Self, Self::Error> {
-            Ok(UserCreateResult {
+            Ok(UserResult {
                 user_public_key: resp.user_master_public_key.try_into()?,
                 needs_rotation: resp.needs_rotation,
             })
