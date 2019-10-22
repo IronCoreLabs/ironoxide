@@ -1,5 +1,6 @@
 mod common;
 use common::{create_id_all_classes, gen_jwt};
+use ironoxide::document::DocumentEncryptOpts;
 use ironoxide::{
     prelude::*,
     user::{DeviceCreateOpts, UserCreateOpts},
@@ -123,6 +124,39 @@ fn sdk_init_with_private_key_rotation() -> Result<(), IronOxideErr> {
             io
         }
     };
+    Ok(())
+}
+
+#[test]
+fn user_add_device_after_rotation() -> Result<(), IronOxideErr> {
+    //create a user
+    let (user, sdk) = common::init_sdk_get_user();
+    let bytes = vec![42u8, 43u8];
+
+    let encrypt_result = sdk.document_encrypt(
+        &bytes,
+        &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![]),
+    )?;
+    let encrypted_data = encrypt_result.encrypted_data();
+
+    //rotate the private key
+    let rotation_result = sdk.user_rotate_private_key(common::USER_PASSWORD)?;
+    dbg!(&rotation_result);
+
+    //add a new device
+    let new_device = IronOxide::generate_new_device(
+        &common::gen_jwt(1012, "test-segment", 551, Some(user.id())).0,
+        common::USER_PASSWORD,
+        &Default::default(),
+    )?;
+
+    //reinitialize the sdk with the new device and decrypt some data
+    let new_sdk = ironoxide::initialize(&new_device)?;
+    let decrypt_result = new_sdk.document_decrypt(&encrypted_data)?;
+    let decrypted_data = decrypt_result.decrypted_data();
+
+    assert_eq!(bytes, decrypted_data.to_vec());
+
     Ok(())
 }
 

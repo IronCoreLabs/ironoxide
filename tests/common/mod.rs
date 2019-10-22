@@ -69,12 +69,10 @@ pub fn init_sdk_get_init_result(user_needs_rotation: bool) -> (UserId, InitAndRo
     )
     .unwrap();
 
-    let result =
+    let verify_resp =
         IronOxide::user_verify(&gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0)
+            .unwrap()
             .unwrap();
-    assert_eq!(true, result.is_some());
-    let verify_resp = result.unwrap();
-
     assert_eq!(&account_id, verify_resp.account_id());
     assert_eq!(2012, verify_resp.segment_id());
 
