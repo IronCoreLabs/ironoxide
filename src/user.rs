@@ -1,9 +1,10 @@
 pub use crate::internal::user_api::{
-    UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserResult,
+    EncryptedPrivateKey, UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserResult,
+    UserUpdatePrivateKeyResult,
 };
 use crate::{
     internal::{
-        user_api::{self, DeviceId, DeviceName, UserUpdatePrivateKeyResult},
+        user_api::{self, DeviceId, DeviceName},
         PublicKey, OUR_REQUEST,
     },
     DeviceContext, IronOxide, Result,
