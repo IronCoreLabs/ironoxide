@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.1
+
+- [[#56](https://github.com/IronCoreLabs/ironoxide/pull/56)]
+  - Added `needs_rotation` as an `Option<bool>` to `GroupMetaResult`, `GroupGetResult`, `GroupBasicApiResponse`, and `GroupGetApiResponse`.
+
 ## 0.12.0
 
 - [[#52](https://github.com/IronCoreLabs/ironoxide/pull/52)]
