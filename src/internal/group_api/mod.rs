@@ -97,6 +97,7 @@ pub struct GroupMetaResult {
     is_member: bool,
     created: DateTime<Utc>,
     updated: DateTime<Utc>,
+    needs_rotation: Option<bool>,
 }
 impl GroupMetaResult {
     /// A single document grant/revoke failure for a user or group.
@@ -123,6 +124,11 @@ impl GroupMetaResult {
     pub fn group_master_public_key(&self) -> &PublicKey {
         &self.group_master_public_key
     }
+    /// `Some(boolean)` indicating if the group needs rotation if the calling user is a group admin.
+    /// `None` if the calling user is not a group admin.
+    pub fn needs_rotation(&self) -> Option<bool> {
+        self.needs_rotation
+    }
 }
 
 /// Group information.
@@ -137,6 +143,7 @@ pub struct GroupGetResult {
     member_list: Option<Vec<UserId>>,
     created: DateTime<Utc>,
     updated: DateTime<Utc>,
+    needs_rotation: Option<bool>,
     pub(crate) encrypted_private_key: Option<TransformedEncryptedValue>,
 }
 impl GroupGetResult {
@@ -171,6 +178,11 @@ impl GroupGetResult {
     /// List of group members. Members of a group can decrypt values encrypted to the group.
     pub fn member_list(&self) -> Option<&Vec<UserId>> {
         self.member_list.as_ref()
+    }
+    /// `Some(boolean)` indicating if the group needs rotation if the calling user is a group admin.
+    /// `None` if the calling user is not a group admin.
+    pub fn needs_rotation(&self) -> Option<bool> {
+        self.needs_rotation
     }
 }
 

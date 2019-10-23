@@ -32,6 +32,7 @@ pub struct GroupBasicApiResponse {
     pub(crate) updated: DateTime<Utc>,
     pub(crate) created: DateTime<Utc>,
     pub(crate) group_master_public_key: PublicKey,
+    pub(crate) needs_rotation: Option<bool>,
 }
 impl TryFrom<GroupBasicApiResponse> for GroupMetaResult {
     type Error = IronOxideErr;
@@ -46,6 +47,7 @@ impl TryFrom<GroupBasicApiResponse> for GroupMetaResult {
             is_member: resp.permissions.contains(&Permission::Member),
             created: resp.created,
             updated: resp.updated,
+            needs_rotation: resp.needs_rotation,
         })
     }
 }
@@ -63,6 +65,7 @@ pub struct GroupGetApiResponse {
     pub(crate) member_ids: Option<Vec<String>>,
     pub(crate) group_master_public_key: PublicKey,
     pub(crate) encrypted_private_key: Option<TransformedEncryptedValue>,
+    pub(crate) needs_rotation: Option<bool>,
 }
 impl TryFrom<GroupGetApiResponse> for GroupGetResult {
     type Error = IronOxideErr;
@@ -84,6 +87,7 @@ impl TryFrom<GroupGetApiResponse> for GroupGetResult {
                 .map(|members| members.into_iter().map(UserId).collect()),
             created: resp.created,
             updated: resp.updated,
+            needs_rotation: resp.needs_rotation,
         })
     }
 }
@@ -426,6 +430,7 @@ mod tests {
             permissions,
             created,
             updated,
+            needs_rotation: Some(true),
         };
         let result = serde_json::to_string(&item).unwrap();
         assert!(
