@@ -496,7 +496,7 @@ impl PrivateKey {
             ))
         } else {
             // this subtraction needs to be the additive inverse of what the service is doing
-            let augmented_key = self.0.clone() - augmenting_key.clone().into();
+            let augmented_key = self.0.clone().augment_minus(&augmenting_key.clone().into());
             // This clone can be removed once https://github.com/IronCoreLabs/recrypt-rs/issues/91 is fixed
             if Revealed(augmented_key.clone()) == Revealed(zero) {
                 Err(IronOxideErr::UserPrivateKeyRotationError(
@@ -956,12 +956,12 @@ pub(crate) mod test {
     }
 
     #[test]
-    fn private_key_augmentation_is_subtraction() {
+    fn private_key_augmentation_is_augment_minus() {
         use recrypt::Revealed;
         let p1 = gen_priv_key();
         let p2 = gen_priv_key();
 
-        let p3 = (p1.clone().0 - p2.clone().0).into();
+        let p3 = p1.clone().0.augment_minus(&p2.clone().0).into();
 
         let aug_p = p1.augment(&AugmentationFactor(p2)).unwrap();
         assert_eq!(Revealed(aug_p.0), Revealed(p3))
