@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use log::error;
 use protobuf::{self, ProtobufError};
 use recrypt::api::{
-    CryptoOps, Hashable, PrivateKey as RecryptPrivateKey, PublicKey as RecryptPublicKey,
+    Hashable, KeyGenOps, PrivateKey as RecryptPrivateKey, PublicKey as RecryptPublicKey,
     RecryptErr, SigningKeypair as RecryptSigningKeypair,
 };
 use regex::Regex;
@@ -515,9 +515,8 @@ pub(crate) struct AugmentationFactor(PrivateKey);
 
 impl AugmentationFactor {
     /// Use recrypt to generate a new AugmentationFactor
-    pub fn generate_new<CO: CryptoOps>(recrypt: &CO) -> AugmentationFactor {
-        let pt = recrypt.gen_plaintext();
-        AugmentationFactor(recrypt.derive_private_key(&pt).into())
+    pub fn generate_new<R: KeyGenOps>(recrypt: &R) -> AugmentationFactor {
+        AugmentationFactor(recrypt.random_private_key().into())
     }
 
     pub fn as_bytes(&self) -> &[u8; 32] {
