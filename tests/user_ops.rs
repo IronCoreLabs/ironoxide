@@ -131,7 +131,7 @@ fn user_add_device_after_rotation() -> Result<(), IronOxideErr> {
     let encrypted_data = encrypt_result.encrypted_data();
 
     //rotate the private key
-    let rotation_result = sdk.user_rotate_private_key(common::USER_PASSWORD)?;
+    let _rotation_result = sdk.user_rotate_private_key(common::USER_PASSWORD)?;
 
     //add a new device
     let new_device = IronOxide::generate_new_device(

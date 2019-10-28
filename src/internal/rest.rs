@@ -24,7 +24,7 @@ use serde::export::{
     fmt::{Display, Error},
     Formatter,
 };
-use std::{borrow::BorrowMut, ops::Deref, str::from_utf8};
+use std::{borrow::BorrowMut, ops::Deref};
 
 lazy_static! {
     static ref DEFAULT_HEADERS: HeaderMap = {

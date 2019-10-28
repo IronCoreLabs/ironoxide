@@ -44,6 +44,7 @@ pub enum RequestErrorCode {
     UserDeviceList,
     UserKeyList,
     UserKeyUpdate,
+    UserGetCurrent,
     GroupCreate,
     GroupDelete,
     GroupList,
@@ -707,6 +708,21 @@ pub(crate) fn take_lock<T>(m: &Mutex<T>) -> MutexGuard<T> {
     })
 }
 
+/// Attempts to augment an existing private key with a newly generated augmentation factor.
+/// There is a very small chance that an augmentation factor could not be compatible with
+/// the given PrivateKey, so we retry once internally before giving the caller an error.
+fn augment_private_key_with_retry<R: KeyGenOps>(
+    recrypt: &R,
+    priv_key: &PrivateKey,
+) -> Result<(PrivateKey, AugmentationFactor), IronOxideErr> {
+    let aug_private_key = || {
+        let aug_factor = AugmentationFactor::generate_new(recrypt);
+        priv_key.augment(&aug_factor).map(|p| (p, aug_factor))
+    };
+    // retry generation of augmentation factor one time. If this fails twice there's something wrong.
+    aug_private_key().or_else(|_| aug_private_key())
+}
+
 #[cfg(test)]
 pub(crate) mod test {
     use super::*;
@@ -976,5 +992,75 @@ pub(crate) mod test {
             &new_priv_key.unwrap_err(),
             is_variant!(IronOxideErr::UserPrivateKeyRotationError)
         )
+    }
+
+    mock_trait!(
+        MockKeyGenOps,
+        random_private_key() -> recrypt::api::PrivateKey
+    );
+    impl KeyGenOps for MockKeyGenOps {
+        fn compute_public_key(
+            &self,
+            _private_key: &RecryptPrivateKey,
+        ) -> Result<RecryptPublicKey, RecryptErr> {
+            unimplemented!()
+        }
+
+        mock_method!(random_private_key(&self) -> RecryptPrivateKey);
+
+        fn generate_key_pair(&self) -> Result<(RecryptPrivateKey, RecryptPublicKey), RecryptErr> {
+            unimplemented!()
+        }
+
+        fn generate_transform_key(
+            &self,
+            _from_private_key: &RecryptPrivateKey,
+            _to_public_key: &RecryptPublicKey,
+            _signing_keypair: &recrypt::api::SigningKeypair,
+        ) -> Result<recrypt::api::TransformKey, RecryptErr> {
+            unimplemented!()
+        }
+    }
+    #[test]
+    fn augment_private_key_with_retry_retries_once() {
+        let recrypt_mock = MockKeyGenOps::default();
+        let good_re_private_key = RecryptPrivateKey::new([42u8; 32]); // good private key
+        recrypt_mock.random_private_key.return_values(vec![
+            RecryptPrivateKey::new([0u8; 32]), // bad private key, 0s
+            good_re_private_key.clone(),       // good private key. Used for aug factor
+        ]);
+
+        let curr_priv_key = PrivateKey::from([100u8; 32]);
+        let expected_priv_key_bytes: [u8; 32] = [
+            58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58,
+            58, 58, 58, 58, 58, 58, 58, 58, 58, 58,
+        ];
+
+        let result = augment_private_key_with_retry(&recrypt_mock, &curr_priv_key).unwrap();
+        assert_eq!(
+            recrypt::Revealed((result.clone().0).0),
+            recrypt::Revealed(RecryptPrivateKey::new(expected_priv_key_bytes))
+        );
+        assert_eq!(
+            recrypt::Revealed(((result.clone().1).0).0),
+            recrypt::Revealed(good_re_private_key)
+        )
+    }
+    #[test]
+    fn augment_private_key_with_retry_retries_only_once() {
+        let recrypt_mock = MockKeyGenOps::default();
+        recrypt_mock.random_private_key.return_values(vec![
+            RecryptPrivateKey::new([0u8; 32]),   // bad private key, 0s
+            RecryptPrivateKey::new([100u8; 32]), // bad private key, matches current
+            RecryptPrivateKey::new([42u8; 32]),  // good private key, never returned
+        ]);
+
+        let curr_priv_key = PrivateKey::from([100u8; 32]);
+
+        let result = augment_private_key_with_retry(&recrypt_mock, &curr_priv_key);
+        assert_that!(
+            &result.unwrap_err(),
+            is_variant!(IronOxideErr::UserPrivateKeyRotationError)
+        );
     }
 }

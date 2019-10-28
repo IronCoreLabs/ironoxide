@@ -37,6 +37,12 @@ impl From<EncryptedMasterKey> for EncryptedPrivateKey {
     }
 }
 
+impl From<EncryptedPrivateKey> for internal::user_api::EncryptedPrivateKey {
+    fn from(resp_encrypt_priv_key: EncryptedPrivateKey) -> Self {
+        internal::user_api::EncryptedPrivateKey(resp_encrypt_priv_key.0)
+    }
+}
+
 impl TryFrom<EncryptedPrivateKey> for EncryptedMasterKey {
     type Error = IronOxideErr;
 
@@ -152,7 +158,7 @@ pub mod user_get {
     ) -> impl Future<Item = CurrentUserResponse, Error = IronOxideErr> + '_ {
         auth.request.get(
             "users/current",
-            RequestErrorCode::EdekTransform,
+            RequestErrorCode::UserGetCurrent,
             AuthV2Builder::new(&auth, Utc::now()),
         )
     }
@@ -182,9 +188,7 @@ pub mod user_update_private_key {
         fn from(resp: UserUpdatePrivateKeyResponse) -> Self {
             UserUpdatePrivateKeyResult {
                 user_key_id: resp.current_key_id,
-                user_master_private_key: internal::user_api::EncryptedPrivateKey(
-                    resp.user_private_key.0,
-                ),
+                user_master_private_key: resp.user_private_key.into(),
                 needs_rotation: resp.needs_rotation,
             }
         }

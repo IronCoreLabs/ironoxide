@@ -149,12 +149,7 @@ pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
     rt.block_on(crate::internal::user_api::user_get_current(
         &device_context.auth(),
     ))
-    .and_then(|current_user| {
-        Ok(IronOxide::create_with_side_effects(
-            &current_user,
-            device_context,
-        ))
-    })
+    .map(|current_user| IronOxide::create_with_side_effects(&current_user, device_context))
     .map_err(|_| IronOxideErr::InitializeError)
 }
 

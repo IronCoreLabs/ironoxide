@@ -301,7 +301,7 @@ pub fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
                 .into();
 
                 let (new_priv_key, aug_factor) =
-                    generate_private_key_and_augmentation_factor(recrypt, &priv_key)?;
+                    augment_private_key_with_retry(recrypt, &priv_key)?;
                 let new_encrypted_priv_key = aes::encrypt_user_master_key(
                     &Mutex::new(EntropyRng::default()),
                     &password.0,
@@ -327,23 +327,6 @@ pub fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
                 .map(|resp| resp.into())
             },
         )
-}
-
-/// Generate a new private key and augmentation factor from a given PrivateKey.
-/// There is a very small chance that an augmentation factor could not be compatible with
-/// the given PrivateKey, so we retry once internally before giving the caller an error.
-fn generate_private_key_and_augmentation_factor<R: KeyGenOps>(
-    recrypt: &R,
-    priv_key: &PrivateKey,
-) -> Result<(PrivateKey, AugmentationFactor), IronOxideErr> {
-    let gen_new_private_key = || {
-        let aug_factor = AugmentationFactor::generate_new(recrypt);
-        priv_key.augment(&aug_factor).map(|p| (aug_factor, p))
-    };
-    // retry generation of augmentation factor one time. If this fails twice there's something wrong.
-    let (aug_factor, new_priv_key) = gen_new_private_key().or_else(|_| gen_new_private_key())?;
-
-    Ok((new_priv_key, aug_factor))
 }
 
 /// Generate a device key for the user specified in the JWT.
@@ -557,9 +540,6 @@ fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
 #[cfg(test)]
 mod test {
     use super::*;
-    use recrypt::api::{
-        PrivateKey as RePrivateKey, PublicKey as RePublicKey, RecryptErr, SigningKeypair,
-    };
 
     #[test]
     fn user_id_validate_good() {
@@ -609,77 +589,6 @@ mod test {
         assert_that!(
             &user_id.unwrap_err(),
             is_variant!(IronOxideErr::ValidationError)
-        );
-    }
-
-    mock_trait!(
-        MockKeyGenOps,
-        random_private_key() -> recrypt::api::PrivateKey
-    );
-    impl KeyGenOps for MockKeyGenOps {
-        fn compute_public_key(
-            &self,
-            _private_key: &RePrivateKey,
-        ) -> Result<RePublicKey, RecryptErr> {
-            unimplemented!()
-        }
-
-        mock_method!(random_private_key(&self) -> RePrivateKey);
-
-        fn generate_key_pair(&self) -> Result<(RePrivateKey, RePublicKey), RecryptErr> {
-            unimplemented!()
-        }
-
-        fn generate_transform_key(
-            &self,
-            _from_private_key: &RePrivateKey,
-            _to_public_key: &RePublicKey,
-            _signing_keypair: &SigningKeypair,
-        ) -> Result<recrypt::api::TransformKey, RecryptErr> {
-            unimplemented!()
-        }
-    }
-    #[test]
-    fn gen_private_key_and_augmentation_factor_retries_once() {
-        let recrypt_mock = MockKeyGenOps::default();
-        let good_re_private_key = RePrivateKey::new([100u8; 32]); // good private key
-        recrypt_mock.random_private_key.return_values(vec![
-            RePrivateKey::new([0u8; 32]), // bad private key, 0s
-            good_re_private_key.clone(),  // good private key. Used for aug factor
-        ]);
-
-        let curr_priv_key = PrivateKey::from([42u8; 32]);
-        let expected_priv_key_bytes: [u8; 32] = [
-            85, 122, 199, 169, 16, 105, 77, 191, 112, 53, 178, 126, 39, 74, 161, 230, 244, 83, 83,
-            216, 189, 240, 254, 233, 223, 244, 186, 33, 29, 114, 56, 39,
-        ];
-
-        let result =
-            generate_private_key_and_augmentation_factor(&recrypt_mock, &curr_priv_key).unwrap();
-        assert_eq!(
-            recrypt::Revealed((result.clone().0).0),
-            recrypt::Revealed(RePrivateKey::new(expected_priv_key_bytes))
-        );
-        assert_eq!(
-            recrypt::Revealed(((result.clone().1).0).0),
-            recrypt::Revealed(good_re_private_key)
-        )
-    }
-    #[test]
-    fn gen_private_key_and_augmentation_factor_retries_only_once() {
-        let recrypt_mock = MockKeyGenOps::default();
-        recrypt_mock.random_private_key.return_values(vec![
-            RePrivateKey::new([0u8; 32]),   // bad private key, 0s
-            RePrivateKey::new([42u8; 32]),  // bad private key, matches current
-            RePrivateKey::new([100u8; 32]), // good private key, never returned
-        ]);
-
-        let curr_priv_key = PrivateKey::from([42u8; 32]);
-
-        let result = generate_private_key_and_augmentation_factor(&recrypt_mock, &curr_priv_key);
-        assert_that!(
-            &result.unwrap_err(),
-            is_variant!(IronOxideErr::UserPrivateKeyRotationError)
         );
     }
 }
