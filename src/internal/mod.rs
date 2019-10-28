@@ -497,7 +497,7 @@ impl PrivateKey {
             ))
         } else {
             // this subtraction needs to be the additive inverse of what the service is doing
-            let augmented_key = self.0.clone().augment_minus(&augmenting_key.clone().into());
+            let augmented_key = self.0.augment_minus(&augmenting_key.clone().into());
             // This clone can be removed once https://github.com/IronCoreLabs/recrypt-rs/issues/91 is fixed
             if Revealed(augmented_key.clone()) == Revealed(zero) {
                 Err(IronOxideErr::UserPrivateKeyRotationError(
