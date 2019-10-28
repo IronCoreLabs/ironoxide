@@ -373,11 +373,6 @@ pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
                   }| {
                 Ok((
                     {
-                        //TODO remove
-                        println!(
-                            "User Verify - EncryptedPrivateKey - {:?}",
-                            &user_private_key
-                        );
                         let user_public_key: RecryptPublicKey =
                             PublicKey::try_from(user_master_public_key)?.into();
                         let user_private_key =

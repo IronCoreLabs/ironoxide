@@ -1298,7 +1298,6 @@ mod tests {
     #[test]
     fn doc_id_rejects_empty() {
         let doc_id = DocumentId::try_from("");
-        println!("{:?}", doc_id);
         assert_that!(&doc_id, is_variant!(Err));
         assert_that!(
             &doc_id.unwrap_err(),

@@ -607,11 +607,6 @@ impl<'a> IronCoreRequest<'a> {
                     vec![]
                 };
 
-                println!(
-                    "REQUEST: {:?} \n-->with BODY {:?}",
-                    &req,
-                    from_utf8(&body_bytes)
-                );
                 (req, body_bytes)
             })
         };
@@ -686,7 +681,6 @@ impl<'a> IronCoreRequest<'a> {
             })
             //Now make the error type into the IronOxideErr and run the resp_handler which was passed to us.
             .then(move |resp| {
-                dbg!(&resp);
                 //Map the generic error from reqwest to our error type.
                 let (status, server_resp) = resp.map_err(|err| {
                     IronCoreRequest::create_request_err(err.to_string(), error_code, err.status())
