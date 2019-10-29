@@ -491,21 +491,21 @@ impl PrivateKey {
     fn augment(&self, augmenting_key: &AugmentationFactor) -> Result<PrivateKey, IronOxideErr> {
         use recrypt::Revealed;
         let zero: RecryptPrivateKey = RecryptPrivateKey::new([0u8; 32]);
-        if Revealed((augmenting_key.clone().0).0) == Revealed(zero.clone()) {
+        if Revealed(augmenting_key.clone().into()) == Revealed(zero.clone()) {
             Err(IronOxideErr::UserPrivateKeyRotationError(
                 "Augmenting key cannot be zero".into(),
+            ))
+        }
+        // These clones can be removed once https://github.com/IronCoreLabs/recrypt-rs/issues/91 is fixed
+        // result of the augmentation would be zero
+        else if Revealed(augmenting_key.clone().into()) == Revealed(self.clone().0) {
+            Err(IronOxideErr::UserPrivateKeyRotationError(
+                "PrivateKey augmentation failed with a zero value".into(),
             ))
         } else {
             // this subtraction needs to be the additive inverse of what the service is doing
             let augmented_key = self.0.augment_minus(&augmenting_key.clone().into());
-            // This clone can be removed once https://github.com/IronCoreLabs/recrypt-rs/issues/91 is fixed
-            if Revealed(augmented_key.clone()) == Revealed(zero) {
-                Err(IronOxideErr::UserPrivateKeyRotationError(
-                    "PrivateKey augmentation failed with a zero value".into(),
-                ))
-            } else {
-                Ok(augmented_key.into())
-            }
+            Ok(augmented_key.into())
         }
     }
 }
