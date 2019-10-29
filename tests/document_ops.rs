@@ -590,7 +590,7 @@ fn doc_decrypt_unmanaged_no_access() {
 fn decrypt_with_rotated_user_private_key() -> Result<(), IronOxideErr> {
     let (_, init_result) = common::init_sdk_get_init_result(true);
 
-    let sdk = init_result.unwrap();
+    let sdk = init_result.discard_check();
 
     let encrypted_doc = sdk.document_encrypt(
         &[42u8, 43u8],

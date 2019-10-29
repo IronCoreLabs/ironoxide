@@ -111,7 +111,7 @@ pub enum InitAndRotationCheck {
 impl InitAndRotationCheck {
     /// Caller asked to check rotation on initialize, but doesn't want to handle the result.
     /// Consider using [initialize](fn.initialize.html) instead.
-    pub fn unwrap(self) -> IronOxide {
+    pub fn discard_check(self) -> IronOxide {
         match self {
             InitAndRotationCheck::NoRotationNeeded(io)
             | InitAndRotationCheck::RotationNeeded(io, _) => io,
@@ -119,7 +119,7 @@ impl InitAndRotationCheck {
     }
 }
 
-/// number of bytes that can be read from the RNG before it is reseeded. 1 MB
+/// number of bytes that can be read from `IronOxide.rng` before it is reseeded. 1 MB
 const BYTES_BEFORE_RESEEDING: u64 = 1 * 1024 * 1024;
 
 /// Provides soft rotation capabilities for user and group keys
@@ -149,7 +149,7 @@ pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
     rt.block_on(crate::internal::user_api::user_get_current(
         &device_context.auth(),
     ))
-    .map(|current_user| IronOxide::create_with_side_effects(&current_user, device_context))
+    .map(|current_user| IronOxide::create(&current_user, device_context))
     .map_err(|_| IronOxideErr::InitializeError)
 }
 
@@ -159,7 +159,7 @@ pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
 pub fn initialize_check_rotation(device_context: &DeviceContext) -> Result<InitAndRotationCheck> {
     Runtime::new().unwrap().block_on(
         internal::user_api::user_get_current(device_context.auth()).and_then(|curr_user| {
-            let ironoxide = IronOxide::create_with_side_effects(&curr_user, &device_context);
+            let ironoxide = IronOxide::create(&curr_user, &device_context);
 
             if curr_user.needs_rotation() {
                 Ok(InitAndRotationCheck::RotationNeeded(
@@ -181,10 +181,8 @@ impl IronOxide {
         &self.device
     }
 
-    fn create_with_side_effects(
-        curr_user: &UserResult,
-        device_context: &DeviceContext,
-    ) -> IronOxide {
+    /// Create an IronOxide instance. Depends on the system having enough entropy to seed a RNG.
+    fn create(curr_user: &UserResult, device_context: &DeviceContext) -> IronOxide {
         IronOxide {
             recrypt: Recrypt::new(),
             device: device_context.clone(),

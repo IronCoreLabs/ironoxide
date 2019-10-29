@@ -58,7 +58,7 @@ pub fn init_sdk() -> IronOxide {
 
 pub fn init_sdk_get_user() -> (UserId, IronOxide) {
     let (u, init_check) = init_sdk_get_init_result(false);
-    (u, init_check.unwrap())
+    (u, init_check.discard_check())
 }
 pub fn init_sdk_get_init_result(user_needs_rotation: bool) -> (UserId, InitAndRotationCheck) {
     let account_id: UserId = create_id_all_classes("").try_into().unwrap();
