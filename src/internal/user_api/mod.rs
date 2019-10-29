@@ -248,17 +248,11 @@ impl EncryptedPrivateKey {
 
 #[derive(Debug, Clone)]
 pub struct UserUpdatePrivateKeyResult {
-    user_key_id: u64,
     user_master_private_key: EncryptedPrivateKey,
     needs_rotation: bool,
 }
 
 impl UserUpdatePrivateKeyResult {
-    /// Numeric id of the user private key
-    pub fn user_key_id(&self) -> u64 {
-        self.user_key_id
-    }
-
     /// The updated encrypted user private key
     pub fn user_master_private_key(&self) -> &EncryptedPrivateKey {
         &self.user_master_private_key

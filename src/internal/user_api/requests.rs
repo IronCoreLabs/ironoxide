@@ -186,8 +186,8 @@ pub mod user_update_private_key {
 
     impl From<UserUpdatePrivateKeyResponse> for UserUpdatePrivateKeyResult {
         fn from(resp: UserUpdatePrivateKeyResponse) -> Self {
+            // don't expose the current_key_id to the outside world until we need to
             UserUpdatePrivateKeyResult {
-                user_key_id: resp.current_key_id,
                 user_master_private_key: resp.user_private_key.into(),
                 needs_rotation: resp.needs_rotation,
             }

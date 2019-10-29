@@ -92,7 +92,6 @@ fn user_private_key_rotation() -> Result<(), IronOxideErr> {
     assert_eq!(result1.needs_rotation(), false);
 
     let result2 = io.user_rotate_private_key(common::USER_PASSWORD)?;
-    assert_eq!(&result1.user_key_id(), &result2.user_key_id());
     assert_ne!(
         &result1.user_master_private_key(),
         &result2.user_master_private_key()
