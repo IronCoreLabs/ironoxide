@@ -1,6 +1,12 @@
-use ironoxide::{prelude::*, user::UserVerifyResult};
+use ironoxide::{
+    prelude::*,
+    user::{UserCreateOpts, UserResult},
+    InitAndRotationCheck, IronOxide,
+};
 use std::{convert::TryInto, default::Default};
 use uuid::Uuid;
+
+pub const USER_PASSWORD: &str = "foo";
 
 pub fn gen_jwt(
     project_id: usize,
@@ -51,26 +57,28 @@ pub fn init_sdk() -> IronOxide {
 }
 
 pub fn init_sdk_get_user() -> (UserId, IronOxide) {
+    let (u, init_check) = init_sdk_get_init_result(false);
+    (u, init_check.discard_check())
+}
+pub fn init_sdk_get_init_result(user_needs_rotation: bool) -> (UserId, InitAndRotationCheck) {
     let account_id: UserId = create_id_all_classes("").try_into().unwrap();
     IronOxide::user_create(
         &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
-        "foo",
-        &Default::default(),
+        USER_PASSWORD,
+        &UserCreateOpts::new(user_needs_rotation),
     )
     .unwrap();
 
-    let result =
+    let verify_resp =
         IronOxide::user_verify(&gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0)
+            .unwrap()
             .unwrap();
-    assert_eq!(true, result.is_some());
-    let verify_resp = result.unwrap();
-
     assert_eq!(&account_id, verify_resp.account_id());
     assert_eq!(2012, verify_resp.segment_id());
 
     let device = IronOxide::generate_new_device(
         &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
-        "foo",
+        USER_PASSWORD,
         &Default::default(),
     )
     .unwrap();
@@ -91,13 +99,15 @@ pub fn init_sdk_get_user() -> (UserId, IronOxide) {
         users_device_private_key_bytes.try_into().unwrap(),
         users_signing_keys_bytes.try_into().unwrap(),
     );
-
-    (account_id, ironoxide::initialize(&device_init).unwrap())
+    (
+        account_id,
+        ironoxide::initialize_check_rotation(&device_init).unwrap(),
+    )
 }
 
-pub fn create_second_user() -> UserVerifyResult {
+pub fn create_second_user() -> UserResult {
     let (jwt, _) = gen_jwt(1012, "test-segment", 551, Some(&create_id_all_classes("")));
-    let create_result = IronOxide::user_create(&jwt, "foo", &Default::default());
+    let create_result = IronOxide::user_create(&jwt, USER_PASSWORD, &Default::default());
     assert!(create_result.is_ok());
 
     let verify_result = IronOxide::user_verify(&jwt);

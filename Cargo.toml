@@ -1,6 +1,6 @@
 [package]
 name = "ironoxide"
-version = "0.12.1"
+version = "0.13.0"
 authors = ["IronCore Labs <info@ironcorelabs.com>"]
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -23,7 +23,7 @@ rand = "~0.6"
 rand_chacha = "~0.1"
 regex = "~1.1"
 ring = { version= "~0.16", features = ["std"] }
-recrypt = "~0.8.4"
+recrypt = "~0.9" 
 reqwest = "~0.9"
 tokio = "~0.1"
 hex = "~0.3"
@@ -40,6 +40,7 @@ protobuf = {version = "~2.8", features = ["with-bytes"]}
 frank_jwt = "~3.1.1"
 galvanic-assert = "~0.8"
 uuid = { version = "~0.7.2", features = ["serde", "v4"] }
+double = "~0.2.4"
 
 
 [build-dependencies]

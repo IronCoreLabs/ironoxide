@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.0 (Unreleased)
+- [[#59](https://github.com/IronCoreLabs/ironoxide/pull/59)]
+  - Adds method UserOps::user_rotate_private_key
+  - Adds a new initialization option: ironoxide::initialize_check_rotation to enable users to know if any of their private keys need rotation.
+  - Renames `user::UserVerifyResult` -> `user::UserResult`
+
 ## 0.12.1
 
 - [[#56](https://github.com/IronCoreLabs/ironoxide/pull/56)]

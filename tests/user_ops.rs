@@ -1,6 +1,7 @@
 mod common;
 use common::{create_id_all_classes, gen_jwt};
 use ironoxide::{
+    document::DocumentEncryptOpts,
     prelude::*,
     user::{DeviceCreateOpts, UserCreateOpts},
 };
@@ -84,11 +85,76 @@ fn user_create_good_with_devices() {
 }
 
 #[test]
+fn user_private_key_rotation() -> Result<(), IronOxideErr> {
+    let io = common::init_sdk();
+
+    let result1 = io.user_rotate_private_key(common::USER_PASSWORD)?;
+    assert_eq!(result1.needs_rotation(), false);
+
+    let result2 = io.user_rotate_private_key(common::USER_PASSWORD)?;
+    assert_ne!(
+        &result1.user_master_private_key(),
+        &result2.user_master_private_key()
+    );
+
+    Ok(())
+}
+
+#[test]
+fn sdk_init_with_private_key_rotation() -> Result<(), IronOxideErr> {
+    use ironoxide::InitAndRotationCheck;
+
+    let (user_id, init_result) = common::init_sdk_get_init_result(true);
+    let _: IronOxide = match init_result {
+        InitAndRotationCheck::NoRotationNeeded(_ironoxide) => panic!("user should need rotation"),
+        InitAndRotationCheck::RotationNeeded(io, rotation_check) => {
+            assert_eq!(rotation_check.user_rotation_needed(), Some(user_id));
+            let rotation_result = io.user_rotate_private_key(common::USER_PASSWORD)?;
+            assert_eq!(rotation_result.needs_rotation(), false);
+            io
+        }
+    };
+    Ok(())
+}
+
+#[test]
+fn user_add_device_after_rotation() -> Result<(), IronOxideErr> {
+    //create a user
+    let (user, sdk) = common::init_sdk_get_user();
+    let bytes = vec![42u8, 43u8];
+
+    let encrypt_result = sdk.document_encrypt(
+        &bytes,
+        &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![]),
+    )?;
+    let encrypted_data = encrypt_result.encrypted_data();
+
+    //rotate the private key
+    let _rotation_result = sdk.user_rotate_private_key(common::USER_PASSWORD)?;
+
+    //add a new device
+    let new_device = IronOxide::generate_new_device(
+        &common::gen_jwt(1012, "test-segment", 551, Some(user.id())).0,
+        common::USER_PASSWORD,
+        &Default::default(),
+    )?;
+
+    //reinitialize the sdk with the new device and decrypt some data
+    let new_sdk = ironoxide::initialize(&new_device)?;
+    let decrypt_result = new_sdk.document_decrypt(&encrypted_data)?;
+    let decrypted_data = decrypt_result.decrypted_data();
+
+    assert_eq!(bytes, decrypted_data.to_vec());
+
+    Ok(())
+}
+
+#[test]
 fn user_create_with_needs_rotation() -> Result<(), IronOxideErr> {
     let account_id: UserId = Uuid::new_v4().to_string().try_into().unwrap();
     let result = IronOxide::user_create(
         &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
-        "foo",
+        common::USER_PASSWORD,
         &UserCreateOpts::new(true),
     );
     assert!(result?.needs_rotation());
