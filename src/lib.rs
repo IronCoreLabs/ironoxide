@@ -51,7 +51,9 @@ extern crate percent_encoding;
 mod crypto;
 mod internal;
 
-mod proto;
+// include generated proto code as a proto module
+// pub mod proto
+include!(concat!(env!("OUT_DIR"), "/transform.rs"));
 
 /// SDK document operations
 pub mod document;
