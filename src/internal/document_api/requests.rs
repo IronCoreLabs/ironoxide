@@ -204,8 +204,10 @@ pub mod edek_transform {
 
 pub mod document_create {
     use super::*;
-    use crate::internal::auth_v2::AuthV2Builder;
-    use crate::internal::document_api::{DocumentName, EncryptedDek};
+    use crate::internal::{
+        auth_v2::AuthV2Builder,
+        document_api::{DocumentName, EncryptedDek},
+    };
     use std::convert::TryInto;
 
     #[derive(Serialize, Debug, Clone, Deserialize, PartialEq)]
@@ -265,8 +267,10 @@ pub mod document_create {
 
 pub mod policy_get {
     use super::*;
-    use crate::internal::rest::{url_encode, PercentEncodedString};
-    use crate::policy::{Category, DataSubject, PolicyGrant, Sensitivity};
+    use crate::{
+        internal::rest::{url_encode, PercentEncodedString},
+        policy::{Category, DataSubject, PolicyGrant, Sensitivity},
+    };
 
     pub(crate) const SUBSTITUTE_ID_QUERY_PARAM: &'static str = "substituteId";
 
@@ -334,8 +338,10 @@ pub mod document_update {
 
 pub mod document_access {
     use super::*;
-    use crate::internal::auth_v2::AuthV2Builder;
-    use crate::internal::document_api::{requests::document_access::resp::*, UserOrGroup, WithKey};
+    use crate::internal::{
+        auth_v2::AuthV2Builder,
+        document_api::{requests::document_access::resp::*, UserOrGroup, WithKey},
+    };
     use std::convert::TryInto;
 
     pub mod resp {

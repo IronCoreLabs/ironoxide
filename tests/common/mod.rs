@@ -1,19 +1,53 @@
 use ironoxide::{prelude::*, user::UserVerifyResult};
+use lazy_static::*;
 use std::{convert::TryInto, default::Default};
 use uuid::Uuid;
 
-pub fn gen_jwt(
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Config {
     project_id: usize,
-    seg_id: &str,
-    service_key_id: usize,
-    account_id: Option<&str>,
-) -> (String, String) {
-    use std::env;
+    segment_id: String,
+    identity_assertion_key_id: usize,
+}
 
-    let mut keypath = env::current_dir().unwrap();
-    keypath.push("tests");
-    keypath.push("testkeys");
-    keypath.push("rsa_private.pem");
+lazy_static! {
+    static ref KEYPATH: std::path::PathBuf = {
+        let mut path = std::env::current_dir().unwrap();
+        path.push("tests");
+        path.push("testkeys");
+        path.push("test.pem");
+        path
+    };
+    static ref IRONCORE_CONFIG_PATH: std::path::PathBuf = {
+        let mut path = std::env::current_dir().unwrap();
+        path.push("tests");
+        path.push("testkeys");
+        path.push("ironcore-config.json");
+        path
+    };
+    static ref CONFIG: Config = {
+        use std::io::Read;
+        let mut file: std::fs::File = std::fs::File::open(IRONCORE_CONFIG_PATH.clone()).unwrap();
+        let mut json_config: String = String::new();
+        file.read_to_string(&mut json_config).unwrap();
+        serde_json::from_str(&json_config).unwrap()
+    };
+}
+
+pub fn gen_jwt(account_id: Option<&str>) -> (String, String) {
+    //let mut keypath: std::path::PathBuf = std::env::current_dir().unwrap();
+    //keypath.push("tests");
+    //keypath.push("testkeys");
+    // let mut ironcore_config_path: std::path::PathBuf = keypath.clone();
+    // //keypath.push("test.pem");
+    // ironcore_config_path.push("ironcore-config.json");
+
+    // let mut file: std::fs::File = std::fs::File::open(IRONCORE_CONFIG_PATH.clone()).unwrap();
+    // let mut json_config: String = String::new();
+    // file.read_to_string(&mut json_config).unwrap();
+
+    // let config: Config = serde_json::from_str(&json_config).unwrap();
 
     use std::time::{SystemTime, UNIX_EPOCH};
     let start = SystemTime::now();
@@ -28,18 +62,18 @@ pub fn gen_jwt(
         .or_else(|| Some(&default_account_id))
         .expect("Missing expected JWT account ID.");
     let jwt_payload = json!({
-        "pid" : project_id,
-        "sid" : seg_id,
-        "kid" : service_key_id,
+        "pid" : CONFIG.project_id,
+        "sid" : CONFIG.segment_id,
+        "kid" : CONFIG.identity_assertion_key_id,
         "iat" : iat_seconds,
         "exp" : iat_seconds + 120,
         "sub" : sub
     });
     let jwt = frank_jwt::encode(
         jwt_header,
-        &keypath.to_path_buf(),
+        &KEYPATH.to_path_buf(),
         &jwt_payload,
-        frank_jwt::Algorithm::RS256,
+        frank_jwt::Algorithm::ES256,
     )
     .expect("You don't appear to have the proper service private key to sign the test JWT.");
     (jwt, format!("{}", sub))
@@ -53,23 +87,21 @@ pub fn init_sdk() -> IronOxide {
 pub fn init_sdk_get_user() -> (UserId, IronOxide) {
     let account_id: UserId = create_id_all_classes("").try_into().unwrap();
     IronOxide::user_create(
-        &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
+        &gen_jwt(Some(account_id.id())).0,
         "foo",
         &Default::default(),
     )
     .unwrap();
 
-    let result =
-        IronOxide::user_verify(&gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0)
-            .unwrap();
+    let result = IronOxide::user_verify(&gen_jwt(Some(account_id.id())).0).unwrap();
     assert_eq!(true, result.is_some());
     let verify_resp = result.unwrap();
 
     assert_eq!(&account_id, verify_resp.account_id());
-    assert_eq!(2012, verify_resp.segment_id());
+    assert_eq!(641, verify_resp.segment_id());
 
     let device = IronOxide::generate_new_device(
-        &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
+        &gen_jwt(Some(account_id.id())).0,
         "foo",
         &Default::default(),
     )
@@ -96,7 +128,7 @@ pub fn init_sdk_get_user() -> (UserId, IronOxide) {
 }
 
 pub fn create_second_user() -> UserVerifyResult {
-    let (jwt, _) = gen_jwt(1012, "test-segment", 551, Some(&create_id_all_classes("")));
+    let (jwt, _) = gen_jwt(Some(&create_id_all_classes("")));
     let create_result = IronOxide::user_create(&jwt, "foo", &Default::default());
     assert!(create_result.is_ok());
 
@@ -117,5 +149,5 @@ pub fn create_id_all_classes(prefix: &str) -> String {
 #[allow(dead_code)]
 // Use this test to print out a JWT and UUID if you need it
 fn non_test_print_jwt() {
-    dbg!(gen_jwt(1012, "test-segment", 551, None));
+    dbg!(gen_jwt(None));
 }

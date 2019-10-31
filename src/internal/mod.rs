@@ -2,9 +2,8 @@
 //! If it can be defined in API specific file, it should go there to keep this file's
 //! size to a minimum.
 
-use crate::internal::rest::SignatureUrlString;
 use crate::internal::{
-    rest::{Authorization, IronCoreRequest},
+    rest::{Authorization, IronCoreRequest, SignatureUrlString},
     user_api::{DeviceId, UserId},
 };
 use chrono::{DateTime, Utc};
@@ -30,7 +29,7 @@ pub mod user_api;
 
 #[cfg(feature = "senv")]
 pub const OUR_REQUEST: IronCoreRequest =
-    IronCoreRequest::new("https://api-staging.ironcorelabs.com/api/1/");
+    IronCoreRequest::new("https://api-dev1.ironcorelabs.com/api/1/");
 
 #[cfg(not(feature = "senv"))]
 pub const OUR_REQUEST: IronCoreRequest =
