@@ -1,29 +1,45 @@
 //! User operation requests.
 //! Types and functions defined here should remain private to `user_api`
 
-use chrono::Utc;
-use futures::Future;
-
 use crate::{
     crypto::aes::EncryptedMasterKey,
     internal::{
+        self,
         rest::{
             self,
             json::{Base64Standard, PublicKey},
             Authorization, IronCoreRequest,
         },
         user_api::{DeviceName, UserId},
-        IronOxideErr, Jwt, RequestAuth, RequestErrorCode, TryFrom,
+        IronOxideErr, Jwt, RequestAuth, RequestErrorCode,
     },
 };
+use chrono::Utc;
+use futures::Future;
+use std::convert::TryFrom;
 
 use crate::internal::auth_v2::AuthV2Builder;
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct EncryptedPrivateKey(#[serde(with = "Base64Standard")] pub Vec<u8>);
 
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+pub struct AugmentationFactor(#[serde(with = "Base64Standard")] pub Vec<u8>);
+
+impl From<internal::AugmentationFactor> for AugmentationFactor {
+    fn from(af: internal::AugmentationFactor) -> Self {
+        AugmentationFactor(af.as_bytes().to_vec())
+    }
+}
+
 impl From<EncryptedMasterKey> for EncryptedPrivateKey {
     fn from(enc_master_key: EncryptedMasterKey) -> Self {
         EncryptedPrivateKey(enc_master_key.bytes().to_vec())
+    }
+}
+
+impl From<EncryptedPrivateKey> for internal::user_api::EncryptedPrivateKey {
+    fn from(resp_encrypt_priv_key: EncryptedPrivateKey) -> Self {
+        internal::user_api::EncryptedPrivateKey(resp_encrypt_priv_key.0)
     }
 }
 
@@ -36,7 +52,7 @@ impl TryFrom<EncryptedPrivateKey> for EncryptedMasterKey {
 }
 
 pub mod user_verify {
-    use crate::internal::user_api::UserVerifyResult;
+    use crate::internal::user_api::UserResult;
     use std::convert::TryInto;
 
     use super::*;
@@ -63,11 +79,11 @@ pub mod user_verify {
         )
     }
 
-    impl TryFrom<UserVerifyResponse> for UserVerifyResult {
+    impl TryFrom<UserVerifyResponse> for UserResult {
         type Error = IronOxideErr;
 
         fn try_from(body: UserVerifyResponse) -> Result<Self, Self::Error> {
-            Ok(UserVerifyResult {
+            Ok(UserResult {
                 account_id: body.id.try_into()?,
                 segment_id: body.segment_id,
                 user_public_key: body.user_master_public_key.try_into()?,
@@ -105,11 +121,11 @@ pub mod user_verify {
                 user_master_public_key: pub_key,
                 needs_rotation: t_needs_rotation,
             };
-            let result: UserVerifyResult = resp.try_into().unwrap();
+            let result: UserResult = resp.try_into().unwrap();
 
             assert_that!(
                 &result,
-                has_structure!(UserVerifyResult {
+                has_structure!(UserResult {
                     account_id: eq(t_account_id.clone()),
                     segment_id: eq(t_segment_id),
                     user_public_key: eq(t_user_public_key.clone()),
@@ -118,6 +134,86 @@ pub mod user_verify {
             );
             Ok(())
         }
+    }
+}
+
+pub mod user_get {
+    use super::*;
+
+    #[derive(Deserialize, PartialEq, Debug)]
+    #[serde(rename_all = "camelCase")]
+    pub struct CurrentUserResponse {
+        pub(in crate::internal) current_key_id: u64,
+        pub(in crate::internal) id: String,
+        pub(in crate::internal) status: usize,
+        pub(in crate::internal) segment_id: usize,
+        pub(in crate::internal) user_master_public_key: PublicKey,
+        pub(in crate::internal) user_private_key: EncryptedPrivateKey,
+        pub(in crate::internal) needs_rotation: bool,
+        pub(in crate::internal) groups_needing_rotation: Vec<String>,
+    }
+
+    pub fn get_curr_user(
+        auth: &RequestAuth,
+    ) -> impl Future<Item = CurrentUserResponse, Error = IronOxideErr> + '_ {
+        auth.request.get(
+            "users/current",
+            RequestErrorCode::UserGetCurrent,
+            AuthV2Builder::new(&auth, Utc::now()),
+        )
+    }
+}
+
+/// PUT /users/{userId}/keys/{userKeyId}
+pub mod user_update_private_key {
+    use super::*;
+    use crate::internal::user_api::UserUpdatePrivateKeyResult;
+
+    #[derive(Serialize, Debug)]
+    #[serde(rename_all = "camelCase")]
+    pub struct UserUpdatePrivateKey {
+        user_private_key: EncryptedPrivateKey,
+        augmentation_factor: AugmentationFactor,
+    }
+
+    #[derive(Deserialize, PartialEq, Debug)]
+    #[serde(rename_all = "camelCase")]
+    pub struct UserUpdatePrivateKeyResponse {
+        current_key_id: u64,
+        user_private_key: EncryptedPrivateKey,
+        needs_rotation: bool,
+    }
+
+    impl From<UserUpdatePrivateKeyResponse> for UserUpdatePrivateKeyResult {
+        fn from(resp: UserUpdatePrivateKeyResponse) -> Self {
+            // don't expose the current_key_id to the outside world until we need to
+            UserUpdatePrivateKeyResult {
+                user_master_private_key: resp.user_private_key.into(),
+                needs_rotation: resp.needs_rotation,
+            }
+        }
+    }
+
+    pub fn update_private_key<'a>(
+        auth: &'a RequestAuth,
+        user_id: UserId,
+        user_key_id: u64,
+        new_encrypted_private_key: EncryptedPrivateKey,
+        augmenting_key: AugmentationFactor,
+    ) -> impl Future<Item = UserUpdatePrivateKeyResponse, Error = IronOxideErr> + 'a {
+        auth.request.put(
+            &format!(
+                "users/{}/keys/{}",
+                rest::url_encode(user_id.id()),
+                user_key_id
+            ),
+            &UserUpdatePrivateKey {
+                user_private_key: new_encrypted_private_key,
+                augmentation_factor: augmenting_key,
+            },
+            RequestErrorCode::UserKeyUpdate,
+            AuthV2Builder::new(&auth, Utc::now()),
+        )
     }
 }
 

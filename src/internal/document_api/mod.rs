@@ -362,7 +362,7 @@ impl DocumentEncryptResult {
     }
 }
 /// Result of decrypting a document. Includes minimal metadata as well as the decrypted bytes.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DocumentDecryptResult {
     id: DocumentId,
     name: Option<DocumentName>,
@@ -1298,7 +1298,6 @@ mod tests {
     #[test]
     fn doc_id_rejects_empty() {
         let doc_id = DocumentId::try_from("");
-        println!("{:?}", doc_id);
         assert_that!(&doc_id, is_variant!(Err));
         assert_that!(
             &doc_id.unwrap_err(),

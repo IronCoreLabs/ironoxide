@@ -587,6 +587,24 @@ fn doc_decrypt_unmanaged_no_access() {
 }
 
 #[test]
+fn decrypt_with_rotated_user_private_key() -> Result<(), IronOxideErr> {
+    let (_, init_result) = common::init_sdk_get_init_result(true);
+
+    let sdk = init_result.discard_check();
+
+    let encrypted_doc = sdk.document_encrypt(
+        &[42u8, 43u8],
+        &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![]),
+    )?;
+    let decrypt_result1 = sdk.document_decrypt(encrypted_doc.encrypted_data())?;
+    sdk.user_rotate_private_key(common::USER_PASSWORD)?;
+    let decrypt_result2 = sdk.document_decrypt(encrypted_doc.encrypted_data())?;
+
+    assert_eq!(&decrypt_result1, &decrypt_result2);
+    Ok(())
+}
+
+#[test]
 fn doc_encrypt_decrypt_unmanaged_roundtrip() -> Result<(), IronOxideErr> {
     let sdk = init_sdk();
     let encrypt_opts = Default::default();

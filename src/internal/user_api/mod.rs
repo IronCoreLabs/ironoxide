@@ -5,6 +5,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use futures::prelude::*;
 use itertools::{Either, Itertools};
+use rand::rngs::EntropyRng;
 use recrypt::prelude::*;
 use std::{
     collections::HashMap,
@@ -13,7 +14,7 @@ use std::{
     sync::Mutex,
 };
 
-/// private module that handles interaction with ironcore-id
+/// private module that handles interaction with the IronCore webservice
 mod requests;
 
 /// ID of a user. Unique with in a segment. Must match the regex `^[a-zA-Z0-9_.$#|@/:;=+'-]+$`
@@ -120,13 +121,13 @@ pub struct DeviceAdd {
 
 /// IDs and public key for existing user on verify result
 #[derive(Debug)]
-pub struct UserVerifyResult {
+pub struct UserResult {
     account_id: UserId,
     segment_id: usize,
     user_public_key: PublicKey,
     needs_rotation: bool,
 }
-impl UserVerifyResult {
+impl UserResult {
     pub fn user_public_key(&self) -> &PublicKey {
         &self.user_public_key
     }
@@ -199,7 +200,7 @@ impl UserDevice {
 pub fn user_verify(
     jwt: Jwt,
     request: IronCoreRequest,
-) -> impl Future<Item = Option<UserVerifyResult>, Error = IronOxideErr> {
+) -> impl Future<Item = Option<UserResult>, Error = IronOxideErr> {
     requests::user_verify::user_verify(&jwt, &request)
         .and_then(|e| e.map(|resp| resp.try_into()).transpose())
 }
@@ -234,6 +235,92 @@ pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
             )
         })
         .and_then(|resp| resp.try_into())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EncryptedPrivateKey(Vec<u8>);
+
+impl EncryptedPrivateKey {
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct UserUpdatePrivateKeyResult {
+    user_master_private_key: EncryptedPrivateKey,
+    needs_rotation: bool,
+}
+
+impl UserUpdatePrivateKeyResult {
+    /// The updated encrypted user private key
+    pub fn user_master_private_key(&self) -> &EncryptedPrivateKey {
+        &self.user_master_private_key
+    }
+
+    /// True if this user's master key requires rotation
+    pub fn needs_rotation(&self) -> bool {
+        self.needs_rotation
+    }
+}
+
+/// Get metadata about the current user
+pub fn user_get_current(
+    auth: &RequestAuth,
+) -> impl Future<Item = UserResult, Error = IronOxideErr> + '_ {
+    requests::user_get::get_curr_user(auth).and_then(|result| {
+        Ok(UserResult {
+            needs_rotation: result.needs_rotation,
+            user_public_key: result.user_master_public_key.try_into()?,
+            segment_id: result.segment_id,
+            account_id: UserId::unsafe_from_string(result.id),
+        })
+    })
+}
+
+/// Rotate the user's private key. The public key for the user remains unchanged.
+pub fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
+    recrypt: &'apicall Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    password: Password,
+    auth: &'apicall RequestAuth,
+) -> impl Future<Item = UserUpdatePrivateKeyResult, Error = IronOxideErr> + 'apicall {
+    requests::user_get::get_curr_user(&auth)
+        .and_then(move |curr_user| {
+            Ok({
+                let encrypt_priv_key = curr_user.user_private_key;
+                let priv_key: PrivateKey = aes::decrypt_user_master_key(
+                    &password.0,
+                    &aes::EncryptedMasterKey::new_from_slice(&encrypt_priv_key.0)?,
+                )?
+                .into();
+
+                let (new_priv_key, aug_factor) =
+                    augment_private_key_with_retry(recrypt, &priv_key)?;
+                let new_encrypted_priv_key = aes::encrypt_user_master_key(
+                    &Mutex::new(EntropyRng::default()),
+                    &password.0,
+                    new_priv_key.as_bytes(),
+                )?;
+                (
+                    UserId(curr_user.id),
+                    curr_user.current_key_id,
+                    new_encrypted_priv_key,
+                    aug_factor,
+                )
+            })
+        })
+        .and_then(
+            move |(user_id, curr_key_id, new_encrypted_priv_key, aug_factor)| {
+                requests::user_update_private_key::update_private_key(
+                    &auth,
+                    user_id,
+                    curr_key_id,
+                    new_encrypted_priv_key.into(),
+                    aug_factor.into(),
+                )
+                .map(|resp| resp.into())
+            },
+        )
 }
 
 /// Generate a device key for the user specified in the JWT.
@@ -402,7 +489,7 @@ fn generate_device_add<CR: rand::CryptoRng + rand::RngCore>(
     })
 }
 
-/// Generate a schnorr signature for calling the device add endpoint in ironcore-id
+/// Generate a schnorr signature for calling the device add endpoint in the IronCore service
 fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: &Jwt,

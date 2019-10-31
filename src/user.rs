@@ -1,5 +1,6 @@
 pub use crate::internal::user_api::{
-    UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserVerifyResult,
+    EncryptedPrivateKey, UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserResult,
+    UserUpdatePrivateKeyResult,
 };
 use crate::{
     internal::{
@@ -117,7 +118,7 @@ pub trait UserOps {
     ///
     /// # Returns
     /// Option of whether the user's account record exists in the IronCore system or not. Err if the request couldn't be made.
-    fn user_verify(jwt: &str) -> Result<Option<UserVerifyResult>>;
+    fn user_verify(jwt: &str) -> Result<Option<UserResult>>;
 
     /// Get a list of user public keys given their IDs. Allows discovery of which user IDs have keys in the
     /// IronCore system to determine of they can be added to groups or have documents shared with them.
@@ -128,6 +129,17 @@ pub trait UserOps {
     /// # Returns
     /// Map from user ID to users public key. Only users who have public keys will be returned in the map.
     fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>>;
+
+    /// Rotate the current user's private key, but leave the public key the same.
+    /// There's no black magic here! This is accomplished via multi-party computation with the
+    /// IronCore webservice.
+    ///
+    /// # Arguments
+    /// `password` - Password to unlock the current user's user master key
+    ///
+    /// # Returns
+    /// The (encrypted) updated private key and associated metadata
+    fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult>;
 }
 impl UserOps for IronOxide {
     fn user_create(
@@ -175,7 +187,7 @@ impl UserOps for IronOxide {
         rt.block_on(user_api::device_delete(self.device.auth(), device_id))
     }
 
-    fn user_verify(jwt: &str) -> Result<Option<UserVerifyResult>> {
+    fn user_verify(jwt: &str) -> Result<Option<UserResult>> {
         let mut rt = Runtime::new().unwrap();
         rt.block_on(user_api::user_verify(jwt.try_into()?, OUR_REQUEST))
     }
@@ -183,6 +195,15 @@ impl UserOps for IronOxide {
     fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {
         let mut rt = Runtime::new().unwrap();
         rt.block_on(user_api::user_key_list(self.device.auth(), &users.to_vec()))
+    }
+
+    fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult> {
+        let mut rt = Runtime::new().unwrap();
+        rt.block_on(user_api::user_rotate_private_key(
+            &self.recrypt,
+            password.try_into()?,
+            self.device().auth(),
+        ))
     }
 }
 
