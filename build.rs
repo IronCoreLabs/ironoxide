@@ -6,9 +6,10 @@ use std::path::Path;
 
 fn main() {
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR should exist");
+    let name = "transform";
     protobuf_codegen_pure::run(protobuf_codegen_pure::Args {
         out_dir: out_dir.as_str(),
-        input: &["proto/transform.proto"],
+        input: &[format!("proto/{}.proto", name).as_str()],
         includes: &["proto"],
         customize: protobuf_codegen_pure::Customize {
             carllerche_bytes_for_bytes: Some(true),
@@ -23,14 +24,14 @@ fn main() {
     // https://github.com/rust-lang/rust/issues/18810.
     // We open the file, add 'mod proto { mod transform { } }' around the contents and write it back. This allows us
     // to include! the file in lib.rs and have a proper proto module.
-    let proto_path = Path::new(&out_dir).join("transform.rs");
+    let proto_path = Path::new(&out_dir).join(format!("{}.rs", name));
     let mut contents = String::new();
 
     File::open(&proto_path)
         .unwrap()
         .read_to_string(&mut contents)
         .unwrap();
-    let new_contents = format!("pub mod proto {{pub mod transform {{ \n{}\n}}}}", contents);
+    let new_contents = format!("pub mod proto {{pub mod {} {{ \n{}\n}}}}", name, contents);
 
     File::create(&proto_path)
         .unwrap()
