@@ -1,3 +1,0 @@
-# Alias test command to run against different environment
-[alias]
-t = "test --features senv"

@@ -1,24 +1,49 @@
-Integration Testing
-===================
+# Integration Testing
 
-Our integration tests require that we point to the IronCore staging environment. In order to swap that out at compile time we use a Rust feature flag to causes the SDK to point to stage. To prevent us from having to always pass `--features` when running our tests, we created an alias so that `cargo t` will automatically apply that feature flag. If you run `cargo test` you'll get failures that will hopefully clue you in that you need to use `cargo t` instead.
+Our integration tests default to pointing to the IronCore production environment, and therefore will need to be set up before use. However, unit tests can be run without prior setup.
 
-Running *only* the unit tests (IronOxide users - this is what you want):
+To run _only_ the unit tests (IronOxide users - this is what you want):
 
 `cargo t --lib`
 
-Running *only* the integration tests:
+To run _only_ the integration tests:
 
 `cargo t --test group_ops --test user_ops --test document_ops`
 
-Running all the tests:
+To run all the tests:
 
 `cargo t`
 
-#### Integration Tests
+## Setting Up Integration Tests
 
-Integration tests are run as part of a PR build on Travis. These keys are stored as a Travis secret.
+In order to run the integration tests, you must provide IronOxide with an Identity Assertion Key file, an IronCore Config file, and the URL you would like to test against. This will require you to create a project, segment, and Identity Assertion Key using the admin console interface.
 
-The integration test run against IronCore's staging environment and require some tests keys. These can be found in `tests/testkeys/rsa_private.pem.iron`. _Currently only IronCore devs have access to these keys._ The following ironhide command will decrypt the developer test keys. 
+### Identity Assertion Key File
 
-`$ ironhide file:decrypt rsa_private.pem.iron`
+This file must be downloaded from the admin console interface immediately after creating a new Identity Assertion Key. It should be named `rsa_private.pem` and placed in `./tests/testkeys`.
+
+### IronCore Config File
+
+This file can be downloaded from the admin console on creation of the very first project. For subsequent projects, it will need to be created manually. The file is of the form:
+
+```json
+{
+  "projectId": { YOUR_PROJECT_ID },
+  "segmentId": "{YOUR_SEGMENT_ID}",
+  "identityAssertionKeyId": { YOUR_IDENTITY_ASSERION_KEY_ID }
+}
+```
+
+Note that case is significant for the key names.
+
+This file must be named `ironcore-config.json` and placed in `./tests/testkeys`.
+
+### Environment URL
+
+By default, IronOxide will test against the production build, but it can also test against dev, stage, or any other environment. This is specified with the environment variable `TEST_ENV`, which can be set before running `cargo t`. There are several built-in environment URLs, or one can be specified. To do this, run the following:
+
+    Development: `TEST_ENV=dev cargo t`
+    Staging:     `TEST_ENV=stage cargo t`
+    Other:       `TEST_ENV={URL} cargo t`
+
+where `{URL}` is the environment you want to test against.

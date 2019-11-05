@@ -27,13 +27,20 @@ pub mod group_api;
 mod rest;
 pub mod user_api;
 
-#[cfg(feature = "senv")]
-pub const OUR_REQUEST: IronCoreRequest =
-    IronCoreRequest::new("https://api-dev1.ironcorelabs.com/api/1/");
-
-#[cfg(not(feature = "senv"))]
-pub const OUR_REQUEST: IronCoreRequest =
-    IronCoreRequest::new("https://api.ironcorelabs.com/api/1/");
+lazy_static! {
+    pub static ref URL_STRING: String = match std::env::var("TEST_ENV") {
+        Ok(url) => match url.as_ref() {
+            "dev" => "https://api-dev1.ironcorelabs.com/api/1/",
+            "stage" => "https://api-staging.ironcorelabs.com/api/1/",
+            "prod" => "https://api.ironcorelabs.com/api/1/",
+            url_choice => url_choice,
+        }
+        .to_string(),
+        _ => "https://api.ironcorelabs.com/api/1/".to_string(),
+    };
+    pub static ref OUR_REQUEST: IronCoreRequest::<'static> =
+        IronCoreRequest::new(URL_STRING.as_str());
+}
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum RequestErrorCode {

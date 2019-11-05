@@ -22,39 +22,29 @@ lazy_static! {
         let mut path = std::env::current_dir().unwrap();
         path.push("tests");
         path.push("testkeys");
-        path.push("test.pem");
+        path.push("rsa_private.pem"); //TODO: can this get a new name?
         path
     };
     static ref IRONCORE_CONFIG_PATH: std::path::PathBuf = {
         let mut path = std::env::current_dir().unwrap();
         path.push("tests");
         path.push("testkeys");
-        path.push("ironcore-config.json");
+        path.push("ironcore-config.json"); //TODO: this is default name from download. should it be different?
         path
     };
     static ref CONFIG: Config = {
-        use std::io::Read;
-        let mut file: std::fs::File = std::fs::File::open(IRONCORE_CONFIG_PATH.clone()).unwrap();
+        use std::{error::Error, fs::File, io::Read};
+        let mut file: File = File::open(IRONCORE_CONFIG_PATH.clone())
+            .unwrap_or_else(|err| panic!("Failed to open config file with error '{}'",err.description().to_string()));
         let mut json_config: String = String::new();
-        file.read_to_string(&mut json_config).unwrap();
-        serde_json::from_str(&json_config).unwrap()
+        file.read_to_string(&mut json_config)
+            .unwrap_or_else(|err| panic!("Failed to read config file with error '{}'", err.description().to_string()));
+        serde_json::from_str(&json_config)
+            .unwrap_or_else(|err| panic!("Failed to deserialize config file with error '{}'", err.description().to_string()))
     };
 }
 
 pub fn gen_jwt(account_id: Option<&str>) -> (String, String) {
-    //let mut keypath: std::path::PathBuf = std::env::current_dir().unwrap();
-    //keypath.push("tests");
-    //keypath.push("testkeys");
-    // let mut ironcore_config_path: std::path::PathBuf = keypath.clone();
-    // //keypath.push("test.pem");
-    // ironcore_config_path.push("ironcore-config.json");
-
-    // let mut file: std::fs::File = std::fs::File::open(IRONCORE_CONFIG_PATH.clone()).unwrap();
-    // let mut json_config: String = String::new();
-    // file.read_to_string(&mut json_config).unwrap();
-
-    // let config: Config = serde_json::from_str(&json_config).unwrap();
-
     use std::time::{SystemTime, UNIX_EPOCH};
     let start = SystemTime::now();
     let iat_seconds = start
@@ -107,7 +97,6 @@ pub fn init_sdk_get_init_result(user_needs_rotation: bool) -> (UserId, InitAndRo
         .unwrap()
         .unwrap();
     assert_eq!(&account_id, verify_resp.account_id());
-    assert_eq!(641, verify_resp.segment_id());
 
     let device = IronOxide::generate_new_device(
         &gen_jwt(Some(account_id.id())).0,

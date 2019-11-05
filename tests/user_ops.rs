@@ -34,7 +34,6 @@ fn user_verify_existing_user() {
     let verify_resp = result.unwrap();
 
     assert_eq!(&account_id, verify_resp.account_id());
-    assert_eq!(641, verify_resp.segment_id());
 }
 
 #[test]

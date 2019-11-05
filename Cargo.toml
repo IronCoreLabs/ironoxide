@@ -45,6 +45,3 @@ double = "~0.2.4"
 
 [build-dependencies]
 protobuf-codegen-pure = "~2.8"
-
-[features]
-senv = []
