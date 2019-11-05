@@ -18,29 +18,53 @@ struct Config {
 }
 
 lazy_static! {
+    pub static ref ENV: String = match std::env::var("TEST_ENV") {
+        Ok(url) => match url.as_ref() {
+            "dev" => "-dev",
+            "stage" => "-stage",
+            "prod" => "-prod",
+            _ => "",
+        },
+        _ => "-prod",
+    }
+    .to_string();
     static ref KEYPATH: std::path::PathBuf = {
         let mut path = std::env::current_dir().unwrap();
+        let filename = format!("iak{}.pem", *ENV);
         path.push("tests");
         path.push("testkeys");
-        path.push("rsa_private.pem"); //TODO: can this get a new name?
+        path.push(filename);
         path
     };
     static ref IRONCORE_CONFIG_PATH: std::path::PathBuf = {
         let mut path = std::env::current_dir().unwrap();
+        let filename = format!("ironcore-config{}.json", *ENV);
         path.push("tests");
         path.push("testkeys");
-        path.push("ironcore-config.json"); //TODO: this is default name from download. should it be different?
+        path.push(filename);
         path
     };
     static ref CONFIG: Config = {
         use std::{error::Error, fs::File, io::Read};
-        let mut file: File = File::open(IRONCORE_CONFIG_PATH.clone())
-            .unwrap_or_else(|err| panic!("Failed to open config file with error '{}'",err.description().to_string()));
+        let mut file: File = File::open(IRONCORE_CONFIG_PATH.clone()).unwrap_or_else(|err| {
+            panic!(
+                "Failed to open config file with error '{}'",
+                err.description().to_string()
+            )
+        });
         let mut json_config: String = String::new();
-        file.read_to_string(&mut json_config)
-            .unwrap_or_else(|err| panic!("Failed to read config file with error '{}'", err.description().to_string()));
-        serde_json::from_str(&json_config)
-            .unwrap_or_else(|err| panic!("Failed to deserialize config file with error '{}'", err.description().to_string()))
+        file.read_to_string(&mut json_config).unwrap_or_else(|err| {
+            panic!(
+                "Failed to read config file with error '{}'",
+                err.description().to_string()
+            )
+        });
+        serde_json::from_str(&json_config).unwrap_or_else(|err| {
+            panic!(
+                "Failed to deserialize config file with error '{}'",
+                err.description().to_string()
+            )
+        })
     };
 }
 
