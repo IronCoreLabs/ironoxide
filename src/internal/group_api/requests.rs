@@ -2,9 +2,11 @@ use crate::internal::{
     group_api::{GroupEntity, GroupGetResult, GroupId, GroupMetaResult, GroupName, UserId},
     rest::{
         self,
-        json::{EncryptedOnceValue, PublicKey, TransformKey, TransformedEncryptedValue},
+        json::{
+            Base64Standard, EncryptedOnceValue, PublicKey, TransformKey, TransformedEncryptedValue,
+        },
     },
-    IronOxideErr, RequestAuth, RequestErrorCode,
+    IronOxideErr, RequestAuth, RequestErrorCode, SchnorrSignature,
 };
 use chrono::{DateTime, Utc};
 use futures::Future;
@@ -328,12 +330,15 @@ pub mod group_add_admin {
     #[serde(rename_all = "camelCase")]
     pub struct GroupAddAdminsReq {
         pub admins: Vec<GroupAdmin>,
+        #[serde(with = "Base64Standard")]
+        pub signature: Vec<u8>,
     }
 
     pub fn group_add_admin_request<'a>(
         auth: &'a RequestAuth,
         id: &'a GroupId,
         users: Vec<(UserId, PublicKey, recrypt::api::EncryptedValue)>,
+        signature: SchnorrSignature,
     ) -> impl Future<Item = GroupUserEditResponse, Error = IronOxideErr> + 'a {
         //The users could _technically_ contiain a reencrypted value, if that happened the `try_into` would fail.
         //This can't happen in a normal usecase.
@@ -353,7 +358,10 @@ pub mod group_add_admin {
             let encoded_id = rest::url_encode(&id.0).to_string();
             auth.request.post(
                 &format!("groups/{}/admins", encoded_id),
-                &GroupAddAdminsReq { admins },
+                &GroupAddAdminsReq {
+                    admins,
+                    signature: signature.into(),
+                },
                 RequestErrorCode::GroupAddMember,
                 AuthV2Builder::new(&auth, Utc::now()),
             )
