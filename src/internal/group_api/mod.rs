@@ -4,8 +4,8 @@ use crate::{
         group_api::requests::{group_list::GroupListResponse, GroupUserEditResponse},
         rest::json::TransformedEncryptedValue,
         user_api::{self, UserId},
-        validate_id, validate_name, IronOxideErr, PrivateKey, PublicKey, RequestAuth, TransformKey,
-        WithKey,
+        validate_id, validate_name, IronOxideErr, PrivateKey, PublicKey, RequestAuth,
+        SchnorrSignature, TransformKey, WithKey,
     },
 };
 use chrono::{DateTime, Utc};
@@ -36,6 +36,11 @@ impl GroupId {
     /// Create a GroupId from a string with no validation. Useful for ids coming back from the web service.
     pub fn unsafe_from_string(id: String) -> GroupId {
         GroupId(id)
+    }
+}
+impl recrypt::api::Hashable for GroupId {
+    fn to_bytes(self: &Self) -> Vec<u8> {
+        self.0.as_bytes().to_vec()
     }
 }
 impl TryFrom<String> for GroupId {
@@ -445,6 +450,12 @@ pub fn group_add_admins<'a, CR: rand::CryptoRng + rand::RngCore>(
                 encrypted_group_key.try_into()?,
                 &device_private_key.recrypt_key(),
             )?;
+            let private_group_key = recrypt.derive_private_key(&plaintext);
+            let recrypt_schnorr_sig = recrypt.schnorr_sign(
+                &private_group_key,
+                &group_get.group_master_public_key.into(),
+                group_id,
+            );
             let (recrypt_errors, transform_success) = transform::encrypt_to_with_key(
                 recrypt,
                 &plaintext,
@@ -459,11 +470,15 @@ pub fn group_add_admins<'a, CR: rand::CryptoRng + rand::RngCore>(
                 })
                 .collect();
             acc_fails.append(&mut transform_fails);
-            Ok((acc_fails, transform_success))
+            Ok((
+                SchnorrSignature(recrypt_schnorr_sig),
+                acc_fails,
+                transform_success,
+            ))
         })
         //Now actually add the members that we have transform keys for.
         //acc_fails is currently the transform generation fails and the key fetch failures.
-        .and_then(move |(acc_fails, admin_keys_to_send)| {
+        .and_then(move |(schnorr_sig, acc_fails, admin_keys_to_send)| {
             requests::group_add_admin::group_add_admin_request(
                 &auth,
                 &group_id,
@@ -481,6 +496,7 @@ pub fn group_add_admins<'a, CR: rand::CryptoRng + rand::RngCore>(
                         },
                     )
                     .collect(),
+                schnorr_sig,
             )
             .map(|response| group_access_api_response_to_result(acc_fails, response))
         })
