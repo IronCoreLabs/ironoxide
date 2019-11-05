@@ -28,40 +28,43 @@ lazy_static! {
         _ => "-prod",
     }
     .to_string();
-    static ref KEYPATH: std::path::PathBuf = {
+    static ref KEYPATH: (String, std::path::PathBuf) = {
         let mut path = std::env::current_dir().unwrap();
         let filename = format!("iak{}.pem", *ENV);
         path.push("tests");
         path.push("testkeys");
-        path.push(filename);
-        path
+        path.push(filename.clone());
+        (filename, path)
     };
-    static ref IRONCORE_CONFIG_PATH: std::path::PathBuf = {
+    static ref IRONCORE_CONFIG_PATH: (String, std::path::PathBuf) = {
         let mut path = std::env::current_dir().unwrap();
         let filename = format!("ironcore-config{}.json", *ENV);
         path.push("tests");
         path.push("testkeys");
-        path.push(filename);
-        path
+        path.push(filename.clone());
+        (filename, path)
     };
     static ref CONFIG: Config = {
         use std::{error::Error, fs::File, io::Read};
-        let mut file: File = File::open(IRONCORE_CONFIG_PATH.clone()).unwrap_or_else(|err| {
+        let mut file: File = File::open(IRONCORE_CONFIG_PATH.1.clone()).unwrap_or_else(|err| {
             panic!(
-                "Failed to open config file with error '{}'",
+                "Failed to open config file ({}) with error '{}'",
+                IRONCORE_CONFIG_PATH.0,
                 err.description().to_string()
             )
         });
         let mut json_config: String = String::new();
         file.read_to_string(&mut json_config).unwrap_or_else(|err| {
             panic!(
-                "Failed to read config file with error '{}'",
+                "Failed to read config file ({}) with error '{}'",
+                IRONCORE_CONFIG_PATH.0,
                 err.description().to_string()
             )
         });
         serde_json::from_str(&json_config).unwrap_or_else(|err| {
             panic!(
-                "Failed to deserialize config file with error '{}'",
+                "Failed to deserialize config file ({}) with error '{}'",
+                IRONCORE_CONFIG_PATH.0,
                 err.description().to_string()
             )
         })
@@ -91,11 +94,13 @@ pub fn gen_jwt(account_id: Option<&str>) -> (String, String) {
     });
     let jwt = frank_jwt::encode(
         jwt_header,
-        &KEYPATH.to_path_buf(),
+        &KEYPATH.1.to_path_buf(),
         &jwt_payload,
         frank_jwt::Algorithm::ES256,
     )
-    .expect("You don't appear to have the proper service private key to sign the test JWT.");
+    .expect(
+        &format!("Error with {}: You don't appear to have the proper service private key to sign the test JWT.", KEYPATH.0)
+    );
     (jwt, format!("{}", sub))
 }
 
