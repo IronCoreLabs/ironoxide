@@ -664,6 +664,14 @@ mod test {
             is_variant!(IronOxideErr::ValidationError)
         );
     }
+    #[test]
+    fn group_id_hashable_known_value() {
+        use recrypt::api::Hashable;
+        let string = "a_fo_real_good_group_id$";
+        let bytes = b"a_fo_real_good_group_id$";
+        let group_id: GroupId = string.try_into().unwrap();
+        assert_eq!(group_id.to_bytes(), bytes.to_vec())
+    }
 
     #[test]
     fn group_name_rejects_empty() {
