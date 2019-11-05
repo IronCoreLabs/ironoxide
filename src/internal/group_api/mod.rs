@@ -294,6 +294,7 @@ pub(crate) fn get_group_keys<'a>(
 /// `name` - name for the group. Does not need to be unique.
 /// `add_as_member` - if true the user represented by the current DeviceContext will also be added to the group's membership.
 ///     If false, the user will not be an member (but will still be an admin)
+/// `needs_rotation` - true if the group private key should be rotated by an admin, else false
 pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &'a RequestAuth,
@@ -301,6 +302,7 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     group_id: Option<GroupId>,
     name: Option<GroupName>,
     add_as_member: bool,
+    needs_rotation: bool,
 ) -> impl Future<Item = GroupMetaResult, Error = IronOxideErr> + 'a {
     transform::gen_group_keys(recrypt)
         .and_then(move |(plaintext, group_priv_key, group_pub_key)| {
@@ -340,6 +342,7 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                 group_pub_key,
                 auth.account_id(),
                 transform_key,
+                needs_rotation,
             )
         })
         .and_then(|resp| resp.try_into())

@@ -177,11 +177,12 @@ pub mod group_create {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct GroupCreateReq {
-        pub id: Option<GroupId>,
-        pub name: Option<GroupName>,
-        pub admins: Vec<GroupAdmin>,
-        pub group_public_key: PublicKey,
-        pub members: Option<Vec<GroupMember>>,
+        pub(in crate::internal) id: Option<GroupId>,
+        pub(in crate::internal) name: Option<GroupName>,
+        pub(in crate::internal) admins: Vec<GroupAdmin>,
+        pub(in crate::internal) group_public_key: PublicKey,
+        pub(in crate::internal) members: Option<Vec<GroupMember>>,
+        pub(in crate::internal) needs_rotation: bool,
     }
 
     pub fn group_create<'a>(
@@ -193,6 +194,7 @@ pub mod group_create {
         group_pub_key: internal::PublicKey,
         user_id: &'a UserId,
         member_transform_key: Option<internal::TransformKey>,
+        needs_rotation: bool,
     ) -> impl Future<Item = GroupBasicApiResponse, Error = IronOxideErr> + 'a {
         EncryptedOnceValue::try_from(re_encrypted_once_value)
             .into_future()
@@ -215,6 +217,7 @@ pub mod group_create {
                             user_master_public_key: user_master_pub_key.clone().into(),
                         }]
                     }),
+                    needs_rotation,
                 };
 
                 auth.request.post(

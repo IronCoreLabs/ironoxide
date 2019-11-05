@@ -11,13 +11,16 @@ use tokio::runtime::current_thread::Runtime;
 #[derive(Clone)]
 /// Options for group creation.
 pub struct GroupCreateOpts {
-    /// unique id of a group within a segment. If none, the server will assign an id.
+    // unique id of a group within a segment. If none, the server will assign an id.
     id: Option<GroupId>,
-    /// human readable name of the group. Does not need to be unique.
+    // human readable name of the group. Does not need to be unique.
     name: Option<GroupName>,
-    /// true (default) - creating user will be added to the group's membership (in addition to being the group's admin);
-    /// false - creating user will not be added to the group's membership
+    // true (default) - creating user will be added to the group's membership (in addition to being the group's admin);
+    // false - creating user will not be added to the group's membership
     add_as_member: bool,
+    // true - group's private key will be marked for rotation
+    // false (default) - group's private key will not be marked for rotation
+    needs_rotation: bool,
 }
 
 impl GroupCreateOpts {
@@ -27,17 +30,22 @@ impl GroupCreateOpts {
     /// - `id` - Unique id of a group within a segment. If none, the server will assign an id.
     /// - `name` - Human readable name of the group. Does not need to be unique. Will **not** be encrypted.
     /// - `add_as_member`
-    ///   - `true` - The creating user should be added as a member (in addition to being a group admin)
-    ///   - `false` - The creating user will not be a member of the group, but will still be an admin.
+    ///     - `true` - The creating user should be added as a member (in addition to being a group admin)
+    ///     - `false` - The creating user will not be a member of the group, but will still be an admin.
+    /// - `needs_rotation`
+    ///     - true - group's private key will be marked for rotation
+    ///     - false (default) - group's private key will not be marked for rotation
     pub fn new(
         id: Option<GroupId>,
         name: Option<GroupName>,
         add_as_member: bool,
+        needs_rotation: bool,
     ) -> GroupCreateOpts {
         GroupCreateOpts {
             id,
             name,
             add_as_member,
+            needs_rotation,
         }
     }
 }
@@ -45,7 +53,7 @@ impl GroupCreateOpts {
 impl Default for GroupCreateOpts {
     fn default() -> Self {
         // membership is the default!
-        GroupCreateOpts::new(None, None, true)
+        GroupCreateOpts::new(None, None, true, false)
     }
 }
 
@@ -155,6 +163,7 @@ impl GroupOps for crate::IronOxide {
             id: maybe_id,
             name: maybe_name,
             add_as_member,
+            needs_rotation,
         } = opts.clone();
 
         rt.block_on(group_api::group_create(
@@ -164,6 +173,7 @@ impl GroupOps for crate::IronOxide {
             maybe_id,
             maybe_name,
             add_as_member,
+            needs_rotation,
         ))
     }
 
