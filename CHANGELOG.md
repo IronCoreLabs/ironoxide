@@ -1,6 +1,7 @@
 # Changelog
 
-## 0.13.0 (Unreleased)
+## 0.13.0
+
 - [[#59](https://github.com/IronCoreLabs/ironoxide/pull/59)]
   - Adds method UserOps::user_rotate_private_key
   - Adds a new initialization option: ironoxide::initialize_check_rotation to enable users to know if any of their private keys need rotation.
