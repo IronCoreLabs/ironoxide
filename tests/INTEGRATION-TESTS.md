@@ -40,11 +40,11 @@ This file must be named `ironcore-config.json` and placed in `./tests/testkeys`.
 
 ### Environment URL
 
-By default, IronOxide will test against the staging build, but it can also test against dev, prod, or any other environment. This is specified with the environment variable `TEST_ENV`, which can be set before running `cargo t`. There are several built-in environment URLs, or one can be specified. To do this, run the following:
+By default, IronOxide will test against the staging build, but it can also test against dev, prod, or any other environment. This is specified with the environment variable `IRONCORE_ENV`, which can be set before running `cargo t`. There are several built-in environment URLs, or one can be specified. To do this, run the following:
 
-    Development: `TEST_ENV=dev cargo t`
-    Staging:     `TEST_ENV=stage cargo t`
-    Production:  `TEST_ENV=prod cargo t`
-    Other:       `TEST_ENV={URL} cargo t`
+    Development: `IRONCORE_ENV=dev cargo t`
+    Staging:     `IRONCORE_ENV=stage cargo t`
+    Production:  `IRONCORE_ENV=prod cargo t`
+    Other:       `IRONCORE_ENV={URL} cargo t`
 
 where `{URL}` is the environment you want to test against.
