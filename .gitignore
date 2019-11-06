@@ -6,7 +6,7 @@ Cargo.lock
 *.code-workspace
 .metals/
 tests/testkeys/*.pem
-tests/testkeys/ironcore-config.json
+tests/testkeys/*.json
 java/scala/src/test/resources/service-keys.conf
 java/scala/src/test/resources/service-keys.conf.stage
 java/scala/src/test/resources/service-keys.conf.local

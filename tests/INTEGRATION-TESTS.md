@@ -1,6 +1,6 @@
 # Integration Testing
 
-Our integration tests default to pointing to the IronCore staging environment, and will therefore need to be set up before use. However, unit tests can be run without prior setup.
+Our integration tests default to pointing to the IronCore environment, and will therefore need to be set up before use. However, unit tests can be run without prior setup.
 
 To run _only_ the unit tests (IronOxide users - this is what you want):
 
@@ -14,37 +14,48 @@ To run all the tests:
 
 `cargo t`
 
-## Setting Up Integration Tests
+## Testing against IronCore Dev, Stage, or Prod Environments
 
-In order to run the integration tests, you must provide IronOxide with an Identity Assertion Key file, an IronCore Config file, and the URL you would like to test against. This will require you to create a project, segment, and Identity Assertion Key using the admin console interface.
+Integration tests run against IronCore environments require some test keys and configuration files. Pre-generated keys and config files can be found in `tests/testkeys/`. _Currently only IronCore devs have access to these keys._ The following ironhide command will decrypt the developer test keys.
+
+`$ ironhide file:decrypt tests/testkeys/*.iron`
+
+### Running the Tests
+
+The environment you would like to test against is specified in the environment variable `IRONCORE_ENV`. This variable can be set to `dev`, `stage`, or `prod` to use the pre-generated keys and config files. To test against these, run one of the following:
+
+- Development: `IRONCORE_ENV=dev cargo t`
+- Staging: `IRONCORE_ENV=stage cargo t`
+- Production: `IRONCORE_ENV=prod cargo t`
+
+## Testing against a different environment
+
+IronOxide tests can be run against any other environment, with proper setup. To do this, you must provide an Identity Assertion Key file, an IronCore Config file, and the URL you would like to test against. This will require you to create a project, segment, and Identity Assertion Key using the admin console interface.
 
 ### Identity Assertion Key File
 
-This file must be downloaded from the admin console interface immediately after creating a new Identity Assertion Key. It should be named `rsa_private.pem` and placed in `./tests/testkeys`.
+An Identity Assertion Key file must be downloaded from the admin console interface immediately after creating a new Identity Assertion Key. It must be named `iak.pem` and placed in `./tests/testkeys/`.
 
 ### IronCore Config File
 
-This file can be downloaded from the admin console on creation of the very first project. For subsequent projects, it will need to be created manually. The file is of the form:
+An IronCore Config file can be downloaded from the admin console on creation of the very first project. For subsequent projects, it will need to be created manually. The file is of the form:
 
 ```json
 {
-  "projectId": { YOUR_PROJECT_ID },
-  "segmentId": "{YOUR_SEGMENT_ID}",
-  "identityAssertionKeyId": { YOUR_IDENTITY_ASSERION_KEY_ID }
+  "projectId": YOUR_PROJECT_ID,
+  "segmentId": "YOUR_SEGMENT_ID",
+  "identityAssertionKeyId": YOUR_IDENTITY_ASSERION_KEY_ID
 }
 ```
 
 Note that case is significant for the key names.
 
-This file must be named `ironcore-config.json` and placed in `./tests/testkeys`.
+This file must be named `ironcore-config.json` and placed in `./tests/testkeys/`.
 
 ### Environment URL
 
-By default, IronOxide will test against the staging build, but it can also test against dev, prod, or any other environment. This is specified with the environment variable `IRONCORE_ENV`, which can be set before running `cargo t`. There are several built-in environment URLs, or one can be specified. To do this, run the following:
+The URL of the environment you would like to test against is specified in the environment variable `IRONCORE_ENV`. To specify this when running the tests, run the following:
 
-    Development: `IRONCORE_ENV=dev cargo t`
-    Staging:     `IRONCORE_ENV=stage cargo t`
-    Production:  `IRONCORE_ENV=prod cargo t`
-    Other:       `IRONCORE_ENV={URL} cargo t`
+    Manual URL: `IRONCORE_ENV={URL} cargo t`
 
-where `{URL}` is the environment you want to test against.
+where `{URL}` is the URL of the environment you want to test against.

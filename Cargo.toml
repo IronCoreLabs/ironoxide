@@ -37,7 +37,7 @@ log = "~0.4"
 protobuf = {version = "~2.8", features = ["with-bytes"]}
 
 [dev-dependencies]
-frank_jwt = {git = "https://github.com/GildedHonour/frank_jwt", rev = "afcb5ba126ab9b1c21fec702045ec3f43e903c12"}
+frank_jwt = "~3.1.2"
 galvanic-assert = "~0.8"
 uuid = { version = "~0.7.2", features = ["serde", "v4"] }
 double = "~0.2.4"
