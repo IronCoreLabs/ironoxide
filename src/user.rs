@@ -154,7 +154,7 @@ impl UserOps for IronOxide {
             jwt.try_into()?,
             password.try_into()?,
             user_create_opts.needs_rotation,
-            OUR_REQUEST,
+            *OUR_REQUEST,
         ))
     }
 
@@ -178,7 +178,7 @@ impl UserOps for IronOxide {
             password.try_into()?,
             device_create_options.device_name,
             &std::time::SystemTime::now().into(),
-            OUR_REQUEST,
+            *OUR_REQUEST,
         ))
     }
 
@@ -189,7 +189,7 @@ impl UserOps for IronOxide {
 
     fn user_verify(jwt: &str) -> Result<Option<UserResult>> {
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(user_api::user_verify(jwt.try_into()?, OUR_REQUEST))
+        rt.block_on(user_api::user_verify(jwt.try_into()?, *OUR_REQUEST))
     }
 
     fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {

@@ -12,7 +12,7 @@ If you are not building a Rust application, you might be interested in one of th
 
 - [ironoxide-java](https://github.com/IronCoreLabs/ironoxide-java) - Java bindings for ironoxide. Appropriate for all JVM langauges.
 - [ironoxide-scala](https://github.com/IronCoreLabs/ironoxide-scala) - Scala wrappers around `ironoxide-java`.
-- [ironode](https://github.com/IronCoreLabs/ironnode) - NodeJS implementation of IronCore's Privacy Platform.
+- [ironnode](https://github.com/IronCoreLabs/ironnode) - NodeJS implementation of IronCore's Privacy Platform.
 - [ironweb](https://github.com/IronCoreLabs/ironweb) - Javascript implementation of IronCore's Privacy Platform. Appropriate for all modern browsers.
 
 All SDKs are intended to be compatible with one another.

@@ -1,54 +1,104 @@
 use ironoxide::{
     prelude::*,
     user::{UserCreateOpts, UserResult},
-    InitAndRotationCheck, IronOxide,
+    InitAndRotationCheck,
 };
+use lazy_static::*;
 use std::{convert::TryInto, default::Default};
 use uuid::Uuid;
 
 pub const USER_PASSWORD: &str = "foo";
 
-pub fn gen_jwt(
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Config {
     project_id: usize,
-    seg_id: &str,
-    service_key_id: usize,
-    account_id: Option<&str>,
-) -> (String, String) {
-    use std::env;
+    segment_id: String,
+    identity_assertion_key_id: usize,
+}
 
-    let mut keypath = env::current_dir().unwrap();
-    keypath.push("tests");
-    keypath.push("testkeys");
-    keypath.push("rsa_private.pem");
+lazy_static! {
+    pub static ref ENV: String = match std::env::var("IRONCORE_ENV") {
+        Ok(url) => match url.to_lowercase().as_ref() {
+            "dev" => "-dev",
+            "stage" => "-stage",
+            "prod" => "-prod",
+            _ => "",
+        },
+        _ => "-prod",
+    }
+    .to_string();
+    static ref KEYPATH: (String, std::path::PathBuf) = {
+        let mut path = std::env::current_dir().unwrap();
+        let filename = format!("iak{}.pem", *ENV);
+        path.push("tests");
+        path.push("testkeys");
+        path.push(filename.clone());
+        (filename, path)
+    };
+    static ref IRONCORE_CONFIG_PATH: (String, std::path::PathBuf) = {
+        let mut path = std::env::current_dir().unwrap();
+        let filename = format!("ironcore-config{}.json", *ENV);
+        path.push("tests");
+        path.push("testkeys");
+        path.push(filename.clone());
+        (filename, path)
+    };
+    static ref CONFIG: Config = {
+        use std::{error::Error, fs::File, io::Read};
+        let mut file = File::open(IRONCORE_CONFIG_PATH.1.clone()).unwrap_or_else(|err| {
+            panic!(
+                "Failed to open config file ({}) with error '{}'",
+                IRONCORE_CONFIG_PATH.0,
+                err.description()
+            )
+        });
+        let mut json_config = String::new();
+        file.read_to_string(&mut json_config).unwrap_or_else(|err| {
+            panic!(
+                "Failed to read config file ({}) with error '{}'",
+                IRONCORE_CONFIG_PATH.0,
+                err.description()
+            )
+        });
+        serde_json::from_str(&json_config).unwrap_or_else(|err| {
+            panic!(
+                "Failed to deserialize config file ({}) with error '{}'",
+                IRONCORE_CONFIG_PATH.0,
+                err.description()
+            )
+        })
+    };
+}
 
+pub fn gen_jwt(account_id: Option<&str>) -> (String, String) {
     use std::time::{SystemTime, UNIX_EPOCH};
     let start = SystemTime::now();
     let iat_seconds = start
         .duration_since(UNIX_EPOCH)
         .expect("Time before epoch? Something's wrong.")
         .as_secs();
-
     let jwt_header = json!({});
     let default_account_id = Uuid::new_v4().to_string();
-    let sub = account_id
-        .or_else(|| Some(&default_account_id))
-        .expect("Missing expected JWT account ID.");
+    let sub = account_id.unwrap_or(&default_account_id);
     let jwt_payload = json!({
-        "pid" : project_id,
-        "sid" : seg_id,
-        "kid" : service_key_id,
+        "pid" : CONFIG.project_id,
+        "sid" : CONFIG.segment_id,
+        "kid" : CONFIG.identity_assertion_key_id,
         "iat" : iat_seconds,
         "exp" : iat_seconds + 120,
         "sub" : sub
     });
     let jwt = frank_jwt::encode(
         jwt_header,
-        &keypath.to_path_buf(),
+        &KEYPATH.1.to_path_buf(),
         &jwt_payload,
-        frank_jwt::Algorithm::RS256,
+        frank_jwt::Algorithm::ES256,
     )
-    .expect("You don't appear to have the proper service private key to sign the test JWT.");
-    (jwt, format!("{}", sub))
+    .expect(
+        &format!("Error with {}: You don't appear to have the proper service private key to sign the test JWT.", KEYPATH.0)
+    );
+    (jwt, sub.to_string())
 }
 
 pub fn init_sdk() -> IronOxide {
@@ -63,21 +113,19 @@ pub fn init_sdk_get_user() -> (UserId, IronOxide) {
 pub fn init_sdk_get_init_result(user_needs_rotation: bool) -> (UserId, InitAndRotationCheck) {
     let account_id: UserId = create_id_all_classes("").try_into().unwrap();
     IronOxide::user_create(
-        &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
+        &gen_jwt(Some(account_id.id())).0,
         USER_PASSWORD,
         &UserCreateOpts::new(user_needs_rotation),
     )
     .unwrap();
 
-    let verify_resp =
-        IronOxide::user_verify(&gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0)
-            .unwrap()
-            .unwrap();
+    let verify_resp = IronOxide::user_verify(&gen_jwt(Some(account_id.id())).0)
+        .unwrap()
+        .unwrap();
     assert_eq!(&account_id, verify_resp.account_id());
-    assert_eq!(2012, verify_resp.segment_id());
 
     let device = IronOxide::generate_new_device(
-        &gen_jwt(1012, "test-segment", 551, Some(account_id.id())).0,
+        &gen_jwt(Some(account_id.id())).0,
         USER_PASSWORD,
         &Default::default(),
     )
@@ -106,7 +154,7 @@ pub fn init_sdk_get_init_result(user_needs_rotation: bool) -> (UserId, InitAndRo
 }
 
 pub fn create_second_user() -> UserResult {
-    let (jwt, _) = gen_jwt(1012, "test-segment", 551, Some(&create_id_all_classes("")));
+    let (jwt, _) = gen_jwt(Some(&create_id_all_classes("")));
     let create_result = IronOxide::user_create(&jwt, USER_PASSWORD, &Default::default());
     assert!(create_result.is_ok());
 
@@ -127,5 +175,5 @@ pub fn create_id_all_classes(prefix: &str) -> String {
 #[allow(dead_code)]
 // Use this test to print out a JWT and UUID if you need it
 fn non_test_print_jwt() {
-    dbg!(gen_jwt(1012, "test-segment", 551, None));
+    dbg!(gen_jwt(None));
 }
