@@ -19,7 +19,7 @@ struct Config {
 
 lazy_static! {
     pub static ref ENV: String = match std::env::var("IRONCORE_ENV") {
-        Ok(url) => match url.as_ref() {
+        Ok(url) => match url.to_lowercase().as_ref() {
             "dev" => "-dev",
             "stage" => "-stage",
             "prod" => "-prod",

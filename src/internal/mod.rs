@@ -29,7 +29,7 @@ pub mod user_api;
 
 lazy_static! {
     pub static ref URL_STRING: String = match std::env::var("IRONCORE_ENV") {
-        Ok(url) => match url.as_ref() {
+        Ok(url) => match url.to_lowercase().as_ref() {
             "dev" => "https://api-dev1.ironcorelabs.com/api/1/",
             "stage" => "https://api-staging.ironcorelabs.com/api/1/",
             "prod" => "https://api.ironcorelabs.com/api/1/",
