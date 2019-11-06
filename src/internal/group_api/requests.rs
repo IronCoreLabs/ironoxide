@@ -298,12 +298,15 @@ pub mod group_add_member {
     #[serde(rename_all = "camelCase")]
     pub struct GroupAddMembersReq {
         pub users: Vec<GroupMember>,
+        #[serde(with = "Base64Standard")]
+        pub signature: Vec<u8>,
     }
 
     pub fn group_add_member_request<'a>(
         auth: &'a RequestAuth,
         id: &GroupId,
         users: Vec<(UserId, PublicKey, TransformKey)>,
+        signature: SchnorrSignature,
     ) -> impl Future<Item = GroupUserEditResponse, Error = IronOxideErr> + 'a {
         let encoded_id = rest::url_encode(&id.0).to_string();
         let users = users
@@ -316,7 +319,10 @@ pub mod group_add_member {
             .collect();
         auth.request.post(
             &format!("groups/{}/users", encoded_id),
-            &GroupAddMembersReq { users },
+            &GroupAddMembersReq {
+                users,
+                signature: signature.into(),
+            },
             RequestErrorCode::GroupAddMember,
             AuthV2Builder::new(&auth, Utc::now()),
         )
