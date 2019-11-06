@@ -1,8 +1,10 @@
 extern crate protobuf_codegen_pure;
-use std::env;
-use std::fs::File;
-use std::io::{Read, Write};
-use std::path::Path;
+use std::{
+    env,
+    fs::File,
+    io::{Read, Write},
+    path::Path,
+};
 
 fn main() {
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR should exist");
