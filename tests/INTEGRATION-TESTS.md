@@ -40,7 +40,7 @@ An Identity Assertion Key file must be downloaded from the admin console interfa
 
 An IronCore Config file can be downloaded from the admin console on creation of the very first project. For subsequent projects, it will need to be created manually. The file is of the form:
 
-```json
+```javascript
 {
   "projectId": YOUR_PROJECT_ID,
   "segmentId": "YOUR_SEGMENT_ID",
