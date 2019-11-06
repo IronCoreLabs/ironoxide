@@ -7,13 +7,13 @@ cache:
 before_cache:
   - rm -rf /home/travis/.cargo/registry
 rust:
-  - 1.36.0
+  - 1.38.0
 branches:
   only:
     - master
 before_install:
   # key for integration tests
-  - openssl aes-256-cbc -K $encrypted_86f168e6939a_key -iv $encrypted_86f168e6939a_iv -in tests/testkeys/rsa_private.pem.enc -out tests/testkeys/rsa_private.pem -d
+  - openssl aes-256-cbc -K $encrypted_d5683c11b5e1_key -iv $encrypted_d5683c11b5e1_iv -in tests/testkeys/iak-dev.pem.enc -out tests/testkeys/iak-dev.pem -d
 before_script:
   - rustup component add rustfmt-preview
   - cross --version || cargo install cross

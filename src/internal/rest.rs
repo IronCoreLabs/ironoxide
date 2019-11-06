@@ -300,14 +300,14 @@ impl<'a> HeaderIronCoreRequestSig<'a> {
 }
 
 ///A struct which holds the basic info that will be needed for making requests to an ironcore service. Currently just the base_url.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 pub struct IronCoreRequest<'a> {
     base_url: &'a str,
 }
 
 impl Default for IronCoreRequest<'static> {
     fn default() -> Self {
-        OUR_REQUEST
+        *OUR_REQUEST
     }
 }
 
