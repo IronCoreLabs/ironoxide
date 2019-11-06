@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.0 (Unreleased)
+- [[#64](https://github.com/IronCoreLabs/ironoxide/pull/64)]
+  - Adds need_rotation to `GroupCreateOpts`, allowing a group to be created with its private key marked for rotation
+
 ## 0.13.0
 
 - [[#59](https://github.com/IronCoreLabs/ironoxide/pull/59)]

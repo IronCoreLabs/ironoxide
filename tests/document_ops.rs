@@ -96,6 +96,7 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
         data_rec_group_id.clone().into(),
         None,
         true,
+        false,
     ));
     assert!(group_result.is_ok());
 
@@ -155,8 +156,12 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
     let user2_result = create_second_user();
     let user2 = user2_result.account_id();
     let group2_id: GroupId = format!("group_other_{}", user2.id()).try_into().unwrap();
-    let group2_result =
-        sdk.group_create(&GroupCreateOpts::new(group2_id.clone().into(), None, false));
+    let group2_result = sdk.group_create(&GroupCreateOpts::new(
+        group2_id.clone().into(),
+        None,
+        false,
+        false,
+    ));
     assert!(group2_result.is_ok());
 
     let doc_result2 = sdk
@@ -343,6 +348,7 @@ fn setup_encrypt_with_explicit_and_policy_grants(
         data_rec_group_id.clone().into(),
         None,
         true,
+        false,
     ));
     assert!(group_result.is_ok());
 
@@ -657,7 +663,7 @@ fn doc_grant_access() {
     let group_id = group_result.unwrap().id().clone();
 
     // group user is not a member of
-    let group2_result = sdk.group_create(&GroupCreateOpts::new(None, None, false));
+    let group2_result = sdk.group_create(&GroupCreateOpts::new(None, None, false, false));
     assert!(group2_result.is_ok());
     let group2_id = group2_result.unwrap().id().clone();
 
