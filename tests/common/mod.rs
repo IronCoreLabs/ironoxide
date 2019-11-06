@@ -46,26 +46,26 @@ lazy_static! {
     };
     static ref CONFIG: Config = {
         use std::{error::Error, fs::File, io::Read};
-        let mut file: File = File::open(IRONCORE_CONFIG_PATH.1.clone()).unwrap_or_else(|err| {
+        let mut file = File::open(IRONCORE_CONFIG_PATH.1.clone()).unwrap_or_else(|err| {
             panic!(
                 "Failed to open config file ({}) with error '{}'",
                 IRONCORE_CONFIG_PATH.0,
-                err.description().to_string()
+                err.description()
             )
         });
-        let mut json_config: String = String::new();
+        let mut json_config = String::new();
         file.read_to_string(&mut json_config).unwrap_or_else(|err| {
             panic!(
                 "Failed to read config file ({}) with error '{}'",
                 IRONCORE_CONFIG_PATH.0,
-                err.description().to_string()
+                err.description()
             )
         });
         serde_json::from_str(&json_config).unwrap_or_else(|err| {
             panic!(
                 "Failed to deserialize config file ({}) with error '{}'",
                 IRONCORE_CONFIG_PATH.0,
-                err.description().to_string()
+                err.description()
             )
         })
     };
@@ -78,12 +78,9 @@ pub fn gen_jwt(account_id: Option<&str>) -> (String, String) {
         .duration_since(UNIX_EPOCH)
         .expect("Time before epoch? Something's wrong.")
         .as_secs();
-
     let jwt_header = json!({});
     let default_account_id = Uuid::new_v4().to_string();
-    let sub = account_id
-        .or_else(|| Some(&default_account_id))
-        .expect("Missing expected JWT account ID.");
+    let sub = account_id.unwrap_or(&default_account_id);
     let jwt_payload = json!({
         "pid" : CONFIG.project_id,
         "sid" : CONFIG.segment_id,
@@ -101,7 +98,7 @@ pub fn gen_jwt(account_id: Option<&str>) -> (String, String) {
     .expect(
         &format!("Error with {}: You don't appear to have the proper service private key to sign the test JWT.", KEYPATH.0)
     );
-    (jwt, format!("{}", sub))
+    (jwt, sub.to_string())
 }
 
 pub fn init_sdk() -> IronOxide {
