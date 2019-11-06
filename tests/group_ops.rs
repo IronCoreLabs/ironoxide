@@ -17,17 +17,21 @@ fn group_create_no_member() {
         Some(create_id_all_classes("").try_into().unwrap()),
         Some("test group name".try_into().unwrap()),
         false,
+        true,
     ));
 
-    assert_eq!(group_result.unwrap().needs_rotation(), Some(false))
+    assert_eq!(group_result.unwrap().needs_rotation(), Some(true))
 }
 
 #[test]
-fn group_create_also_member() {
+fn group_create_with_defaults() -> Result<(), IronOxideErr> {
     let sdk = init_sdk();
 
-    let group_result = sdk.group_create(&Default::default());
-    assert_eq!(group_result.unwrap().needs_rotation(), Some(false))
+    let result = sdk.group_create(&Default::default());
+    let group_result = result?;
+    assert_eq!(group_result.needs_rotation(), Some(false));
+    assert_eq!(group_result.is_member(), true);
+    Ok(())
 }
 
 #[test]
@@ -60,6 +64,7 @@ fn group_delete() {
         Some(create_id_all_classes("").try_into().unwrap()),
         None,
         true,
+        false,
     ));
     assert!(group_result.is_ok());
 
@@ -78,6 +83,7 @@ fn group_update_name() {
         .group_create(&GroupCreateOpts::new(
             Some(create_id_all_classes("").try_into().unwrap()),
             Some("first name".try_into().unwrap()),
+            false,
             false,
         ))
         .unwrap();
@@ -109,6 +115,7 @@ fn group_add_member() {
     let group_result = sdk.group_create(&GroupCreateOpts::new(
         Some(create_id_all_classes("").try_into().unwrap()),
         None,
+        false,
         false,
     ));
     assert!(group_result.is_ok());
@@ -153,6 +160,7 @@ fn group_remove_member() {
         Some(create_id_all_classes("").try_into().unwrap()),
         None,
         true,
+        false,
     ));
     assert!(group_result.is_ok());
     let group_id = group_result.unwrap().id().clone();
@@ -179,6 +187,7 @@ fn group_add_admin() {
     let group_result = sdk.group_create(&GroupCreateOpts::new(
         Some(create_id_all_classes("").try_into().unwrap()),
         None,
+        false,
         false,
     ));
     assert!(group_result.is_ok());
@@ -229,6 +238,7 @@ fn group_get_not_url_safe_id() {
     let group_create_result = sdk.group_create(&GroupCreateOpts::new(
         Some(not_url_safe_id.clone()),
         None,
+        false,
         false,
     ));
 

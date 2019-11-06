@@ -2,9 +2,11 @@ use crate::internal::{
     group_api::{GroupEntity, GroupGetResult, GroupId, GroupMetaResult, GroupName, UserId},
     rest::{
         self,
-        json::{EncryptedOnceValue, PublicKey, TransformKey, TransformedEncryptedValue},
+        json::{
+            Base64Standard, EncryptedOnceValue, PublicKey, TransformKey, TransformedEncryptedValue,
+        },
     },
-    IronOxideErr, RequestAuth, RequestErrorCode,
+    IronOxideErr, RequestAuth, RequestErrorCode, SchnorrSignature,
 };
 use chrono::{DateTime, Utc};
 use futures::Future;
@@ -177,11 +179,12 @@ pub mod group_create {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct GroupCreateReq {
-        pub id: Option<GroupId>,
-        pub name: Option<GroupName>,
-        pub admins: Vec<GroupAdmin>,
-        pub group_public_key: PublicKey,
-        pub members: Option<Vec<GroupMember>>,
+        pub(in crate::internal) id: Option<GroupId>,
+        pub(in crate::internal) name: Option<GroupName>,
+        pub(in crate::internal) admins: Vec<GroupAdmin>,
+        pub(in crate::internal) group_public_key: PublicKey,
+        pub(in crate::internal) members: Option<Vec<GroupMember>>,
+        pub(in crate::internal) needs_rotation: bool,
     }
 
     pub fn group_create<'a>(
@@ -193,6 +196,7 @@ pub mod group_create {
         group_pub_key: internal::PublicKey,
         user_id: &'a UserId,
         member_transform_key: Option<internal::TransformKey>,
+        needs_rotation: bool,
     ) -> impl Future<Item = GroupBasicApiResponse, Error = IronOxideErr> + 'a {
         EncryptedOnceValue::try_from(re_encrypted_once_value)
             .into_future()
@@ -215,6 +219,7 @@ pub mod group_create {
                             user_master_public_key: user_master_pub_key.clone().into(),
                         }]
                     }),
+                    needs_rotation,
                 };
 
                 auth.request.post(
@@ -328,12 +333,15 @@ pub mod group_add_admin {
     #[serde(rename_all = "camelCase")]
     pub struct GroupAddAdminsReq {
         pub admins: Vec<GroupAdmin>,
+        #[serde(with = "Base64Standard")]
+        pub signature: Vec<u8>,
     }
 
     pub fn group_add_admin_request<'a>(
         auth: &'a RequestAuth,
         id: &'a GroupId,
         users: Vec<(UserId, PublicKey, recrypt::api::EncryptedValue)>,
+        signature: SchnorrSignature,
     ) -> impl Future<Item = GroupUserEditResponse, Error = IronOxideErr> + 'a {
         //The users could _technically_ contiain a reencrypted value, if that happened the `try_into` would fail.
         //This can't happen in a normal usecase.
@@ -353,7 +361,10 @@ pub mod group_add_admin {
             let encoded_id = rest::url_encode(&id.0).to_string();
             auth.request.post(
                 &format!("groups/{}/admins", encoded_id),
-                &GroupAddAdminsReq { admins },
+                &GroupAddAdminsReq {
+                    admins,
+                    signature: signature.into(),
+                },
                 RequestErrorCode::GroupAddMember,
                 AuthV2Builder::new(&auth, Utc::now()),
             )
