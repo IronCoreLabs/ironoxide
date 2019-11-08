@@ -399,6 +399,11 @@ pub fn group_add_members<'a, CR: rand::CryptoRng + rand::RngCore>(
                 &device_private_key.recrypt_key(),
             )?;
             let group_private_key = recrypt.derive_private_key(&plaintext);
+            let recrypt_schnorr_sig = recrypt.schnorr_sign(
+                &group_private_key,
+                &group_get.group_master_public_key.into(),
+                group_id,
+            );
             let (mut transform_fails, transform_success) = generate_transform_for_keys(
                 recrypt,
                 &group_private_key,
@@ -406,11 +411,15 @@ pub fn group_add_members<'a, CR: rand::CryptoRng + rand::RngCore>(
                 successes,
             );
             acc_fails.append(&mut transform_fails);
-            Ok((acc_fails, transform_success))
+            Ok((
+                SchnorrSignature(recrypt_schnorr_sig),
+                acc_fails,
+                transform_success,
+            ))
         })
         //Now actually add the members that we have transform keys for.
         //acc_fails is currently the transform generation fails and the key fetch failures.
-        .and_then(move |(acc_fails, transforms_to_send)| {
+        .and_then(move |(schnorr_sig, acc_fails, transforms_to_send)| {
             requests::group_add_member::group_add_member_request(
                 &auth,
                 &group_id,
@@ -420,6 +429,7 @@ pub fn group_add_members<'a, CR: rand::CryptoRng + rand::RngCore>(
                         (user_id, pub_key.into(), transform.into())
                     })
                     .collect(),
+                schnorr_sig,
             )
             .map(|response| group_access_api_response_to_result(acc_fails, response))
         })
