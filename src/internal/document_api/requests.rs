@@ -153,6 +153,7 @@ pub mod document_list {
     }
 
     /// Make GET request to document list endpoint for the current user/device context
+    #[flame]
     pub fn document_list_request(
         auth: &RequestAuth,
     ) -> impl Future<Item = DocumentListApiResponse, Error = IronOxideErr> + '_ {
@@ -167,6 +168,7 @@ pub mod document_list {
 pub mod document_get {
     use super::*;
 
+    #[flame]
     pub fn document_get_request<'a>(
         auth: &'a RequestAuth,
         id: &DocumentId,
@@ -182,6 +184,7 @@ pub mod document_get {
 pub mod edek_transform {
     use super::*;
 
+    #[flame]
     pub fn edek_transform<'a>(
         auth: &'a RequestAuth,
         edek_bytes: &'a [u8],
@@ -233,6 +236,7 @@ pub mod document_create {
         pub(crate) shared_with: Vec<AccessGrant>,
     }
 
+    #[flame]
     pub fn document_create_request<'a>(
         auth: &'a RequestAuth,
         id: DocumentId,
@@ -281,6 +285,7 @@ pub mod policy_get {
         pub(crate) invalid_users_and_groups: Vec<UserOrGroup>,
     }
 
+    #[flame]
     pub fn policy_get_request<'a>(
         auth: &'a RequestAuth,
         policy_grant: &PolicyGrant,
@@ -322,6 +327,7 @@ pub mod document_update {
         name: Option<&'a DocumentName>,
     }
 
+    #[flame]
     pub fn document_update_request<'a>(
         auth: &'a RequestAuth,
         id: &'a DocumentId,
@@ -406,6 +412,7 @@ pub mod document_access {
             failed_ids: Vec<FailRes>,
         }
 
+        #[flame]
         pub fn document_access_api_resp_to_result(
             access_resp: DocumentAccessResponse,
             other_errs: Vec<DocAccessEditErr>,
@@ -441,6 +448,7 @@ pub mod document_access {
         user_or_groups: Vec<UserOrGroupAccess>,
     }
 
+    #[flame]
     pub fn grant_access_request<'a>(
         auth: &'a RequestAuth,
         id: &'a DocumentId,
@@ -469,6 +477,7 @@ pub mod document_access {
         }
     }
 
+    #[flame]
     pub fn revoke_access_request<'a>(
         auth: &'a RequestAuth,
         doc_id: &DocumentId,

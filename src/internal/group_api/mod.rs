@@ -29,11 +29,13 @@ pub enum GroupEntity {
 #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Clone)]
 pub struct GroupId(pub(crate) String);
 impl GroupId {
+    #[flame]
     pub fn id(&self) -> &str {
         &self.0
     }
 
     /// Create a GroupId from a string with no validation. Useful for ids coming back from the web service.
+    #[flame]
     pub fn unsafe_from_string(id: String) -> GroupId {
         GroupId(id)
     }
@@ -60,6 +62,7 @@ impl TryFrom<&str> for GroupId {
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct GroupName(pub(crate) String);
 impl GroupName {
+    #[flame]
     pub fn name(&self) -> &String {
         &self.0
     }
@@ -88,6 +91,7 @@ impl GroupListResult {
         GroupListResult { result: metas }
     }
 
+    #[flame]
     pub fn result(&self) -> &Vec<GroupMetaResult> {
         &self.result
     }
@@ -106,31 +110,39 @@ pub struct GroupMetaResult {
 }
 impl GroupMetaResult {
     /// A single document grant/revoke failure for a user or group.
+    #[flame]
     pub fn id(&self) -> &GroupId {
         &self.id
     }
+    #[flame]
     pub fn name(&self) -> Option<&GroupName> {
         self.name.as_ref()
     }
     /// true if the calling user is a group administrator
+    #[flame]
     pub fn is_admin(&self) -> bool {
         self.is_admin
     }
     /// true if the calling user is a group member
+    #[flame]
     pub fn is_member(&self) -> bool {
         self.is_member
     }
+    #[flame]
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
+    #[flame]
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
     }
+    #[flame]
     pub fn group_master_public_key(&self) -> &PublicKey {
         &self.group_master_public_key
     }
     /// `Some(boolean)` indicating if the group needs rotation if the calling user is a group admin.
     /// `None` if the calling user is not a group admin.
+    #[flame]
     pub fn needs_rotation(&self) -> Option<bool> {
         self.needs_rotation
     }
@@ -153,39 +165,49 @@ pub struct GroupGetResult {
 }
 impl GroupGetResult {
     /// unique id of the group (within the segment)
+    #[flame]
     pub fn id(&self) -> &GroupId {
         &self.id
     }
+    #[flame]
     pub fn name(&self) -> Option<&GroupName> {
         self.name.as_ref()
     }
+    #[flame]
     pub fn group_master_public_key(&self) -> &PublicKey {
         &self.group_master_public_key
     }
     /// true if the calling user is a group administrator
+    #[flame]
     pub fn is_admin(&self) -> bool {
         self.is_admin
     }
     /// true if the calling user is a group member
+    #[flame]
     pub fn is_member(&self) -> bool {
         self.is_member
     }
+    #[flame]
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
+    #[flame]
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
     }
     /// List of all group admins. Group admins can change group membership.
+    #[flame]
     pub fn admin_list(&self) -> Option<&Vec<UserId>> {
         self.admin_list.as_ref()
     }
     /// List of group members. Members of a group can decrypt values encrypted to the group.
+    #[flame]
     pub fn member_list(&self) -> Option<&Vec<UserId>> {
         self.member_list.as_ref()
     }
     /// `Some(boolean)` indicating if the group needs rotation if the calling user is a group admin.
     /// `None` if the calling user is not a group admin.
+    #[flame]
     pub fn needs_rotation(&self) -> Option<bool> {
         self.needs_rotation
     }
@@ -202,9 +224,11 @@ impl GroupAccessEditErr {
     pub(crate) fn new(user: UserId, error: String) -> GroupAccessEditErr {
         GroupAccessEditErr { user, error }
     }
+    #[flame]
     pub fn user(&self) -> &UserId {
         &self.user
     }
+    #[flame]
     pub fn error(&self) -> &String {
         &self.error
     }
@@ -219,17 +243,20 @@ pub struct GroupAccessEditResult {
 
 impl GroupAccessEditResult {
     /// Users whose access could not be modified.
+    #[flame]
     pub fn failed(&self) -> &Vec<GroupAccessEditErr> {
         &self.failed
     }
 
     /// Users whose access was modified.
+    #[flame]
     pub fn succeeded(&self) -> &Vec<UserId> {
         &self.succeeded
     }
 }
 
 // List all of the groups that the requesting user is either a member or admin of
+#[flame]
 pub fn list<'a>(
     auth: &'a RequestAuth,
     ids: Option<&'a Vec<GroupId>>,
@@ -300,6 +327,7 @@ pub(crate) fn get_group_keys<'a>(
 /// `add_as_member` - if true the user represented by the current DeviceContext will also be added to the group's membership.
 ///     If false, the user will not be an member (but will still be an admin)
 /// `needs_rotation` - true if the group private key should be rotated by an admin, else false
+#[flame]
 pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &'a RequestAuth,
@@ -311,6 +339,7 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
 ) -> impl Future<Item = GroupMetaResult, Error = IronOxideErr> + 'a {
     transform::gen_group_keys(recrypt)
         .and_then(move |(plaintext, group_priv_key, group_pub_key)| {
+            flame::start("group transform key");
             // encrypt the group secret to the current user as they will be the group admin
             Ok({
                 let encrypted_group_key = recrypt.encrypt(
@@ -333,11 +362,13 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                 } else {
                     None
                 };
+                flame::end("group transform key");
                 (group_pub_key, encrypted_group_key, transform_key)
             })
         })
         .into_future()
         .and_then(move |(group_pub_key, encrypted_group_key, transform_key)| {
+            flame::start("group_create network");
             requests::group_create::group_create(
                 &auth,
                 user_master_pub_key,
@@ -350,10 +381,14 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                 needs_rotation,
             )
         })
-        .and_then(|resp| resp.try_into())
+        .and_then(|resp| {
+            flame::end("group_create network");
+            resp.try_into()
+        })
 }
 
 /// Get the metadata for a group given its ID
+#[flame]
 pub fn get_metadata<'a>(
     auth: &'a RequestAuth,
     id: &GroupId,
@@ -362,6 +397,7 @@ pub fn get_metadata<'a>(
 }
 
 //Delete the provided group given it's ID
+#[flame]
 pub fn group_delete<'a>(
     auth: &'a RequestAuth,
     group_id: &GroupId,
@@ -379,6 +415,7 @@ pub fn group_delete<'a>(
 /// `users` - The list of users thet will be added to the group as members.
 /// # Returns GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
 ///   the reason they were not.
+#[flame]
 pub fn group_add_members<'a, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &'a RequestAuth,
@@ -434,6 +471,7 @@ pub fn group_add_members<'a, CR: rand::CryptoRng + rand::RngCore>(
 /// `users` - The list of users that will be added to the group as admins.
 /// # Returns GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
 ///   the reason they were not.
+#[flame]
 pub fn group_add_admins<'a, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &'a RequestAuth,
@@ -545,6 +583,7 @@ fn group_access_api_response_to_result(
 
 // Update a group's name. Value can be updated to either a new name with a Some or the name value can be cleared out
 // by providing a None.
+#[flame]
 pub fn update_group_name<'a>(
     auth: &'a RequestAuth,
     id: &'a GroupId,
@@ -555,6 +594,7 @@ pub fn update_group_name<'a>(
 
 /// Remove the provided list of users as either members or admins (based on the entity_type) from the provided group ID. The
 /// request and response format of these two operations are identical which is why we have a single method for it.
+#[flame]
 pub fn group_remove_entity<'a>(
     auth: &'a RequestAuth,
     id: &'a GroupId,

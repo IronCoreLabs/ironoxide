@@ -36,6 +36,10 @@ percent-encoding="~1.0"
 log = "~0.4"
 protobuf = {version = "~2.8", features = ["with-bytes"]}
 
+# added for profiling, don't merge this to master
+flamer = "0.4"
+flame = "0.2.2"
+
 [dev-dependencies]
 frank_jwt = "~3.1.2"
 galvanic-assert = "~0.8"

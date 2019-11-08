@@ -24,6 +24,8 @@ use serde::export::{
     fmt::{Display, Error},
     Formatter,
 };
+use std::thread::sleep;
+use std::time::Duration;
 use std::{borrow::BorrowMut, ops::Deref};
 
 lazy_static! {
@@ -111,6 +113,7 @@ impl Display for PercentEncodedString {
 }
 
 ///URL encode the provided string so it can be used within a URL
+#[flame]
 pub fn url_encode(token: &str) -> PercentEncodedString {
     PercentEncodedString(percent_encoding::utf8_percent_encode(token, ICL_ENCODE_SET).to_string())
 }
@@ -126,6 +129,7 @@ pub enum Authorization<'a> {
 
 impl<'a> Authorization<'a> {
     const VERSION_NUM: u8 = 2;
+    #[flame]
     pub fn to_auth_header(&self) -> HeaderMap {
         let auth_value = match self {
             Authorization::JwtAuth(jwt) => format!("jwt {}", jwt.0)
@@ -147,6 +151,7 @@ impl<'a> Authorization<'a> {
         headers
     }
 
+    #[flame]
     pub fn create_signatures_v2(
         time: DateTime<Utc>,
         segment_id: usize,
@@ -316,12 +321,14 @@ impl<'a> IronCoreRequest<'a> {
         IronCoreRequest { base_url }
     }
 
+    #[flame]
     pub fn base_url(&self) -> &'a str {
         self.base_url
     }
 
     ///POST body to the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
+    #[flame]
     pub fn post_jwt_auth<A: Serialize, B: DeserializeOwned>(
         &self,
         relative_url: &str,
@@ -342,6 +349,7 @@ impl<'a> IronCoreRequest<'a> {
 
     ///POST body to the resource at relative_url using IronCore authorization.
     ///If the request fails a RequestError will be raised.
+    #[flame]
     pub fn post<A: Serialize + 'a, B: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
@@ -359,6 +367,7 @@ impl<'a> IronCoreRequest<'a> {
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
     }
+    #[flame]
     pub fn post_raw<B: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
@@ -422,6 +431,7 @@ impl<'a> IronCoreRequest<'a> {
     }
     ///PUT body to the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
+    #[flame]
     pub fn put<A: Serialize + 'a, B: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
@@ -442,6 +452,7 @@ impl<'a> IronCoreRequest<'a> {
 
     ///GET the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
+    #[flame]
     pub fn get<A: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
@@ -462,6 +473,7 @@ impl<'a> IronCoreRequest<'a> {
 
     ///GET the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
+    #[flame]
     pub fn get_with_query_params<A: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
@@ -481,12 +493,14 @@ impl<'a> IronCoreRequest<'a> {
     }
 
     ///This should be used for a GET where the result can be empty. If the result is empty the returned value will be None.
+    #[flame]
     pub fn get_with_empty_result_jwt_auth<A: DeserializeOwned>(
         &self,
         relative_url: &str,
         error_code: RequestErrorCode,
         auth: &Authorization,
     ) -> impl Future<Item = Option<A>, Error = IronOxideErr> {
+        //        sleep(Duration::from_secs(1));
         //A little lie here, String isn't actually the body type as it's unused
         self.request::<String, _, String, _>(
             relative_url,
@@ -496,17 +510,21 @@ impl<'a> IronCoreRequest<'a> {
             error_code,
             auth.to_auth_header(),
             move |server_resp| {
-                if server_resp.len() > 0 {
+                flame::start("process get result");
+                let r = if server_resp.len() > 0 {
                     IronCoreRequest::deserialize_body(&server_resp, error_code).map(|a| Some(a))
                 } else {
                     Ok(None)
-                }
+                };
+                flame::end("process get result");
+                r
             },
         )
     }
 
     /// DELETE body to the resource at relative_url using auth for authorization.
     /// If the request fails a RequestError will be raised.
+    #[flame]
     pub fn delete<A: Serialize + 'a, B: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
@@ -527,6 +545,7 @@ impl<'a> IronCoreRequest<'a> {
 
     ///Make a request to the url using the specified method. DEFAULT_HEADERS will be used as well as whatever headers are passed
     /// in. The response will be sent to `resp_handler` so the caller can make the received bytes however they want.
+    #[flame]
     pub fn request<A, B, Q, F>(
         &self,
         relative_url: &str,
@@ -564,6 +583,7 @@ impl<'a> IronCoreRequest<'a> {
 
     ///Make a request to the url using the specified method. DEFAULT_HEADERS will be used as well as whatever headers are passed
     /// in. The response will be sent to `resp_handler` so the caller can make the received bytes however they want.
+    #[flame]
     pub fn request_ironcore_auth<A, B, F>(
         &self,
         relative_url: &str,
@@ -613,6 +633,7 @@ impl<'a> IronCoreRequest<'a> {
         make_req()
             .into_future()
             .and_then(move |(mut req, body_bytes)| {
+                flame::start("request run");
                 // use the completed request to finish authorization v2 headers
                 let maybe_auth = SignatureUrlString::new(req.url().as_str())
                     .map(|sig_url| {
@@ -621,7 +642,7 @@ impl<'a> IronCoreRequest<'a> {
                     .map_err(|e| IronOxideErr::from((e, error_code)));
 
                 // we only support Authorization::Version2 with this call
-                match maybe_auth {
+                let r = match maybe_auth {
                     Ok(auth) => {
                         if let Authorization::Version2 {
                             user_context,
@@ -644,7 +665,9 @@ impl<'a> IronCoreRequest<'a> {
                         }
                     }
                     Err(e) => Either::B(futures::future::err(e)),
-                }
+                };
+                flame::end("request run");
+                r
             })
     }
 
@@ -697,6 +720,8 @@ impl<'a> IronCoreRequest<'a> {
                 }
             })
     }
+
+    #[flame]
     fn send_req_with_builder<B, F>(
         req: RequestBuilder,
         error_code: RequestErrorCode,
@@ -709,10 +734,14 @@ impl<'a> IronCoreRequest<'a> {
         req.send()
             //Parse the body content into bytes
             .and_then(|res| {
+                flame::start("send_req_with_builder serialize body");
                 let status_code = res.status();
-                res.into_body()
+                let b = res
+                    .into_body()
                     .concat2()
-                    .map(move |body| (status_code, body))
+                    .map(move |body| (status_code, body));
+                flame::end("send_req_with_builder serialize body");
+                b
             })
             //Now make the error type into the IronOxideErr and run the resp_handler which was passed to us.
             .then(move |resp| {
@@ -733,6 +762,7 @@ impl<'a> IronCoreRequest<'a> {
             })
     }
 
+    #[flame]
     pub fn delete_with_no_body<B: DeserializeOwned + 'a>(
         &self,
         relative_url: &str,
@@ -748,6 +778,7 @@ impl<'a> IronCoreRequest<'a> {
     }
 
     ///Deserialize the body of the response into a Result.
+    #[flame]
     fn deserialize_body<A: DeserializeOwned>(
         body: &[u8],
         error_code: RequestErrorCode,

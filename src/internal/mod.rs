@@ -168,6 +168,7 @@ const NAME_AND_ID_MAX_LEN: usize = 100;
 /// Validate that the provided id is valid for our user/document/group IDs. Validates that the
 /// ID has a length and that it matches our restricted set of characters. Also takes the readable
 /// type of ID for usage within any resulting error messages.
+#[flame]
 pub fn validate_id(id: &str, id_type: &str) -> Result<String, IronOxideErr> {
     let id_regex = Regex::new("^[a-zA-Z0-9_.$#|@/:;=+'-]+$").expect("regex is valid");
     let trimmed_id = id.trim();
@@ -189,6 +190,7 @@ pub fn validate_id(id: &str, id_type: &str) -> Result<String, IronOxideErr> {
 /// Validate that the provided document/group name is valid. Ensures that the length of
 /// the name is between 1-100 characters. Also takes the readable type of the name for
 /// usage within any resulting error messages.
+#[flame]
 pub fn validate_name(name: &str, name_type: &str) -> Result<String, IronOxideErr> {
     let trimmed_name = name.trim();
     if trimmed_name.trim().is_empty() || trimmed_name.len() > NAME_AND_ID_MAX_LEN {
@@ -230,6 +232,7 @@ pub mod auth_v2 {
         /// # Returns
         /// Authorization::Version2 that contains all the information necessary to make an
         /// IronCore authenticated request to the webservice.
+        #[flame]
         pub fn finish_with(
             &self,
             sig_url: SignatureUrlString,
@@ -258,6 +261,7 @@ pub struct RequestAuth {
 }
 
 impl RequestAuth {
+    #[flame]
     pub fn create_signature_v2<'a>(
         &'a self,
         current_time: DateTime<Utc>,
@@ -276,14 +280,17 @@ impl RequestAuth {
         )
     }
 
+    #[flame]
     pub fn account_id(&self) -> &UserId {
         &self.account_id
     }
 
+    #[flame]
     pub fn segment_id(&self) -> usize {
         self.segment_id
     }
 
+    #[flame]
     pub fn signing_private_key(&self) -> &DeviceSigningKeyPair {
         &self.signing_private_key
     }
@@ -326,22 +333,27 @@ impl DeviceContext {
         &self.auth
     }
 
+    #[flame]
     pub fn account_id(&self) -> &UserId {
         &self.auth.account_id
     }
 
+    #[flame]
     pub fn segment_id(&self) -> usize {
         self.auth.segment_id
     }
 
+    #[flame]
     pub fn signing_private_key(&self) -> &DeviceSigningKeyPair {
         &self.auth.signing_private_key
     }
 
+    #[flame]
     pub fn device_id(&self) -> &DeviceId {
         &self.auth.device_id
     }
 
+    #[flame]
     pub fn device_private_key(&self) -> &PrivateKey {
         &self.device_private_key
     }
@@ -428,6 +440,7 @@ impl PublicKey {
         let re_pub = RecryptPublicKey::new_from_slice(bytes)?;
         Ok(PublicKey(re_pub))
     }
+    #[flame]
     pub fn as_bytes(&self) -> Vec<u8> {
         let (mut x, mut y) = self.to_bytes_x_y();
         x.append(&mut y);
@@ -441,6 +454,7 @@ impl PublicKey {
 pub struct PrivateKey(RecryptPrivateKey);
 impl PrivateKey {
     const BYTES_SIZE: usize = RecryptPrivateKey::ENCODED_SIZE_BYTES;
+    #[flame]
     pub fn as_bytes(&self) -> &[u8; PrivateKey::BYTES_SIZE] {
         &self.0.bytes()
     }
@@ -523,10 +537,12 @@ pub(crate) struct AugmentationFactor(PrivateKey);
 
 impl AugmentationFactor {
     /// Use recrypt to generate a new AugmentationFactor
+    #[flame]
     pub fn generate_new<R: KeyGenOps>(recrypt: &R) -> AugmentationFactor {
         AugmentationFactor(recrypt.random_private_key().into())
     }
 
+    #[flame]
     pub fn as_bytes(&self) -> &[u8; 32] {
         self.0.as_bytes()
     }
@@ -552,10 +568,12 @@ impl KeyPair {
         }
     }
 
+    #[flame]
     pub fn public_key(&self) -> &PublicKey {
         &self.public_key
     }
 
+    #[flame]
     pub fn private_key(&self) -> &PrivateKey {
         &self.private_key
     }
@@ -615,12 +633,15 @@ impl<'de> Deserialize<'de> for DeviceSigningKeyPair {
 }
 
 impl DeviceSigningKeyPair {
+    #[flame]
     pub fn sign(&self, payload: &[u8]) -> [u8; 64] {
         self.0.sign(&payload).into()
     }
+    #[flame]
     pub fn as_bytes(&self) -> &[u8; 64] {
         &self.0.bytes()
     }
+    #[flame]
     pub fn public_key(&self) -> [u8; 32] {
         self.0.public_key().into()
     }
@@ -655,6 +676,7 @@ impl TryFrom<&str> for Jwt {
     }
 }
 impl Jwt {
+    #[flame]
     pub fn to_utf8(&self) -> Vec<u8> {
         self.0.as_bytes().to_vec()
     }
@@ -707,6 +729,7 @@ impl<T> WithKey<T> {
 /// }; // lock released here
 /// ```
 ///
+#[flame]
 pub(crate) fn take_lock<T>(m: &Mutex<T>) -> MutexGuard<T> {
     m.lock().unwrap_or_else(|e| {
         let error = format!("Error when acquiring lock: {}", e);
@@ -738,6 +761,7 @@ pub(crate) mod test {
     use std::fmt::Debug;
 
     /// String contains matcher to assert that the provided substring exists in the provided value
+    #[flame]
     pub fn contains<'a>(expected: &'a str) -> Box<dyn Matcher<String> + 'a> {
         Box::new(move |actual: &String| {
             let builder = MatchResultBuilder::for_("contains");
@@ -751,6 +775,7 @@ pub(crate) mod test {
     }
 
     /// Length matcher to assert that the provided iterable value has the expected size
+    #[flame]
     pub fn length<'a, I, T>(expected: &'a usize) -> Box<dyn Matcher<I> + 'a>
     where
         T: 'a,
@@ -959,6 +984,7 @@ pub(crate) mod test {
         assert!(maybe_public_key.is_err())
     }
 
+    #[flame]
     pub fn gen_priv_key() -> PrivateKey {
         let recr = recrypt::api::Recrypt::new();
         let (re_privk, _) = recr.generate_key_pair().unwrap();

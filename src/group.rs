@@ -152,13 +152,17 @@ pub trait GroupOps {
 }
 
 impl GroupOps for crate::IronOxide {
+    #[flame("sdk")]
     fn group_list(&self) -> Result<GroupListResult> {
         let mut rt = Runtime::new().unwrap();
         rt.block_on(group_api::list(self.device.auth(), None))
     }
 
+    #[flame("sdk")]
     fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupMetaResult> {
+        flame::start("tokio create");
         let mut rt = Runtime::new().unwrap();
+        flame::end("tokio create");
         let GroupCreateOpts {
             id: maybe_id,
             name: maybe_name,
@@ -166,7 +170,7 @@ impl GroupOps for crate::IronOxide {
             needs_rotation,
         } = opts.clone();
 
-        rt.block_on(group_api::group_create(
+        let result_future = group_api::group_create(
             &self.recrypt,
             self.device.auth(),
             &self.user_master_pub_key,
@@ -174,24 +178,30 @@ impl GroupOps for crate::IronOxide {
             maybe_name,
             add_as_member,
             needs_rotation,
-        ))
+        );
+        let r = rt.block_on(result_future);
+        r
     }
 
+    #[flame("sdk")]
     fn group_get_metadata(&self, id: &GroupId) -> Result<GroupGetResult> {
         let mut rt = Runtime::new().unwrap();
         rt.block_on(group_api::get_metadata(self.device.auth(), id))
     }
 
+    #[flame("sdk")]
     fn group_delete(&self, id: &GroupId) -> Result<GroupId> {
         let mut rt = Runtime::new().unwrap();
         rt.block_on(group_api::group_delete(self.device.auth(), id))
     }
 
+    #[flame("sdk")]
     fn group_update_name(&self, id: &GroupId, name: Option<&GroupName>) -> Result<GroupMetaResult> {
         let mut rt = Runtime::new().unwrap();
         rt.block_on(group_api::update_group_name(self.device.auth(), id, name))
     }
 
+    #[flame("sdk")]
     fn group_add_members(
         &self,
         id: &GroupId,
@@ -207,6 +217,7 @@ impl GroupOps for crate::IronOxide {
         ))
     }
 
+    #[flame("sdk")]
     fn group_remove_members(
         &self,
         id: &GroupId,
@@ -221,6 +232,7 @@ impl GroupOps for crate::IronOxide {
         ))
     }
 
+    #[flame("sdk")]
     fn group_add_admins(&self, id: &GroupId, users: &[UserId]) -> Result<GroupAccessEditResult> {
         let mut rt = Runtime::new().unwrap();
         rt.block_on(group_api::group_add_admins(
@@ -232,6 +244,7 @@ impl GroupOps for crate::IronOxide {
         ))
     }
 
+    #[flame("sdk")]
     fn group_remove_admins(
         &self,
         id: &GroupId,

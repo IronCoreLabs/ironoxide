@@ -69,6 +69,7 @@ impl EncryptedMasterKey {
 
     /// A bytes representation of EncryptedMasterKey
     /// The reciprocal of `EncryptedMasterKey::new_from_slice`
+    #[flame]
     pub fn bytes(&self) -> [u8; EncryptedMasterKey::SIZE_BYTES] {
         let mut dest = [0u8; EncryptedMasterKey::SIZE_BYTES];
         let vec = [
@@ -90,6 +91,7 @@ pub struct AesEncryptedValue {
     ciphertext: Vec<u8>,
 }
 impl AesEncryptedValue {
+    #[flame]
     pub fn bytes(&self) -> Vec<u8> {
         [&self.aes_iv[..], &self.ciphertext].concat()
     }
@@ -119,6 +121,7 @@ impl From<ring::error::Unspecified> for IronOxideErr {
     }
 }
 
+#[flame]
 /// Derive a key from a string password. Returns a tuple of salt that was used as part of the deriviation and the
 /// key, both of which are 32 bytes.
 fn derive_key_from_password(password: &str, salt: [u8; PBKDF2_SALT_LEN]) -> [u8; AES_KEY_LEN] {
@@ -135,6 +138,7 @@ fn derive_key_from_password(password: &str, salt: [u8; PBKDF2_SALT_LEN]) -> [u8;
 
 /// Encrypt a users master private key using the provided password. Uses the password to generate a derived AES key
 /// via PBKDF2 and then AES encrypts the users private key with the derived AES key.
+#[flame]
 pub fn encrypt_user_master_key<R: CryptoRng + RngCore>(
     rng: &Mutex<R>,
     password: &str,
@@ -160,6 +164,7 @@ pub fn encrypt_user_master_key<R: CryptoRng + RngCore>(
 /// Decrypts a users encrypted master private key using the provided password. Uses the password and the provided pbkdf2 salt
 /// to generate a derived AES key. Takes that derived AES key and uses it to try and decrypt the provided encrypted user master
 /// key.
+#[flame]
 pub fn decrypt_user_master_key(
     password: &str,
     encrypted_master_key: &EncryptedMasterKey,
@@ -199,6 +204,7 @@ impl aead::NonceSequence for SingleUseNonceGenerator {
 
 /// Encrypt the provided variable length plaintext with the provided 32 byte AES key. Returns a Result which
 /// is a struct which contains the resulting ciphertext and the IV used during encryption.
+#[flame]
 pub fn encrypt<R: CryptoRng + RngCore>(
     rng: &Mutex<R>,
     plaintext: &Vec<u8>,
@@ -224,6 +230,7 @@ use futures::future::IntoFuture;
 use std::{ops::DerefMut, sync::Mutex};
 
 /// Like `encrypt`, just wrapped in a Future for convenience
+#[flame]
 pub fn encrypt_future<R: CryptoRng + RngCore>(
     rng: &Mutex<R>,
     plaintext: &Vec<u8>,
@@ -237,6 +244,7 @@ pub fn encrypt_future<R: CryptoRng + RngCore>(
 /// Decrypt the provided ciphertext using the provided 12 byte IV and 32 byte key. Mutates the provided ciphertext
 /// to be the decrypted value but leaves the auth tag at the end unmodified. Returns a result which is the plaintext
 /// as an array.
+#[flame]
 pub fn decrypt(
     encrypted_doc: &mut AesEncryptedValue,
     key: [u8; AES_KEY_LEN],

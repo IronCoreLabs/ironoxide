@@ -108,17 +108,21 @@ impl PolicyGrant {
         }
     }
 
+    #[flame]
     pub fn category(&self) -> Option<&Category> {
         self.category.as_ref()
     }
 
+    #[flame]
     pub fn sensitivity(&self) -> Option<&Sensitivity> {
         self.sensitivity.as_ref()
     }
 
+    #[flame]
     pub fn data_subject(&self) -> Option<&DataSubject> {
         self.data_subject.as_ref()
     }
+    #[flame]
     pub fn substitute_user(&self) -> Option<&UserId> {
         self.substitute_user.as_ref()
     }
@@ -151,6 +155,7 @@ macro_rules! policy_field {
         impl $t {
             pub(crate) const QUERY_PARAM: &'static str = $l;
 
+            #[flame]
             pub fn inner(&self) -> &str {
                 self.0.as_str()
             }

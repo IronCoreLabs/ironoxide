@@ -1,13 +1,37 @@
 use crate::common::create_second_user;
+use chrono::Utc;
 use common::{create_id_all_classes, init_sdk};
 use ironoxide::{group::*, prelude::*};
 use std::convert::TryInto;
+use std::fs::File;
 use uuid::Uuid;
 
 mod common;
 
 #[macro_use]
 extern crate serde_json;
+
+macro_rules! func_name {
+    () => {{
+        fn f() {}
+        fn type_name_of<T>(_: T) -> &'static str {
+            std::any::type_name::<T>()
+        }
+        let name = type_name_of(f);
+        let full = &name[..name.len() - 3];
+        match full.rfind(':') {
+            Some(i) => &full[i + 1..],
+            None => full,
+        }
+    }};
+}
+
+pub fn write_flame_results(func_name: &str) {
+    flame::dump_html(
+        &mut File::create(format!("target/{}-{}", func_name, "flame-graph.html")).unwrap(),
+    )
+    .unwrap();
+}
 
 #[test]
 fn group_create_no_member() {
@@ -20,7 +44,10 @@ fn group_create_no_member() {
         true,
     ));
 
-    assert_eq!(group_result.unwrap().needs_rotation(), Some(true))
+    assert_eq!(group_result.unwrap().needs_rotation(), Some(true));
+
+    flame::dump_stdout();
+    write_flame_results(func_name!())
 }
 
 #[test]

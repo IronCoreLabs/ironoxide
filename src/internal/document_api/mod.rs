@@ -48,6 +48,7 @@ const CURRENT_DOCUMENT_ID_VERSION: u8 = 2;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentId(pub(crate) String);
 impl DocumentId {
+    #[flame]
     pub fn id(&self) -> &str {
         &self.0
     }
@@ -76,6 +77,7 @@ impl TryFrom<String> for DocumentId {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DocumentName(pub(crate) String);
 impl DocumentName {
+    #[flame]
     pub fn name(&self) -> &String {
         &self.0
     }
@@ -177,6 +179,7 @@ pub struct VisibleUser {
     id: UserId,
 }
 impl VisibleUser {
+    #[flame]
     pub fn id(&self) -> &UserId {
         &self.id
     }
@@ -189,9 +192,11 @@ pub struct VisibleGroup {
     name: Option<GroupName>,
 }
 impl VisibleGroup {
+    #[flame]
     pub fn id(&self) -> &GroupId {
         &self.id
     }
+    #[flame]
     pub fn name(&self) -> Option<&GroupName> {
         self.name.as_ref()
     }
@@ -203,18 +208,23 @@ impl VisibleGroup {
 #[derive(Clone, Debug)]
 pub struct DocumentListMeta(DocumentListApiResponseItem);
 impl DocumentListMeta {
+    #[flame]
     pub fn id(&self) -> &DocumentId {
         &self.0.id
     }
+    #[flame]
     pub fn name(&self) -> Option<&DocumentName> {
         self.0.name.as_ref()
     }
+    #[flame]
     pub fn association_type(&self) -> &AssociationType {
         &self.0.association.typ
     }
+    #[flame]
     pub fn created(&self) -> &DateTime<Utc> {
         &self.0.created
     }
+    #[flame]
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.0.updated
     }
@@ -226,6 +236,7 @@ pub struct DocumentListResult {
     result: Vec<DocumentListMeta>,
 }
 impl DocumentListResult {
+    #[flame]
     pub fn result(&self) -> &Vec<DocumentListMeta> {
         &self.result
     }
@@ -235,24 +246,31 @@ impl DocumentListResult {
 #[derive(Clone)]
 pub struct DocumentMetadataResult(DocumentMetaApiResponse);
 impl DocumentMetadataResult {
+    #[flame]
     pub fn id(&self) -> &DocumentId {
         &self.0.id
     }
+    #[flame]
     pub fn name(&self) -> Option<&DocumentName> {
         self.0.name.as_ref()
     }
+    #[flame]
     pub fn created(&self) -> &DateTime<Utc> {
         &self.0.created
     }
+    #[flame]
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.0.updated
     }
+    #[flame]
     pub fn association_type(&self) -> &AssociationType {
         &self.0.association.typ
     }
+    #[flame]
     pub fn visible_to_users(&self) -> &Vec<VisibleUser> {
         &self.0.visible_to.users
     }
+    #[flame]
     pub fn visible_to_groups(&self) -> &Vec<VisibleGroup> {
         &self.0.visible_to.groups
     }
@@ -302,18 +320,23 @@ impl DocumentEncryptUnmanagedResult {
         })
     }
 
+    #[flame]
     pub fn id(&self) -> &DocumentId {
         &self.id
     }
+    #[flame]
     pub fn encrypted_data(&self) -> &[u8] {
         &self.encrypted_data
     }
+    #[flame]
     pub fn encrypted_deks(&self) -> &[u8] {
         &self.encrypted_deks
     }
+    #[flame]
     pub fn access_errs(&self) -> &[DocAccessEditErr] {
         &self.access_errs
     }
+    #[flame]
     pub fn grants(&self) -> &[UserOrGroup] {
         &self.grants
     }
@@ -339,24 +362,31 @@ pub struct DocumentEncryptResult {
     access_errs: Vec<DocAccessEditErr>,
 }
 impl DocumentEncryptResult {
+    #[flame]
     pub fn id(&self) -> &DocumentId {
         &self.id
     }
+    #[flame]
     pub fn name(&self) -> Option<&DocumentName> {
         self.name.as_ref()
     }
+    #[flame]
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
+    #[flame]
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
     }
+    #[flame]
     pub fn encrypted_data(&self) -> &[u8] {
         &self.encrypted_data
     }
+    #[flame]
     pub fn grants(&self) -> &[UserOrGroup] {
         &self.grants
     }
+    #[flame]
     pub fn access_errs(&self) -> &[DocAccessEditErr] {
         &self.access_errs
     }
@@ -371,18 +401,23 @@ pub struct DocumentDecryptResult {
     decrypted_data: Vec<u8>,
 }
 impl DocumentDecryptResult {
+    #[flame]
     pub fn id(&self) -> &DocumentId {
         &self.id
     }
+    #[flame]
     pub fn name(&self) -> Option<&DocumentName> {
         self.name.as_ref()
     }
+    #[flame]
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
+    #[flame]
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
     }
+    #[flame]
     pub fn decrypted_data(&self) -> &[u8] {
         &self.decrypted_data
     }
@@ -423,11 +458,13 @@ impl DocumentAccessResult {
     }
 
     /// Users whose access was successfully changed.
+    #[flame]
     pub fn succeeded(&self) -> &[UserOrGroup] {
         &self.succeeded
     }
 
     /// Users whose access was not changed.
+    #[flame]
     pub fn failed(&self) -> &[DocAccessEditErr] {
         &self.failed
     }
@@ -444,17 +481,20 @@ pub struct DocumentDecryptUnmanagedResult {
 }
 
 impl DocumentDecryptUnmanagedResult {
+    #[flame]
     pub fn id(&self) -> &DocumentId {
         &self.id
     }
 
     /// user/group that granted access to the encrypted data. More specifically, the
     /// user/group associated with the EDEK that was chosen and transformed by the webservice
+    #[flame]
     pub fn access_via(&self) -> &UserOrGroup {
         &self.access_via
     }
 
     /// plaintext user data
+    #[flame]
     pub fn decrypted_data(&self) -> &[u8] {
         &self.decrypted_data.0
     }
@@ -491,6 +531,7 @@ impl From<&GroupId> for UserOrGroup {
 
 /// List all documents that the current user has the ability to see. Either documents that are encrypted
 /// to them directly (owner) or documents shared to them via user (fromUser) or group (fromGroup).
+#[flame]
 pub fn document_list(
     auth: &RequestAuth,
 ) -> impl Future<Item = DocumentListResult, Error = IronOxideErr> + '_ {
@@ -502,6 +543,7 @@ pub fn document_list(
 }
 
 /// Get the metadata ane encrypted key for a specific document given its ID.
+#[flame]
 pub fn document_get_metadata<'a>(
     auth: &'a RequestAuth,
     id: &DocumentId,
@@ -510,11 +552,13 @@ pub fn document_get_metadata<'a>(
 }
 
 /// Attempt to parse the provided encrypted document header and extract out the ID if present
+#[flame]
 pub fn get_id_from_bytes(encrypted_document: &[u8]) -> Result<DocumentId, IronOxideErr> {
     parse_document_parts(&encrypted_document).map(|header| header.0.document_id)
 }
 
 /// Encrypt a new document and share it with explicit users/groups and with users/groups specified by a policy
+#[flame]
 pub fn encrypt_document<
     'a,
     R1: rand::CryptoRng + rand::RngCore,
@@ -628,6 +672,7 @@ fn resolve_keys_for_grants<'a>(
 /// Encrypts a document but does not create the document in the IronCore system.
 /// The resultant DocumentDetachedEncryptResult contains both the EncryptedDeks and the AesEncryptedValue
 /// Both pieces will be required for decryption.
+#[flame]
 pub fn edek_encrypt_document<'a, R1, R2: 'a>(
     auth: &'a RequestAuth,
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
@@ -899,6 +944,7 @@ fn document_create<'a>(
 
 /// Encrypt the provided plaintext using the DEK from the provided document ID but with a new AES IV. Allows updating the encrypted bytes
 /// of a document without having to change document access.
+#[flame]
 pub fn document_update_bytes<
     'a,
     R1: rand::CryptoRng + rand::RngCore,
@@ -940,6 +986,7 @@ pub fn document_update_bytes<
 
 /// Decrypt the provided document with the provided device private key. Return metadata about the document
 /// that was decrypted along with its decrypted bytes.
+#[flame]
 pub fn decrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -970,6 +1017,7 @@ pub fn decrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
 
 /// Decrypt the unmanaged document. The caller must provide both the encrypted data as well as the
 /// encrypted DEKs. Most use cases would want `decrypt_document` instead.
+#[flame]
 pub fn decrypt_document_unmanaged<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -1037,6 +1085,7 @@ pub fn decrypt_document_unmanaged<'a, CR: rand::CryptoRng + rand::RngCore>(
 
 // Update a documents name. Value can be updated to either a new name with a Some or the name value can be cleared out
 // by providing a None.
+#[flame]
 pub fn update_document_name<'a>(
     auth: &'a RequestAuth,
     id: &'a DocumentId,
@@ -1045,6 +1094,7 @@ pub fn update_document_name<'a>(
     requests::document_update::document_update_request(auth, id, name).map(DocumentMetadataResult)
 }
 
+#[flame]
 pub fn document_grant_access<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -1102,6 +1152,7 @@ pub fn document_grant_access<'a, CR: rand::CryptoRng + rand::RngCore>(
 }
 
 /// Remove access to a document from the provided list of users and/or groups
+#[flame]
 pub fn document_revoke_access<'a>(
     auth: &'a RequestAuth,
     id: &'a DocumentId,
@@ -1564,6 +1615,7 @@ mod tests {
     }
 
     #[test]
+    #[flame]
     pub fn unmanaged_edoc_header_properly_encoded() -> Result<(), IronOxideErr> {
         use recrypt::prelude::*;
 
@@ -1603,6 +1655,7 @@ mod tests {
     }
 
     #[test]
+    #[flame]
     pub fn unmanaged_edoc_compare_grants() -> Result<(), IronOxideErr> {
         use crate::proto::transform::{
             UserOrGroup as UserOrGroupP, UserOrGroup_oneof_UserOrGroupId as UserOrGroupIdP,
@@ -1692,6 +1745,7 @@ mod tests {
     }
 
     #[test]
+    #[flame]
     pub fn unmanaged_decrypt_edek_edoc_no_match() -> Result<(), IronOxideErr> {
         use recrypt::prelude::*;
 

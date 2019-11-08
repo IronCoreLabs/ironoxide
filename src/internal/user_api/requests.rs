@@ -68,6 +68,7 @@ pub mod user_verify {
         pub(crate) needs_rotation: bool,
     }
 
+    #[flame("request")]
     pub fn user_verify(
         jwt: &Jwt,
         request: &IronCoreRequest,
@@ -153,6 +154,7 @@ pub mod user_get {
         pub(in crate::internal) groups_needing_rotation: Vec<String>,
     }
 
+    #[flame("request")]
     pub fn get_curr_user(
         auth: &RequestAuth,
     ) -> impl Future<Item = CurrentUserResponse, Error = IronOxideErr> + '_ {
@@ -194,6 +196,7 @@ pub mod user_update_private_key {
         }
     }
 
+    #[flame("request")]
     pub fn update_private_key<'a>(
         auth: &'a RequestAuth,
         user_id: UserId,
@@ -241,6 +244,7 @@ pub mod user_create {
         needs_rotation: bool,
     }
 
+    #[flame("request")]
     pub fn user_create(
         jwt: &Jwt,
         user_public_key: PublicKey,
@@ -286,6 +290,7 @@ pub mod user_key_list {
         pub(crate) result: Vec<UserPublicKey>,
     }
 
+    #[flame("request")]
     pub fn user_key_list_request<'a>(
         auth: &'a RequestAuth,
         users: &Vec<UserId>,
@@ -335,6 +340,7 @@ pub mod device_add {
         pub device_public_key: PublicKey,
     }
 
+    #[flame("request")]
     pub fn user_device_add(
         jwt: &Jwt,
         device_add: &DeviceAdd,
@@ -382,6 +388,7 @@ pub mod device_list {
         pub result: Vec<DeviceListItem>,
     }
 
+    #[flame("request")]
     pub fn device_list(
         auth: &RequestAuth,
     ) -> impl Future<Item = DeviceListResponse, Error = IronOxideErr> + '_ {
@@ -414,6 +421,7 @@ pub mod device_delete {
         pub(crate) id: DeviceId,
     }
 
+    #[flame("request")]
     pub fn device_delete<'a>(
         auth: &'a RequestAuth,
         device_id: &DeviceId,
@@ -429,6 +437,7 @@ pub mod device_delete {
         ))
     }
 
+    #[flame("request")]
     pub fn device_delete_current(
         auth: &RequestAuth,
     ) -> Box<dyn Future<Item = DeviceDeleteResponse, Error = IronOxideErr> + '_> {

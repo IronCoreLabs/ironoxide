@@ -145,6 +145,7 @@ pub mod group_list {
     }
 
     ///List all the groups that the user is in or is an admin of.
+    #[flame]
     pub fn group_list_request(
         auth: &RequestAuth,
     ) -> Box<dyn Future<Item = GroupListResponse, Error = IronOxideErr> + '_> {
@@ -156,6 +157,7 @@ pub mod group_list {
     }
 
     //List a specific set of groups given a list of group IDs
+    #[flame]
     pub fn group_limited_list_request<'a>(
         auth: &'a RequestAuth,
         groups: &'a Vec<GroupId>,
@@ -187,6 +189,7 @@ pub mod group_create {
         pub(in crate::internal) needs_rotation: bool,
     }
 
+    #[flame]
     pub fn group_create<'a>(
         auth: &'a RequestAuth,
         user_master_pub_key: &'a internal::PublicKey,
@@ -235,6 +238,7 @@ pub mod group_create {
 pub mod group_get {
     use super::*;
 
+    #[flame]
     pub fn group_get_request<'a>(
         auth: &'a RequestAuth,
         id: &GroupId,
@@ -255,6 +259,7 @@ pub mod group_delete {
         pub(crate) id: String,
     }
 
+    #[flame]
     pub fn group_delete_request<'a>(
         auth: &'a RequestAuth,
         id: &GroupId,
@@ -276,6 +281,7 @@ pub mod group_update {
         name: Option<&'a GroupName>,
     }
 
+    #[flame]
     pub fn group_update_request<'a>(
         auth: &'a RequestAuth,
         id: &'a GroupId,
@@ -300,6 +306,7 @@ pub mod group_add_member {
         pub users: Vec<GroupMember>,
     }
 
+    #[flame]
     pub fn group_add_member_request<'a>(
         auth: &'a RequestAuth,
         id: &GroupId,
@@ -337,6 +344,7 @@ pub mod group_add_admin {
         pub signature: Vec<u8>,
     }
 
+    #[flame]
     pub fn group_add_admin_request<'a>(
         auth: &'a RequestAuth,
         id: &'a GroupId,
@@ -386,6 +394,7 @@ pub mod group_remove_entity {
         users: Vec<GroupEntityId<'a>>,
     }
 
+    #[flame]
     pub fn remove_entity_request<'a>(
         auth: &'a RequestAuth,
         group_id: &'a GroupId,

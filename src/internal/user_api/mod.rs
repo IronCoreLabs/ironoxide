@@ -7,6 +7,8 @@ use futures::prelude::*;
 use itertools::{Either, Itertools};
 use rand::rngs::EntropyRng;
 use recrypt::prelude::*;
+use std::thread::sleep;
+use std::time::Duration;
 use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
@@ -21,11 +23,13 @@ mod requests;
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone, Eq, Hash)]
 pub struct UserId(pub(crate) String);
 impl UserId {
+    #[flame]
     pub fn id(&self) -> &str {
         &self.0
     }
 
     /// Create a UserId from a string with no validation. Useful for ids coming back from the web service.
+    #[flame]
     pub fn unsafe_from_string(id: String) -> UserId {
         UserId(id)
     }
@@ -47,6 +51,7 @@ impl TryFrom<&str> for UserId {
 #[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
 pub struct DeviceId(pub(crate) u64);
 impl DeviceId {
+    #[flame]
     pub fn id(&self) -> &u64 {
         &self.0
     }
@@ -72,6 +77,7 @@ impl TryFrom<u64> for DeviceId {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeviceName(pub(crate) String);
 impl DeviceName {
+    #[flame]
     pub fn name(&self) -> &String {
         &self.0
     }
@@ -93,11 +99,13 @@ pub struct UserCreateResult {
 
 impl UserCreateResult {
     /// user's private key encrypted with the provided passphrase
+    #[flame]
     pub fn user_public_key(&self) -> &PublicKey {
         &self.user_public_key
     }
 
     /// True if the private key of the user's keypair needs to be rotated, else false.
+    #[flame]
     pub fn needs_rotation(&self) -> bool {
         self.needs_rotation
     }
@@ -128,18 +136,22 @@ pub struct UserResult {
     needs_rotation: bool,
 }
 impl UserResult {
+    #[flame]
     pub fn user_public_key(&self) -> &PublicKey {
         &self.user_public_key
     }
 
+    #[flame]
     pub fn account_id(&self) -> &UserId {
         &self.account_id
     }
 
+    #[flame]
     pub fn segment_id(&self) -> usize {
         self.segment_id
     }
 
+    #[flame]
     pub fn needs_rotation(&self) -> bool {
         self.needs_rotation
     }
@@ -155,6 +167,7 @@ impl UserDeviceListResult {
         UserDeviceListResult { result }
     }
 
+    #[flame]
     pub fn result(&self) -> &Vec<UserDevice> {
         &self.result
     }
@@ -174,29 +187,35 @@ pub struct UserDevice {
 }
 impl UserDevice {
     /// Get the unique id for the device
+    #[flame]
     pub fn id(&self) -> &DeviceId {
         &self.id
     }
     /// Get the devices optional non-unique readable name
+    #[flame]
     pub fn name(&self) -> Option<&DeviceName> {
         self.name.as_ref()
     }
     /// Get the time the device was created
+    #[flame]
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
     /// Get the time the device was last updated
+    #[flame]
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.last_updated
     }
     /// Determine whether this device instance is the one that was used to make
     /// the API request
+    #[flame]
     pub fn is_current_device(&self) -> bool {
         self.is_current_device
     }
 }
 
 /// Verify an existing user given a valid JWT.
+#[flame]
 pub fn user_verify(
     jwt: Jwt,
     request: IronCoreRequest,
@@ -205,7 +224,9 @@ pub fn user_verify(
         .and_then(|e| e.map(|resp| resp.try_into()).transpose())
 }
 
+//#[flame]
 /// Create a user
+#[flame]
 pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: Jwt,
@@ -226,6 +247,7 @@ pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
         })
         .into_future()
         .and_then(move |(encrypted_priv_key, recrypt_pub)| {
+            flame::start("user_create network");
             requests::user_create::user_create(
                 &jwt,
                 recrypt_pub.into(),
@@ -234,13 +256,17 @@ pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
                 request,
             )
         })
-        .and_then(|resp| resp.try_into())
+        .and_then(|resp| {
+            flame::end("user_create network");
+            resp.try_into()
+        })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncryptedPrivateKey(Vec<u8>);
 
 impl EncryptedPrivateKey {
+    #[flame]
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
     }
@@ -254,17 +280,20 @@ pub struct UserUpdatePrivateKeyResult {
 
 impl UserUpdatePrivateKeyResult {
     /// The updated encrypted user private key
+    #[flame]
     pub fn user_master_private_key(&self) -> &EncryptedPrivateKey {
         &self.user_master_private_key
     }
 
     /// True if this user's master key requires rotation
+    #[flame]
     pub fn needs_rotation(&self) -> bool {
         self.needs_rotation
     }
 }
 
 /// Get metadata about the current user
+#[flame]
 pub fn user_get_current(
     auth: &RequestAuth,
 ) -> impl Future<Item = UserResult, Error = IronOxideErr> + '_ {
@@ -279,6 +308,7 @@ pub fn user_get_current(
 }
 
 /// Rotate the user's private key. The public key for the user remains unchanged.
+#[flame]
 pub fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'apicall Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     password: Password,
@@ -324,6 +354,7 @@ pub fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
 }
 
 /// Generate a device key for the user specified in the JWT.
+#[flame]
 pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: &'a Jwt,
@@ -350,6 +381,9 @@ pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
                   }| {
                 Ok((
                     {
+                        //                        flame::start("sleep");
+                        //                        sleep(Duration::from_secs(1));
+                        //                        flame::end("sleep");
                         let user_public_key: RecryptPublicKey =
                             PublicKey::try_from(user_master_public_key)?.into();
                         let user_private_key =
@@ -374,9 +408,11 @@ pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
         )
         // call device_add
         .and_then(move |(device_add, account_id, segment_id)| {
+            flame::start("user device add network");
             requests::device_add::user_device_add(&jwt, &device_add, &device_name, &request)
                 // on successful response, assemble a DeviceContext for the caller
                 .map(move |response| {
+                    flame::end("user device add network");
                     DeviceContext::new(
                         response.device_id,
                         account_id,
@@ -388,6 +424,7 @@ pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
         })
 }
 
+#[flame]
 pub fn device_list(
     auth: &RequestAuth,
 ) -> impl Future<Item = UserDeviceListResult, Error = IronOxideErr> + '_ {
@@ -399,6 +436,7 @@ pub fn device_list(
     })
 }
 
+#[flame]
 pub fn device_delete<'a>(
     auth: &'a RequestAuth,
     device_id: Option<&'a DeviceId>,
@@ -411,6 +449,7 @@ pub fn device_delete<'a>(
 }
 
 /// Get a list of users public keys given a list of user account IDs
+#[flame]
 pub fn user_key_list<'a>(
     auth: &'a RequestAuth,
     user_ids: &'a Vec<UserId>,
@@ -459,6 +498,7 @@ pub(crate) fn get_user_keys<'a>(
 /// Generate all the necessary device keys, transform keys, and signatures to be able to add a new user device.
 /// Specifically, it creates a device key pair and signing key pair, then a transform key between the provided
 /// user private key and device public key. Also generated is a device add signature that is necessary to hit the API.
+#[flame]
 fn generate_device_add<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: &Jwt,

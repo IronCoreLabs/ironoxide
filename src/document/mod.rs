@@ -37,6 +37,7 @@ pub struct ExplicitGrant {
 impl ExplicitGrant {
     /// `grant_to_author` - true if the calling user should have access to decrypt the document
     /// `grants` - other UserOrGroups that should have access to the document
+    #[flame("sdk")]
     pub fn new(grant_to_author: bool, grants: &[UserOrGroup]) -> ExplicitGrant {
         ExplicitGrant {
             grant_to_author,
@@ -46,6 +47,7 @@ impl ExplicitGrant {
 }
 
 impl<'a> DocumentEncryptOpts {
+    #[flame("sdk")]
     pub fn new(
         id: Option<DocumentId>,
         name: Option<DocumentName>,
@@ -53,6 +55,7 @@ impl<'a> DocumentEncryptOpts {
     ) -> DocumentEncryptOpts {
         DocumentEncryptOpts { grants, name, id }
     }
+    #[flame("sdk")]
     pub fn with_explicit_grants(
         id: Option<DocumentId>,
         name: Option<DocumentName>,
@@ -69,6 +72,7 @@ impl<'a> DocumentEncryptOpts {
         }
     }
 
+    #[flame("sdk")]
     pub fn with_policy_grants(
         id: Option<DocumentId>,
         name: Option<DocumentName>,
@@ -197,20 +201,24 @@ pub trait DocumentOps {
 }
 
 impl DocumentOps for crate::IronOxide {
+    #[flame("sdk")]
     fn document_list(&self) -> Result<DocumentListResult> {
         let mut rt = Runtime::new().unwrap();
         rt.block_on(document_api::document_list(self.device.auth()))
     }
 
+    #[flame("sdk")]
     fn document_get_metadata(&self, id: &DocumentId) -> Result<DocumentMetadataResult> {
         let mut rt = Runtime::new().unwrap();
         rt.block_on(document_api::document_get_metadata(self.device.auth(), id))
     }
 
+    #[flame("sdk")]
     fn document_get_id_from_bytes(&self, encrypted_document: &[u8]) -> Result<DocumentId> {
         document_api::get_id_from_bytes(encrypted_document)
     }
 
+    #[flame("sdk")]
     fn document_encrypt(
         &self,
         document_data: &[u8],
@@ -252,6 +260,7 @@ impl DocumentOps for crate::IronOxide {
         ))
     }
 
+    #[flame("sdk")]
     fn document_update_bytes(
         &self,
         id: &DocumentId,
@@ -269,6 +278,7 @@ impl DocumentOps for crate::IronOxide {
         ))
     }
 
+    #[flame("sdk")]
     fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult> {
         let mut rt = Runtime::new().unwrap();
 
@@ -280,6 +290,7 @@ impl DocumentOps for crate::IronOxide {
         ))
     }
 
+    #[flame("sdk")]
     fn document_update_name(
         &self,
         id: &DocumentId,
@@ -294,6 +305,7 @@ impl DocumentOps for crate::IronOxide {
         ))
     }
 
+    #[flame("sdk")]
     fn document_grant_access(
         &self,
         id: &DocumentId,
@@ -314,6 +326,7 @@ impl DocumentOps for crate::IronOxide {
         ))
     }
 
+    #[flame("sdk")]
     fn document_revoke_access(
         &self,
         id: &DocumentId,

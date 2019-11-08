@@ -30,6 +30,10 @@
 // required by quick_error or IronOxideErr
 #![recursion_limit = "128"]
 
+extern crate flame;
+#[macro_use]
+extern crate flamer;
+
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
@@ -113,6 +117,7 @@ pub enum InitAndRotationCheck {
 impl InitAndRotationCheck {
     /// Caller asked to check rotation on initialize, but doesn't want to handle the result.
     /// Consider using [initialize](fn.initialize.html) instead.
+    #[flame]
     pub fn discard_check(self) -> IronOxide {
         match self {
             InitAndRotationCheck::NoRotationNeeded(io)
@@ -130,6 +135,7 @@ pub struct PrivateKeyRotationCheckResult {
 }
 
 impl PrivateKeyRotationCheckResult {
+    #[flame]
     pub fn user_rotation_needed(&self) -> Option<UserId> {
         match &self.rotations_needed {
             EitherOrBoth::Left(u) | EitherOrBoth::Both(u, _) => Some(u.clone()),
@@ -137,15 +143,16 @@ impl PrivateKeyRotationCheckResult {
         }
     }
 
-    //    pub fn group_rotation_needed() -> Option<Vec<GroupId>> {
+    //pub fn group_rotation_needed() -> Option<Vec<GroupId>> {
     //        unimplemented!()
     //    }
 
-    //    pub fn rotate_all(ironoxide: &IronOxide) -> (UserId, Vec<GroupId>) //TODO consider when group private key rotation is added
+    //pub fn rotate_all(ironoxide: &IronOxide) -> (UserId, Vec<GroupId>) //TODO consider when group private key rotation is added
 }
 
 /// Initialize the IronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
 /// keys are valid and exist for the provided account. If successful returns an instance of the IronOxide SDK
+#[flame]
 pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
     let mut rt = Runtime::new().unwrap();
     rt.block_on(crate::internal::user_api::user_get_current(
@@ -158,6 +165,7 @@ pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
 /// Initialize the IronOxide SDK and check to see if the user that owns this `DeviceContext` is
 /// marked for private key rotation, or if any of the groups that the user is an admin of is marked
 /// for private key rotation.
+#[flame]
 pub fn initialize_check_rotation(device_context: &DeviceContext) -> Result<InitAndRotationCheck> {
     Runtime::new().unwrap().block_on(
         internal::user_api::user_get_current(device_context.auth()).and_then(|curr_user| {
@@ -179,6 +187,7 @@ pub fn initialize_check_rotation(device_context: &DeviceContext) -> Result<InitA
 
 impl IronOxide {
     /// Get the `DeviceContext` instance that was used to create this SDK instance
+    #[flame]
     pub fn device(&self) -> &DeviceContext {
         &self.device
     }

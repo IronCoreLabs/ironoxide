@@ -5,6 +5,7 @@ use ironoxide::{
     prelude::*,
     user::{DeviceCreateOpts, UserCreateOpts},
 };
+use std::fs::File;
 use std::{convert::TryInto, default::Default};
 use uuid::Uuid;
 
@@ -49,7 +50,9 @@ fn user_verify_after_create_with_needs_rotation() -> Result<(), IronOxideErr> {
     assert_eq!(true, result.is_some());
     let verify_resp = result.unwrap();
 
-    Ok(assert!(verify_resp.needs_rotation()))
+    assert!(verify_resp.needs_rotation());
+    flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
+    Ok(())
 }
 #[test]
 fn user_create_good_with_devices() {
@@ -78,6 +81,8 @@ fn user_create_good_with_devices() {
         &"myDevice".to_string(),
         device_list.result()[0].name().unwrap().name()
     );
+
+    flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
 }
 
 #[test]
