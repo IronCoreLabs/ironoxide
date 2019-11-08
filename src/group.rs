@@ -1,6 +1,6 @@
 pub use crate::internal::group_api::{
-    GroupAccessEditErr, GroupAccessEditResult, GroupGetResult, GroupId, GroupListResult,
-    GroupMetaResult, GroupName,
+    GroupAccessEditErr, GroupAccessEditResult, GroupCreateResult, GroupGetResult, GroupId,
+    GroupListResult, GroupMetaResult, GroupName,
 };
 use crate::{
     internal::{group_api, user_api::UserId},
@@ -18,6 +18,9 @@ pub struct GroupCreateOpts {
     // true (default) - creating user will be added to the group's membership (in addition to being the group's admin);
     // false - creating user will not be added to the group's membership
     add_as_member: bool,
+    // list of users to add as members to the group.
+    // note: even if `add_as_member` is false, the calling user will be added as a member if they are in this list.
+    members: Vec<UserId>,
     // true - group's private key will be marked for rotation
     // false (default) - group's private key will not be marked for rotation
     needs_rotation: bool,
@@ -39,12 +42,14 @@ impl GroupCreateOpts {
         id: Option<GroupId>,
         name: Option<GroupName>,
         add_as_member: bool,
+        members: Vec<UserId>,
         needs_rotation: bool,
     ) -> GroupCreateOpts {
         GroupCreateOpts {
             id,
             name,
             add_as_member,
+            members,
             needs_rotation,
         }
     }
@@ -53,7 +58,7 @@ impl GroupCreateOpts {
 impl Default for GroupCreateOpts {
     fn default() -> Self {
         // membership is the default!
-        GroupCreateOpts::new(None, None, true, false)
+        GroupCreateOpts::new(None, None, true, Vec::new(), false)
     }
 }
 
@@ -68,7 +73,7 @@ pub trait GroupOps {
     ///
     /// # Arguments
     /// `group_create_opts` - See `GroupCreateOpts`. Use the `Default` implementation for defaults.
-    fn group_create(&self, group_create_opts: &GroupCreateOpts) -> Result<GroupMetaResult>;
+    fn group_create(&self, group_create_opts: &GroupCreateOpts) -> Result<GroupCreateResult>;
 
     /// Get the full metadata for a specific group given its ID.
     ///
@@ -157,14 +162,26 @@ impl GroupOps for crate::IronOxide {
         rt.block_on(group_api::list(self.device.auth(), None))
     }
 
-    fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupMetaResult> {
+    fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupCreateResult> {
         let mut rt = Runtime::new().unwrap();
         let GroupCreateOpts {
             id: maybe_id,
             name: maybe_name,
             add_as_member,
+            members,
             needs_rotation,
         } = opts.clone();
+
+        let modified_add_as_member;
+        if members.contains(self.device.auth().account_id()) {
+            modified_add_as_member = true;
+        } else {
+            modified_add_as_member = add_as_member;
+        }
+        let modified_members: Vec<UserId> = members
+            .into_iter()
+            .filter(|id| id.id() != self.device.auth().account_id().id())
+            .collect();
 
         rt.block_on(group_api::group_create(
             &self.recrypt,
@@ -172,7 +189,8 @@ impl GroupOps for crate::IronOxide {
             &self.user_master_pub_key,
             maybe_id,
             maybe_name,
-            add_as_member,
+            modified_add_as_member,
+            &modified_members,
             needs_rotation,
         ))
     }

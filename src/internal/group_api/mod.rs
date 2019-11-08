@@ -136,6 +136,57 @@ impl GroupMetaResult {
     }
 }
 
+pub struct GroupCreateResult {
+    id: GroupId,
+    name: Option<GroupName>,
+    group_master_public_key: PublicKey,
+    is_admin: bool,
+    is_member: bool,
+    admins: Vec<UserId>,
+    members: Vec<UserId>,
+    created: DateTime<Utc>,
+    updated: DateTime<Utc>,
+    needs_rotation: Option<bool>,
+}
+impl GroupCreateResult {
+    /// A single document grant/revoke failure for a user or group.
+    pub fn id(&self) -> &GroupId {
+        &self.id
+    }
+    pub fn name(&self) -> Option<&GroupName> {
+        self.name.as_ref()
+    }
+    pub fn group_master_public_key(&self) -> &PublicKey {
+        &self.group_master_public_key
+    }
+    /// true if the calling user is a group administrator
+    pub fn is_admin(&self) -> bool {
+        self.is_admin
+    }
+    /// true if the calling user is a group member
+    pub fn is_member(&self) -> bool {
+        self.is_member
+    }
+    /// List of all group admins. Group admins can change group membership.
+    pub fn admins(&self) -> &Vec<UserId> {
+        self.admins.as_ref()
+    }
+    /// List of group members. Members of a group can decrypt values encrypted to the group.
+    pub fn members(&self) -> &Vec<UserId> {
+        self.members.as_ref()
+    }
+    pub fn created(&self) -> &DateTime<Utc> {
+        &self.created
+    }
+    pub fn last_updated(&self) -> &DateTime<Utc> {
+        &self.updated
+    }
+    /// `Some(boolean)` indicating if the group needs rotation if the calling user is a group admin.
+    /// `None` if the calling user is not a group admin.
+    pub fn needs_rotation(&self) -> Option<bool> {
+        self.needs_rotation
+    }
+}
 /// Group information.
 #[derive(Debug)]
 pub struct GroupGetResult {
@@ -288,6 +339,7 @@ pub(crate) fn get_group_keys<'a>(
     )
 }
 
+//TODO: docs
 /// Create a group with the calling user as the group admin.
 ///
 /// # Arguments
@@ -299,6 +351,8 @@ pub(crate) fn get_group_keys<'a>(
 /// `name` - name for the group. Does not need to be unique.
 /// `add_as_member` - if true the user represented by the current DeviceContext will also be added to the group's membership.
 ///     If false, the user will not be an member (but will still be an admin)
+/// `members` - list of user ids to add as members of the group. This list takes priority over `add_as_member`,
+///     so the calling user will be added as a member if their id is in this list even if `add_as_member` is false.
 /// `needs_rotation` - true if the group private key should be rotated by an admin, else false
 pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -307,37 +361,79 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     group_id: Option<GroupId>,
     name: Option<GroupName>,
     add_as_member: bool,
+    members: &'a Vec<UserId>,
     needs_rotation: bool,
-) -> impl Future<Item = GroupMetaResult, Error = IronOxideErr> + 'a {
-    transform::gen_group_keys(recrypt)
-        .and_then(move |(plaintext, group_priv_key, group_pub_key)| {
-            // encrypt the group secret to the current user as they will be the group admin
-            Ok({
-                let encrypted_group_key = recrypt.encrypt(
-                    &plaintext,
-                    &user_master_pub_key.into(),
-                    &auth.signing_private_key().into(),
-                )?;
+) -> impl Future<Item = GroupCreateResult, Error = IronOxideErr> + 'a {
+    user_api::user_key_list(auth, members)
+        .and_then(move |member_ids_and_keys| {
+            //this will occur when one of the UserIds in the members list cannot be found
+            if member_ids_and_keys.len() != members.len() {
+                use std::{collections::HashSet, iter::FromIterator};
+                let desired_members: HashSet<&UserId> = HashSet::from_iter(members);
+                let found_members: Vec<UserId> =
+                    member_ids_and_keys.into_iter().map(|(x, _)| x).collect();
+                let found_members_set: HashSet<&UserId> = HashSet::from_iter(&found_members);
+                let diff: HashSet<&&UserId> =
+                    desired_members.difference(&found_members_set).collect();
+                futures::future::err(IronOxideErr::UserDoesNotExist(format!(
+                    "Failed to find the following users in the `members` list: {:?}",
+                    diff
+                )))
+            } else {
+                transform::gen_group_keys(recrypt)
+                    .and_then(move |(plaintext, group_priv_key, group_pub_key)| {
+                        // encrypt the group secret to the current user as they will be the group admin
+                        let encrypted_group_key = recrypt.encrypt(
+                            &plaintext,
+                            &user_master_pub_key.into(),
+                            &auth.signing_private_key().into(),
+                        )?;
 
-                // compute a transform key if we are adding the caller as a group member as well
-                let transform_key: Option<crate::internal::TransformKey> = if add_as_member {
-                    Some(
-                        recrypt
-                            .generate_transform_key(
-                                &group_priv_key.into(),
-                                &user_master_pub_key.into(),
-                                &auth.signing_private_key().into(),
-                            )?
-                            .into(),
-                    )
-                } else {
-                    None
-                };
-                (group_pub_key, encrypted_group_key, transform_key)
-            })
+                        let maybe_member_info: Result<Vec<(UserId, PublicKey, TransformKey)>, _> =
+                            member_ids_and_keys
+                                .into_iter()
+                                .map(|(id, pub_key)| {
+                                    let maybe_transform_key = recrypt.generate_transform_key(
+                                        &group_priv_key.clone().into(),
+                                        &pub_key.clone().into(),
+                                        &auth.signing_private_key().into(),
+                                    );
+                                    maybe_transform_key
+                                        .map(|transform_key| (id, pub_key, transform_key.into()))
+                                })
+                                .collect();
+
+                        let mut member_info = maybe_member_info?;
+
+                        if add_as_member {
+                            // TODO (question for reviewers): is it better to have this code duplication here,
+                            // or to add the calling UserId to members list earlier and just have the public key
+                            // looked up with all the others (even though it was already passed in) to make
+                            // it cleaner?
+                            let transform: TransformKey = recrypt
+                                .generate_transform_key(
+                                    &group_priv_key.into(),
+                                    &user_master_pub_key.into(),
+                                    &auth.signing_private_key().into(),
+                                )?
+                                .into();
+                            member_info.push((
+                                auth.account_id().clone(),
+                                user_master_pub_key.clone(),
+                                transform,
+                            ));
+                        }
+                        let maybe_member_info = if member_info.len() != 0 {
+                            Some(member_info)
+                        } else {
+                            None
+                        };
+                        Ok((group_pub_key, encrypted_group_key, maybe_member_info))
+                    })
+                    .into_future()
+            }
         })
-        .into_future()
-        .and_then(move |(group_pub_key, encrypted_group_key, transform_key)| {
+        .and_then(move |(group_pub_key, encrypted_group_key, member_info)| {
             requests::group_create::group_create(
                 &auth,
                 user_master_pub_key,
@@ -346,7 +442,7 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                 encrypted_group_key,
                 group_pub_key,
                 auth.account_id(),
-                transform_key,
+                member_info,
                 needs_rotation,
             )
         })

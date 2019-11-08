@@ -431,7 +431,7 @@ pub fn user_key_list<'a>(
     )
 }
 
-///Get the keys for users. The result should be either a failure for a specific UserId (Left) or the id with their public key (Right).
+/// Get the keys for users. The result should be either a failure for a specific UserId (Left) or the id with their public key (Right).
 /// The resulting lists will have the same combined size as the incoming list.
 /// Calling this with an empty `users` list will not result in a call to the server.
 pub(crate) fn get_user_keys<'a>(
