@@ -16,7 +16,7 @@ use crate::{
 };
 use chrono::Utc;
 use futures::{
-    future::{Either, IntoFuture},
+    future::{ok, Either},
     Future,
 };
 use std::convert::TryFrom;
@@ -302,7 +302,7 @@ pub mod user_key_list {
                 AuthV2Builder::new(&auth, Utc::now()),
             ))
         } else {
-            Either::B(Ok(UserKeyListResponse { result: Vec::new() }).into_future())
+            Either::B(ok(UserKeyListResponse { result: Vec::new() }))
         }
     }
 }

@@ -339,7 +339,6 @@ pub(crate) fn get_group_keys<'a>(
     )
 }
 
-//TODO: docs
 /// Create a group with the calling user as the group admin.
 ///
 /// # Arguments
@@ -366,17 +365,19 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
 ) -> impl Future<Item = GroupCreateResult, Error = IronOxideErr> + 'a {
     user_api::user_key_list(auth, members)
         .and_then(move |member_ids_and_keys| {
-            //this will occur when one of the UserIds in the members list cannot be found
+            // this will occur when one of the UserIds in the members list cannot be found
             if member_ids_and_keys.len() != members.len() {
+                // figure out which user ids could not be found in the database and include them in the error message.
                 use std::{collections::HashSet, iter::FromIterator};
-                let desired_members: HashSet<&UserId> = HashSet::from_iter(members);
+                let desired_members_set: HashSet<&UserId> = HashSet::from_iter(members);
                 let found_members: Vec<UserId> =
                     member_ids_and_keys.into_iter().map(|(x, _)| x).collect();
                 let found_members_set: HashSet<&UserId> = HashSet::from_iter(&found_members);
+                // TODO (reviewers): this double reference scares me, but seems to work? Is there a better way to do this?
                 let diff: HashSet<&&UserId> =
-                    desired_members.difference(&found_members_set).collect();
+                    desired_members_set.difference(&found_members_set).collect();
                 futures::future::err(IronOxideErr::UserDoesNotExist(format!(
-                    "Failed to find the following users in the `members` list: {:?}",
+                    "Failed to find the following users from the `members` list: {:?}",
                     diff
                 )))
             } else {
@@ -392,14 +393,15 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                         let maybe_member_info: Result<Vec<(UserId, PublicKey, TransformKey)>, _> =
                             member_ids_and_keys
                                 .into_iter()
-                                .map(|(id, pub_key)| {
+                                .map(|(id, member_pub_key)| {
                                     let maybe_transform_key = recrypt.generate_transform_key(
                                         &group_priv_key.clone().into(),
-                                        &pub_key.clone().into(),
+                                        &member_pub_key.clone().into(),
                                         &auth.signing_private_key().into(),
                                     );
-                                    maybe_transform_key
-                                        .map(|transform_key| (id, pub_key, transform_key.into()))
+                                    maybe_transform_key.map(|transform_key| {
+                                        (id, member_pub_key, transform_key.into())
+                                    })
                                 })
                                 .collect();
 
