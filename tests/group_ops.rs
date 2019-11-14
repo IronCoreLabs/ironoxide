@@ -192,7 +192,7 @@ fn group_add_admin_on_create() -> Result<(), IronOxideErr> {
         false,
     ))?;
 
-    assert_eq!(group_result.admins(), &vec![second_account_id]);
+    assert_eq!(group_result.admins(), &vec![second_account_id, account_id]);
     Ok(())
 }
 

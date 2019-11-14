@@ -37,9 +37,17 @@ impl GroupCreateOpts {
     /// # Arguments
     /// - `id` - Unique id of a group within a segment. If none, the server will assign an id.
     /// - `name` - Human readable name of the group. Does not need to be unique. Will **not** be encrypted.
+    /// - `add_as_admin`
+    ///     - `true` - The creating user will be added as an admin of the group.
+    ///     - `false` - The creating user will not be an admin of the group.
     /// - `add_as_member`
-    ///     - `true` - The creating user should be added as a member (in addition to being a group admin)
-    ///     - `false` - The creating user will not be a member of the group, but will still be an admin.
+    ///     - `true` - The creating user will be added as a member of the group.
+    ///     - `false` - The creating user will not be a member of the group.
+    /// - `owner`
+    ///     - `Some(UserId)` - The provided user will be the owner of the group.
+    ///     - `None` - The creating user will be the owner of the group.
+    /// - `admins` - List of users to be added as admins of the group.
+    /// - `members` - List of users to be added as members of the group.
     /// - `needs_rotation`
     ///     - true - group's private key will be marked for rotation
     ///     - false (default) - group's private key will not be marked for rotation
@@ -68,7 +76,7 @@ impl GroupCreateOpts {
 
 impl Default for GroupCreateOpts {
     fn default() -> Self {
-        // membership is the default!
+        // todo: docs
         GroupCreateOpts::new(None, None, true, true, None, Vec::new(), Vec::new(), false)
     }
 }
@@ -197,15 +205,28 @@ impl GroupOps for crate::IronOxide {
         // concatenate the vectors of admin and member ids. duplicates will be removed later.
         let mut users = [&admins[..], &members[..]].concat();
 
-        // if the owner is specified and not the caller, add it to the list
-        let owner: UserId;
-        match maybe_owner {
+        let owner: Option<UserId>;
+        match maybe_owner.clone() {
             Some(id) => {
-                owner = id.clone();
-                users.push(id);
+                // the owner must be in the list of admins
+                if !admins.contains(&id) {
+                    admins.push(id.clone());
+                }
+                if id == self.device.auth().account_id().clone() {
+                    //Todo: test this
+                    dbg!("Passed in self as owner");
+                    owner = None;
+                } else {
+                    users.push(id);
+                    owner = maybe_owner;
+                }
             }
-            // owner UserId was not specified, so defaults to the caller
-            None => owner = self.device.auth().account_id().clone(),
+            None => {
+                if !admins.contains(self.device.auth().account_id()) {
+                    admins.push(self.device.auth().account_id().clone());
+                }
+                owner = None;
+            }
         };
 
         use std::{collections::HashSet, iter::FromIterator};
@@ -215,7 +236,7 @@ impl GroupOps for crate::IronOxide {
         rt.block_on(group_api::group_create(
             &self.recrypt,
             self.device.auth(),
-            //&self.user_master_pub_key,
+            &self.user_master_pub_key,
             maybe_id,
             maybe_name,
             &owner,

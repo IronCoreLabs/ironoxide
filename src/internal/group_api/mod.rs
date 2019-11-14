@@ -356,10 +356,10 @@ pub(crate) fn get_group_keys<'a>(
 pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &'a RequestAuth,
-    //user_master_pub_key: &'a PublicKey,
+    user_master_pub_key: &'a PublicKey,
     group_id: Option<GroupId>,
     name: Option<GroupName>,
-    owner: &'a UserId,
+    owner: &'a Option<UserId>,
     admins: &'a Vec<UserId>,
     members: &'a Vec<UserId>,
     users_to_lookup: &'a Vec<UserId>,
@@ -419,11 +419,25 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                         // );
 
                         // encrypt the group secret to the owner
-                        let encrypted_group_key = recrypt.encrypt(
-                            &plaintext,
-                            &user_info.get(owner).unwrap().0.clone().into(), //TODO (reviewers): I think this unwrap is okay because I put it in myself?
-                            &auth.signing_private_key().into(),
-                        )?;
+                        let encrypted_group_key = match owner {
+                            Some(owner_id) => {
+                                recrypt.encrypt(
+                                    &plaintext,
+                                    &user_info.get(owner_id).unwrap().0.clone().into(), //TODO (reviewers): I think this unwrap is okay because I put it in myself?
+                                    &auth.signing_private_key().into(),
+                                )
+                            }
+                            None => recrypt.encrypt(
+                                &plaintext,
+                                &user_master_pub_key.into(),
+                                &auth.signing_private_key().into(),
+                            ),
+                        }?;
+                        // let encrypted_group_key = recrypt.encrypt(
+                        //     &plaintext,
+                        //     &user_info.get(owner).unwrap().0.clone().into(), //TODO (reviewers): I think this unwrap is okay because I put it in myself?
+                        //     &auth.signing_private_key().into(),
+                        // )?;
 
                         // if add_as_member {
                         //     // TODO (question for reviewers): is it better to have this code duplication here,
