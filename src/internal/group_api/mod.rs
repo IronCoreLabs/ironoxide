@@ -408,10 +408,6 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                         let mut member_info = maybe_member_info?;
 
                         if add_as_member {
-                            // TODO (question for reviewers): is it better to have this code duplication here,
-                            // or to add the calling UserId to members list earlier and just have the public key
-                            // looked up with all the others (even though it was already passed in) to make
-                            // it cleaner?
                             let transform: TransformKey = recrypt
                                 .generate_transform_key(
                                     &group_priv_key.into(),
