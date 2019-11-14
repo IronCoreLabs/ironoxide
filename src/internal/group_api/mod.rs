@@ -372,6 +372,7 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     user_api::user_key_list(auth, users_to_lookup)
         .and_then(move |user_ids_and_keys| {
             // this will occur when one of the UserIds in the members list cannot be found
+            // TODO: currently commented out while building other parts
             if false {
                 //user_ids_and_keys.len() != members.len() {
                 // figure out which user ids could not be found in the database and include them in the error message.
