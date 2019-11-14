@@ -1,5 +1,5 @@
 use crate::common::create_second_user;
-use common::{create_id_all_classes, init_sdk};
+use common::{create_id_all_classes, init_sdk, init_sdk_get_user};
 use ironoxide::{group::*, prelude::*};
 use std::convert::TryInto;
 use uuid::Uuid;
@@ -16,7 +16,10 @@ fn group_create_no_member() {
     let group_result = sdk.group_create(&GroupCreateOpts::new(
         Some(create_id_all_classes("").try_into().unwrap()),
         Some("test group name".try_into().unwrap()),
+        true,
         false,
+        None,
+        Vec::new(),
         Vec::new(),
         true,
     ));
@@ -65,6 +68,9 @@ fn group_delete() {
         Some(create_id_all_classes("").try_into().unwrap()),
         None,
         true,
+        true,
+        None,
+        Vec::new(),
         Vec::new(),
         false,
     ));
@@ -85,7 +91,10 @@ fn group_update_name() {
         .group_create(&GroupCreateOpts::new(
             Some(create_id_all_classes("").try_into().unwrap()),
             Some("first name".try_into().unwrap()),
+            true,
             false,
+            None,
+            Vec::new(),
             Vec::new(),
             false,
         ))
@@ -118,7 +127,10 @@ fn group_add_member() {
     let group_result = sdk.group_create(&GroupCreateOpts::new(
         Some(create_id_all_classes("").try_into().unwrap()),
         None,
+        true,
         false,
+        None,
+        Vec::new(),
         Vec::new(),
         false,
     ));
@@ -142,9 +154,30 @@ fn group_add_member() {
 
 #[test]
 fn group_add_member_on_create() -> Result<(), IronOxideErr> {
-    let sdk = init_sdk();
-    let account_id = sdk.device().account_id().clone();
-    let second_account_id = init_sdk().device().account_id().clone();
+    let (account_id, sdk) = init_sdk_get_user();
+    let (second_account_id, _) = init_sdk_get_user();
+
+    // Even though `add_as_member` is false, the UserId is in the `members` list,
+    // so the caller becomes a member regardless
+    let group_result = sdk.group_create(&GroupCreateOpts::new(
+        Some(create_id_all_classes("").try_into().unwrap()),
+        None,
+        true,
+        false,
+        None,
+        Vec::new(),
+        vec![account_id.clone(), second_account_id.clone()],
+        false,
+    ))?;
+
+    assert_eq!(group_result.members(), &vec![account_id, second_account_id]);
+    Ok(())
+}
+
+#[test]
+fn group_add_admin_on_create() -> Result<(), IronOxideErr> {
+    let (account_id, sdk) = init_sdk_get_user();
+    let (second_account_id, _) = init_sdk_get_user();
 
     // Even though `add_as_member` is false, the UserId is in the `members` list,
     // so the caller becomes a member regardless
@@ -152,11 +185,14 @@ fn group_add_member_on_create() -> Result<(), IronOxideErr> {
         Some(create_id_all_classes("").try_into().unwrap()),
         None,
         false,
-        vec![account_id.clone(), second_account_id.clone()],
+        true,
+        None,
+        vec![second_account_id.clone()],
+        vec![],
         false,
     ))?;
 
-    assert_eq!(group_result.members(), &vec![second_account_id, account_id]);
+    assert_eq!(group_result.admins(), &vec![second_account_id]);
     Ok(())
 }
 
@@ -184,6 +220,9 @@ fn group_remove_member() {
         Some(create_id_all_classes("").try_into().unwrap()),
         None,
         true,
+        true,
+        None,
+        Vec::new(),
         Vec::new(),
         false,
     ));
@@ -212,7 +251,10 @@ fn group_add_admin() {
     let group_result = sdk.group_create(&GroupCreateOpts::new(
         Some(create_id_all_classes("").try_into().unwrap()),
         None,
+        true,
         false,
+        None,
+        Vec::new(),
         Vec::new(),
         false,
     ));
@@ -264,7 +306,10 @@ fn group_get_not_url_safe_id() {
     let group_create_result = sdk.group_create(&GroupCreateOpts::new(
         Some(not_url_safe_id.clone()),
         None,
+        true,
         false,
+        None,
+        Vec::new(),
         Vec::new(),
         false,
     ));

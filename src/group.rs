@@ -9,15 +9,20 @@ use crate::{
 use tokio::runtime::current_thread::Runtime;
 
 #[derive(Clone)]
+// TODO: docs
 /// Options for group creation.
 pub struct GroupCreateOpts {
     // unique id of a group within a segment. If none, the server will assign an id.
     id: Option<GroupId>,
     // human readable name of the group. Does not need to be unique.
     name: Option<GroupName>,
+
     // true (default) - creating user will be added to the group's membership (in addition to being the group's admin);
     // false - creating user will not be added to the group's membership
+    add_as_admin: bool,
     add_as_member: bool,
+    owner: Option<UserId>,
+    admins: Vec<UserId>,
     // list of users to add as members to the group.
     // note: even if `add_as_member` is false, the calling user will be added as a member if they are in this list.
     members: Vec<UserId>,
@@ -41,14 +46,20 @@ impl GroupCreateOpts {
     pub fn new(
         id: Option<GroupId>,
         name: Option<GroupName>,
+        add_as_admin: bool,
         add_as_member: bool,
+        owner: Option<UserId>,
+        admins: Vec<UserId>,
         members: Vec<UserId>,
         needs_rotation: bool,
     ) -> GroupCreateOpts {
         GroupCreateOpts {
             id,
             name,
+            add_as_admin,
             add_as_member,
+            owner,
+            admins,
             members,
             needs_rotation,
         }
@@ -58,7 +69,7 @@ impl GroupCreateOpts {
 impl Default for GroupCreateOpts {
     fn default() -> Self {
         // membership is the default!
-        GroupCreateOpts::new(None, None, true, Vec::new(), false)
+        GroupCreateOpts::new(None, None, true, true, None, Vec::new(), Vec::new(), false)
     }
 }
 
@@ -167,30 +178,50 @@ impl GroupOps for crate::IronOxide {
         let GroupCreateOpts {
             id: maybe_id,
             name: maybe_name,
+            add_as_admin,
             add_as_member,
-            members,
+            owner: maybe_owner,
+            mut admins,
+            mut members,
             needs_rotation,
         } = opts.clone();
 
-        let modified_add_as_member;
-        if members.contains(self.device.auth().account_id()) {
-            modified_add_as_member = true;
-        } else {
-            modified_add_as_member = add_as_member;
-        }
-        let modified_members: Vec<UserId> = members
-            .into_iter()
-            .filter(|id| id.id() != self.device.auth().account_id().id())
-            .collect();
+        if add_as_member {
+            members.push(self.device.auth().account_id().clone());
+        };
+
+        if add_as_admin {
+            admins.push(self.device.auth().account_id().clone());
+        };
+
+        // concatenate the vectors of admin and member ids. duplicates will be removed later.
+        let mut users = [&admins[..], &members[..]].concat();
+
+        // if the owner is specified and not the caller, add it to the list
+        let owner: UserId;
+        match maybe_owner {
+            Some(id) => {
+                owner = id.clone();
+                users.push(id);
+            }
+            // owner UserId was not specified, so defaults to the caller
+            None => owner = self.device.auth().account_id().clone(),
+        };
+
+        use std::{collections::HashSet, iter::FromIterator};
+        let set: HashSet<UserId> = HashSet::from_iter(users);
+        let users_to_lookup: Vec<UserId> = set.into_iter().collect();
 
         rt.block_on(group_api::group_create(
             &self.recrypt,
             self.device.auth(),
-            &self.user_master_pub_key,
+            //&self.user_master_pub_key,
             maybe_id,
             maybe_name,
-            modified_add_as_member,
-            &modified_members,
+            &owner,
+            &admins,
+            &members,
+            &users_to_lookup,
             needs_rotation,
         ))
     }

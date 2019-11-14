@@ -96,6 +96,9 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
         data_rec_group_id.clone().into(),
         None,
         true,
+        true,
+        None,
+        Vec::new(),
         Vec::new(),
         false,
     ));
@@ -160,7 +163,10 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
     let group2_result = sdk.group_create(&GroupCreateOpts::new(
         group2_id.clone().into(),
         None,
+        true,
         false,
+        None,
+        Vec::new(),
         Vec::new(),
         false,
     ));
@@ -350,6 +356,9 @@ fn setup_encrypt_with_explicit_and_policy_grants(
         data_rec_group_id.clone().into(),
         None,
         true,
+        true,
+        None,
+        Vec::new(),
         Vec::new(),
         false,
     ));
@@ -662,8 +671,16 @@ fn doc_grant_access() -> Result<(), IronOxideErr> {
     let group_id = group_result.id().clone();
 
     // group user is not a member of
-    let group2_result =
-        sdk.group_create(&GroupCreateOpts::new(None, None, false, Vec::new(), false))?;
+    let group2_result = sdk.group_create(&GroupCreateOpts::new(
+        None,
+        None,
+        true,
+        false,
+        None,
+        Vec::new(),
+        Vec::new(),
+        false,
+    ))?;
     let group2_id = group2_result.id().clone();
 
     let grants = sdk.document_grant_access(

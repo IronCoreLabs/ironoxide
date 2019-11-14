@@ -356,22 +356,28 @@ pub(crate) fn get_group_keys<'a>(
 pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &'a RequestAuth,
-    user_master_pub_key: &'a PublicKey,
+    //user_master_pub_key: &'a PublicKey,
     group_id: Option<GroupId>,
     name: Option<GroupName>,
-    add_as_member: bool,
+    owner: &'a UserId,
+    admins: &'a Vec<UserId>,
     members: &'a Vec<UserId>,
+    users_to_lookup: &'a Vec<UserId>,
     needs_rotation: bool,
 ) -> impl Future<Item = GroupCreateResult, Error = IronOxideErr> + 'a {
-    user_api::user_key_list(auth, members)
-        .and_then(move |member_ids_and_keys| {
+    use std::{collections::HashSet, iter::FromIterator};
+    // TODO (reviewers): this has the potential to unnecessarily lookup the public key of the calling user (which we already have),
+    // but I can't figure out an elegant way to remove this lookup. If you think it should be changed, I'd be happy to
+    // with your assistance.
+    user_api::user_key_list(auth, users_to_lookup)
+        .and_then(move |user_ids_and_keys| {
             // this will occur when one of the UserIds in the members list cannot be found
-            if member_ids_and_keys.len() != members.len() {
+            if false {
+                //user_ids_and_keys.len() != members.len() {
                 // figure out which user ids could not be found in the database and include them in the error message.
-                use std::{collections::HashSet, iter::FromIterator};
                 let desired_members_set: HashSet<&UserId> = HashSet::from_iter(members);
                 let found_members: Vec<UserId> =
-                    member_ids_and_keys.into_iter().map(|(x, _)| x).collect();
+                    user_ids_and_keys.into_iter().map(|(x, _)| x).collect();
                 let found_members_set: HashSet<&UserId> = HashSet::from_iter(&found_members);
                 // TODO (reviewers): this double reference scares me, but seems to work? Is there a better way to do this?
                 let diff: HashSet<&&UserId> =
@@ -383,15 +389,8 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
             } else {
                 transform::gen_group_keys(recrypt)
                     .and_then(move |(plaintext, group_priv_key, group_pub_key)| {
-                        // encrypt the group secret to the current user as they will be the group admin
-                        let encrypted_group_key = recrypt.encrypt(
-                            &plaintext,
-                            &user_master_pub_key.into(),
-                            &auth.signing_private_key().into(),
-                        )?;
-
-                        let maybe_member_info: Result<Vec<(UserId, PublicKey, TransformKey)>, _> =
-                            member_ids_and_keys
+                        let maybe_user_info: Result<HashMap<UserId, (PublicKey, TransformKey)>, _> =
+                            user_ids_and_keys
                                 .into_iter()
                                 .map(|(id, member_pub_key)| {
                                     let maybe_transform_key = recrypt.generate_transform_key(
@@ -400,51 +399,69 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                                         &auth.signing_private_key().into(),
                                     );
                                     maybe_transform_key.map(|transform_key| {
-                                        (id, member_pub_key, transform_key.into())
+                                        (id, (member_pub_key, transform_key.into()))
                                     })
                                 })
                                 .collect();
 
-                        let mut member_info = maybe_member_info?;
+                        let user_info = maybe_user_info?;
+                        // let caller_transform_key: TransformKey = recrypt
+                        //     .generate_transform_key(
+                        //         &group_priv_key.into(),
+                        //         &user_master_pub_key.into(),
+                        //         &auth.signing_private_key().into(),
+                        //     )?
+                        //     .into();
+                        // user_info.insert(
+                        //     auth.account_id().clone(),
+                        //     (user_master_pub_key.clone(), caller_transform_key),
+                        // );
 
-                        if add_as_member {
-                            // TODO (question for reviewers): is it better to have this code duplication here,
-                            // or to add the calling UserId to members list earlier and just have the public key
-                            // looked up with all the others (even though it was already passed in) to make
-                            // it cleaner?
-                            let transform: TransformKey = recrypt
-                                .generate_transform_key(
-                                    &group_priv_key.into(),
-                                    &user_master_pub_key.into(),
-                                    &auth.signing_private_key().into(),
-                                )?
-                                .into();
-                            member_info.push((
-                                auth.account_id().clone(),
-                                user_master_pub_key.clone(),
-                                transform,
-                            ));
-                        }
-                        let maybe_member_info = if member_info.len() != 0 {
-                            Some(member_info)
-                        } else {
-                            None
-                        };
-                        Ok((group_pub_key, encrypted_group_key, maybe_member_info))
+                        // encrypt the group secret to the owner
+                        let encrypted_group_key = recrypt.encrypt(
+                            &plaintext,
+                            &user_info.get(owner).unwrap().0.clone().into(), //TODO (reviewers): I think this unwrap is okay because I put it in myself?
+                            &auth.signing_private_key().into(),
+                        )?;
+
+                        // if add_as_member {
+                        //     // TODO (question for reviewers): is it better to have this code duplication here,
+                        //     // or to add the calling UserId to members list earlier and just have the public key
+                        //     // looked up with all the others (even though it was already passed in) to make
+                        //     // it cleaner?
+                        //     // let transform: TransformKey = recrypt
+                        //     //     .generate_transform_key(
+                        //     //         &group_priv_key.into(),
+                        //     //         &user_master_pub_key.into(),
+                        //     //         &auth.signing_private_key().into(),
+                        //     //     )?
+                        //     //     .into();
+                        //     // member_info.push((
+                        //     //     auth.account_id().clone(),
+                        //     //     user_master_pub_key.clone(),
+                        //     //     transform,
+                        //     // ));
+                        //     members.clone().push(auth.account_id().clone());
+                        // }
+
+                        Ok((group_pub_key, encrypted_group_key, user_info))
                     })
                     .into_future()
             }
         })
-        .and_then(move |(group_pub_key, encrypted_group_key, member_info)| {
+        .and_then(move |(group_pub_key, encrypted_group_key, user_info)| {
             requests::group_create::group_create(
                 &auth,
-                user_master_pub_key,
+                //user_master_pub_key,
                 group_id,
                 name,
                 encrypted_group_key,
                 group_pub_key,
                 auth.account_id(),
-                member_info,
+                owner,
+                admins,
+                members,
+                user_info,
                 needs_rotation,
             )
         })

@@ -209,7 +209,7 @@ pub mod group_create {
     use super::*;
     use crate::internal::{self, auth_v2::AuthV2Builder, rest::json::EncryptedOnceValue};
     use futures::prelude::*;
-    use std::convert::TryFrom;
+    use std::{collections::HashMap, convert::TryFrom};
 
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -224,41 +224,75 @@ pub mod group_create {
 
     pub fn group_create<'a>(
         auth: &'a RequestAuth,
-        user_master_pub_key: &'a internal::PublicKey,
+        //user_master_pub_key: &'a internal::PublicKey,
         id: Option<GroupId>, // if None, server will generate
         name: Option<GroupName>,
         re_encrypted_once_value: recrypt::api::EncryptedValue,
         group_pub_key: internal::PublicKey,
         calling_user_id: &'a UserId,
-        member_info: Option<Vec<(UserId, internal::PublicKey, internal::TransformKey)>>,
+        owner: &'a UserId,
+        admins: &'a Vec<UserId>,
+        members: &'a Vec<UserId>,
+        user_info: HashMap<UserId, (internal::PublicKey, internal::TransformKey)>,
         needs_rotation: bool,
     ) -> impl Future<Item = GroupCreateApiResponse, Error = IronOxideErr> + 'a {
         EncryptedOnceValue::try_from(re_encrypted_once_value)
             .into_future()
             .and_then(move |enc_msg| {
+                let members: Vec<GroupMember> = members
+                    .into_iter()
+                    .map(|member_id| {
+                        let (pub_key, trans_key) = user_info.get(member_id).unwrap();
+                        GroupMember {
+                            user_id: member_id.clone(),
+                            transform_key: trans_key.clone().into(),
+                            user_master_public_key: pub_key.clone().into(),
+                        }
+                    })
+                    .collect();
+
+                let admins: Vec<GroupAdmin> = admins
+                    .into_iter()
+                    .map(|admin_id| {
+                        let (pub_key, _) = user_info.get(admin_id).unwrap();
+                        GroupAdmin {
+                            encrypted_msg: enc_msg.clone(),
+                            user: User {
+                                user_id: admin_id.clone(),
+                                user_master_public_key: pub_key.clone().into(),
+                            },
+                        }
+                    })
+                    .collect();
+                let maybe_members = if members.is_empty() {
+                    None
+                } else {
+                    Some(members)
+                };
                 let req = GroupCreateReq {
                     id,
                     name,
-                    admins: vec![GroupAdmin {
-                        encrypted_msg: enc_msg,
-                        user: User {
-                            user_id: calling_user_id.clone(),
-                            user_master_public_key: user_master_pub_key.clone().into(),
-                        },
-                    }],
+                    admins: admins,
+                    // admins: vec![user_master_pub_keyGroupAdmin {
+                    //     encrypted_msg: enc_msg,
+                    //     user: User {
+                    //         user_id: calling_user_id.clone(),
+                    //         user_master_public_key: user_master_pub_key.clone().into(),
+                    //     },
+                    // }],
                     group_public_key: group_pub_key.into(),
-                    members: member_info.map(|member| {
-                        member
-                            .into_iter()
-                            .map(|(mem_id, pub_key, trans_key)| GroupMember {
-                                user_id: mem_id,
-                                transform_key: trans_key.into(),
-                                user_master_public_key: pub_key.into(),
-                            })
-                            .collect()
-                    }),
+                    members: maybe_members,
                     needs_rotation,
                 };
+
+                // member
+                //     .into_iter()
+                //     .map(|(mem_id, pub_key, trans_key)| GroupMember {
+                //         user_id: mem_id,
+                //         transform_key: trans_key.into(),
+                //         user_master_public_key: pub_key.into(),
+                //     })
+                //     .collect()
 
                 auth.request.post(
                     "groups",
