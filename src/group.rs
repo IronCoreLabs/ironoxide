@@ -35,6 +35,8 @@ impl GroupCreateOpts {
     /// - `add_as_member`
     ///     - `true` - The creating user should be added as a member (in addition to being a group admin)
     ///     - `false` - The creating user will not be a member of the group, but will still be an admin.
+    /// - `members` - List of users to be added as members of the group.
+    ///               Note: even if `add_as_member` is false, the calling user will be added as a member if they are in this list.
     /// - `needs_rotation`
     ///     - true - group's private key will be marked for rotation
     ///     - false (default) - group's private key will not be marked for rotation
@@ -168,20 +170,13 @@ impl GroupOps for crate::IronOxide {
             id: maybe_id,
             name: maybe_name,
             add_as_member,
-            members,
+            mut members,
             needs_rotation,
         } = opts.clone();
 
-        let modified_add_as_member;
-        if members.contains(self.device.auth().account_id()) {
-            modified_add_as_member = true;
-        } else {
-            modified_add_as_member = add_as_member;
-        }
-        let modified_members: Vec<UserId> = members
-            .into_iter()
-            .filter(|id| id.id() != self.device.auth().account_id().id())
-            .collect();
+        if add_as_member {
+            members.push(self.device.auth().account_id().clone());
+        };
 
         rt.block_on(group_api::group_create(
             &self.recrypt,
@@ -189,8 +184,8 @@ impl GroupOps for crate::IronOxide {
             &self.user_master_pub_key,
             maybe_id,
             maybe_name,
-            modified_add_as_member,
-            &modified_members,
+            add_as_member,
+            &members,
             needs_rotation,
         ))
     }

@@ -209,7 +209,7 @@ pub mod group_create {
     use super::*;
     use crate::internal::{self, auth_v2::AuthV2Builder, rest::json::EncryptedOnceValue};
     use futures::prelude::*;
-    use std::convert::TryFrom;
+    use std::{collections::HashMap, convert::TryFrom};
 
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -230,12 +230,23 @@ pub mod group_create {
         re_encrypted_once_value: recrypt::api::EncryptedValue,
         group_pub_key: internal::PublicKey,
         calling_user_id: &'a UserId,
-        member_info: Option<Vec<(UserId, internal::PublicKey, internal::TransformKey)>>,
+        user_info: Option<HashMap<UserId, (internal::PublicKey, Option<internal::TransformKey>)>>,
         needs_rotation: bool,
     ) -> impl Future<Item = GroupCreateApiResponse, Error = IronOxideErr> + 'a {
         EncryptedOnceValue::try_from(re_encrypted_once_value)
             .into_future()
             .and_then(move |enc_msg| {
+                // this currently only holds members, will need to expand for admins later
+                let req_members = user_info.map(|member| {
+                    member
+                        .into_iter()
+                        .map(|(mem_id, (pub_key, trans_key))| GroupMember {
+                            user_id: mem_id,
+                            transform_key: trans_key.unwrap().into(), // we can unwrap because we know all members had it calculated
+                            user_master_public_key: pub_key.into(),
+                        })
+                        .collect()
+                });
                 let req = GroupCreateReq {
                     id,
                     name,
@@ -247,16 +258,7 @@ pub mod group_create {
                         },
                     }],
                     group_public_key: group_pub_key.into(),
-                    members: member_info.map(|member| {
-                        member
-                            .into_iter()
-                            .map(|(mem_id, pub_key, trans_key)| GroupMember {
-                                user_id: mem_id,
-                                transform_key: trans_key.into(),
-                                user_master_public_key: pub_key.into(),
-                            })
-                            .collect()
-                    }),
+                    members: req_members,
                     needs_rotation,
                 };
 

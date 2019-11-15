@@ -109,6 +109,7 @@ impl GroupMetaResult {
     pub fn id(&self) -> &GroupId {
         &self.id
     }
+    /// Name of the group
     pub fn name(&self) -> Option<&GroupName> {
         self.name.as_ref()
     }
@@ -120,12 +121,15 @@ impl GroupMetaResult {
     pub fn is_member(&self) -> bool {
         self.is_member
     }
+    /// Date and time of when the group was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
+    /// Date and time of when the group was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
     }
+    /// Public key for encrypting to the group
     pub fn group_master_public_key(&self) -> &PublicKey {
         &self.group_master_public_key
     }
@@ -153,9 +157,11 @@ impl GroupCreateResult {
     pub fn id(&self) -> &GroupId {
         &self.id
     }
+    /// Name of the group
     pub fn name(&self) -> Option<&GroupName> {
         self.name.as_ref()
     }
+    /// Public key for encrypting to the group
     pub fn group_master_public_key(&self) -> &PublicKey {
         &self.group_master_public_key
     }
@@ -175,9 +181,11 @@ impl GroupCreateResult {
     pub fn members(&self) -> &Vec<UserId> {
         self.members.as_ref()
     }
+    /// Date and time of when the group was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
+    /// Date and time of when the group was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
     }
@@ -207,9 +215,11 @@ impl GroupGetResult {
     pub fn id(&self) -> &GroupId {
         &self.id
     }
+    /// Name of the group
     pub fn name(&self) -> Option<&GroupName> {
         self.name.as_ref()
     }
+    /// Public key for encrypting to the group
     pub fn group_master_public_key(&self) -> &PublicKey {
         &self.group_master_public_key
     }
@@ -221,9 +231,11 @@ impl GroupGetResult {
     pub fn is_member(&self) -> bool {
         self.is_member
     }
+    /// Date and time of when the group was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
+    /// Date and time of when the group was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
     }
@@ -273,7 +285,6 @@ impl GroupAccessEditResult {
     pub fn failed(&self) -> &Vec<GroupAccessEditErr> {
         &self.failed
     }
-
     /// Users whose access was modified.
     pub fn succeeded(&self) -> &Vec<UserId> {
         &self.succeeded
@@ -359,21 +370,20 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     user_master_pub_key: &'a PublicKey,
     group_id: Option<GroupId>,
     name: Option<GroupName>,
-    add_as_member: bool,
+    add_as_member: bool, // this could be used to add the caller to the member list after the `user_key_list` call if we can move the group.rs code here
     members: &'a Vec<UserId>,
     needs_rotation: bool,
 ) -> impl Future<Item = GroupCreateResult, Error = IronOxideErr> + 'a {
     user_api::user_key_list(auth, members)
-        .and_then(move |member_ids_and_keys| {
+        .and_then(move |user_ids_and_keys| {
             // this will occur when one of the UserIds in the members list cannot be found
-            if member_ids_and_keys.len() != members.len() {
+            if user_ids_and_keys.len() != members.len() {
                 // figure out which user ids could not be found in the database and include them in the error message.
                 use std::{collections::HashSet, iter::FromIterator};
                 let desired_members_set: HashSet<&UserId> = HashSet::from_iter(members);
                 let found_members: Vec<UserId> =
-                    member_ids_and_keys.into_iter().map(|(x, _)| x).collect();
+                    user_ids_and_keys.into_iter().map(|(x, _)| x).collect();
                 let found_members_set: HashSet<&UserId> = HashSet::from_iter(&found_members);
-                // TODO (reviewers): this double reference scares me, but seems to work? Is there a better way to do this?
                 let diff: HashSet<&&UserId> =
                     desired_members_set.difference(&found_members_set).collect();
                 futures::future::err(IronOxideErr::UserDoesNotExist(format!(
@@ -389,49 +399,44 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                             &user_master_pub_key.into(),
                             &auth.signing_private_key().into(),
                         )?;
-
-                        let maybe_member_info: Result<Vec<(UserId, PublicKey, TransformKey)>, _> =
-                            member_ids_and_keys
-                                .into_iter()
-                                .map(|(id, member_pub_key)| {
+                        // Map from UserId to (PublicKey, Optional TransformKey)
+                        // TransformKey is optional because we only need it for members, but won't need it
+                        // when we expand this to include admins
+                        let maybe_user_info: Result<
+                            HashMap<UserId, (PublicKey, Option<TransformKey>)>,
+                            _,
+                        > = user_ids_and_keys
+                            .into_iter()
+                            .map(|(id, user_pub_key)| {
+                                // this is for when we expand `member_ids_and_keys` to also have admins in it
+                                if members.contains(&id) {
                                     let maybe_transform_key = recrypt.generate_transform_key(
                                         &group_priv_key.clone().into(),
-                                        &member_pub_key.clone().into(),
+                                        &user_pub_key.clone().into(),
                                         &auth.signing_private_key().into(),
                                     );
                                     maybe_transform_key.map(|transform_key| {
-                                        (id, member_pub_key, transform_key.into())
+                                        (id, (user_pub_key, Some(transform_key.into())))
                                     })
-                                })
-                                .collect();
+                                } else {
+                                    Ok((id, (user_pub_key, None)))
+                                }
+                            })
+                            .collect();
 
-                        let mut member_info = maybe_member_info?;
+                        let user_info = maybe_user_info?;
 
-                        if add_as_member {
-                            let transform: TransformKey = recrypt
-                                .generate_transform_key(
-                                    &group_priv_key.into(),
-                                    &user_master_pub_key.into(),
-                                    &auth.signing_private_key().into(),
-                                )?
-                                .into();
-                            member_info.push((
-                                auth.account_id().clone(),
-                                user_master_pub_key.clone(),
-                                transform,
-                            ));
-                        }
-                        let maybe_member_info = if member_info.len() != 0 {
-                            Some(member_info)
+                        let maybe_user_info = if user_info.len() != 0 {
+                            Some(user_info)
                         } else {
                             None
                         };
-                        Ok((group_pub_key, encrypted_group_key, maybe_member_info))
+                        Ok((group_pub_key, encrypted_group_key, maybe_user_info))
                     })
                     .into_future()
             }
         })
-        .and_then(move |(group_pub_key, encrypted_group_key, member_info)| {
+        .and_then(move |(group_pub_key, encrypted_group_key, user_info)| {
             requests::group_create::group_create(
                 &auth,
                 user_master_pub_key,
@@ -440,7 +445,7 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                 encrypted_group_key,
                 group_pub_key,
                 auth.account_id(),
-                member_info,
+                user_info,
                 needs_rotation,
             )
         })
