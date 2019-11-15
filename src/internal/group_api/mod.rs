@@ -359,8 +359,6 @@ pub(crate) fn get_group_keys<'a>(
 /// `user_master_pub_key` - public key of the user creating this group.
 /// `group_id` - unique id for the group within the segment.
 /// `name` - name for the group. Does not need to be unique.
-/// `add_as_member` - if true the user represented by the current DeviceContext will also be added to the group's membership.
-///     If false, the user will not be an member (but will still be an admin)
 /// `members` - list of user ids to add as members of the group. This list takes priority over `add_as_member`,
 ///     so the calling user will be added as a member if their id is in this list even if `add_as_member` is false.
 /// `needs_rotation` - true if the group private key should be rotated by an admin, else false
