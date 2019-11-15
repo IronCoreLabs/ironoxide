@@ -72,6 +72,26 @@ impl GroupCreateOpts {
             needs_rotation,
         }
     }
+
+    fn standardize(self, calling_id: &UserId) -> GroupCreateOpts {
+        let standardized_members = if self.add_as_member && !self.members.contains(calling_id) {
+            let mut members = self.members.clone();
+            members.push(calling_id.clone());
+            members
+        } else {
+            self.members
+        };
+        GroupCreateOpts::new(
+            self.id,
+            self.name,
+            self.add_as_admin,
+            self.add_as_member,
+            self.owner,
+            self.admins,
+            standardized_members,
+            self.needs_rotation,
+        )
+    }
 }
 
 impl Default for GroupCreateOpts {
@@ -183,51 +203,53 @@ impl GroupOps for crate::IronOxide {
 
     fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupCreateResult> {
         let mut rt = Runtime::new().unwrap();
+
         let GroupCreateOpts {
             id: maybe_id,
             name: maybe_name,
-            add_as_admin,
-            add_as_member,
-            owner: maybe_owner,
-            mut admins,
-            mut members,
+            add_as_admin: _,
+            add_as_member: _,
+            owner,
+            admins,
+            members,
             needs_rotation,
-        } = opts.clone();
+        } = opts.clone().standardize(self.device.auth().account_id());
 
-        if add_as_member {
-            members.push(self.device.auth().account_id().clone());
-        };
+        // if add_as_member {
+        //     members.push(self.device.auth().account_id().clone());
+        // };
 
-        if add_as_admin {
-            admins.push(self.device.auth().account_id().clone());
-        };
+        // if add_as_admin {
+        //     admins.push(self.device.auth().account_id().clone());
+        // };
 
         // concatenate the vectors of admin and member ids. duplicates will be removed later.
         let mut users = [&admins[..], &members[..]].concat();
+        //need to add owner still
 
-        let owner: Option<UserId>;
-        match maybe_owner.clone() {
-            Some(id) => {
-                // the owner must be in the list of admins
-                if !admins.contains(&id) {
-                    admins.push(id.clone());
-                }
-                if id == self.device.auth().account_id().clone() {
-                    //Todo: test this
-                    dbg!("Passed in self as owner");
-                    owner = None;
-                } else {
-                    users.push(id);
-                    owner = maybe_owner;
-                }
-            }
-            None => {
-                if !admins.contains(self.device.auth().account_id()) {
-                    admins.push(self.device.auth().account_id().clone());
-                }
-                owner = None;
-            }
-        };
+        // let owner: Option<UserId>;
+        // match maybe_owner.clone() {
+        //     Some(id) => {
+        //         // the owner must be in the list of admins
+        //         if !admins.contains(&id) {
+        //             admins.push(id.clone());
+        //         }
+        //         if id == self.device.auth().account_id().clone() {
+        //             //Todo: test this
+        //             dbg!("Passed in self as owner");
+        //             owner = None;
+        //         } else {
+        //             users.push(id);
+        //             owner = maybe_owner;
+        //         }
+        //     }
+        //     None => {
+        //         if !admins.contains(self.device.auth().account_id()) {
+        //             admins.push(self.device.auth().account_id().clone());
+        //         }
+        //         owner = None;
+        //     }
+        // };
 
         use std::{collections::HashSet, iter::FromIterator};
         let set: HashSet<UserId> = HashSet::from_iter(users);

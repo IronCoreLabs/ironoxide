@@ -234,64 +234,91 @@ pub mod group_create {
         owner: &'a Option<UserId>,
         admins: &'a Vec<UserId>,
         members: &'a Vec<UserId>,
-        user_info: HashMap<UserId, (internal::PublicKey, internal::TransformKey)>,
+        user_info: Option<HashMap<UserId, (internal::PublicKey, Option<internal::TransformKey>)>>,
         needs_rotation: bool,
     ) -> impl Future<Item = GroupCreateApiResponse, Error = IronOxideErr> + 'a {
         EncryptedOnceValue::try_from(re_encrypted_once_value)
             .into_future()
             .and_then(move |enc_msg| {
-                let req_members: Vec<GroupMember> = members
-                    .into_iter()
-                    .map(|member_id| {
-                        let (member_pub_key, member_trans_key) = user_info.get(member_id).unwrap();
-                        GroupMember {
-                            user_id: member_id.clone(),
-                            transform_key: member_trans_key.clone().into(),
-                            user_master_public_key: member_pub_key.clone().into(),
-                        }
-                    })
-                    .collect();
-                let req_maybe_members = if req_members.is_empty() {
-                    None
-                } else {
-                    Some(req_members)
-                };
+                // let req_members: Vec<GroupMember> = members
+                //     .into_iter()
+                //     .map(|member_id| {
+                //         let (member_pub_key, member_trans_key) = user_info.get(member_id).unwrap();
+                //         GroupMember {
+                //             user_id: member_id.clone(),
+                //             transform_key: member_trans_key.clone().into(),
+                //             user_master_public_key: member_pub_key.clone().into(),
+                //         }
+                //     })
+                //     .collect();
+                // let req_maybe_members = if req_members.is_empty() {
+                //     None
+                // } else {
+                //     Some(req_members)
+                // };
 
-                let req_admins: Vec<GroupAdmin> = admins
-                    .into_iter()
-                    .map(|admin_id| {
-                        let (admin_pub_key, _) = user_info.get(admin_id).unwrap();
-                        GroupAdmin {
-                            encrypted_msg: enc_msg.clone(),
-                            user: User {
-                                user_id: admin_id.clone(),
-                                user_master_public_key: admin_pub_key.clone().into(),
-                            },
-                        }
-                    })
-                    .collect();
+                // let req_admins: Vec<GroupAdmin> = admins
+                //     .into_iter()
+                //     .map(|admin_id| {
+                //         let (admin_pub_key, _) = user_info.get(admin_id).unwrap();
+                //         GroupAdmin {
+                //             encrypted_msg: enc_msg.clone(),
+                //             user: User {
+                //                 user_id: admin_id.clone(),
+                //                 user_master_public_key: admin_pub_key.clone().into(),
+                //             },
+                //         }
+                //     })
+                //     .collect();
 
-                let req_owner: Option<GroupAdmin> = match owner {
-                    Some(owner_id) => {
-                        let (owner_pub_key, _) = user_info.get(owner_id).unwrap();
-                        Some(GroupAdmin {
-                            encrypted_msg: enc_msg.clone(),
-                            user: User {
-                                user_id: owner_id.clone(),
-                                user_master_public_key: owner_pub_key.clone().into(),
-                            },
+                // let req_owner: Option<GroupAdmin> = match owner {
+                //     Some(owner_id) => {
+                //         let (owner_pub_key, _) = user_info.get(owner_id).unwrap();
+                //         Some(GroupAdmin {
+                //             encrypted_msg: enc_msg.clone(),
+                //             user: User {
+                //                 user_id: owner_id.clone(),
+                //                 user_master_public_key: owner_pub_key.clone().into(),
+                //             },
+                //         })
+                //     }
+                //     None => None,
+                // };
+
+                // let req = GroupCreateReq {
+                //     id,
+                //     name,
+                //     owner: req_owner,
+                //     admins: req_admins,
+                //     members: req_maybe_members,
+                //     group_public_key: group_pub_key.into(),
+                // let req_admins = vec![GroupAdmin {
+                //     encrypted_msg: enc_msg,
+                //     user: User {
+                //         user_id: calling_user_id.clone(),
+                //         user_master_public_key: user_master_pub_key.clone().into(),
+                //     },
+                // }];
+                let req_members = user_info.map(|member| {
+                    member
+                        .into_iter()
+                        .map(|(mem_id, (mem_pub_key, maybe_trans_key))| {
+                            maybe_trans_key.map(|mem_trans_key| GroupMember {
+                                user_id: mem_id,
+                                transform_key: mem_trans_key.into(),
+                                user_master_public_key: mem_pub_key.into(),
+                            })
                         })
-                    }
-                    None => None,
-                };
-
+                        .flatten()
+                        .collect()
+                });
                 let req = GroupCreateReq {
                     id,
                     name,
-                    owner: req_owner,
-                    admins: req_admins,
-                    members: req_maybe_members,
+                    owner: None,    //todo: fixit
+                    admins: vec![], //todo: fixit
                     group_public_key: group_pub_key.into(),
+                    members: req_members,
                     needs_rotation,
                 };
 

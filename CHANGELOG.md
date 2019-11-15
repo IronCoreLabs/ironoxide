@@ -2,6 +2,8 @@
 
 ## 0.14.0 (Unreleased)
 
+- [[#72](https://github.com/IronCoreLabs/ironoxide/pull/72)]
+  - Allows adding members at group creation time
 - [[#69](https://github.com/IronCoreLabs/ironoxide/pull/69)]
   - Allows changing of IronCore environment at runtime.
 - [[#64](https://github.com/IronCoreLabs/ironoxide/pull/64)]

@@ -109,6 +109,7 @@ impl GroupMetaResult {
     pub fn id(&self) -> &GroupId {
         &self.id
     }
+    /// Name of the group
     pub fn name(&self) -> Option<&GroupName> {
         self.name.as_ref()
     }
@@ -120,12 +121,15 @@ impl GroupMetaResult {
     pub fn is_member(&self) -> bool {
         self.is_member
     }
+    /// Date and time of when the group was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
+    /// Date and time of when the group was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
     }
+    /// Public key for encrypting to the group
     pub fn group_master_public_key(&self) -> &PublicKey {
         &self.group_master_public_key
     }
@@ -153,9 +157,11 @@ impl GroupCreateResult {
     pub fn id(&self) -> &GroupId {
         &self.id
     }
+    /// Name of the group
     pub fn name(&self) -> Option<&GroupName> {
         self.name.as_ref()
     }
+    /// Public key for encrypting to the group
     pub fn group_master_public_key(&self) -> &PublicKey {
         &self.group_master_public_key
     }
@@ -175,9 +181,11 @@ impl GroupCreateResult {
     pub fn members(&self) -> &Vec<UserId> {
         self.members.as_ref()
     }
+    /// Date and time of when the group was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
+    /// Date and time of when the group was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
     }
@@ -207,9 +215,11 @@ impl GroupGetResult {
     pub fn id(&self) -> &GroupId {
         &self.id
     }
+    /// Name of the group
     pub fn name(&self) -> Option<&GroupName> {
         self.name.as_ref()
     }
+    /// Public key for encrypting to the group
     pub fn group_master_public_key(&self) -> &PublicKey {
         &self.group_master_public_key
     }
@@ -221,9 +231,11 @@ impl GroupGetResult {
     pub fn is_member(&self) -> bool {
         self.is_member
     }
+    /// Date and time of when the group was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
+    /// Date and time of when the group was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
     }
@@ -273,7 +285,6 @@ impl GroupAccessEditResult {
     pub fn failed(&self) -> &Vec<GroupAccessEditErr> {
         &self.failed
     }
-
     /// Users whose access was modified.
     pub fn succeeded(&self) -> &Vec<UserId> {
         &self.succeeded
@@ -348,8 +359,6 @@ pub(crate) fn get_group_keys<'a>(
 /// `user_master_pub_key` - public key of the user creating this group.
 /// `group_id` - unique id for the group within the segment.
 /// `name` - name for the group. Does not need to be unique.
-/// `add_as_member` - if true the user represented by the current DeviceContext will also be added to the group's membership.
-///     If false, the user will not be an member (but will still be an admin)
 /// `members` - list of user ids to add as members of the group. This list takes priority over `add_as_member`,
 ///     so the calling user will be added as a member if their id is in this list even if `add_as_member` is false.
 /// `needs_rotation` - true if the group private key should be rotated by an admin, else false
@@ -390,76 +399,109 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
             } else {
                 transform::gen_group_keys(recrypt)
                     .and_then(move |(plaintext, group_priv_key, group_pub_key)| {
-                        let maybe_user_info: Result<HashMap<UserId, (PublicKey, TransformKey)>, _> =
-                            user_ids_and_keys
-                                .into_iter()
-                                .map(|(id, member_pub_key)| {
-                                    let maybe_transform_key = recrypt.generate_transform_key(
-                                        &group_priv_key.clone().into(),
-                                        &member_pub_key.clone().into(),
-                                        &auth.signing_private_key().into(),
-                                    );
-                                    maybe_transform_key.map(|transform_key| {
-                                        (id, (member_pub_key, transform_key.into()))
-                                    })
-                                })
-                                .collect();
+                        // let maybe_user_info: Result<HashMap<UserId, (PublicKey, TransformKey)>, _> =
+                        //     user_ids_and_keys
+                        //         .into_iter()
+                        //         .map(|(id, member_pub_key)| {
+                        //             let maybe_transform_key = recrypt.generate_transform_key(
+                        //                 &group_priv_key.clone().into(),
+                        //                 &member_pub_key.clone().into(),
+                        //                 &auth.signing_private_key().into(),
+                        //             );
+                        //             maybe_transform_key.map(|transform_key| {
+                        //                 (id, (member_pub_key, transform_key.into()))
+                        //             })
+                        //         })
+                        //         .collect();
 
-                        let user_info = maybe_user_info?;
-                        // let caller_transform_key: TransformKey = recrypt
-                        //     .generate_transform_key(
-                        //         &group_priv_key.into(),
+                        // let user_info = maybe_user_info?;
+                        // // let caller_transform_key: TransformKey = recrypt
+                        // //     .generate_transform_key(
+                        // //         &group_priv_key.into(),
+                        // //         &user_master_pub_key.into(),
+                        // //         &auth.signing_private_key().into(),
+                        // //     )?
+                        // //     .into();
+                        // // user_info.insert(
+                        // //     auth.account_id().clone(),
+                        // //     (user_master_pub_key.clone(), caller_transform_key),
+                        // // );
+
+                        // // encrypt the group secret to the owner
+                        // let encrypted_group_key = match owner {
+                        //     Some(owner_id) => {
+                        //         recrypt.encrypt(
+                        //             &plaintext,
+                        //             &user_info.get(owner_id).unwrap().0.clone().into(), //TODO (reviewers): I think this unwrap is okay because I put it in myself?
+                        //             &auth.signing_private_key().into(),
+                        //         )
+                        //     }
+                        //     None => recrypt.encrypt(
+                        //         &plaintext,
                         //         &user_master_pub_key.into(),
                         //         &auth.signing_private_key().into(),
-                        //     )?
-                        //     .into();
-                        // user_info.insert(
-                        //     auth.account_id().clone(),
-                        //     (user_master_pub_key.clone(), caller_transform_key),
-                        // );
+                        //     ),
+                        // }?;
+                        // // let encrypted_group_key = recrypt.encrypt(
+                        // //     &plaintext,
+                        // //     &user_info.get(owner).unwrap().0.clone().into(), //TODO (reviewers): I think this unwrap is okay because I put it in myself?
+                        // //     &auth.signing_private_key().into(),
+                        // // )?;
 
-                        // encrypt the group secret to the owner
-                        let encrypted_group_key = match owner {
-                            Some(owner_id) => {
-                                recrypt.encrypt(
-                                    &plaintext,
-                                    &user_info.get(owner_id).unwrap().0.clone().into(), //TODO (reviewers): I think this unwrap is okay because I put it in myself?
+                        // // if add_as_member {
+                        // //     // TODO (question for reviewers): is it better to have this code duplication here,
+                        // //     // or to add the calling UserId to members list earlier and just have the public key
+                        // //     // looked up with all the others (even though it was already passed in) to make
+                        // //     // it cleaner?
+                        // //     // let transform: TransformKey = recrypt
+                        // //     //     .generate_transform_key(
+                        // //     //         &group_priv_key.into(),
+                        // //     //         &user_master_pub_key.into(),
+                        // //     //         &auth.signing_private_key().into(),
+                        // //     //     )?
+                        // //     //     .into();
+                        // //     // member_info.push((
+                        // //     //     auth.account_id().clone(),
+                        // //     //     user_master_pub_key.clone(),
+                        // //     //     transform,
+                        // //     // ));
+                        // //     members.clone().push(auth.account_id().clone());
+                        // // }
+
+                        // Ok((group_pub_key, encrypted_group_key, user_info))
+                        // encrypt the group secret to the current user as they will be the group admin
+                        let encrypted_group_key = recrypt.encrypt(
+                            &plaintext,
+                            &user_master_pub_key.into(),
+                            &auth.signing_private_key().into(),
+                        )?;
+                        // Map from UserId to (PublicKey, Optional TransformKey)
+                        // TransformKey is optional because we need it for members, but won't need it
+                        // when we expand this to include admins
+                        let member_info_result: Result<
+                            HashMap<UserId, (PublicKey, Option<TransformKey>)>,
+                            _,
+                        > = user_ids_and_keys
+                            .into_iter()
+                            .map(|(id, user_pub_key)| {
+                                let maybe_transform_key = recrypt.generate_transform_key(
+                                    &group_priv_key.clone().into(),
+                                    &user_pub_key.clone().into(),
                                     &auth.signing_private_key().into(),
-                                )
-                            }
-                            None => recrypt.encrypt(
-                                &plaintext,
-                                &user_master_pub_key.into(),
-                                &auth.signing_private_key().into(),
-                            ),
-                        }?;
-                        // let encrypted_group_key = recrypt.encrypt(
-                        //     &plaintext,
-                        //     &user_info.get(owner).unwrap().0.clone().into(), //TODO (reviewers): I think this unwrap is okay because I put it in myself?
-                        //     &auth.signing_private_key().into(),
-                        // )?;
+                                );
+                                maybe_transform_key.map(|transform_key| {
+                                    (id, (user_pub_key, Some(transform_key.into())))
+                                })
+                            })
+                            .collect();
+                        let member_info = member_info_result?;
 
-                        // if add_as_member {
-                        //     // TODO (question for reviewers): is it better to have this code duplication here,
-                        //     // or to add the calling UserId to members list earlier and just have the public key
-                        //     // looked up with all the others (even though it was already passed in) to make
-                        //     // it cleaner?
-                        //     // let transform: TransformKey = recrypt
-                        //     //     .generate_transform_key(
-                        //     //         &group_priv_key.into(),
-                        //     //         &user_master_pub_key.into(),
-                        //     //         &auth.signing_private_key().into(),
-                        //     //     )?
-                        //     //     .into();
-                        //     // member_info.push((
-                        //     //     auth.account_id().clone(),
-                        //     //     user_master_pub_key.clone(),
-                        //     //     transform,
-                        //     // ));
-                        //     members.clone().push(auth.account_id().clone());
-                        // }
-
-                        Ok((group_pub_key, encrypted_group_key, user_info))
+                        let maybe_member_info = if !member_info.is_empty() {
+                            Some(member_info)
+                        } else {
+                            None
+                        };
+                        Ok((group_pub_key, encrypted_group_key, maybe_member_info))
                     })
                     .into_future()
             }
