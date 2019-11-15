@@ -370,7 +370,6 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     user_master_pub_key: &'a PublicKey,
     group_id: Option<GroupId>,
     name: Option<GroupName>,
-    add_as_member: bool, // this could be used to add the caller to the member list after the `user_key_list` call if we can move the group.rs code here
     members: &'a Vec<UserId>,
     needs_rotation: bool,
 ) -> impl Future<Item = GroupCreateResult, Error = IronOxideErr> + 'a {

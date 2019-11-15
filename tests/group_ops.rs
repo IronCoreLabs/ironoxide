@@ -142,6 +142,7 @@ fn group_add_member() {
 
 #[test]
 fn group_add_member_on_create() -> Result<(), IronOxideErr> {
+    use std::{collections::HashSet, iter::FromIterator};
     let sdk = init_sdk();
     let account_id = sdk.device().account_id().clone();
     let second_account_id = init_sdk().device().account_id().clone();
@@ -156,7 +157,12 @@ fn group_add_member_on_create() -> Result<(), IronOxideErr> {
         false,
     ))?;
 
-    assert_eq!(group_result.members(), &vec![account_id, second_account_id]);
+    // the order if the vector can be confusing with the add_as_member, so comparing the
+    // sets can avoid issues with it
+    let result_set: HashSet<&UserId> = HashSet::from_iter(group_result.members());
+    let expected_vec = &vec![account_id, second_account_id];
+    let expected_set: HashSet<&UserId> = HashSet::from_iter(expected_vec);
+    assert_eq!(result_set, expected_set);
     Ok(())
 }
 

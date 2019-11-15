@@ -55,6 +55,20 @@ impl GroupCreateOpts {
             needs_rotation,
         }
     }
+
+    fn standardize(self, calling_id: &UserId) -> GroupCreateOpts {
+        let mut new_members = self.members.clone();
+        if self.add_as_member && !self.members.contains(calling_id) {
+            new_members.push(calling_id.clone());
+        }
+        GroupCreateOpts::new(
+            self.id,
+            self.name,
+            self.add_as_member,
+            new_members,
+            self.needs_rotation,
+        )
+    }
 }
 
 impl Default for GroupCreateOpts {
@@ -166,17 +180,14 @@ impl GroupOps for crate::IronOxide {
 
     fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupCreateResult> {
         let mut rt = Runtime::new().unwrap();
+
         let GroupCreateOpts {
             id: maybe_id,
             name: maybe_name,
-            add_as_member,
-            mut members,
+            add_as_member: _,
+            members,
             needs_rotation,
-        } = opts.clone();
-
-        if add_as_member {
-            members.push(self.device.auth().account_id().clone());
-        };
+        } = opts.clone().standardize(self.device.auth().account_id());
 
         rt.block_on(group_api::group_create(
             &self.recrypt,
@@ -184,7 +195,6 @@ impl GroupOps for crate::IronOxide {
             &self.user_master_pub_key,
             maybe_id,
             maybe_name,
-            add_as_member,
             &members,
             needs_rotation,
         ))
