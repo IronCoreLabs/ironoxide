@@ -12,11 +12,10 @@ use uuid::Uuid;
 extern crate serde_json;
 
 #[test]
-fn user_verify_non_existing_user() {
-    let result = IronOxide::user_verify(&gen_jwt(None).0);
-    assert_eq!(true, result.is_ok(), "User verify call failed unexpectedly");
-    let option_result = result.unwrap();
+fn user_verify_non_existing_user() -> Result<(), IronOxideErr> {
+    let option_result = IronOxide::user_verify(&gen_jwt(None).0)?;
     assert_eq!(true, option_result.is_none());
+    Ok(())
 }
 
 #[test]

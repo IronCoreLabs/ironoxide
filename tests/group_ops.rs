@@ -17,6 +17,7 @@ fn group_create_no_member() {
         Some(create_id_all_classes("").try_into().unwrap()),
         Some("test group name".try_into().unwrap()),
         false,
+        Vec::new(),
         true,
     ));
 
@@ -64,6 +65,7 @@ fn group_delete() {
         Some(create_id_all_classes("").try_into().unwrap()),
         None,
         true,
+        Vec::new(),
         false,
     ));
     assert!(group_result.is_ok());
@@ -84,6 +86,7 @@ fn group_update_name() {
             Some(create_id_all_classes("").try_into().unwrap()),
             Some("first name".try_into().unwrap()),
             false,
+            Vec::new(),
             false,
         ))
         .unwrap();
@@ -116,6 +119,7 @@ fn group_add_member() {
         Some(create_id_all_classes("").try_into().unwrap()),
         None,
         false,
+        Vec::new(),
         false,
     ));
     assert!(group_result.is_ok());
@@ -134,6 +138,32 @@ fn group_add_member() {
     let add_member_res_second_unwrap = add_member_res_second.unwrap();
     assert_eq!(add_member_res_second_unwrap.succeeded().len(), 0);
     assert_eq!(add_member_res_second_unwrap.failed().len(), 2);
+}
+
+#[test]
+fn group_add_member_on_create() -> Result<(), IronOxideErr> {
+    use std::{collections::HashSet, iter::FromIterator};
+    let sdk = init_sdk();
+    let account_id = sdk.device().account_id().clone();
+    let second_account_id = init_sdk().device().account_id().clone();
+
+    // Even though `add_as_member` is false, the UserId is in the `members` list,
+    // so the caller becomes a member regardless
+    let group_result = sdk.group_create(&GroupCreateOpts::new(
+        Some(create_id_all_classes("").try_into().unwrap()),
+        None,
+        false,
+        vec![account_id.clone(), second_account_id.clone()],
+        false,
+    ))?;
+
+    // the order if the vector can be confusing with the add_as_member, so comparing the
+    // sets can avoid issues with it
+    let result_set: HashSet<&UserId> = HashSet::from_iter(group_result.members());
+    let expected_vec = &vec![account_id, second_account_id];
+    let expected_set: HashSet<&UserId> = HashSet::from_iter(expected_vec);
+    assert_eq!(result_set, expected_set);
+    Ok(())
 }
 
 #[test]
@@ -160,6 +190,7 @@ fn group_remove_member() {
         Some(create_id_all_classes("").try_into().unwrap()),
         None,
         true,
+        Vec::new(),
         false,
     ));
     assert!(group_result.is_ok());
@@ -188,6 +219,7 @@ fn group_add_admin() {
         Some(create_id_all_classes("").try_into().unwrap()),
         None,
         false,
+        Vec::new(),
         false,
     ));
     assert!(group_result.is_ok());
@@ -239,6 +271,7 @@ fn group_get_not_url_safe_id() {
         Some(not_url_safe_id.clone()),
         None,
         false,
+        Vec::new(),
         false,
     ));
 

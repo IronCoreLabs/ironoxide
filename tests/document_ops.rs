@@ -96,6 +96,7 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
         data_rec_group_id.clone().into(),
         None,
         true,
+        Vec::new(),
         false,
     ));
     assert!(group_result.is_ok());
@@ -160,6 +161,7 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
         group2_id.clone().into(),
         None,
         false,
+        Vec::new(),
         false,
     ));
     assert!(group2_result.is_ok());
@@ -348,14 +350,13 @@ fn setup_encrypt_with_explicit_and_policy_grants(
         data_rec_group_id.clone().into(),
         None,
         true,
+        Vec::new(),
         false,
     ));
     assert!(group_result.is_ok());
 
     // create an explicit group as well
-    let group2_result = sdk.group_create(&Default::default());
-    assert!(group2_result.is_ok());
-    let group2 = group2_result?;
+    let group2 = sdk.group_create(&Default::default())?;
     let ex_group_id = group2.id();
 
     Ok((
@@ -646,28 +647,26 @@ fn doc_encrypt_update_and_decrypt() {
 }
 
 #[test]
-fn doc_grant_access() {
+fn doc_grant_access() -> Result<(), IronOxideErr> {
     let sdk = init_sdk();
 
     let doc = [0u8; 64];
-    let doc_result = sdk.document_encrypt(&doc, &Default::default());
-    assert!(doc_result.is_ok());
-    let doc_id = doc_result.unwrap().id().clone();
+    let doc_result = sdk.document_encrypt(&doc, &Default::default())?;
+    let doc_id = doc_result.id().clone();
 
     // create a second user to grant access to the document
     let user = create_second_user();
 
     // group user is a member of
-    let group_result = sdk.group_create(&Default::default());
-    assert!(group_result.is_ok());
-    let group_id = group_result.unwrap().id().clone();
+    let group_result = sdk.group_create(&Default::default())?;
+    let group_id = group_result.id().clone();
 
     // group user is not a member of
-    let group2_result = sdk.group_create(&GroupCreateOpts::new(None, None, false, false));
-    assert!(group2_result.is_ok());
-    let group2_id = group2_result.unwrap().id().clone();
+    let group2_result =
+        sdk.group_create(&GroupCreateOpts::new(None, None, false, Vec::new(), false))?;
+    let group2_id = group2_result.id().clone();
 
-    let grant_result = sdk.document_grant_access(
+    let grants = sdk.document_grant_access(
         &doc_id,
         &vec![
             UserOrGroup::User {
@@ -676,21 +675,20 @@ fn doc_grant_access() {
             UserOrGroup::Group { id: group_id },
             UserOrGroup::Group { id: group2_id },
             UserOrGroup::User {
-                id: create_id_all_classes("bad-user-id").try_into().unwrap(),
+                id: create_id_all_classes("bad-user-id").try_into()?,
             },
             UserOrGroup::Group {
-                id: create_id_all_classes("bad-group-id").try_into().unwrap(),
+                id: create_id_all_classes("bad-group-id").try_into()?,
             },
         ],
-    );
-    assert!(grant_result.is_ok());
-    let grants = grant_result.unwrap();
+    )?;
     assert_eq!(3, grants.succeeded().len());
     assert_eq!(2, grants.failed().len());
+    Ok(())
 }
 
 #[test]
-fn doc_revoke_access() {
+fn doc_revoke_access() -> Result<(), IronOxideErr> {
     let sdk = init_sdk();
 
     let doc = [0u8; 64];
@@ -702,18 +700,16 @@ fn doc_revoke_access() {
             true,
             vec![],
         ),
-    );
-    assert!(doc_result.is_ok());
-    let doc_id = doc_result.unwrap().id().clone();
+    )?;
+    let doc_id = doc_result.id().clone();
 
     // create a second user to grant/revoke access to the document
     let user = create_second_user();
 
-    let group_result = sdk.group_create(&Default::default());
-    assert!(group_result.is_ok());
-    let group_id = group_result.unwrap().id().clone();
+    let group_result = sdk.group_create(&Default::default())?;
+    let group_id = group_result.id().clone();
 
-    let grant_result = sdk.document_grant_access(
+    let grants = sdk.document_grant_access(
         &doc_id,
         &vec![
             UserOrGroup::User {
@@ -723,13 +719,10 @@ fn doc_revoke_access() {
                 id: group_id.clone(),
             },
         ],
-    );
-
-    assert!(grant_result.is_ok());
-    let grants = grant_result.unwrap();
+    )?;
     assert_eq!(grants.succeeded().len(), 2);
 
-    let revoke_result = sdk.document_revoke_access(
+    let revokes = sdk.document_revoke_access(
         &doc_id,
         &vec![
             UserOrGroup::User {
@@ -745,12 +738,11 @@ fn doc_revoke_access() {
                 id: "bad-group-id".try_into().unwrap(),
             },
         ],
-    );
+    )?;
 
-    assert!(revoke_result.is_ok());
-    let revokes = revoke_result.unwrap();
     assert_eq!(revokes.succeeded().len(), 2);
-    assert_eq!(revokes.failed().len(), 2)
+    assert_eq!(revokes.failed().len(), 2);
+    Ok(())
 }
 
 #[test]

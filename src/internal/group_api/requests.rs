@@ -1,5 +1,7 @@
 use crate::internal::{
-    group_api::{GroupEntity, GroupGetResult, GroupId, GroupMetaResult, GroupName, UserId},
+    group_api::{
+        GroupCreateResult, GroupEntity, GroupGetResult, GroupId, GroupMetaResult, GroupName, UserId,
+    },
     rest::{
         self,
         json::{
@@ -94,6 +96,39 @@ impl TryFrom<GroupGetApiResponse> for GroupGetResult {
     }
 }
 
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GroupCreateApiResponse {
+    pub(crate) id: GroupId,
+    pub(crate) name: Option<GroupName>,
+    pub(crate) permissions: HashSet<Permission>,
+    pub(crate) updated: DateTime<Utc>,
+    pub(crate) created: DateTime<Utc>,
+    pub(crate) admin_ids: Vec<String>,
+    pub(crate) member_ids: Vec<String>,
+    pub(crate) group_master_public_key: PublicKey,
+    pub(crate) needs_rotation: Option<bool>,
+}
+impl TryFrom<GroupCreateApiResponse> for GroupCreateResult {
+    type Error = IronOxideErr;
+
+    fn try_from(resp: GroupCreateApiResponse) -> Result<Self, Self::Error> {
+        let group_master_public_key = resp.group_master_public_key.try_into()?;
+        Ok(GroupCreateResult {
+            id: resp.id,
+            name: resp.name,
+            group_master_public_key,
+            is_admin: resp.permissions.contains(&Permission::Admin),
+            is_member: resp.permissions.contains(&Permission::Member),
+            admins: resp.admin_ids.into_iter().map(|id| UserId(id)).collect(),
+            members: resp.member_ids.into_iter().map(|id| UserId(id)).collect(),
+            created: resp.created,
+            updated: resp.updated,
+            needs_rotation: resp.needs_rotation,
+        })
+    }
+}
+
 #[derive(Serialize, Debug, PartialEq)]
 pub struct GroupAdmin {
     user: User,
@@ -174,7 +209,7 @@ pub mod group_create {
     use super::*;
     use crate::internal::{self, auth_v2::AuthV2Builder, rest::json::EncryptedOnceValue};
     use futures::prelude::*;
-    use std::convert::TryFrom;
+    use std::{collections::HashMap, convert::TryFrom};
 
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -194,31 +229,39 @@ pub mod group_create {
         name: Option<GroupName>,
         re_encrypted_once_value: recrypt::api::EncryptedValue,
         group_pub_key: internal::PublicKey,
-        user_id: &'a UserId,
-        member_transform_key: Option<internal::TransformKey>,
+        calling_user_id: &'a UserId,
+        member_info: Option<HashMap<UserId, (internal::PublicKey, Option<internal::TransformKey>)>>,
         needs_rotation: bool,
-    ) -> impl Future<Item = GroupBasicApiResponse, Error = IronOxideErr> + 'a {
+    ) -> impl Future<Item = GroupCreateApiResponse, Error = IronOxideErr> + 'a {
         EncryptedOnceValue::try_from(re_encrypted_once_value)
             .into_future()
             .and_then(move |enc_msg| {
+                let req_admins = vec![GroupAdmin {
+                    encrypted_msg: enc_msg,
+                    user: User {
+                        user_id: calling_user_id.clone(),
+                        user_master_public_key: user_master_pub_key.clone().into(),
+                    },
+                }];
+                let req_members = member_info.map(|member| {
+                    member
+                        .into_iter()
+                        .map(|(mem_id, (mem_pub_key, maybe_trans_key))| {
+                            maybe_trans_key.map(|mem_trans_key| GroupMember {
+                                user_id: mem_id,
+                                transform_key: mem_trans_key.into(),
+                                user_master_public_key: mem_pub_key.into(),
+                            })
+                        })
+                        .flatten()
+                        .collect()
+                });
                 let req = GroupCreateReq {
                     id,
                     name,
-                    admins: vec![GroupAdmin {
-                        encrypted_msg: enc_msg,
-                        user: User {
-                            user_id: user_id.clone(),
-                            user_master_public_key: user_master_pub_key.clone().into(),
-                        },
-                    }],
-                    group_public_key: group_pub_key.to_owned().into(),
-                    members: member_transform_key.map(|tkey| {
-                        vec![GroupMember {
-                            user_id: user_id.clone(),
-                            transform_key: tkey.into(),
-                            user_master_public_key: user_master_pub_key.clone().into(),
-                        }]
-                    }),
+                    admins: req_admins,
+                    group_public_key: group_pub_key.into(),
+                    members: req_members,
                     needs_rotation,
                 };
 

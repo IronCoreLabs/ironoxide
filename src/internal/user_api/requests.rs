@@ -15,7 +15,10 @@ use crate::{
     },
 };
 use chrono::Utc;
-use futures::Future;
+use futures::{
+    future::{ok, Either},
+    Future,
+};
 use std::convert::TryFrom;
 
 use crate::internal::auth_v2::AuthV2Builder;
@@ -291,13 +294,16 @@ pub mod user_key_list {
         users: &Vec<UserId>,
     ) -> impl Future<Item = UserKeyListResponse, Error = IronOxideErr> + 'a {
         let user_ids: Vec<&str> = users.iter().map(|user| user.id()).collect();
-
-        auth.request.get_with_query_params(
-            "users".into(),
-            &vec![("id".into(), rest::url_encode(&user_ids.join(",")))],
-            RequestErrorCode::UserKeyList,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+        if user_ids.len() != 0 {
+            Either::A(auth.request.get_with_query_params(
+                "users".into(),
+                &vec![("id".into(), rest::url_encode(&user_ids.join(",")))],
+                RequestErrorCode::UserKeyList,
+                AuthV2Builder::new(&auth, Utc::now()),
+            ))
+        } else {
+            Either::B(ok(UserKeyListResponse { result: Vec::new() }))
+        }
     }
 }
 
