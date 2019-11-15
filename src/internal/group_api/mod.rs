@@ -372,14 +372,14 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     needs_rotation: bool,
 ) -> impl Future<Item = GroupCreateResult, Error = IronOxideErr> + 'a {
     user_api::user_key_list(auth, members)
-        .and_then(move |user_ids_and_keys| {
+        .and_then(move |member_ids_and_keys| {
             // this will occur when one of the UserIds in the members list cannot be found
-            if user_ids_and_keys.len() != members.len() {
+            if member_ids_and_keys.len() != members.len() {
                 // figure out which user ids could not be found in the database and include them in the error message.
                 use std::{collections::HashSet, iter::FromIterator};
                 let desired_members_set: HashSet<&UserId> = HashSet::from_iter(members);
                 let found_members: Vec<UserId> =
-                    user_ids_and_keys.into_iter().map(|(x, _)| x).collect();
+                    member_ids_and_keys.into_iter().map(|(x, _)| x).collect();
                 let found_members_set: HashSet<&UserId> = HashSet::from_iter(&found_members);
                 let diff: HashSet<&&UserId> =
                     desired_members_set.difference(&found_members_set).collect();
@@ -397,43 +397,37 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                             &auth.signing_private_key().into(),
                         )?;
                         // Map from UserId to (PublicKey, Optional TransformKey)
-                        // TransformKey is optional because we only need it for members, but won't need it
+                        // TransformKey is optional because we need it for members, but won't need it
                         // when we expand this to include admins
-                        let maybe_user_info: Result<
+                        let member_info_result: Result<
                             HashMap<UserId, (PublicKey, Option<TransformKey>)>,
                             _,
-                        > = user_ids_and_keys
+                        > = member_ids_and_keys
                             .into_iter()
                             .map(|(id, user_pub_key)| {
-                                // this is for when we expand `member_ids_and_keys` to also have admins in it
-                                if members.contains(&id) {
-                                    let maybe_transform_key = recrypt.generate_transform_key(
-                                        &group_priv_key.clone().into(),
-                                        &user_pub_key.clone().into(),
-                                        &auth.signing_private_key().into(),
-                                    );
-                                    maybe_transform_key.map(|transform_key| {
-                                        (id, (user_pub_key, Some(transform_key.into())))
-                                    })
-                                } else {
-                                    Ok((id, (user_pub_key, None)))
-                                }
+                                let maybe_transform_key = recrypt.generate_transform_key(
+                                    &group_priv_key.clone().into(),
+                                    &user_pub_key.clone().into(),
+                                    &auth.signing_private_key().into(),
+                                );
+                                maybe_transform_key.map(|transform_key| {
+                                    (id, (user_pub_key, Some(transform_key.into())))
+                                })
                             })
                             .collect();
+                        let member_info = member_info_result?;
 
-                        let user_info = maybe_user_info?;
-
-                        let maybe_user_info = if user_info.len() != 0 {
-                            Some(user_info)
+                        let maybe_member_info = if !member_info.is_empty() {
+                            Some(member_info)
                         } else {
                             None
                         };
-                        Ok((group_pub_key, encrypted_group_key, maybe_user_info))
+                        Ok((group_pub_key, encrypted_group_key, maybe_member_info))
                     })
                     .into_future()
             }
         })
-        .and_then(move |(group_pub_key, encrypted_group_key, user_info)| {
+        .and_then(move |(group_pub_key, encrypted_group_key, member_info)| {
             requests::group_create::group_create(
                 &auth,
                 user_master_pub_key,
@@ -442,7 +436,7 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                 encrypted_group_key,
                 group_pub_key,
                 auth.account_id(),
-                user_info,
+                member_info,
                 needs_rotation,
             )
         })

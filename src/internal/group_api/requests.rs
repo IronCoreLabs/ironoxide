@@ -230,33 +230,33 @@ pub mod group_create {
         re_encrypted_once_value: recrypt::api::EncryptedValue,
         group_pub_key: internal::PublicKey,
         calling_user_id: &'a UserId,
-        user_info: Option<HashMap<UserId, (internal::PublicKey, Option<internal::TransformKey>)>>,
+        member_info: Option<HashMap<UserId, (internal::PublicKey, Option<internal::TransformKey>)>>,
         needs_rotation: bool,
     ) -> impl Future<Item = GroupCreateApiResponse, Error = IronOxideErr> + 'a {
         EncryptedOnceValue::try_from(re_encrypted_once_value)
             .into_future()
             .and_then(move |enc_msg| {
-                // this currently only holds members, will need to expand for admins later
-                let req_members = user_info.map(|member| {
+                let req_admins = vec![GroupAdmin {
+                    encrypted_msg: enc_msg,
+                    user: User {
+                        user_id: calling_user_id.clone(),
+                        user_master_public_key: user_master_pub_key.clone().into(),
+                    },
+                }];
+                let req_members = member_info.map(|member| {
                     member
                         .into_iter()
-                        .map(|(mem_id, (pub_key, trans_key))| GroupMember {
+                        .map(|(mem_id, (mem_pub_key, mem_trans_key))| GroupMember {
                             user_id: mem_id,
-                            transform_key: trans_key.unwrap().into(), // we can unwrap because we know all members had it calculated
-                            user_master_public_key: pub_key.into(),
+                            transform_key: mem_trans_key.unwrap().into(), // we can unwrap because we know all members had it calculated
+                            user_master_public_key: mem_pub_key.into(),
                         })
                         .collect()
                 });
                 let req = GroupCreateReq {
                     id,
                     name,
-                    admins: vec![GroupAdmin {
-                        encrypted_msg: enc_msg,
-                        user: User {
-                            user_id: calling_user_id.clone(),
-                            user_master_public_key: user_master_pub_key.clone().into(),
-                        },
-                    }],
+                    admins: req_admins,
                     group_public_key: group_pub_key.into(),
                     members: req_members,
                     needs_rotation,
