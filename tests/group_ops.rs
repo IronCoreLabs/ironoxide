@@ -156,7 +156,7 @@ fn group_add_member_on_create() -> Result<(), IronOxideErr> {
         false,
     ))?;
 
-    assert_eq!(group_result.members(), &vec![second_account_id, account_id]);
+    assert_eq!(group_result.members(), &vec![account_id, second_account_id]);
     Ok(())
 }
 
