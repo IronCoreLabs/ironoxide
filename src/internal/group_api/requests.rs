@@ -246,11 +246,14 @@ pub mod group_create {
                 let req_members = member_info.map(|member| {
                     member
                         .into_iter()
-                        .map(|(mem_id, (mem_pub_key, mem_trans_key))| GroupMember {
-                            user_id: mem_id,
-                            transform_key: mem_trans_key.unwrap().into(), // we can unwrap because we know all members had it calculated
-                            user_master_public_key: mem_pub_key.into(),
+                        .map(|(mem_id, (mem_pub_key, maybe_trans_key))| {
+                            maybe_trans_key.map(|mem_trans_key| GroupMember {
+                                user_id: mem_id,
+                                transform_key: mem_trans_key.into(),
+                                user_master_public_key: mem_pub_key.into(),
+                            })
                         })
+                        .flatten()
                         .collect()
                 });
                 let req = GroupCreateReq {

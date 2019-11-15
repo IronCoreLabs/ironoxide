@@ -57,15 +57,18 @@ impl GroupCreateOpts {
     }
 
     fn standardize(self, calling_id: &UserId) -> GroupCreateOpts {
-        let mut new_members = self.members.clone();
-        if self.add_as_member && !self.members.contains(calling_id) {
-            new_members.push(calling_id.clone());
-        }
+        let standardized_members = if self.add_as_member && !self.members.contains(calling_id) {
+            let mut members = self.members.clone();
+            members.push(calling_id.clone());
+            members
+        } else {
+            self.members
+        };
         GroupCreateOpts::new(
             self.id,
             self.name,
             self.add_as_member,
-            new_members,
+            standardized_members,
             self.needs_rotation,
         )
     }
