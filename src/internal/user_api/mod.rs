@@ -4,6 +4,9 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use futures::prelude::*;
+use futures3::compat::Future01CompatExt;
+use futures3::TryFutureExt;
+use futures_util::future::FutureExt;
 use itertools::{Either, Itertools};
 use rand::rngs::EntropyRng;
 use recrypt::prelude::*;
@@ -200,40 +203,44 @@ pub async fn user_verify(
     jwt: Jwt,
     request: IronCoreRequest<'static>,
 ) -> Result<Option<UserResult>, IronOxideErr> {
-    requests::user_verify::user_verify(&jwt, &request).await?
-        .map(|resp| resp.try_into()).transpose()
+    requests::user_verify::user_verify(&jwt, &request)
+        .await?
+        .map(|resp| resp.try_into())
+        .transpose()
 }
 
 /// Create a user
-pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
+pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: Jwt,
     passphrase: Password,
     needs_rotation: bool,
     request: IronCoreRequest<'static>,
-) -> impl Future<Item = UserCreateResult, Error = IronOxideErr> {
-    recrypt
-        .generate_key_pair()
-        .map_err(IronOxideErr::from)
-        .and_then(|(recrypt_priv, recrypt_pub)| {
-            Ok(aes::encrypt_user_master_key(
-                &Mutex::new(rand::thread_rng()),
-                passphrase.0.as_str(),
-                recrypt_priv.bytes(),
-            )
-            .map(|encrypted_private_key| (encrypted_private_key, recrypt_pub))?)
-        })
-        .into_future()
-        .and_then(move |(encrypted_priv_key, recrypt_pub)| {
-            requests::user_create::user_create(
-                &jwt,
-                recrypt_pub.into(),
-                encrypted_priv_key.into(),
-                needs_rotation,
-                request,
-            )
-        })
-        .and_then(|resp| resp.try_into())
+) -> Result<UserCreateResult, IronOxideErr> {
+    let (encrypted_priv_key, recrypt_pub) = async {
+        recrypt
+            .generate_key_pair()
+            .map_err(IronOxideErr::from)
+            .and_then(|(recrypt_priv, recrypt_pub)| {
+                Ok(aes::encrypt_user_master_key(
+                    &Mutex::new(rand::thread_rng()),
+                    passphrase.0.as_str(),
+                    recrypt_priv.bytes(),
+                )
+                .map(|encrypted_private_key| (encrypted_private_key, recrypt_pub))?)
+            })
+    }
+        .await?;
+
+    requests::user_create::user_create(
+        &jwt,
+        recrypt_pub.into(),
+        encrypted_priv_key.into(),
+        needs_rotation,
+        request,
+    )
+    .await?
+    .try_into()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -322,8 +329,6 @@ pub fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
         )
 }
 
-use futures3::TryFutureExt;
-use futures_util::future::FutureExt;
 /// Generate a device key for the user specified in the JWT.
 pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -334,7 +339,9 @@ pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
     request: &'a IronCoreRequest<'static>,
 ) -> impl Future<Item = DeviceContext, Error = IronOxideErr> + 'a {
     // verify that this user exists
-    requests::user_verify::user_verify(&jwt, &request).boxed().compat()
+    requests::user_verify::user_verify(&jwt, &request)
+        .boxed()
+        .compat()
         .and_then(|maybe_user| {
             maybe_user.ok_or(IronOxideErr::UserDoesNotExist(
                 "Device cannot be added to a user that doesn't exist".to_string(),

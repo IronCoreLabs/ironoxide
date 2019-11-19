@@ -20,6 +20,7 @@ use futures::{
     Future,
 };
 use std::convert::TryFrom;
+use futures3::compat::Future01CompatExt;
 
 use crate::internal::auth_v2::AuthV2Builder;
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -75,12 +76,14 @@ pub mod user_verify {
         jwt: &'a Jwt,
         request: &'a IronCoreRequest<'static>,
     ) -> Result<Option<UserVerifyResponse>, IronOxideErr> {
-        use futures3::compat::*;
-        request.get_with_empty_result_jwt_auth(
-            "users/verify?returnKeys=true",
-            RequestErrorCode::UserVerify,
-            &Authorization::JwtAuth(jwt),
-        ).compat().await
+        request
+            .get_with_empty_result_jwt_auth(
+                "users/verify?returnKeys=true",
+                RequestErrorCode::UserVerify,
+                &Authorization::JwtAuth(jwt),
+            )
+            .compat()
+            .await
     }
 
     impl TryFrom<UserVerifyResponse> for UserResult {
@@ -245,13 +248,13 @@ pub mod user_create {
         needs_rotation: bool,
     }
 
-    pub fn user_create(
+    pub async fn user_create(
         jwt: &Jwt,
         user_public_key: PublicKey,
         encrypted_user_private_key: EncryptedPrivateKey,
         needs_rotation: bool,
-        request: IronCoreRequest,
-    ) -> impl Future<Item = UserCreateResponse, Error = IronOxideErr> {
+        request: IronCoreRequest<'_>,
+    ) -> Result<UserCreateResponse, IronOxideErr> {
         let req_body = UserCreateReq {
             user_private_key: encrypted_user_private_key,
             user_public_key,
@@ -262,7 +265,7 @@ pub mod user_create {
             &req_body,
             RequestErrorCode::UserCreate,
             &Authorization::JwtAuth(jwt),
-        )
+        ).compat().await
     }
     impl TryFrom<UserCreateResponse> for UserCreateResult {
         type Error = IronOxideErr;

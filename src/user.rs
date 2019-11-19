@@ -150,13 +150,17 @@ impl UserOps for IronOxide {
     ) -> Result<UserCreateResult> {
         let recrypt = Recrypt::new();
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(user_api::user_create(
-            &recrypt,
-            jwt.try_into()?,
-            password.try_into()?,
-            user_create_opts.needs_rotation,
-            *OUR_REQUEST,
-        ))
+        rt.block_on(
+            user_api::user_create(
+                &recrypt,
+                jwt.try_into()?,
+                password.try_into()?,
+                user_create_opts.needs_rotation,
+                *OUR_REQUEST,
+            )
+            .boxed()
+            .compat(),
+        )
     }
 
     fn user_list_devices(&self) -> Result<UserDeviceListResult> {
