@@ -74,6 +74,14 @@ impl GroupCreateOpts {
     }
 
     fn standardize(self, calling_id: &UserId) -> GroupCreateOpts {
+        // if owner contains own id, set to None, as this is the server's default
+        let owner = if self.owner == Some(calling_id.clone()) {
+            None
+        } else {
+            self.owner
+        };
+
+        // if `add_as_member`, make sure the calling user is in the `members` list
         let standardized_members = if self.add_as_member && !self.members.contains(calling_id) {
             let mut members = self.members.clone();
             members.push(calling_id.clone());
@@ -81,13 +89,35 @@ impl GroupCreateOpts {
         } else {
             self.members
         };
+        let standardized_admins = {
+            // if `add_as_admin`, make sure the calling user is in the `admins` list
+            let mut admins = if self.add_as_member && !self.admins.contains(calling_id) {
+                let mut admins = self.admins.clone();
+                admins.push(calling_id.clone());
+                admins
+            } else {
+                self.admins
+            };
+            match owner.clone() {
+                Some(owner_id) => {
+                    // if the owner is specified, make sure they're in the `admins` list
+                    if !admins.contains(&owner_id) {
+                        admins.push(owner_id)
+                    }
+                }
+                // if the owner is the default (calling user), they should have been added to the
+                // admins list by `add_as_admin`. If they aren't it will error later on.
+                None => (),
+            }
+            admins
+        };
         GroupCreateOpts::new(
             self.id,
             self.name,
             self.add_as_admin,
             self.add_as_member,
-            self.owner,
-            self.admins,
+            owner,
+            standardized_admins,
             standardized_members,
             self.needs_rotation,
         )
@@ -97,7 +127,7 @@ impl GroupCreateOpts {
 impl Default for GroupCreateOpts {
     fn default() -> Self {
         // todo: docs
-        GroupCreateOpts::new(None, None, true, true, None, Vec::new(), Vec::new(), false)
+        GroupCreateOpts::new(None, None, true, true, None, vec![], vec![], false)
     }
 }
 
@@ -224,7 +254,7 @@ impl GroupOps for crate::IronOxide {
         // };
 
         // concatenate the vectors of admin and member ids. duplicates will be removed later.
-        let mut users = [&admins[..], &members[..]].concat();
+        let users = [&admins[..], &members[..]].concat();
         //need to add owner still
 
         // let owner: Option<UserId>;
@@ -258,10 +288,9 @@ impl GroupOps for crate::IronOxide {
         rt.block_on(group_api::group_create(
             &self.recrypt,
             self.device.auth(),
-            &self.user_master_pub_key,
             maybe_id,
             maybe_name,
-            &owner,
+            owner,
             &admins,
             &members,
             &users_to_lookup,

@@ -89,10 +89,8 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
     let (curr_user, sdk) = init_sdk_get_user();
 
     //create the data_recovery group used in the policy
-    let data_rec_group_id: GroupId = format!("data_recovery_{}", curr_user.id())
-        .try_into()
-        .unwrap();
-    let group_result = sdk.group_create(&GroupCreateOpts::new(
+    let data_rec_group_id: GroupId = format!("data_recovery_{}", curr_user.id()).try_into()?;
+    sdk.group_create(&GroupCreateOpts::new(
         data_rec_group_id.clone().into(),
         None,
         true,
@@ -101,27 +99,24 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
         Vec::new(),
         Vec::new(),
         false,
-    ));
-    assert!(group_result.is_ok());
+    ))?;
 
     let doc = [0u8; 64];
 
     // all of the policy grant fields are optional
-    let doc_result = sdk
-        .document_encrypt(
-            &doc,
-            &DocumentEncryptOpts::with_policy_grants(
+    let doc_result = sdk.document_encrypt(
+        &doc,
+        &DocumentEncryptOpts::with_policy_grants(
+            None,
+            Some("doc name".try_into()?),
+            PolicyGrant::new(
+                Some("PII".try_into()?),
+                Some("INTERNAL".try_into()?),
                 None,
-                Some("doc name".try_into()?),
-                PolicyGrant::new(
-                    Some("PII".try_into()?),
-                    Some("INTERNAL".try_into()?),
-                    None,
-                    None,
-                ),
+                None,
             ),
-        )
-        .unwrap();
+        ),
+    )?;
 
     assert_eq!(doc_result.grants().len(), 2);
     assert_that!(
@@ -159,34 +154,31 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
     // now use category, sensitivity, data_subject and substitution_user_id
     let user2_result = create_second_user();
     let user2 = user2_result.account_id();
-    let group2_id: GroupId = format!("group_other_{}", user2.id()).try_into().unwrap();
-    let group2_result = sdk.group_create(&GroupCreateOpts::new(
+    let group2_id: GroupId = format!("group_other_{}", user2.id()).try_into()?;
+    sdk.group_create(&GroupCreateOpts::new(
         group2_id.clone().into(),
         None,
         true,
         false,
         None,
-        Vec::new(),
-        Vec::new(),
+        vec![],
+        vec![],
         false,
-    ));
-    assert!(group2_result.is_ok());
+    ))?;
 
-    let doc_result2 = sdk
-        .document_encrypt(
-            &doc,
-            &DocumentEncryptOpts::with_policy_grants(
-                None,
-                Some("doc name2".try_into()?),
-                PolicyGrant::new(
-                    Some("HEALTH".try_into()?),
-                    Some("RESTRICTED".try_into()?),
-                    Some("PATIENT".try_into()?),
-                    Some(user2.clone()),
-                ),
+    let doc_result2 = sdk.document_encrypt(
+        &doc,
+        &DocumentEncryptOpts::with_policy_grants(
+            None,
+            Some("doc name2".try_into()?),
+            PolicyGrant::new(
+                Some("HEALTH".try_into()?),
+                Some("RESTRICTED".try_into()?),
+                Some("PATIENT".try_into()?),
+                Some(user2.clone()),
             ),
-        )
-        .unwrap();
+        ),
+    )?;
 
     assert_eq!(doc_result2.grants().len(), 3);
     assert_that!(
@@ -216,16 +208,14 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
     );
 
     //finally send an empty policy
-    let doc_result3 = sdk
-        .document_encrypt(
-            &doc,
-            &DocumentEncryptOpts::with_policy_grants(
-                None,
-                Some("doc name2".try_into()?),
-                PolicyGrant::default(),
-            ),
-        )
-        .unwrap();
+    let doc_result3 = sdk.document_encrypt(
+        &doc,
+        &DocumentEncryptOpts::with_policy_grants(
+            None,
+            Some("doc name2".try_into()?),
+            PolicyGrant::default(),
+        ),
+    )?;
     assert_eq!(doc_result3.grants().len(), 1);
     Ok(())
 }

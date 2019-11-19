@@ -131,24 +131,24 @@ impl TryFrom<GroupCreateApiResponse> for GroupCreateResult {
 
 #[derive(Serialize, Debug, PartialEq)]
 pub struct GroupAdmin {
-    user: User,
+    pub(crate) user: User,
     #[serde(flatten)]
-    encrypted_msg: EncryptedOnceValue,
+    pub(crate) encrypted_msg: EncryptedOnceValue,
 }
 
 #[derive(Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupMember {
-    user_id: UserId,
-    transform_key: TransformKey,
-    user_master_public_key: PublicKey,
+    pub(crate) user_id: UserId,
+    pub(crate) transform_key: TransformKey,
+    pub(crate) user_master_public_key: PublicKey,
 }
 
 #[derive(Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct User {
-    user_id: UserId,
-    user_master_public_key: PublicKey,
+    pub(crate) user_id: UserId,
+    pub(crate) user_master_public_key: PublicKey,
 }
 
 #[derive(Deserialize, Debug)]
@@ -207,16 +207,14 @@ pub mod group_list {
 
 pub mod group_create {
     use super::*;
-    use crate::internal::{self, auth_v2::AuthV2Builder, rest::json::EncryptedOnceValue};
-    use futures::prelude::*;
-    use std::{collections::HashMap, convert::TryFrom};
+    use crate::internal::{self, auth_v2::AuthV2Builder};
 
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct GroupCreateReq {
         pub(in crate::internal) id: Option<GroupId>,
         pub(in crate::internal) name: Option<GroupName>,
-        pub(in crate::internal) owner: Option<GroupAdmin>,
+        pub(in crate::internal) owner: Option<UserId>,
         pub(in crate::internal) admins: Vec<GroupAdmin>,
         pub(in crate::internal) members: Option<Vec<GroupMember>>,
         pub(in crate::internal) group_public_key: PublicKey,
@@ -225,110 +223,153 @@ pub mod group_create {
 
     pub fn group_create<'a>(
         auth: &'a RequestAuth,
-        //user_master_pub_key: &'a internal::PublicKey,
         id: Option<GroupId>, // if None, server will generate
         name: Option<GroupName>,
-        re_encrypted_once_value: recrypt::api::EncryptedValue,
         group_pub_key: internal::PublicKey,
-        calling_user_id: &'a UserId,
-        owner: &'a Option<UserId>,
-        admins: &'a Vec<UserId>,
-        members: &'a Vec<UserId>,
-        user_info: Option<HashMap<UserId, (internal::PublicKey, Option<internal::TransformKey>)>>,
+        owner: Option<UserId>,
+        admins: Vec<GroupAdmin>,
+        members: Option<Vec<GroupMember>>,
         needs_rotation: bool,
     ) -> impl Future<Item = GroupCreateApiResponse, Error = IronOxideErr> + 'a {
-        EncryptedOnceValue::try_from(re_encrypted_once_value)
-            .into_future()
-            .and_then(move |enc_msg| {
-                // let req_members: Vec<GroupMember> = members
-                //     .into_iter()
-                //     .map(|member_id| {
-                //         let (member_pub_key, member_trans_key) = user_info.get(member_id).unwrap();
-                //         GroupMember {
-                //             user_id: member_id.clone(),
-                //             transform_key: member_trans_key.clone().into(),
-                //             user_master_public_key: member_pub_key.clone().into(),
-                //         }
-                //     })
-                //     .collect();
-                // let req_maybe_members = if req_members.is_empty() {
-                //     None
-                // } else {
-                //     Some(req_members)
-                // };
+        // let req_members: Vec<GroupMember> = members
+        //     .into_iter()
+        //     .map(|member_id| {
+        //         let (member_pub_key, member_trans_key) = user_info.get(member_id).unwrap();
+        //         GroupMember {
+        //             user_id: member_id.clone(),
+        //             transform_key: member_trans_key.clone().into(),
+        //             user_master_public_key: member_pub_key.clone().into(),
+        //         }
+        //     })
+        //     .collect();
+        // let req_maybe_members = if req_members.is_empty() {
+        //     None
+        // } else {
+        //     Some(req_members)
+        // };
 
-                // let req_admins: Vec<GroupAdmin> = admins
-                //     .into_iter()
-                //     .map(|admin_id| {
-                //         let (admin_pub_key, _) = user_info.get(admin_id).unwrap();
-                //         GroupAdmin {
-                //             encrypted_msg: enc_msg.clone(),
-                //             user: User {
-                //                 user_id: admin_id.clone(),
-                //                 user_master_public_key: admin_pub_key.clone().into(),
-                //             },
-                //         }
-                //     })
-                //     .collect();
+        // let req_admins: Vec<GroupAdmin> = admins
+        //     .into_iter()
+        //     .map(|admin_id| {
+        //         let (admin_pub_key, _) = user_info.get(admin_id).unwrap();
+        //         GroupAdmin {
+        //             encrypted_msg: enc_msg.clone(),
+        //             user: User {
+        //                 user_id: admin_id.clone(),
+        //                 user_master_public_key: admin_pub_key.clone().into(),
+        //             },
+        //         }
+        //     })
+        //     .collect();
 
-                // let req_owner: Option<GroupAdmin> = match owner {
-                //     Some(owner_id) => {
-                //         let (owner_pub_key, _) = user_info.get(owner_id).unwrap();
-                //         Some(GroupAdmin {
-                //             encrypted_msg: enc_msg.clone(),
-                //             user: User {
-                //                 user_id: owner_id.clone(),
-                //                 user_master_public_key: owner_pub_key.clone().into(),
-                //             },
-                //         })
-                //     }
-                //     None => None,
-                // };
+        // let req_owner: Option<GroupAdmin> = match owner {
+        //     Some(owner_id) => {
+        //         let (owner_pub_key, _) = user_info.get(owner_id).unwrap();
+        //         Some(GroupAdmin {
+        //             encrypted_msg: enc_msg.clone(),
+        //             user: User {
+        //                 user_id: owner_id.clone(),
+        //                 user_master_public_key: owner_pub_key.clone().into(),
+        //             },
+        //         })
+        //     }
+        //     None => None,
+        // };
 
-                // let req = GroupCreateReq {
-                //     id,
-                //     name,
-                //     owner: req_owner,
-                //     admins: req_admins,
-                //     members: req_maybe_members,
-                //     group_public_key: group_pub_key.into(),
-                // let req_admins = vec![GroupAdmin {
-                //     encrypted_msg: enc_msg,
-                //     user: User {
-                //         user_id: calling_user_id.clone(),
-                //         user_master_public_key: user_master_pub_key.clone().into(),
-                //     },
-                // }];
-                let req_members = user_info.map(|member| {
-                    member
-                        .into_iter()
-                        .map(|(mem_id, (mem_pub_key, maybe_trans_key))| {
-                            maybe_trans_key.map(|mem_trans_key| GroupMember {
-                                user_id: mem_id,
-                                transform_key: mem_trans_key.into(),
-                                user_master_public_key: mem_pub_key.into(),
-                            })
-                        })
-                        .flatten()
-                        .collect()
-                });
-                let req = GroupCreateReq {
-                    id,
-                    name,
-                    owner: None,    //todo: fixit
-                    admins: vec![], //todo: fixit
-                    group_public_key: group_pub_key.into(),
-                    members: req_members,
-                    needs_rotation,
-                };
+        // let req = GroupCreateReq {
+        //     id,
+        //     name,
+        //     owner: req_owner,
+        //     admins: req_admins,
+        //     members: req_maybe_members,
+        //     group_public_key: group_pub_key.into(),
+        // let req_admins = vec![GroupAdmin {
+        //     encrypted_msg: enc_msg,
+        //     user: User {
+        //         user_id: calling_user_id.clone(),
+        //         user_master_public_key: user_master_pub_key.clone().into(),
+        //     },
+        // }];
+        // let req_members: Vec<GroupMember> = members
+        //     .into_iter()
+        //     .map(|member_id| {
+        //         let (member_pub_key, member_trans_key) = user_info.get(member_id).unwrap();
+        //         GroupMember {
+        //             user_id: member_id.clone(),
+        //             transform_key: member_trans_key.clone().unwrap().into(),
+        //             user_master_public_key: member_pub_key.clone().into(),
+        //         }
+        //     })
+        //     .collect();
+        // let req_maybe_members = if req_members.is_empty() {
+        //     None
+        // } else {
+        //     Some(req_members)
+        // };
 
-                auth.request.post(
-                    "groups",
-                    &req,
-                    RequestErrorCode::GroupCreate,
-                    AuthV2Builder::new(&auth, Utc::now()),
-                )
-            })
+        // let req_admins: Vec<GroupAdmin> = admins
+        //     .into_iter()
+        //     .map(|admin_id| {
+        //         let (admin_pub_key, _) = user_info.get(admin_id).unwrap();
+        //         GroupAdmin {
+        //             encrypted_msg: enc_msg.clone(),
+        //             user: User {
+        //                 user_id: admin_id.clone(),
+        //                 user_master_public_key: admin_pub_key.clone().into(),
+        //             },
+        //         }
+        //     })
+        //     .collect();
+
+        // let req_owner = owner.clone().map(|owner_id| {
+        //     let (owner_pub_key, _) = user_info.get(&owner_id).unwrap();
+        //     GroupAdmin {
+        //         encrypted_msg: enc_msg.clone(),
+        //         user: User {
+        //             user_id: owner_id.clone(),
+        //             user_master_public_key: owner_pub_key.clone().into(),
+        //         },
+        //     }
+        // });
+
+        // let req_members: Vec<GroupMember> = members.into_iter().map(|member_id|{
+        //     (member_pub_key, maybe_member_trans_key) = user_info.get
+        // })
+
+        // let req_members = user_info.map(|member| {
+        //     member
+        //         .into_iter()
+        //         .map(|(mem_id, (mem_pub_key, maybe_trans_key))| {
+        //             maybe_trans_key.map(|mem_trans_key| GroupMember {
+        //                 user_id: mem_id,
+        //                 transform_key: mem_trans_key.into(),
+        //                 user_master_public_key: mem_pub_key.into(),
+        //             })
+        //         })
+        //         .flatten()
+        //         .collect()
+        // });
+        // let req_maybe_members = if req_members.is_empty() {
+        //     None
+        // } else {
+        //     Some(req_members)
+        // };
+        let req = GroupCreateReq {
+            id,
+            name,
+            owner: owner,
+            admins: admins,
+            group_public_key: group_pub_key.into(),
+            members: members,
+            needs_rotation,
+        };
+
+        auth.request.post(
+            "groups",
+            &req,
+            RequestErrorCode::GroupCreate,
+            AuthV2Builder::new(&auth, Utc::now()),
+        )
     }
 }
 
