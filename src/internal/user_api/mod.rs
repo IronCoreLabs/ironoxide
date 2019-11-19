@@ -195,14 +195,13 @@ impl UserDevice {
         self.is_current_device
     }
 }
-
 /// Verify an existing user given a valid JWT.
-pub fn user_verify(
+pub async fn user_verify(
     jwt: Jwt,
-    request: IronCoreRequest,
-) -> impl Future<Item = Option<UserResult>, Error = IronOxideErr> {
-    requests::user_verify::user_verify(&jwt, &request)
-        .and_then(|e| e.map(|resp| resp.try_into()).transpose())
+    request: IronCoreRequest<'static>,
+) -> Result<Option<UserResult>, IronOxideErr> {
+    requests::user_verify::user_verify(&jwt, &request).await?
+        .map(|resp| resp.try_into()).transpose()
 }
 
 /// Create a user
@@ -323,6 +322,8 @@ pub fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
         )
 }
 
+use futures3::TryFutureExt;
+use futures_util::future::FutureExt;
 /// Generate a device key for the user specified in the JWT.
 pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -330,10 +331,10 @@ pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
     password: Password,
     device_name: Option<DeviceName>,
     signing_ts: &'a DateTime<Utc>,
-    request: IronCoreRequest<'static>,
+    request: &'a IronCoreRequest<'static>,
 ) -> impl Future<Item = DeviceContext, Error = IronOxideErr> + 'a {
     // verify that this user exists
-    requests::user_verify::user_verify(&jwt, &request)
+    requests::user_verify::user_verify(&jwt, &request).boxed().compat()
         .and_then(|maybe_user| {
             maybe_user.ok_or(IronOxideErr::UserDoesNotExist(
                 "Device cannot be added to a user that doesn't exist".to_string(),

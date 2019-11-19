@@ -71,15 +71,16 @@ pub mod user_verify {
         pub(crate) needs_rotation: bool,
     }
 
-    pub fn user_verify(
-        jwt: &Jwt,
-        request: &IronCoreRequest,
-    ) -> impl Future<Item = Option<UserVerifyResponse>, Error = IronOxideErr> {
+    pub async fn user_verify<'a>(
+        jwt: &'a Jwt,
+        request: &'a IronCoreRequest<'static>,
+    ) -> Result<Option<UserVerifyResponse>, IronOxideErr> {
+        use futures3::compat::*;
         request.get_with_empty_result_jwt_auth(
             "users/verify?returnKeys=true",
             RequestErrorCode::UserVerify,
             &Authorization::JwtAuth(jwt),
-        )
+        ).compat().await
     }
 
     impl TryFrom<UserVerifyResponse> for UserResult {
