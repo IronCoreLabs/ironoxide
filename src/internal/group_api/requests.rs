@@ -99,15 +99,15 @@ impl TryFrom<GroupGetApiResponse> for GroupGetResult {
 #[derive(Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupCreateApiResponse {
-    pub(crate) id: GroupId,
-    pub(crate) name: Option<GroupName>,
-    pub(crate) permissions: HashSet<Permission>,
-    pub(crate) updated: DateTime<Utc>,
-    pub(crate) created: DateTime<Utc>,
-    pub(crate) admin_ids: Vec<String>,
-    pub(crate) member_ids: Vec<String>,
-    pub(crate) group_master_public_key: PublicKey,
-    pub(crate) needs_rotation: Option<bool>,
+    pub(in crate::internal) id: GroupId,
+    pub(in crate::internal) name: Option<GroupName>,
+    pub(in crate::internal) permissions: HashSet<Permission>,
+    pub(in crate::internal) updated: DateTime<Utc>,
+    pub(in crate::internal) created: DateTime<Utc>,
+    pub(in crate::internal) admin_ids: Vec<String>,
+    pub(in crate::internal) member_ids: Vec<String>,
+    pub(in crate::internal) group_master_public_key: PublicKey,
+    pub(in crate::internal) needs_rotation: Option<bool>,
 }
 impl TryFrom<GroupCreateApiResponse> for GroupCreateResult {
     type Error = IronOxideErr;
@@ -131,24 +131,24 @@ impl TryFrom<GroupCreateApiResponse> for GroupCreateResult {
 
 #[derive(Serialize, Debug, PartialEq)]
 pub struct GroupAdmin {
-    pub(crate) user: User,
+    pub(in crate::internal) user: User,
     #[serde(flatten)]
-    pub(crate) encrypted_msg: EncryptedOnceValue,
+    pub(in crate::internal) encrypted_msg: EncryptedOnceValue,
 }
 
 #[derive(Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupMember {
-    pub(crate) user_id: UserId,
-    pub(crate) transform_key: TransformKey,
-    pub(crate) user_master_public_key: PublicKey,
+    pub(in crate::internal) user_id: UserId,
+    pub(in crate::internal) transform_key: TransformKey,
+    pub(in crate::internal) user_master_public_key: PublicKey,
 }
 
 #[derive(Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct User {
-    pub(crate) user_id: UserId,
-    pub(crate) user_master_public_key: PublicKey,
+    pub(in crate::internal) user_id: UserId,
+    pub(in crate::internal) user_master_public_key: PublicKey,
 }
 
 #[derive(Deserialize, Debug)]
@@ -231,129 +231,6 @@ pub mod group_create {
         members: Option<Vec<GroupMember>>,
         needs_rotation: bool,
     ) -> impl Future<Item = GroupCreateApiResponse, Error = IronOxideErr> + 'a {
-        // let req_members: Vec<GroupMember> = members
-        //     .into_iter()
-        //     .map(|member_id| {
-        //         let (member_pub_key, member_trans_key) = user_info.get(member_id).unwrap();
-        //         GroupMember {
-        //             user_id: member_id.clone(),
-        //             transform_key: member_trans_key.clone().into(),
-        //             user_master_public_key: member_pub_key.clone().into(),
-        //         }
-        //     })
-        //     .collect();
-        // let req_maybe_members = if req_members.is_empty() {
-        //     None
-        // } else {
-        //     Some(req_members)
-        // };
-
-        // let req_admins: Vec<GroupAdmin> = admins
-        //     .into_iter()
-        //     .map(|admin_id| {
-        //         let (admin_pub_key, _) = user_info.get(admin_id).unwrap();
-        //         GroupAdmin {
-        //             encrypted_msg: enc_msg.clone(),
-        //             user: User {
-        //                 user_id: admin_id.clone(),
-        //                 user_master_public_key: admin_pub_key.clone().into(),
-        //             },
-        //         }
-        //     })
-        //     .collect();
-
-        // let req_owner: Option<GroupAdmin> = match owner {
-        //     Some(owner_id) => {
-        //         let (owner_pub_key, _) = user_info.get(owner_id).unwrap();
-        //         Some(GroupAdmin {
-        //             encrypted_msg: enc_msg.clone(),
-        //             user: User {
-        //                 user_id: owner_id.clone(),
-        //                 user_master_public_key: owner_pub_key.clone().into(),
-        //             },
-        //         })
-        //     }
-        //     None => None,
-        // };
-
-        // let req = GroupCreateReq {
-        //     id,
-        //     name,
-        //     owner: req_owner,
-        //     admins: req_admins,
-        //     members: req_maybe_members,
-        //     group_public_key: group_pub_key.into(),
-        // let req_admins = vec![GroupAdmin {
-        //     encrypted_msg: enc_msg,
-        //     user: User {
-        //         user_id: calling_user_id.clone(),
-        //         user_master_public_key: user_master_pub_key.clone().into(),
-        //     },
-        // }];
-        // let req_members: Vec<GroupMember> = members
-        //     .into_iter()
-        //     .map(|member_id| {
-        //         let (member_pub_key, member_trans_key) = user_info.get(member_id).unwrap();
-        //         GroupMember {
-        //             user_id: member_id.clone(),
-        //             transform_key: member_trans_key.clone().unwrap().into(),
-        //             user_master_public_key: member_pub_key.clone().into(),
-        //         }
-        //     })
-        //     .collect();
-        // let req_maybe_members = if req_members.is_empty() {
-        //     None
-        // } else {
-        //     Some(req_members)
-        // };
-
-        // let req_admins: Vec<GroupAdmin> = admins
-        //     .into_iter()
-        //     .map(|admin_id| {
-        //         let (admin_pub_key, _) = user_info.get(admin_id).unwrap();
-        //         GroupAdmin {
-        //             encrypted_msg: enc_msg.clone(),
-        //             user: User {
-        //                 user_id: admin_id.clone(),
-        //                 user_master_public_key: admin_pub_key.clone().into(),
-        //             },
-        //         }
-        //     })
-        //     .collect();
-
-        // let req_owner = owner.clone().map(|owner_id| {
-        //     let (owner_pub_key, _) = user_info.get(&owner_id).unwrap();
-        //     GroupAdmin {
-        //         encrypted_msg: enc_msg.clone(),
-        //         user: User {
-        //             user_id: owner_id.clone(),
-        //             user_master_public_key: owner_pub_key.clone().into(),
-        //         },
-        //     }
-        // });
-
-        // let req_members: Vec<GroupMember> = members.into_iter().map(|member_id|{
-        //     (member_pub_key, maybe_member_trans_key) = user_info.get
-        // })
-
-        // let req_members = user_info.map(|member| {
-        //     member
-        //         .into_iter()
-        //         .map(|(mem_id, (mem_pub_key, maybe_trans_key))| {
-        //             maybe_trans_key.map(|mem_trans_key| GroupMember {
-        //                 user_id: mem_id,
-        //                 transform_key: mem_trans_key.into(),
-        //                 user_master_public_key: mem_pub_key.into(),
-        //             })
-        //         })
-        //         .flatten()
-        //         .collect()
-        // });
-        // let req_maybe_members = if req_members.is_empty() {
-        //     None
-        // } else {
-        //     Some(req_members)
-        // };
         let req = GroupCreateReq {
             id,
             name,

@@ -101,15 +101,26 @@ pub fn gen_jwt(account_id: Option<&str>) -> (String, String) {
     (jwt, sub.to_string())
 }
 
-pub fn init_sdk() -> IronOxide {
-    let (_, io) = init_sdk_get_user();
-    io
+pub fn initialize_sdk() -> Result<IronOxide, IronOxideErr> {
+    let account_id: UserId = create_id_all_classes("").try_into()?;
+    IronOxide::user_create(
+        &gen_jwt(Some(account_id.id())).0,
+        USER_PASSWORD,
+        &UserCreateOpts::new(false),
+    )?;
+    let device = IronOxide::generate_new_device(
+        &gen_jwt(Some(account_id.id())).0,
+        USER_PASSWORD,
+        &Default::default(),
+    )?;
+    ironoxide::initialize(&device)
 }
 
 pub fn init_sdk_get_user() -> (UserId, IronOxide) {
     let (u, init_check) = init_sdk_get_init_result(false);
     (u, init_check.discard_check())
 }
+
 pub fn init_sdk_get_init_result(user_needs_rotation: bool) -> (UserId, InitAndRotationCheck) {
     let account_id: UserId = create_id_all_classes("").try_into().unwrap();
     IronOxide::user_create(

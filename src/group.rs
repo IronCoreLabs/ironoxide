@@ -6,24 +6,40 @@ use crate::{
     internal::{group_api, user_api::UserId},
     Result,
 };
+use std::{collections::HashSet, iter::FromIterator};
 use tokio::runtime::current_thread::Runtime;
 
+struct GroupCreateOptsStd {
+    id: Option<GroupId>,
+    name: Option<GroupName>,
+    owner: Option<UserId>,
+    admins: Vec<UserId>,
+    members: Vec<UserId>,
+    users: Vec<UserId>,
+    needs_rotation: bool,
+}
+
 #[derive(Clone)]
-// TODO: docs
 /// Options for group creation.
 pub struct GroupCreateOpts {
     // unique id of a group within a segment. If none, the server will assign an id.
     id: Option<GroupId>,
     // human readable name of the group. Does not need to be unique.
     name: Option<GroupName>,
-
+    // true (default) - creating user will be added as an admin of the group.
+    // false - creating user will not be added as an admin of the group.
+    add_as_admin: bool,
     // true (default) - creating user will be added to the group's membership (in addition to being the group's admin);
     // false - creating user will not be added to the group's membership
-    add_as_admin: bool,
     add_as_member: bool,
+    // None (default) - The creating user will be the owner of the group.
+    // Some(UserId) - The provided user will be the owner of the group.
+    // Note that the owner must be included in the `admins` list.
     owner: Option<UserId>,
+    // list of users to add as admins of the group
+    // note: even if `add_as_admin` is false, the calling user will be added as an admin if they are in this list.
     admins: Vec<UserId>,
-    // list of users to add as members to the group.
+    // list of users to add as members of the group.
     // note: even if `add_as_member` is false, the calling user will be added as a member if they are in this list.
     members: Vec<UserId>,
     // true - group's private key will be marked for rotation
@@ -38,16 +54,18 @@ impl GroupCreateOpts {
     /// - `id` - Unique id of a group within a segment. If none, the server will assign an id.
     /// - `name` - Human readable name of the group. Does not need to be unique. Will **not** be encrypted.
     /// - `add_as_admin`
-    ///     - `true` - The creating user will be added as an admin of the group.
-    ///     - `false` - The creating user will not be an admin of the group.
+    ///     - true (default) - The creating user will be added as an admin of the group.
+    ///     - false - The creating user will not be an admin of the group.
     /// - `add_as_member`
-    ///     - `true` - The creating user will be added as a member of the group.
-    ///     - `false` - The creating user will not be a member of the group.
-    /// - `owner`
-    ///     - `Some(UserId)` - The provided user will be the owner of the group.
-    ///     - `None` - The creating user will be the owner of the group.
-    /// - `admins` - List of users to be added as admins of the group.
-    /// - `members` - List of users to be added as members of the group.
+    ///     - true (default) - The creating user will be added as a member of the group.
+    ///     - false - The creating user will not be a member of the group.
+    /// - `owner` - Note that the owner must be included in the `admins` list.
+    ///     - None (default) - The creating user will be the owner of the group.
+    ///     - Some(UserId) - The provided user will be the owner of the group.
+    /// - `admins` - List of users to be added as admins of the group. This list takes priority over `add_as_admin`,
+    ///             so the calling user will be added as a member if their id is in this list even if `add_as_admin` is false.
+    /// - `members` - List of users to be added as members of the group. This list takes priority over `add_as_member`,
+    ///             so the calling user will be added as a member if their id is in this list even if `add_as_member` is false.
     /// - `needs_rotation`
     ///     - true - group's private key will be marked for rotation
     ///     - false (default) - group's private key will not be marked for rotation
@@ -73,8 +91,8 @@ impl GroupCreateOpts {
         }
     }
 
-    fn standardize(self, calling_id: &UserId) -> GroupCreateOpts {
-        // if owner contains own id, set to None, as this is the server's default
+    fn standardize(self, calling_id: &UserId) -> GroupCreateOptsStd {
+        // if `owner` contains own id, set to None, as this is the server's default
         let owner = if self.owner == Some(calling_id.clone()) {
             None
         } else {
@@ -91,7 +109,7 @@ impl GroupCreateOpts {
         };
         let standardized_admins = {
             // if `add_as_admin`, make sure the calling user is in the `admins` list
-            let mut admins = if self.add_as_member && !self.admins.contains(calling_id) {
+            let mut admins = if self.add_as_admin && !self.admins.contains(calling_id) {
                 let mut admins = self.admins.clone();
                 admins.push(calling_id.clone());
                 admins
@@ -111,22 +129,28 @@ impl GroupCreateOpts {
             }
             admins
         };
-        GroupCreateOpts::new(
-            self.id,
-            self.name,
-            self.add_as_admin,
-            self.add_as_member,
-            owner,
-            standardized_admins,
-            standardized_members,
-            self.needs_rotation,
-        )
+
+        // concatenate the vectors of admin and member ids. duplicates will be removed later.
+        let all_users = [&standardized_admins[..], &standardized_members[..]].concat();
+        let set: HashSet<UserId> = HashSet::from_iter(all_users);
+        let users: Vec<UserId> = set.into_iter().collect();
+
+        GroupCreateOptsStd {
+            id: self.id,
+            name: self.name,
+            owner: owner,
+            admins: standardized_admins,
+            members: standardized_members,
+            users: users,
+            needs_rotation: self.needs_rotation,
+        }
     }
 }
 
 impl Default for GroupCreateOpts {
+    // Default GroupCreateOpts for common use cases. The user who calls `group_create()` will be the owner of the group
+    // as well as an admin and member of the group.
     fn default() -> Self {
-        // todo: docs
         GroupCreateOpts::new(None, None, true, true, None, vec![], vec![], false)
     }
 }
@@ -234,66 +258,25 @@ impl GroupOps for crate::IronOxide {
     fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupCreateResult> {
         let mut rt = Runtime::new().unwrap();
 
-        let GroupCreateOpts {
-            id: maybe_id,
-            name: maybe_name,
-            add_as_admin: _,
-            add_as_member: _,
+        let GroupCreateOptsStd {
+            id,
+            name,
             owner,
             admins,
             members,
+            users,
             needs_rotation,
         } = opts.clone().standardize(self.device.auth().account_id());
-
-        // if add_as_member {
-        //     members.push(self.device.auth().account_id().clone());
-        // };
-
-        // if add_as_admin {
-        //     admins.push(self.device.auth().account_id().clone());
-        // };
-
-        // concatenate the vectors of admin and member ids. duplicates will be removed later.
-        let users = [&admins[..], &members[..]].concat();
-        //need to add owner still
-
-        // let owner: Option<UserId>;
-        // match maybe_owner.clone() {
-        //     Some(id) => {
-        //         // the owner must be in the list of admins
-        //         if !admins.contains(&id) {
-        //             admins.push(id.clone());
-        //         }
-        //         if id == self.device.auth().account_id().clone() {
-        //             //Todo: test this
-        //             dbg!("Passed in self as owner");
-        //             owner = None;
-        //         } else {
-        //             users.push(id);
-        //             owner = maybe_owner;
-        //         }
-        //     }
-        //     None => {
-        //         if !admins.contains(self.device.auth().account_id()) {
-        //             admins.push(self.device.auth().account_id().clone());
-        //         }
-        //         owner = None;
-        //     }
-        // };
-
-        use std::{collections::HashSet, iter::FromIterator};
-        let set: HashSet<UserId> = HashSet::from_iter(users);
-        let users_to_lookup: Vec<UserId> = set.into_iter().collect();
 
         rt.block_on(group_api::group_create(
             &self.recrypt,
             self.device.auth(),
-            maybe_id,
-            maybe_name,
+            id,
+            name,
             owner,
-            &admins,
-            &members,
-            &users_to_lookup,
+            admins,
+            members,
+            &users,
             needs_rotation,
         ))
     }

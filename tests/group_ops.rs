@@ -1,5 +1,5 @@
 use crate::common::create_second_user;
-use common::{create_id_all_classes, init_sdk, init_sdk_get_user};
+use common::{create_id_all_classes, init_sdk_get_user, initialize_sdk};
 use ironoxide::{group::*, prelude::*};
 use std::convert::TryInto;
 use uuid::Uuid;
@@ -10,26 +10,27 @@ mod common;
 extern crate serde_json;
 
 #[test]
-fn group_create_no_member() {
-    let sdk = init_sdk();
+fn group_create_no_member() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk()?;
 
     let group_result = sdk.group_create(&GroupCreateOpts::new(
-        Some(create_id_all_classes("").try_into().unwrap()),
-        Some("test group name".try_into().unwrap()),
+        Some(create_id_all_classes("").try_into()?),
+        Some("test group name".try_into()?),
         true,
         false,
         None,
-        Vec::new(),
-        Vec::new(),
+        vec![],
+        vec![],
         true,
-    ));
+    ))?;
 
-    assert_eq!(group_result.unwrap().needs_rotation(), Some(true))
+    assert_eq!(group_result.needs_rotation(), Some(true));
+    Ok(())
 }
 
 #[test]
 fn group_create_with_defaults() -> Result<(), IronOxideErr> {
-    let sdk = init_sdk();
+    let sdk = initialize_sdk()?;
 
     let result = sdk.group_create(&Default::default());
     let group_result = result?;
@@ -40,9 +41,9 @@ fn group_create_with_defaults() -> Result<(), IronOxideErr> {
 
 #[test]
 fn group_get_metadata() -> Result<(), IronOxideErr> {
-    let admin_sdk = init_sdk();
-    let member_sdk = init_sdk();
-    let nonmember_sdk = init_sdk();
+    let admin_sdk = initialize_sdk()?;
+    let member_sdk = initialize_sdk()?;
+    let nonmember_sdk = initialize_sdk()?;
 
     let member_id = member_sdk.device().account_id().clone();
     let group = admin_sdk.group_create(&Default::default());
@@ -61,113 +62,106 @@ fn group_get_metadata() -> Result<(), IronOxideErr> {
 }
 
 #[test]
-fn group_delete() {
-    let sdk = init_sdk();
+fn group_delete() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk()?;
 
     let group_result = sdk.group_create(&GroupCreateOpts::new(
-        Some(create_id_all_classes("").try_into().unwrap()),
+        Some(create_id_all_classes("").try_into()?),
         None,
         true,
         true,
         None,
-        Vec::new(),
-        Vec::new(),
+        vec![],
+        vec![],
         false,
-    ));
-    assert!(group_result.is_ok());
+    ))?;
 
-    let group_id = group_result.unwrap().id().clone();
+    let group_id = group_result.id().clone();
 
-    let group_delete_result = sdk.group_delete(&group_id);
-    assert!(group_delete_result.is_ok());
-    assert_eq!(group_id, group_delete_result.unwrap().clone());
+    let group_delete_result = sdk.group_delete(&group_id)?;
+    assert_eq!(group_id, group_delete_result.clone());
+    Ok(())
 }
 
 #[test]
-fn group_update_name() {
-    let sdk = init_sdk();
+fn group_update_name() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk()?;
 
-    let group_result = sdk
-        .group_create(&GroupCreateOpts::new(
-            Some(create_id_all_classes("").try_into().unwrap()),
-            Some("first name".try_into().unwrap()),
-            true,
-            false,
-            None,
-            Vec::new(),
-            Vec::new(),
-            false,
-        ))
-        .unwrap();
+    let group_result = sdk.group_create(&GroupCreateOpts::new(
+        Some(create_id_all_classes("").try_into()?),
+        Some("first name".try_into()?),
+        true,
+        false,
+        None,
+        vec![],
+        vec![],
+        false,
+    ))?;
 
     assert_eq!(
         group_result.name().unwrap().name(),
         &"first name".to_string()
     );
 
-    let updated_group = sdk
-        .group_update_name(group_result.id(), Some(&"new name".try_into().unwrap()))
-        .unwrap();
+    let updated_group = sdk.group_update_name(group_result.id(), Some(&"new name".try_into()?))?;
 
     assert_eq!(
         updated_group.name(),
         Some(&"new name".try_into().expect("this name is valid"))
     );
 
-    let cleared_name = sdk.group_update_name(updated_group.id(), None).unwrap();
+    let cleared_name = sdk.group_update_name(updated_group.id(), None)?;
 
     assert!(cleared_name.name().is_none());
+    Ok(())
 }
 
 #[test]
-fn group_add_member() {
-    let sdk = init_sdk();
+fn group_add_member() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk()?;
     let account_id = sdk.device().account_id().clone();
 
     let group_result = sdk.group_create(&GroupCreateOpts::new(
-        Some(create_id_all_classes("").try_into().unwrap()),
+        Some(create_id_all_classes("").try_into()?),
         None,
         true,
         false,
         None,
-        Vec::new(),
-        Vec::new(),
+        vec![],
+        vec![],
         false,
-    ));
-    assert!(group_result.is_ok());
+    ))?;
 
-    let group_id = group_result.unwrap().id().clone();
+    let group_id = group_result.id().clone();
     //Call to add ourselves to the group, since we didn't add on create, this should succeed.
-    let add_member_res = sdk.group_add_members(&group_id, &[account_id.clone()]);
-    assert!(add_member_res.is_ok());
-    let add_member_res_unwrap = add_member_res.unwrap();
-    assert_eq!(add_member_res_unwrap.succeeded().len(), 1);
-    assert_eq!(add_member_res_unwrap.failed().len(), 0);
+    let add_member_res = sdk.group_add_members(&group_id, &[account_id.clone()])?;
+    assert_eq!(add_member_res.succeeded().len(), 1);
+    assert_eq!(add_member_res.failed().len(), 0);
     //The 2nd should have a failure for an account id that doesn't exist and for the one that was already added
-    let fake_account_id = Uuid::new_v4().to_string().try_into().unwrap();
+    let fake_account_id = Uuid::new_v4().to_string().try_into()?;
     let add_member_res_second =
-        sdk.group_add_members(&group_id, &[account_id.clone(), fake_account_id]);
-    let add_member_res_second_unwrap = add_member_res_second.unwrap();
-    assert_eq!(add_member_res_second_unwrap.succeeded().len(), 0);
-    assert_eq!(add_member_res_second_unwrap.failed().len(), 2);
+        sdk.group_add_members(&group_id, &[account_id.clone(), fake_account_id])?;
+    assert_eq!(add_member_res_second.succeeded().len(), 0);
+    assert_eq!(add_member_res_second.failed().len(), 2);
+    Ok(())
 }
 
 #[test]
 fn group_add_member_on_create() -> Result<(), IronOxideErr> {
     use std::{collections::HashSet, iter::FromIterator};
-    let sdk = init_sdk();
+    let sdk = initialize_sdk()?;
     let account_id = sdk.device().account_id().clone();
-    let second_account_id = init_sdk().device().account_id().clone();
+    let second_account_id = initialize_sdk()?.device().account_id().clone();
 
     // Even though `add_as_member` is false, the UserId is in the `members` list,
     // so the caller becomes a member regardless
     let group_result = sdk.group_create(&GroupCreateOpts::new(
-        Some(create_id_all_classes("").try_into().unwrap()),
+        Some(create_id_all_classes("").try_into()?),
         None,
         true,
         false,
         None,
-        Vec::new(),
+        vec![],
         vec![account_id.clone(), second_account_id.clone()],
         false,
     ))?;
@@ -190,9 +184,9 @@ fn group_add_admin_on_create() -> Result<(), IronOxideErr> {
     // Even though `add_as_member` is false, the UserId is in the `members` list,
     // so the caller becomes a member regardless
     let group_result = sdk.group_create(&GroupCreateOpts::new(
-        Some(create_id_all_classes("").try_into().unwrap()),
+        Some(create_id_all_classes("").try_into()?),
         None,
-        false,
+        true,
         true,
         None,
         vec![second_account_id.clone()],
@@ -210,126 +204,116 @@ fn group_add_admin_on_create() -> Result<(), IronOxideErr> {
 }
 
 #[test]
-fn group_list() {
-    let sdk = init_sdk();
+fn group_list() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk()?;
 
     //create two groups
-    let group_result = sdk.group_create(&Default::default());
-    assert!(group_result.is_ok());
-    let group_result2 = sdk.group_create(&Default::default());
-    assert!(group_result2.is_ok());
+    sdk.group_create(&Default::default())?;
+    sdk.group_create(&Default::default())?;
 
-    let list_result = sdk.group_list();
-    assert!(list_result.is_ok());
-    assert_eq!(2, list_result.unwrap().result().len())
+    let list_result = sdk.group_list()?;
+    assert_eq!(2, list_result.result().len());
+    Ok(())
 }
 
 #[test]
-fn group_remove_member() {
-    let sdk = init_sdk();
+fn group_remove_member() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk()?;
     let account_id = sdk.device().account_id().clone();
 
     let group_result = sdk.group_create(&GroupCreateOpts::new(
-        Some(create_id_all_classes("").try_into().unwrap()),
+        Some(create_id_all_classes("").try_into()?),
         None,
         true,
         true,
         None,
-        Vec::new(),
-        Vec::new(),
+        vec![],
+        vec![],
         false,
-    ));
-    assert!(group_result.is_ok());
-    let group_id = group_result.unwrap().id().clone();
+    ))?;
+    let group_id = group_result.id().clone();
 
     //Remove ourselves and another missing user from the group. Should result in one success and one failure
-    let fake_account_id: UserId = Uuid::new_v4().to_string().try_into().unwrap();
-    let remove_members_res = sdk
-        .group_remove_members(&group_id, &[account_id.clone(), fake_account_id.clone()])
-        .unwrap();
+    let fake_account_id: UserId = Uuid::new_v4().to_string().try_into()?;
+    let remove_members_res =
+        sdk.group_remove_members(&group_id, &[account_id.clone(), fake_account_id.clone()])?;
 
     assert_eq!(remove_members_res.succeeded().len(), 1);
     assert_eq!(&remove_members_res.succeeded()[0], &account_id);
     assert_eq!(remove_members_res.failed().len(), 1);
     assert_eq!(remove_members_res.failed()[0].user(), &fake_account_id);
+    Ok(())
 }
 
 #[test]
-fn group_add_admin() {
-    let sdk = init_sdk();
+fn group_add_admin() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk()?;
 
     let account_id = sdk.device().account_id().clone();
-    let second_account_id = init_sdk().device().account_id().clone();
+    let second_account_id = initialize_sdk()?.device().account_id().clone();
 
     let group_result = sdk.group_create(&GroupCreateOpts::new(
-        Some(create_id_all_classes("").try_into().unwrap()),
+        Some(create_id_all_classes("").try_into()?),
         None,
         true,
         false,
         None,
-        Vec::new(),
-        Vec::new(),
+        vec![],
+        vec![],
         false,
-    ));
-    assert!(group_result.is_ok());
+    ))?;
 
-    let group_id = group_result.unwrap().id().clone();
+    let group_id = group_result.id().clone();
     //Call to add ourselves and a second id as admins. Adding ourselves should fail and the other should succeed.
     let add_member_res =
-        sdk.group_add_admins(&group_id, &[account_id.clone(), second_account_id.clone()]);
-    assert!(add_member_res.is_ok());
-    let add_member_res_unwrap = add_member_res.unwrap();
-    assert_eq!(add_member_res_unwrap.succeeded().len(), 1);
-    assert_eq!(add_member_res_unwrap.succeeded()[0], second_account_id);
-    assert_eq!(add_member_res_unwrap.failed().len(), 1);
-    assert_eq!(add_member_res_unwrap.failed()[0].user(), &account_id);
+        sdk.group_add_admins(&group_id, &[account_id.clone(), second_account_id.clone()])?;
+
+    assert_eq!(add_member_res.succeeded().len(), 1);
+    assert_eq!(add_member_res.succeeded()[0], second_account_id);
+    assert_eq!(add_member_res.failed().len(), 1);
+    assert_eq!(add_member_res.failed()[0].user(), &account_id);
+    Ok(())
 }
 
 #[test]
-fn group_remove_admin() {
-    let sdk = init_sdk();
+fn group_remove_admin() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk()?;
 
     let second_account_id = create_second_user().account_id().clone();
 
-    let group_result = sdk.group_create(&GroupCreateOpts::default());
-    assert!(group_result.is_ok());
+    let group_result = sdk.group_create(&GroupCreateOpts::default())?;
 
-    let group_id = group_result.unwrap().id().clone();
+    let group_id = group_result.id().clone();
     //Call to add the second id as an admin.
-    let add_member_res = sdk.group_add_admins(&group_id, &[second_account_id.clone()]);
-    assert!(add_member_res.is_ok());
-    let add_member_res_unwrap = add_member_res.unwrap();
-    assert_eq!(add_member_res_unwrap.succeeded().len(), 1);
+    let add_member_res = sdk.group_add_admins(&group_id, &[second_account_id.clone()])?;
+    assert_eq!(add_member_res.succeeded().len(), 1);
     //Then remove them, which should succeed.
-    let remove_member_res = sdk
-        .group_remove_admins(&group_id, &[second_account_id.clone()])
-        .unwrap();
+    let remove_member_res = sdk.group_remove_admins(&group_id, &[second_account_id.clone()])?;
     assert_eq!(remove_member_res.succeeded().len(), 1);
     assert_eq!(remove_member_res.succeeded()[0], second_account_id);
     assert_eq!(remove_member_res.failed().len(), 0);
+    Ok(())
 }
 
 #[test]
-fn group_get_not_url_safe_id() {
-    let sdk = init_sdk();
+fn group_get_not_url_safe_id() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk()?;
 
-    let not_url_safe_id: GroupId = format!("{}{}", Uuid::new_v4(), "'=#.other|/$non@;safe'-:;id_")
-        .try_into()
-        .unwrap();
+    let not_url_safe_id: GroupId =
+        format!("{}{}", Uuid::new_v4(), "'=#.other|/$non@;safe'-:;id_").try_into()?;
     let group_create_result = sdk.group_create(&GroupCreateOpts::new(
         Some(not_url_safe_id.clone()),
         None,
         true,
         false,
         None,
-        Vec::new(),
-        Vec::new(),
+        vec![],
+        vec![],
         false,
-    ));
+    ))?;
 
-    assert!(group_create_result.is_ok());
-
-    let get_result = sdk.group_get_metadata(&not_url_safe_id);
-    assert!(get_result.is_ok());
-    assert_eq!(&not_url_safe_id, group_create_result.unwrap().id())
+    let get_result = sdk.group_get_metadata(&not_url_safe_id)?;
+    assert_eq!(&not_url_safe_id, group_create_result.id());
+    assert_eq!(&not_url_safe_id, get_result.id());
+    Ok(())
 }

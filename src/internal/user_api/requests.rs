@@ -302,7 +302,7 @@ pub mod user_key_list {
                 AuthV2Builder::new(&auth, Utc::now()),
             ))
         } else {
-            Either::B(ok(UserKeyListResponse { result: Vec::new() }))
+            Either::B(ok(UserKeyListResponse { result: vec![] }))
         }
     }
 }
