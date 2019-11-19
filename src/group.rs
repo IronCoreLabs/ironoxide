@@ -123,7 +123,7 @@ impl GroupCreateOpts {
                         admins.push(owner_id)
                     }
                 }
-                // if the owner is the default (calling user), they should have been added to the
+                // if the owner is the calling user (default), they should have been added to the
                 // admins list by `add_as_admin`. If they aren't it will error later on.
                 None => (),
             }

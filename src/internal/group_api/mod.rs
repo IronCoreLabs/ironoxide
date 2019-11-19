@@ -10,12 +10,13 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use core::convert::identity;
-use futures::prelude::*;
+use futures::{future::err, prelude::*};
 use itertools::{Either, Itertools};
 use recrypt::prelude::*;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     convert::{TryFrom, TryInto},
+    iter::FromIterator,
 };
 
 mod requests;
@@ -372,13 +373,21 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     users_to_lookup: &'a Vec<UserId>,
     needs_rotation: bool,
 ) -> impl Future<Item = GroupCreateResult, Error = IronOxideErr> + 'a {
-    use futures::future::{err, Either};
-    use std::{collections::HashSet, iter::FromIterator};
+    use futures::future::Either;
+    let owner_id = match owner.clone() {
+        Some(id) => id,
+        None => auth.account_id().clone(),
+    };
     // don't make any requests if validation fails
     if admins.is_empty() {
         Either::A(err(IronOxideErr::ValidationError(
             format!("admins"),
-            format!("admins list cannot be empty."),
+            format!("admins list cannot be empty"),
+        )))
+    } else if !admins.contains(&owner_id) {
+        Either::A(err(IronOxideErr::ValidationError(
+            format!("admins"),
+            format!("admins list must contain the owner"),
         )))
     } else {
         Either::B(
