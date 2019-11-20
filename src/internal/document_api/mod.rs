@@ -20,6 +20,7 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use futures::prelude::*;
+use futures3::{FutureExt, TryFutureExt};
 use hex::encode;
 use itertools::{Either, Itertools};
 use protobuf::{Message, RepeatedField};
@@ -593,6 +594,8 @@ fn resolve_keys_for_grants<'a>(
 ) -> impl Future<Item = (Vec<WithKey<UserOrGroup>>, Vec<DocAccessEditErr>), Error = IronOxideErr> + 'a
 {
     internal::user_api::get_user_keys(auth, user_grants)
+        .boxed()
+        .compat()
         .join3(
             internal::group_api::get_group_keys(auth, group_grants),
             policy_grant.map(|p| requests::policy_get::policy_get_request(auth, p)),
@@ -1058,7 +1061,9 @@ pub fn document_grant_access<'a, CR: rand::CryptoRng + rand::RngCore>(
     document_get_metadata(auth, id)
         // and the public keys for the users and groups
         .join3(
-            internal::user_api::get_user_keys(auth, user_grants),
+            internal::user_api::get_user_keys(auth, user_grants)
+                .boxed()
+                .compat(),
             internal::group_api::get_group_keys(auth, group_grants),
         )
         .and_then(move |(doc_meta, users, groups)| {

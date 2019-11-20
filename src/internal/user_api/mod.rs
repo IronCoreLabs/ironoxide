@@ -3,10 +3,6 @@ use crate::{
     internal::{rest::IronCoreRequest, *},
 };
 use chrono::{DateTime, Utc};
-use futures::prelude::*;
-use futures3::compat::Future01CompatExt;
-use futures3::TryFutureExt;
-use futures_util::future::FutureExt;
 use itertools::{Either, Itertools};
 use rand::rngs::EntropyRng;
 use recrypt::prelude::*;
@@ -434,26 +430,26 @@ pub async fn user_key_list<'a>(
 /// Get the keys for users. The result should be either a failure for a specific UserId (Left) or the id with their public key (Right).
 /// The resulting lists will have the same combined size as the incoming list.
 /// Calling this with an empty `users` list will not result in a call to the server.
-pub(crate) fn get_user_keys<'a>(
+pub(crate) async fn get_user_keys<'a>(
     auth: &'a RequestAuth,
     users: &'a Vec<UserId>,
-) -> Box<dyn Future<Item = (Vec<UserId>, Vec<WithKey<UserId>>), Error = IronOxideErr> + 'a> {
+) -> Result<(Vec<UserId>, Vec<WithKey<UserId>>), IronOxideErr> {
     // if there aren't any users in the list, just return with empty results
     if users.len() == 0 {
-        return Box::new(futures::future::ok((vec![], vec![])));
+        Ok((vec![], vec![]))
+    } else {
+        user_api::user_key_list(auth, &users)
+            .await
+            .map(|ids_with_keys| {
+                users.clone().into_iter().partition_map(|user_id| {
+                    let maybe_public_key = ids_with_keys.get(&user_id).cloned();
+                    match maybe_public_key {
+                        Some(pk) => Either::Right(WithKey::new(user_id, pk)),
+                        None => Either::Left(user_id),
+                    }
+                })
+            })
     }
-
-    let cloned_users = users.clone();
-    let fetch_users = user_api::user_key_list(auth, &users).boxed().compat();
-    Box::new(fetch_users.map(|ids_with_keys| {
-        cloned_users.into_iter().partition_map(|user_id| {
-            let maybe_public_key = ids_with_keys.get(&user_id).cloned();
-            match maybe_public_key {
-                Some(pk) => Either::Right(WithKey::new(user_id, pk)),
-                None => Either::Left(user_id),
-            }
-        })
-    }))
 }
 
 /// Generate all the necessary device keys, transform keys, and signatures to be able to add a new user device.

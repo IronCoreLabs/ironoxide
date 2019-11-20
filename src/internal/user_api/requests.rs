@@ -15,7 +15,6 @@ use crate::{
     },
 };
 use chrono::Utc;
-use futures::Future;
 use futures3::compat::Future01CompatExt;
 use std::convert::TryFrom;
 
