@@ -19,8 +19,8 @@ use futures::{
     future::{ok, Either},
     Future,
 };
-use std::convert::TryFrom;
 use futures3::compat::Future01CompatExt;
+use std::convert::TryFrom;
 
 use crate::internal::auth_v2::AuthV2Builder;
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -260,12 +260,15 @@ pub mod user_create {
             user_public_key,
             needs_rotation,
         };
-        request.post_jwt_auth(
-            "users",
-            &req_body,
-            RequestErrorCode::UserCreate,
-            &Authorization::JwtAuth(jwt),
-        ).compat().await
+        request
+            .post_jwt_auth(
+                "users",
+                &req_body,
+                RequestErrorCode::UserCreate,
+                &Authorization::JwtAuth(jwt),
+            )
+            .compat()
+            .await
     }
     impl TryFrom<UserCreateResponse> for UserCreateResult {
         type Error = IronOxideErr;
@@ -389,17 +392,18 @@ pub mod device_list {
 
     #[derive(Deserialize, PartialEq, Debug)]
     pub struct DeviceListResponse {
-        pub result: Vec<DeviceListItem>,
+        pub(in crate::internal) result: Vec<DeviceListItem>,
     }
 
-    pub fn device_list(
-        auth: &RequestAuth,
-    ) -> impl Future<Item = DeviceListResponse, Error = IronOxideErr> + '_ {
-        auth.request.get(
-            &format!("users/{}/devices", rest::url_encode(&auth.account_id().0)),
-            RequestErrorCode::UserDeviceList,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    pub async fn device_list(auth: &RequestAuth) -> Result<DeviceListResponse, IronOxideErr> {
+        auth.request
+            .get(
+                &format!("users/{}/devices", rest::url_encode(&auth.account_id().0)),
+                RequestErrorCode::UserDeviceList,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 
     impl From<DeviceListItem> for UserDevice {

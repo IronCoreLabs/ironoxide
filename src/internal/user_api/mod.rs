@@ -396,15 +396,14 @@ pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
         })
 }
 
-pub fn device_list(
-    auth: &RequestAuth,
-) -> impl Future<Item = UserDeviceListResult, Error = IronOxideErr> + '_ {
-    requests::device_list::device_list(auth).map(|resp| {
+pub async fn device_list(auth: &RequestAuth) -> Result<UserDeviceListResult, IronOxideErr> {
+    let resp = requests::device_list::device_list(auth).await?;
+    {
         let mut vec: Vec<UserDevice> = resp.result.into_iter().map(UserDevice::from).collect();
         // sort the devices by device_id
         vec.sort_by(|a, b| a.id.0.cmp(&b.id.0));
-        UserDeviceListResult::new(vec)
-    })
+        Ok(UserDeviceListResult::new(vec))
+    }
 }
 
 pub fn device_delete<'a>(

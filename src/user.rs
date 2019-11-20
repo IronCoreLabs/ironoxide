@@ -165,7 +165,11 @@ impl UserOps for IronOxide {
 
     fn user_list_devices(&self) -> Result<UserDeviceListResult> {
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(user_api::device_list(self.device.auth()))
+        rt.block_on(
+            user_api::device_list(self.device.auth())
+                .boxed_local() // required because something isn't Send; perhaps related to IronCoreRequest
+                .compat(),
+        )
     }
 
     fn generate_new_device(
