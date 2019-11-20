@@ -148,32 +148,37 @@ impl PrivateKeyRotationCheckResult {
 /// keys are valid and exist for the provided account. If successful returns an instance of the IronOxide SDK
 pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
     let mut rt = Runtime::new().unwrap();
-    rt.block_on(crate::internal::user_api::user_get_current(
-        &device_context.auth(),
-    ))
+    rt.block_on(
+        crate::internal::user_api::user_get_current(&device_context.auth())
+            .boxed()
+            .compat(),
+    )
     .map(|current_user| IronOxide::create(&current_user, device_context))
     .map_err(|_| IronOxideErr::InitializeError)
 }
-
+use futures3::future::{FutureExt, TryFutureExt};
 /// Initialize the IronOxide SDK and check to see if the user that owns this `DeviceContext` is
 /// marked for private key rotation, or if any of the groups that the user is an admin of is marked
 /// for private key rotation.
 pub fn initialize_check_rotation(device_context: &DeviceContext) -> Result<InitAndRotationCheck> {
     Runtime::new().unwrap().block_on(
-        internal::user_api::user_get_current(device_context.auth()).and_then(|curr_user| {
-            let ironoxide = IronOxide::create(&curr_user, &device_context);
+        internal::user_api::user_get_current(device_context.auth())
+            .boxed()
+            .compat()
+            .and_then(|curr_user| {
+                let ironoxide = IronOxide::create(&curr_user, &device_context);
 
-            if curr_user.needs_rotation() {
-                Ok(InitAndRotationCheck::RotationNeeded(
-                    ironoxide,
-                    PrivateKeyRotationCheckResult {
-                        rotations_needed: EitherOrBoth::Left(curr_user.account_id().clone()),
-                    },
-                ))
-            } else {
-                Ok(InitAndRotationCheck::NoRotationNeeded(ironoxide))
-            }
-        }),
+                if curr_user.needs_rotation() {
+                    Ok(InitAndRotationCheck::RotationNeeded(
+                        ironoxide,
+                        PrivateKeyRotationCheckResult {
+                            rotations_needed: EitherOrBoth::Left(curr_user.account_id().clone()),
+                        },
+                    ))
+                } else {
+                    Ok(InitAndRotationCheck::NoRotationNeeded(ironoxide))
+                }
+            }),
     )
 }
 

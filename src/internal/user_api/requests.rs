@@ -157,14 +157,15 @@ pub mod user_get {
         pub(in crate::internal) groups_needing_rotation: Vec<String>,
     }
 
-    pub fn get_curr_user(
-        auth: &RequestAuth,
-    ) -> impl Future<Item = CurrentUserResponse, Error = IronOxideErr> + '_ {
-        auth.request.get(
-            "users/current",
-            RequestErrorCode::UserGetCurrent,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    pub async fn get_curr_user(auth: &RequestAuth) -> Result<CurrentUserResponse, IronOxideErr> {
+        auth.request
+            .get(
+                "users/current",
+                RequestErrorCode::UserGetCurrent,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }
 
@@ -198,26 +199,29 @@ pub mod user_update_private_key {
         }
     }
 
-    pub fn update_private_key<'a>(
-        auth: &'a RequestAuth,
+    pub async fn update_private_key(
+        auth: &RequestAuth,
         user_id: UserId,
         user_key_id: u64,
         new_encrypted_private_key: EncryptedPrivateKey,
         augmenting_key: AugmentationFactor,
-    ) -> impl Future<Item = UserUpdatePrivateKeyResponse, Error = IronOxideErr> + 'a {
-        auth.request.put(
-            &format!(
-                "users/{}/keys/{}",
-                rest::url_encode(user_id.id()),
-                user_key_id
-            ),
-            &UserUpdatePrivateKey {
-                user_private_key: new_encrypted_private_key,
-                augmentation_factor: augmenting_key,
-            },
-            RequestErrorCode::UserKeyUpdate,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    ) -> Result<UserUpdatePrivateKeyResponse, IronOxideErr> {
+        auth.request
+            .put(
+                &format!(
+                    "users/{}/keys/{}",
+                    rest::url_encode(user_id.id()),
+                    user_key_id
+                ),
+                &UserUpdatePrivateKey {
+                    user_private_key: new_encrypted_private_key,
+                    augmentation_factor: augmenting_key,
+                },
+                RequestErrorCode::UserKeyUpdate,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }
 

@@ -271,62 +271,60 @@ impl UserUpdatePrivateKeyResult {
 }
 
 /// Get metadata about the current user
-pub fn user_get_current(
-    auth: &RequestAuth,
-) -> impl Future<Item = UserResult, Error = IronOxideErr> + '_ {
-    requests::user_get::get_curr_user(auth).and_then(|result| {
-        Ok(UserResult {
-            needs_rotation: result.needs_rotation,
-            user_public_key: result.user_master_public_key.try_into()?,
-            segment_id: result.segment_id,
-            account_id: UserId::unsafe_from_string(result.id),
+pub async fn user_get_current(auth: &RequestAuth) -> Result<UserResult, IronOxideErr> {
+    requests::user_get::get_curr_user(auth)
+        .await
+        .and_then(|result| {
+            Ok(UserResult {
+                needs_rotation: result.needs_rotation,
+                user_public_key: result.user_master_public_key.try_into()?,
+                segment_id: result.segment_id,
+                account_id: UserId::unsafe_from_string(result.id),
+            })
         })
-    })
 }
 
 /// Rotate the user's private key. The public key for the user remains unchanged.
-pub fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
+pub async fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'apicall Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     password: Password,
     auth: &'apicall RequestAuth,
-) -> impl Future<Item = UserUpdatePrivateKeyResult, Error = IronOxideErr> + 'apicall {
-    requests::user_get::get_curr_user(&auth)
-        .and_then(move |curr_user| {
-            Ok({
-                let encrypt_priv_key = curr_user.user_private_key;
-                let priv_key: PrivateKey = aes::decrypt_user_master_key(
-                    &password.0,
-                    &aes::EncryptedMasterKey::new_from_slice(&encrypt_priv_key.0)?,
-                )?
-                .into();
+) -> Result<UserUpdatePrivateKeyResult, IronOxideErr> {
+    let requests::user_get::CurrentUserResponse {
+        user_private_key: encrypted_priv_key,
+        current_key_id,
+        id: curr_user_id,
+        ..
+    } = requests::user_get::get_curr_user(&auth).await?;
+    let (user_id, curr_key_id, new_encrypted_priv_key, aug_factor) = {
+        let priv_key: PrivateKey = aes::decrypt_user_master_key(
+            &password.0,
+            &aes::EncryptedMasterKey::new_from_slice(&encrypted_priv_key.0)?,
+        )?
+        .into();
 
-                let (new_priv_key, aug_factor) =
-                    augment_private_key_with_retry(recrypt, &priv_key)?;
-                let new_encrypted_priv_key = aes::encrypt_user_master_key(
-                    &Mutex::new(EntropyRng::default()),
-                    &password.0,
-                    new_priv_key.as_bytes(),
-                )?;
-                (
-                    UserId(curr_user.id),
-                    curr_user.current_key_id,
-                    new_encrypted_priv_key,
-                    aug_factor,
-                )
-            })
-        })
-        .and_then(
-            move |(user_id, curr_key_id, new_encrypted_priv_key, aug_factor)| {
-                requests::user_update_private_key::update_private_key(
-                    &auth,
-                    user_id,
-                    curr_key_id,
-                    new_encrypted_priv_key.into(),
-                    aug_factor.into(),
-                )
-                .map(|resp| resp.into())
-            },
+        let (new_priv_key, aug_factor) = augment_private_key_with_retry(recrypt, &priv_key)?;
+        let new_encrypted_priv_key = aes::encrypt_user_master_key(
+            &Mutex::new(EntropyRng::default()),
+            &password.0,
+            new_priv_key.as_bytes(),
+        )?;
+        (
+            UserId(curr_user_id),
+            current_key_id,
+            new_encrypted_priv_key,
+            aug_factor,
         )
+    };
+    requests::user_update_private_key::update_private_key(
+        &auth,
+        user_id,
+        curr_key_id,
+        new_encrypted_priv_key.into(),
+        aug_factor.into(),
+    )
+    .await
+    .map(|resp| resp.into())
 }
 
 /// Generate a device key for the user specified in the JWT.
