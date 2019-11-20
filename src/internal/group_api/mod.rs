@@ -2,7 +2,7 @@ use crate::{
     crypto::transform,
     internal::{
         group_api::requests::{group_list::GroupListResponse, GroupUserEditResponse},
-        rest::json::TransformedEncryptedValue,
+        rest::json::{EncryptedOnceValue, TransformedEncryptedValue},
         user_api::{self, UserId},
         validate_id, validate_name, IronOxideErr, PrivateKey, PublicKey, RequestAuth,
         SchnorrSignature, TransformKey, WithKey,
@@ -18,7 +18,6 @@ use std::{
     convert::{TryFrom, TryInto},
     iter::FromIterator,
 };
-
 mod requests;
 
 pub enum GroupEntity {
@@ -141,6 +140,7 @@ impl GroupMetaResult {
     }
 }
 
+#[derive(Debug)]
 pub struct GroupCreateResult {
     id: GroupId,
     name: Option<GroupName>,
@@ -248,7 +248,7 @@ impl GroupGetResult {
     }
     /// The owner of the group. The group owner cannot be removed as an admin.
     ///     Some(UserId) - The id of the group owner.
-    ///     None - The caller does not have the permissions required to view the owner.
+    ///     None - The calling user is not a member of the group and cannot view the owner.
     pub fn owner(&self) -> Option<&UserId> {
         self.owner.as_ref()
     }
@@ -408,14 +408,13 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                     // this will occur when one of the UserIds cannot be found
                     if user_ids_and_keys.len() != users_to_lookup.len() {
                         // figure out which user ids could not be found in the database and include them in the error message.
-                        let desired_users_set: HashSet<&UserId> =
-                            HashSet::from_iter(users_to_lookup);
-                        let found_users: Vec<UserId> =
+                        let desired_users_set: HashSet<UserId> =
+                            HashSet::from_iter(users_to_lookup.clone());
+                        let found_users_set: HashSet<UserId> =
                             user_ids_and_keys.into_iter().map(|(x, _)| x).collect();
-                        let found_users_set: HashSet<&UserId> = HashSet::from_iter(&found_users);
-                        let diff: HashSet<&&UserId> =
+                        let diff: HashSet<&UserId> =
                             desired_users_set.difference(&found_users_set).collect();
-                        futures::future::err(IronOxideErr::UserDoesNotExist(format!(
+                        err(IronOxideErr::UserDoesNotExist(format!(
                             "Failed to find the following users: {:?}",
                             diff
                         )))
@@ -423,16 +422,11 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                         transform::gen_group_keys(recrypt)
                             .and_then(move |(plaintext, group_priv_key, group_pub_key)| {
                                 let (member_info_result, admin_info): (
-                                    std::result::Result<
-                                        std::vec::Vec<(UserId, PublicKey, TransformKey)>,
-                                        IronOxideErr,
-                                    >,
-                                    std::vec::Vec<(UserId, PublicKey)>,
+                                    Result<Vec<(UserId, PublicKey, TransformKey)>, IronOxideErr>,
+                                    Vec<(UserId, PublicKey)>,
                                 ) = {
-                                    let members_set: HashSet<&UserId> =
-                                        HashSet::from_iter(&members);
-                                    let admins_set: HashSet<&UserId> = HashSet::from_iter(&admins);
-
+                                    let members_set: HashSet<_> = HashSet::from_iter(&members);
+                                    let admins_set: HashSet<_> = HashSet::from_iter(&admins);
                                     let mut member_info: Vec<
                                         Result<(UserId, PublicKey, TransformKey), IronOxideErr>,
                                     > = vec![];
@@ -454,11 +448,7 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                                                         user_pub_key.clone(),
                                                         member_trans_key.into(),
                                                     ))),
-                                                    Err(_) => member_info.push(Err(
-                                                        IronOxideErr::UserDoesNotExist(
-                                                            "nope".to_string(),
-                                                        ),
-                                                    )),
+                                                    Err(_) => (),
                                                 };
                                             }
                                             if admins_set.contains(&id) {
@@ -473,9 +463,9 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                                     .into_iter()
                                     .map(|(member_id, member_pub_key, member_trans_key)| {
                                         requests::GroupMember {
-                                            user_id: member_id.clone(),
-                                            transform_key: member_trans_key.clone().into(),
-                                            user_master_public_key: member_pub_key.clone().into(),
+                                            user_id: member_id,
+                                            transform_key: member_trans_key.into(),
+                                            user_master_public_key: member_pub_key.into(),
                                         }
                                     })
                                     .collect();
@@ -495,17 +485,16 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                                                 &auth.signing_private_key().into(),
                                             );
                                             encrypted_group_key
-                                    .map_err(|e| e.into())
-                                    .and_then(
-                                        crate::internal::rest::json::EncryptedOnceValue::try_from,
-                                    )
-                                    .map(|enc_msg| requests::GroupAdmin {
-                                        encrypted_msg: enc_msg.clone(),
-                                        user: requests::User {
-                                            user_id: admin_id.clone(),
-                                            user_master_public_key: admin_pub_key.clone().into(),
-                                        },
-                                    })
+                                                .map_err(|e| e.into())
+                                                .and_then(EncryptedOnceValue::try_from)
+                                                .map(|enc_msg| requests::GroupAdmin {
+                                                    encrypted_msg: enc_msg,
+                                                    user: requests::User {
+                                                        user_id: admin_id,
+                                                        user_master_public_key: admin_pub_key
+                                                            .into(),
+                                                    },
+                                                })
                                         })
                                         .collect();
                                 let group_admins = group_admins_result?;

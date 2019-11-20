@@ -9,13 +9,16 @@ use crate::{
 use std::{collections::HashSet, iter::FromIterator};
 use tokio::runtime::current_thread::Runtime;
 
+// This is used for GroupCreateOpts that have been standardized with the GroupCreateOpts::standardize function.
+// `add_as_member` and `add_as_admin` have been removed, with the calling user added to the `members` and `admins` lists.
+// `all_users` holds all the users who need their public keys looked up with duplicates removed.
 struct GroupCreateOptsStd {
     id: Option<GroupId>,
     name: Option<GroupName>,
     owner: Option<UserId>,
     admins: Vec<UserId>,
     members: Vec<UserId>,
-    users: Vec<UserId>,
+    all_users: Vec<UserId>,
     needs_rotation: bool,
 }
 
@@ -92,13 +95,6 @@ impl GroupCreateOpts {
     }
 
     fn standardize(self, calling_id: &UserId) -> GroupCreateOptsStd {
-        // if `owner` contains own id, set to None, as this is the server's default
-        let owner = if self.owner == Some(calling_id.clone()) {
-            None
-        } else {
-            self.owner
-        };
-
         // if `add_as_member`, make sure the calling user is in the `members` list
         let standardized_members = if self.add_as_member && !self.members.contains(calling_id) {
             let mut members = self.members.clone();
@@ -116,7 +112,7 @@ impl GroupCreateOpts {
             } else {
                 self.admins
             };
-            match owner.clone() {
+            match self.owner.clone() {
                 Some(owner_id) => {
                     // if the owner is specified, make sure they're in the `admins` list
                     if !admins.contains(&owner_id) {
@@ -130,10 +126,18 @@ impl GroupCreateOpts {
             admins
         };
 
+        // if `owner` contains own id, set to None, as this is the server's default
+        let owner = if self.owner == Some(calling_id.clone()) {
+            None
+        } else {
+            self.owner
+        };
+
         // concatenate the vectors of admin and member ids. duplicates will be removed later.
-        let all_users = [&standardized_admins[..], &standardized_members[..]].concat();
-        let set: HashSet<UserId> = HashSet::from_iter(all_users);
-        let users: Vec<UserId> = set.into_iter().collect();
+        // owner should be in the list already, otherwise this will get caught later
+        let admins_and_members = [&standardized_admins[..], &standardized_members[..]].concat();
+        let set: HashSet<UserId> = HashSet::from_iter(admins_and_members);
+        let all_users: Vec<UserId> = set.into_iter().collect();
 
         GroupCreateOptsStd {
             id: self.id,
@@ -141,7 +145,7 @@ impl GroupCreateOpts {
             owner: owner,
             admins: standardized_admins,
             members: standardized_members,
-            users: users,
+            all_users: all_users,
             needs_rotation: self.needs_rotation,
         }
     }
@@ -264,7 +268,7 @@ impl GroupOps for crate::IronOxide {
             owner,
             admins,
             members,
-            users,
+            all_users: users_to_lookup,
             needs_rotation,
         } = opts.clone().standardize(self.device.auth().account_id());
 
@@ -276,7 +280,7 @@ impl GroupOps for crate::IronOxide {
             owner,
             admins,
             members,
-            &users,
+            &users_to_lookup,
             needs_rotation,
         ))
     }

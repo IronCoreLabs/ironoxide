@@ -9,6 +9,9 @@ mod common;
 #[macro_use]
 extern crate serde_json;
 
+#[macro_use]
+extern crate galvanic_assert;
+
 #[test]
 fn group_create_no_member() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk()?;
@@ -240,6 +243,29 @@ fn group_add_admin_on_create() -> Result<(), IronOxideErr> {
     let expected_vec = &vec![account_id, second_account_id];
     let expected_set: HashSet<&UserId> = HashSet::from_iter(expected_vec);
     assert_eq!(result_set, expected_set);
+    Ok(())
+}
+
+#[test]
+fn group_add_admin_invalid_ids() -> Result<(), IronOxideErr> {
+    let (_, sdk) = init_sdk_get_user();
+
+    let group_result = sdk.group_create(&GroupCreateOpts::new(
+        Some(create_id_all_classes("").try_into()?),
+        None,
+        true,
+        false,
+        Some(create_id_all_classes("").try_into()?),
+        vec![create_id_all_classes("").try_into()?],
+        vec![create_id_all_classes("").try_into()?],
+        false,
+    ));
+
+    assert_that!(
+        &group_result.unwrap_err(),
+        is_variant!(IronOxideErr::UserDoesNotExist)
+    );
+
     Ok(())
 }
 
