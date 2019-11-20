@@ -410,24 +410,27 @@ pub async fn device_delete<'a>(
 }
 
 /// Get a list of users public keys given a list of user account IDs
-pub fn user_key_list<'a>(
+pub async fn user_key_list<'a>(
     auth: &'a RequestAuth,
     user_ids: &'a Vec<UserId>,
-) -> impl Future<Item = HashMap<UserId, PublicKey>, Error = IronOxideErr> + 'a {
-    requests::user_key_list::user_key_list_request(auth, user_ids).map(
-        move |requests::user_key_list::UserKeyListResponse { result }| {
-            result
-                .into_iter()
-                .fold(HashMap::with_capacity(user_ids.len()), |mut acc, user| {
-                    let maybe_pub_key = PublicKey::try_from(user.user_master_public_key.clone());
-                    maybe_pub_key.into_iter().for_each(|pub_key| {
-                        //We asked the api for valid user ids. We're assuming here that the response has valid user ids.
-                        acc.insert(UserId::unsafe_from_string(user.id.clone()), pub_key);
-                    });
-                    acc
-                })
-        },
-    )
+) -> Result<HashMap<UserId, PublicKey>, IronOxideErr> {
+    requests::user_key_list::user_key_list_request(auth, user_ids)
+        .await
+        .map(
+            move |requests::user_key_list::UserKeyListResponse { result }| {
+                result
+                    .into_iter()
+                    .fold(HashMap::with_capacity(user_ids.len()), |mut acc, user| {
+                        let maybe_pub_key =
+                            PublicKey::try_from(user.user_master_public_key.clone());
+                        maybe_pub_key.into_iter().for_each(|pub_key| {
+                            //We asked the api for valid user ids. We're assuming here that the response has valid user ids.
+                            acc.insert(UserId::unsafe_from_string(user.id.clone()), pub_key);
+                        });
+                        acc
+                    })
+            },
+        )
 }
 
 /// Get the keys for users. The result should be either a failure for a specific UserId (Left) or the id with their public key (Right).
@@ -443,7 +446,7 @@ pub(crate) fn get_user_keys<'a>(
     }
 
     let cloned_users = users.clone();
-    let fetch_users = user_api::user_key_list(auth, &users);
+    let fetch_users = user_api::user_key_list(auth, &users).boxed().compat();
     Box::new(fetch_users.map(|ids_with_keys| {
         cloned_users.into_iter().partition_map(|user_id| {
             let maybe_public_key = ids_with_keys.get(&user_id).cloned();

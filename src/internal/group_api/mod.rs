@@ -371,7 +371,11 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     members: &'a Vec<UserId>,
     needs_rotation: bool,
 ) -> impl Future<Item = GroupCreateResult, Error = IronOxideErr> + 'a {
+    use futures3::TryFutureExt;
+    use futures_util::future::FutureExt;
     user_api::user_key_list(auth, members)
+        .boxed()
+        .compat()
         .and_then(move |member_ids_and_keys| {
             // this will occur when one of the UserIds in the members list cannot be found
             if member_ids_and_keys.len() != members.len() {

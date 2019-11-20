@@ -215,7 +215,11 @@ impl UserOps for IronOxide {
 
     fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(user_api::user_key_list(self.device.auth(), &users.to_vec()))
+        rt.block_on(
+            user_api::user_key_list(self.device.auth(), &users.to_vec())
+                .boxed()
+                .compat(),
+        )
     }
 
     fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult> {

@@ -15,10 +15,7 @@ use crate::{
     },
 };
 use chrono::Utc;
-use futures::{
-    future::{ok, Either},
-    Future,
-};
+use futures::Future;
 use futures3::compat::Future01CompatExt;
 use std::convert::TryFrom;
 
@@ -296,20 +293,23 @@ pub mod user_key_list {
         pub(crate) result: Vec<UserPublicKey>,
     }
 
-    pub fn user_key_list_request<'a>(
-        auth: &'a RequestAuth,
+    pub async fn user_key_list_request(
+        auth: &RequestAuth,
         users: &Vec<UserId>,
-    ) -> impl Future<Item = UserKeyListResponse, Error = IronOxideErr> + 'a {
+    ) -> Result<UserKeyListResponse, IronOxideErr> {
         let user_ids: Vec<&str> = users.iter().map(|user| user.id()).collect();
         if user_ids.len() != 0 {
-            Either::A(auth.request.get_with_query_params(
-                "users".into(),
-                &vec![("id".into(), rest::url_encode(&user_ids.join(",")))],
-                RequestErrorCode::UserKeyList,
-                AuthV2Builder::new(&auth, Utc::now()),
-            ))
+            auth.request
+                .get_with_query_params(
+                    "users".into(),
+                    &vec![("id".into(), rest::url_encode(&user_ids.join(",")))],
+                    RequestErrorCode::UserKeyList,
+                    AuthV2Builder::new(&auth, Utc::now()),
+                )
+                .compat()
+                .await
         } else {
-            Either::B(ok(UserKeyListResponse { result: Vec::new() }))
+            Ok(UserKeyListResponse { result: Vec::new() })
         }
     }
 }
