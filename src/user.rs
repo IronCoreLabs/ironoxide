@@ -197,7 +197,11 @@ impl UserOps for IronOxide {
 
     fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId> {
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(user_api::device_delete(self.device.auth(), device_id))
+        rt.block_on(
+            user_api::device_delete(self.device.auth(), device_id)
+                .boxed_local() // required because something isn't Send; perhaps related to IronCoreRequest
+                .compat(),
+        )
     }
 
     fn user_verify(jwt: &str) -> Result<Option<UserResult>> {

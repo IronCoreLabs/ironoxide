@@ -398,13 +398,13 @@ pub async fn device_list(auth: &RequestAuth) -> Result<UserDeviceListResult, Iro
     }
 }
 
-pub fn device_delete<'a>(
+pub async fn device_delete<'a>(
     auth: &'a RequestAuth,
     device_id: Option<&'a DeviceId>,
-) -> impl Future<Item = DeviceId, Error = IronOxideErr> + 'a {
+) -> Result<DeviceId, IronOxideErr> {
     match device_id {
-        Some(device_id) => requests::device_delete::device_delete(auth, device_id),
-        None => requests::device_delete::device_delete_current(auth),
+        Some(device_id) => requests::device_delete::device_delete(auth, device_id).await,
+        None => requests::device_delete::device_delete_current(auth).await,
     }
     .map(|resp| resp.id)
 }

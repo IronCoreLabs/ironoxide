@@ -431,31 +431,37 @@ pub mod device_delete {
         pub(crate) id: DeviceId,
     }
 
-    pub fn device_delete<'a>(
-        auth: &'a RequestAuth,
+    pub async fn device_delete(
+        auth: &RequestAuth,
         device_id: &DeviceId,
-    ) -> Box<dyn Future<Item = DeviceDeleteResponse, Error = IronOxideErr> + 'a> {
-        Box::new(auth.request.delete_with_no_body(
-            &format!(
-                "users/{}/devices/{}",
-                rest::url_encode(&auth.account_id().0),
-                device_id.0
-            ),
-            RequestErrorCode::UserDeviceDelete,
-            AuthV2Builder::new(&auth, Utc::now()),
-        ))
+    ) -> Result<DeviceDeleteResponse, IronOxideErr> {
+        auth.request
+            .delete_with_no_body(
+                &format!(
+                    "users/{}/devices/{}",
+                    rest::url_encode(&auth.account_id().0),
+                    device_id.0
+                ),
+                RequestErrorCode::UserDeviceDelete,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 
-    pub fn device_delete_current(
+    pub async fn device_delete_current(
         auth: &RequestAuth,
-    ) -> Box<dyn Future<Item = DeviceDeleteResponse, Error = IronOxideErr> + '_> {
-        Box::new(auth.request.delete_with_no_body(
-            &format!(
-                "users/{}/devices/current",
-                rest::url_encode(&auth.account_id().0)
-            ),
-            RequestErrorCode::UserDeviceDelete,
-            AuthV2Builder::new(&auth, Utc::now()),
-        ))
+    ) -> Result<DeviceDeleteResponse, IronOxideErr> {
+        auth.request
+            .delete_with_no_body(
+                &format!(
+                    "users/{}/devices/current",
+                    rest::url_encode(&auth.account_id().0)
+                ),
+                RequestErrorCode::UserDeviceDelete,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }
