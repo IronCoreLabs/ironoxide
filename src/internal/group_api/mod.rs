@@ -147,6 +147,7 @@ pub struct GroupCreateResult {
     group_master_public_key: PublicKey,
     is_admin: bool,
     is_member: bool,
+    owner: UserId,
     admins: Vec<UserId>,
     members: Vec<UserId>,
     created: DateTime<Utc>,
@@ -173,6 +174,10 @@ impl GroupCreateResult {
     /// true if the calling user is a group member
     pub fn is_member(&self) -> bool {
         self.is_member
+    }
+    /// owner of the group
+    pub fn owner(&self) -> &UserId {
+        &self.owner
     }
     /// List of all group admins. Group admins can change group membership.
     pub fn admins(&self) -> &Vec<UserId> {
@@ -204,6 +209,7 @@ pub struct GroupGetResult {
     group_master_public_key: PublicKey,
     is_admin: bool,
     is_member: bool,
+    owner: Option<UserId>,
     admin_list: Option<Vec<UserId>>,
     member_list: Option<Vec<UserId>>,
     created: DateTime<Utc>,
@@ -239,6 +245,12 @@ impl GroupGetResult {
     /// Date and time of when the group was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
+    }
+    /// The owner of the group. The group owner cannot be removed as an admin.
+    ///     Some(UserId) - The id of the group owner.
+    ///     None - The caller does not have the permissions required to view the owner.
+    pub fn owner(&self) -> Option<&UserId> {
+        self.owner.as_ref()
     }
     /// List of all group admins. Group admins can change group membership.
     pub fn admin_list(&self) -> Option<&Vec<UserId>> {

@@ -24,6 +24,7 @@ fn group_create_no_member() -> Result<(), IronOxideErr> {
         true,
     ))?;
 
+    assert_eq!(group_result.owner(), sdk.device().account_id());
     assert_eq!(group_result.needs_rotation(), Some(true));
     Ok(())
 }
@@ -35,7 +36,9 @@ fn group_create_with_defaults() -> Result<(), IronOxideErr> {
     let result = sdk.group_create(&Default::default());
     let group_result = result?;
     assert_eq!(group_result.needs_rotation(), Some(false));
-    assert_eq!(group_result.is_member(), true);
+    assert!(group_result.is_member());
+    assert!(group_result.is_admin());
+    assert_eq!(group_result.owner(), sdk.device().account_id());
     Ok(())
 }
 
@@ -58,6 +61,16 @@ fn group_get_metadata() -> Result<(), IronOxideErr> {
     assert_eq!(admin_group_get.needs_rotation(), Some(false));
     assert_eq!(member_group_get.needs_rotation(), None);
     assert_eq!(nonmember_group_get.needs_rotation(), None);
+
+    assert_eq!(
+        admin_group_get.owner(),
+        Some(admin_sdk.device().account_id())
+    );
+    assert_eq!(
+        member_group_get.owner(),
+        Some(admin_sdk.device().account_id())
+    );
+    assert_eq!(nonmember_group_get.owner(), None);
     Ok(())
 }
 
@@ -166,7 +179,9 @@ fn group_add_member_on_create() -> Result<(), IronOxideErr> {
         false,
     ))?;
 
-    // the order if the vector can be confusing with the add_as_member, so comparing the
+    assert_eq!(group_result.owner(), sdk.device().account_id());
+
+    // the order of the vector can be confusing with the add_as_member, so comparing the
     // sets can avoid issues with it
     let result_set: HashSet<&UserId> = HashSet::from_iter(group_result.members());
     let expected_vec = &vec![account_id, second_account_id];
@@ -176,25 +191,50 @@ fn group_add_member_on_create() -> Result<(), IronOxideErr> {
 }
 
 #[test]
+fn group_add_specific_owner() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk()?;
+    let second_account_id = initialize_sdk()?.device().account_id().clone();
+
+    // because the owner is specified, GroupCreateOpts.standardize() adds them
+    // to the admins list
+    let group_result = sdk.group_create(&GroupCreateOpts::new(
+        Some(create_id_all_classes("").try_into()?),
+        None,
+        false,
+        false,
+        Some(second_account_id.clone()),
+        vec![],
+        vec![second_account_id.clone()],
+        false,
+    ))?;
+
+    assert_eq!(group_result.owner(), &second_account_id);
+    assert_eq!(group_result.members(), &vec![second_account_id.clone()]);
+    assert_eq!(group_result.admins(), &vec![second_account_id]);
+
+    Ok(())
+}
+
+#[test]
 fn group_add_admin_on_create() -> Result<(), IronOxideErr> {
     use std::{collections::HashSet, iter::FromIterator};
     let (account_id, sdk) = init_sdk_get_user();
     let (second_account_id, _) = init_sdk_get_user();
 
-    // Even though `add_as_member` is false, the UserId is in the `members` list,
-    // so the caller becomes a member regardless
     let group_result = sdk.group_create(&GroupCreateOpts::new(
         Some(create_id_all_classes("").try_into()?),
         None,
         true,
-        true,
+        false,
         None,
         vec![second_account_id.clone()],
         vec![],
         false,
     ))?;
 
-    // the order if the vector can be confusing with the add_as_admin, so comparing the
+    assert_eq!(group_result.owner(), &account_id);
+
+    // the order of the vector can be confusing with the add_as_admin, so comparing the
     // sets can avoid issues with it
     let result_set: HashSet<&UserId> = HashSet::from_iter(group_result.admins());
     let expected_vec = &vec![account_id, second_account_id];

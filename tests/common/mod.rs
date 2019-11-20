@@ -101,6 +101,12 @@ pub fn gen_jwt(account_id: Option<&str>) -> (String, String) {
     (jwt, sub.to_string())
 }
 
+// This function is similar to init_sdk_get_user, but is more streamlined
+// by not discarding InitAndRotationCheck, not calling user_verify for each
+// user_create, and not manually unwrapping/re-wrapping the DeviceContext.
+// The intent is that this will be used in most of the tests, as those extra
+// verifications are not the goal of most tests. It also returns a result to give
+// nice error handling with `?` in the tests.
 pub fn initialize_sdk() -> Result<IronOxide, IronOxideErr> {
     let account_id: UserId = create_id_all_classes("").try_into()?;
     IronOxide::user_create(
@@ -164,6 +170,9 @@ pub fn init_sdk_get_init_result(user_needs_rotation: bool) -> (UserId, InitAndRo
     )
 }
 
+// this warns that it's unused because it's only used in other files,
+// so this is suppressed to avoid false positive.
+#[allow(dead_code)]
 pub fn create_second_user() -> UserResult {
     let (jwt, _) = gen_jwt(Some(&create_id_all_classes("")));
     let create_result = IronOxide::user_create(&jwt, USER_PASSWORD, &Default::default());

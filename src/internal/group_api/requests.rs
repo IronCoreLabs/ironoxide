@@ -65,6 +65,7 @@ pub struct GroupGetApiResponse {
     pub(crate) status: u32,
     pub(crate) updated: DateTime<Utc>,
     pub(crate) created: DateTime<Utc>,
+    pub(crate) owner: Option<UserId>,
     pub(crate) admin_ids: Option<Vec<String>>,
     pub(crate) member_ids: Option<Vec<String>>,
     pub(crate) group_master_public_key: PublicKey,
@@ -83,6 +84,7 @@ impl TryFrom<GroupGetApiResponse> for GroupGetResult {
             group_master_public_key,
             is_admin: resp.permissions.contains(&Permission::Admin),
             is_member: resp.permissions.contains(&Permission::Member),
+            owner: resp.owner,
             admin_list: resp
                 .admin_ids
                 .map(|admins| admins.into_iter().map(UserId).collect()),
@@ -104,6 +106,7 @@ pub struct GroupCreateApiResponse {
     pub(in crate::internal) permissions: HashSet<Permission>,
     pub(in crate::internal) updated: DateTime<Utc>,
     pub(in crate::internal) created: DateTime<Utc>,
+    pub(in crate::internal) owner: UserId,
     pub(in crate::internal) admin_ids: Vec<String>,
     pub(in crate::internal) member_ids: Vec<String>,
     pub(in crate::internal) group_master_public_key: PublicKey,
@@ -120,6 +123,7 @@ impl TryFrom<GroupCreateApiResponse> for GroupCreateResult {
             group_master_public_key,
             is_admin: resp.permissions.contains(&Permission::Admin),
             is_member: resp.permissions.contains(&Permission::Member),
+            owner: resp.owner,
             admins: resp.admin_ids.into_iter().map(|id| UserId(id)).collect(),
             members: resp.member_ids.into_iter().map(|id| UserId(id)).collect(),
             created: resp.created,
