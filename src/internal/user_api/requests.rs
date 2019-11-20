@@ -348,12 +348,12 @@ pub mod device_add {
         pub device_public_key: PublicKey,
     }
 
-    pub fn user_device_add(
+    pub async fn user_device_add(
         jwt: &Jwt,
         device_add: &DeviceAdd,
         name: &Option<DeviceName>,
-        request: &IronCoreRequest,
-    ) -> impl Future<Item = DeviceAddResponse, Error = IronOxideErr> {
+        request: &IronCoreRequest<'_>,
+    ) -> Result<DeviceAddResponse, IronOxideErr> {
         let req_body: DeviceAddReq = DeviceAddReq {
             timestamp: device_add.signature_ts.timestamp_millis() as u64,
             user_public_key: device_add.user_public_key.clone().into(),
@@ -363,12 +363,15 @@ pub mod device_add {
                 name: name.clone(),
             },
         };
-        request.post_jwt_auth(
-            "users/devices",
-            &req_body,
-            RequestErrorCode::UserDeviceAdd,
-            &Authorization::JwtAuth(jwt),
-        )
+        request
+            .post_jwt_auth(
+                "users/devices",
+                &req_body,
+                RequestErrorCode::UserDeviceAdd,
+                &Authorization::JwtAuth(jwt),
+            )
+            .compat()
+            .await
     }
 }
 

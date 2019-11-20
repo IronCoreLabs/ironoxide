@@ -181,14 +181,18 @@ impl UserOps for IronOxide {
         let mut rt = Runtime::new().unwrap();
         let device_create_options = device_create_options.clone();
 
-        rt.block_on(user_api::generate_device_key(
-            &recrypt,
-            &jwt.try_into()?,
-            password.try_into()?,
-            device_create_options.device_name,
-            &std::time::SystemTime::now().into(),
-            &OUR_REQUEST,
-        ))
+        rt.block_on(
+            user_api::generate_device_key(
+                &recrypt,
+                &jwt.try_into()?,
+                password.try_into()?,
+                device_create_options.device_name,
+                &std::time::SystemTime::now().into(),
+                &OUR_REQUEST,
+            )
+            .boxed()
+            .compat(),
+        )
     }
 
     fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId> {

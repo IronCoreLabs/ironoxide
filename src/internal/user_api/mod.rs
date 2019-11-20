@@ -330,69 +330,61 @@ pub fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
 }
 
 /// Generate a device key for the user specified in the JWT.
-pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
+pub async fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: &'a Jwt,
     password: Password,
     device_name: Option<DeviceName>,
     signing_ts: &'a DateTime<Utc>,
     request: &'a IronCoreRequest<'static>,
-) -> impl Future<Item = DeviceContext, Error = IronOxideErr> + 'a {
+) -> Result<DeviceContext, IronOxideErr> {
     // verify that this user exists
-    requests::user_verify::user_verify(&jwt, &request)
-        .boxed()
-        .compat()
+    let requests::user_verify::UserVerifyResponse {
+        user_private_key,
+        user_master_public_key,
+        id: account_id,
+        segment_id,
+        ..
+    } = requests::user_verify::user_verify(&jwt, &request)
+        .await
         .and_then(|maybe_user| {
             maybe_user.ok_or(IronOxideErr::UserDoesNotExist(
                 "Device cannot be added to a user that doesn't exist".to_string(),
             ))
-        })
-        // unpack the verified user and create a DeviceAdd
-        .and_then(
-            move |requests::user_verify::UserVerifyResponse {
-                      user_private_key,
-                      user_master_public_key,
-                      id: account_id,
-                      segment_id,
-                      ..
-                  }| {
-                Ok((
-                    {
-                        let user_public_key: RecryptPublicKey =
-                            PublicKey::try_from(user_master_public_key)?.into();
-                        let user_private_key =
-                            EncryptedMasterKey::new_from_slice(&user_private_key.0)?;
+        })?;
+    // unpack the verified user and create a DeviceAdd
+    let (device_add, account_id, segment_id) = (
+        {
+            let user_public_key: RecryptPublicKey =
+                PublicKey::try_from(user_master_public_key)?.into();
+            let user_private_key = EncryptedMasterKey::new_from_slice(&user_private_key.0)?;
 
-                        // decrypt the user's master key using the provided password
-                        let user_private_key =
-                            aes::decrypt_user_master_key(&password.0, &user_private_key)?;
+            // decrypt the user's master key using the provided password
+            let user_private_key = aes::decrypt_user_master_key(&password.0, &user_private_key)?;
 
-                        let user_keypair: KeyPair =
-                            KeyPair::new(user_public_key, RecryptPrivateKey::new(user_private_key));
+            let user_keypair: KeyPair =
+                KeyPair::new(user_public_key, RecryptPrivateKey::new(user_private_key));
 
-                        // generate info needed to add a device
-                        let device_add =
-                            generate_device_add(recrypt, &jwt, &user_keypair, &signing_ts)?;
-                        device_add
-                    },
-                    account_id.try_into()?,
-                    segment_id,
-                ))
-            },
-        )
-        // call device_add
-        .and_then(move |(device_add, account_id, segment_id)| {
-            requests::device_add::user_device_add(&jwt, &device_add, &device_name, &request)
-                // on successful response, assemble a DeviceContext for the caller
-                .map(move |response| {
-                    DeviceContext::new(
-                        response.device_id,
-                        account_id,
-                        segment_id,
-                        device_add.device_keys.private_key,
-                        device_add.signing_keys,
-                    )
-                })
+            // generate info needed to add a device
+            let device_add = generate_device_add(recrypt, &jwt, &user_keypair, &signing_ts)?;
+            device_add
+        },
+        account_id.try_into()?,
+        segment_id,
+    );
+
+    // call device_add
+    requests::device_add::user_device_add(&jwt, &device_add, &device_name, &request)
+        .await
+        // on successful response, assemble a DeviceContext for the caller
+        .map(move |response| {
+            DeviceContext::new(
+                response.device_id,
+                account_id,
+                segment_id,
+                device_add.device_keys.private_key,
+                device_add.signing_keys,
+            )
         })
 }
 

@@ -871,11 +871,10 @@ impl From<(publicsuffix::errors::Error, RequestErrorCode)> for IronOxideErr {
     }
 }
 
-//impl From
-
 /// Common types for use across different internal apis
 pub mod json {
-    use crate::internal::{self, IronOxideErr, TryFrom};
+    use crate::internal::{self, IronOxideErr};
+    use std::convert::TryFrom;
 
     base64_serde_type!(pub Base64Standard, base64::STANDARD);
 
