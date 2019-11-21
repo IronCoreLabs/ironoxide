@@ -209,7 +209,11 @@ impl DocumentOps for crate::IronOxide {
 
     fn document_get_metadata(&self, id: &DocumentId) -> Result<DocumentMetadataResult> {
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(document_api::document_get_metadata(self.device.auth(), id))
+        rt.block_on(
+            document_api::document_get_metadata(self.device.auth(), id)
+                .boxed_local()
+                .compat(),
+        )
     }
 
     fn document_get_id_from_bytes(&self, encrypted_document: &[u8]) -> Result<DocumentId> {
@@ -277,12 +281,16 @@ impl DocumentOps for crate::IronOxide {
     fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult> {
         let mut rt = Runtime::new().unwrap();
 
-        rt.block_on(document_api::decrypt_document(
-            self.device.auth(),
-            &self.recrypt,
-            self.device.device_private_key(),
-            encrypted_document,
-        ))
+        rt.block_on(
+            document_api::decrypt_document(
+                self.device.auth(),
+                &self.recrypt,
+                self.device.device_private_key(),
+                encrypted_document,
+            )
+            .boxed_local() // required because something is not Send
+            .compat(),
+        )
     }
 
     fn document_update_name(

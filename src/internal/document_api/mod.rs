@@ -501,11 +501,13 @@ pub async fn document_list(auth: &RequestAuth) -> Result<DocumentListResult, Iro
 }
 
 /// Get the metadata ane encrypted key for a specific document given its ID.
-pub fn document_get_metadata<'a>(
-    auth: &'a RequestAuth,
+pub async fn document_get_metadata(
+    auth: &RequestAuth,
     id: &DocumentId,
-) -> impl Future<Item = DocumentMetadataResult, Error = IronOxideErr> + 'a {
-    requests::document_get::document_get_request(auth, id).map(DocumentMetadataResult)
+) -> Result<DocumentMetadataResult, IronOxideErr> {
+    Ok(DocumentMetadataResult(
+        requests::document_get::document_get_request(auth, id).await?,
+    ))
 }
 
 /// Attempt to parse the provided encrypted document header and extract out the ID if present
@@ -912,60 +914,60 @@ pub fn document_update_bytes<
     document_id: &'a DocumentId,
     plaintext: &'a [u8],
 ) -> impl Future<Item = DocumentEncryptResult, Error = IronOxideErr> + 'a {
-    document_get_metadata(auth, &document_id).and_then(move |doc_meta| {
-        let (_, sym_key) = transform::decrypt_plaintext(
-            &recrypt,
-            doc_meta.0.encrypted_symmetric_key.clone().try_into()?,
-            &device_private_key.recrypt_key(),
-        )?;
-        Ok(
-            aes::encrypt(&rng, &plaintext.to_vec(), *sym_key.bytes()).map(
-                move |encrypted_doc| {
-                    let mut encrypted_payload =
-                        DocumentHeader::new(document_id.clone(), auth.segment_id()).pack();
-                    encrypted_payload.0.append(&mut encrypted_doc.bytes());
-                    DocumentEncryptResult {
-                        id: doc_meta.0.id,
-                        name: doc_meta.0.name,
-                        created: doc_meta.0.created,
-                        updated: doc_meta.0.updated,
-                        encrypted_data: encrypted_payload.0,
-                        grants: vec![], // grants can't currently change via update
-                        access_errs: vec![], // no grants, no access errs
-                    }
-                },
-            )?,
-        )
-    })
+    document_get_metadata(auth, &document_id)
+        .boxed_local()
+        .compat()
+        .and_then(move |doc_meta| {
+            let (_, sym_key) = transform::decrypt_plaintext(
+                &recrypt,
+                doc_meta.0.encrypted_symmetric_key.clone().try_into()?,
+                &device_private_key.recrypt_key(),
+            )?;
+            Ok(
+                aes::encrypt(&rng, &plaintext.to_vec(), *sym_key.bytes()).map(
+                    move |encrypted_doc| {
+                        let mut encrypted_payload =
+                            DocumentHeader::new(document_id.clone(), auth.segment_id()).pack();
+                        encrypted_payload.0.append(&mut encrypted_doc.bytes());
+                        DocumentEncryptResult {
+                            id: doc_meta.0.id,
+                            name: doc_meta.0.name,
+                            created: doc_meta.0.created,
+                            updated: doc_meta.0.updated,
+                            encrypted_data: encrypted_payload.0,
+                            grants: vec![], // grants can't currently change via update
+                            access_errs: vec![], // no grants, no access errs
+                        }
+                    },
+                )?,
+            )
+        })
 }
 
 /// Decrypt the provided document with the provided device private key. Return metadata about the document
 /// that was decrypted along with its decrypted bytes.
-pub fn decrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
+pub async fn decrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
     auth: &'a RequestAuth,
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     device_private_key: &'a PrivateKey,
     encrypted_doc: &'a [u8],
-) -> impl Future<Item = DocumentDecryptResult, Error = IronOxideErr> + 'a {
-    parse_document_parts(encrypted_doc)
-        .into_future()
-        .and_then(move |mut enc_doc_parts| {
-            document_get_metadata(auth, &enc_doc_parts.0.document_id).and_then(move |doc_meta| {
-                let (_, sym_key) = transform::decrypt_plaintext(
-                    &recrypt,
-                    doc_meta.0.encrypted_symmetric_key.clone().try_into()?,
-                    &device_private_key.recrypt_key(),
-                )?;
-                aes::decrypt(&mut enc_doc_parts.1, *sym_key.bytes())
-                    .map_err(|e| e.into())
-                    .map(move |decrypted_doc| DocumentDecryptResult {
-                        id: doc_meta.0.id,
-                        name: doc_meta.0.name,
-                        created: doc_meta.0.created,
-                        updated: doc_meta.0.updated,
-                        decrypted_data: decrypted_doc.to_vec(),
-                    })
-            })
+) -> Result<DocumentDecryptResult, IronOxideErr> {
+    let (doc_header, mut enc_doc) = parse_document_parts(encrypted_doc)?;
+    let doc_meta = document_get_metadata(auth, &doc_header.document_id).await?;
+    let (_, sym_key) = transform::decrypt_plaintext(
+        &recrypt,
+        doc_meta.0.encrypted_symmetric_key.clone().try_into()?,
+        &device_private_key.recrypt_key(),
+    )?;
+
+    aes::decrypt(&mut enc_doc, *sym_key.bytes())
+        .map_err(|e| e.into())
+        .map(move |decrypted_doc| DocumentDecryptResult {
+            id: doc_meta.0.id,
+            name: doc_meta.0.name,
+            created: doc_meta.0.created,
+            updated: doc_meta.0.updated,
+            decrypted_data: decrypted_doc.to_vec(),
         })
 }
 
@@ -1057,6 +1059,8 @@ pub fn document_grant_access<'a, CR: rand::CryptoRng + rand::RngCore>(
 ) -> impl Future<Item = DocumentAccessResult, Error = IronOxideErr> + 'a {
     // get the document metadata
     document_get_metadata(auth, id)
+        .boxed_local()
+        .compat()
         // and the public keys for the users and groups
         .join3(
             internal::user_api::get_user_keys(auth, user_grants)

@@ -170,15 +170,18 @@ pub mod document_list {
 pub mod document_get {
     use super::*;
 
-    pub fn document_get_request<'a>(
-        auth: &'a RequestAuth,
+    pub async fn document_get_request(
+        auth: &RequestAuth,
         id: &DocumentId,
-    ) -> impl Future<Item = DocumentMetaApiResponse, Error = IronOxideErr> + 'a {
-        auth.request.get(
-            &format!("documents/{}", rest::url_encode(&id.0)),
-            RequestErrorCode::DocumentGet,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    ) -> Result<DocumentMetaApiResponse, IronOxideErr> {
+        auth.request
+            .get(
+                &format!("documents/{}", rest::url_encode(&id.0)),
+                RequestErrorCode::DocumentGet,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }
 
