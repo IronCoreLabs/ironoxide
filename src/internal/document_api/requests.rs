@@ -1,6 +1,7 @@
 use super::{AssociationType, DocumentId, DocumentName};
 use crate::internal::{
     self,
+    auth_v2::AuthV2Builder,
     document_api::{EncryptedDek, UserOrGroup, VisibleGroup, VisibleUser, WithKey},
     group_api::GroupId,
     rest::{
@@ -12,9 +13,8 @@ use crate::internal::{
 };
 use chrono::{DateTime, Utc};
 use futures::Future;
+use futures3::compat::Future01CompatExt;
 use std::convert::{TryFrom, TryInto};
-
-use crate::internal::auth_v2::AuthV2Builder;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Association {
@@ -153,14 +153,17 @@ pub mod document_list {
     }
 
     /// Make GET request to document list endpoint for the current user/device context
-    pub fn document_list_request(
+    pub async fn document_list_request(
         auth: &RequestAuth,
-    ) -> impl Future<Item = DocumentListApiResponse, Error = IronOxideErr> + '_ {
-        auth.request.get(
-            "documents",
-            RequestErrorCode::DocumentList,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    ) -> Result<DocumentListApiResponse, IronOxideErr> {
+        auth.request
+            .get(
+                "documents",
+                RequestErrorCode::DocumentList,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }
 

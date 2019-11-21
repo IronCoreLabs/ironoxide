@@ -492,14 +492,12 @@ impl From<&GroupId> for UserOrGroup {
 
 /// List all documents that the current user has the ability to see. Either documents that are encrypted
 /// to them directly (owner) or documents shared to them via user (fromUser) or group (fromGroup).
-pub fn document_list(
-    auth: &RequestAuth,
-) -> impl Future<Item = DocumentListResult, Error = IronOxideErr> + '_ {
-    requests::document_list::document_list_request(auth).map(
-        |DocumentListApiResponse { result }| DocumentListResult {
-            result: result.into_iter().map(DocumentListMeta).collect(),
-        },
-    )
+pub async fn document_list(auth: &RequestAuth) -> Result<DocumentListResult, IronOxideErr> {
+    let DocumentListApiResponse { result } =
+        requests::document_list::document_list_request(auth).await?;
+    Ok(DocumentListResult {
+        result: result.into_iter().map(DocumentListMeta).collect(),
+    })
 }
 
 /// Get the metadata ane encrypted key for a specific document given its ID.

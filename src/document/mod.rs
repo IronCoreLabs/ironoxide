@@ -12,6 +12,7 @@ use crate::{
     policy::*,
     Result,
 };
+use futures3::future::{FutureExt, TryFutureExt};
 use itertools::{Either, EitherOrBoth, Itertools};
 use tokio::runtime::current_thread::Runtime;
 
@@ -199,7 +200,11 @@ pub trait DocumentOps {
 impl DocumentOps for crate::IronOxide {
     fn document_list(&self) -> Result<DocumentListResult> {
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(document_api::document_list(self.device.auth()))
+        rt.block_on(
+            document_api::document_list(self.device.auth())
+                .boxed()
+                .compat(),
+        )
     }
 
     fn document_get_metadata(&self, id: &DocumentId) -> Result<DocumentMetadataResult> {
