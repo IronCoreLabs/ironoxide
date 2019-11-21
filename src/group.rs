@@ -35,9 +35,9 @@ pub struct GroupCreateOpts {
     // true (default) - creating user will be added to the group's membership (in addition to being the group's admin);
     // false - creating user will not be added to the group's membership
     add_as_member: bool,
-    // None (default) - The creating user will be the owner of the group.
-    // Some(UserId) - The provided user will be the owner of the group.
-    // Note that the owner must be included in the `admins` list.
+    // Specifies who the owner of this group is. Group owners have the same permissions as other admins but they cannot be removed as admins from this group.
+    // None (default) - The creating user will be the owner of the group. Cannot be used if `add_as_admin` is set to false as the owner must be an admin.
+    // Some(UserId) - The provided user will be the owner of the group. This ID will automatically be added to the admins list.
     owner: Option<UserId>,
     // list of users to add as admins of the group
     // note: even if `add_as_admin` is false, the calling user will be added as an admin if they are in this list.
