@@ -134,8 +134,7 @@ fn group_update_name() -> Result<(), IronOxideErr> {
 
 #[test]
 fn group_add_member() -> Result<(), IronOxideErr> {
-    let sdk = initialize_sdk()?;
-    let account_id = sdk.device().account_id().clone();
+    let (account_id, sdk) = init_sdk_get_user();
 
     let group_result = sdk.group_create(&GroupCreateOpts::new(
         Some(create_id_all_classes("").try_into()?),
@@ -165,8 +164,7 @@ fn group_add_member() -> Result<(), IronOxideErr> {
 #[test]
 fn group_add_member_on_create() -> Result<(), IronOxideErr> {
     use std::{collections::HashSet, iter::FromIterator};
-    let sdk = initialize_sdk()?;
-    let account_id = sdk.device().account_id().clone();
+    let (account_id, sdk) = init_sdk_get_user();
     let second_account_id = initialize_sdk()?.device().account_id().clone();
 
     // Even though `add_as_member` is false, the UserId is in the `members` list,
@@ -248,22 +246,45 @@ fn group_add_admin_on_create() -> Result<(), IronOxideErr> {
 
 #[test]
 fn group_add_admin_invalid_ids() -> Result<(), IronOxideErr> {
-    let (_, sdk) = init_sdk_get_user();
+    let sdk = initialize_sdk()?;
 
     let group_result = sdk.group_create(&GroupCreateOpts::new(
         Some(create_id_all_classes("").try_into()?),
         None,
         true,
         false,
-        Some(create_id_all_classes("").try_into()?),
-        vec![create_id_all_classes("").try_into()?],
-        vec![create_id_all_classes("").try_into()?],
+        Some(UserId::unsafe_from_string("likeafox".to_string())),
+        vec![UserId::unsafe_from_string("whatsthenextwhat".to_string())],
+        vec![UserId::unsafe_from_string("aretheseuserids".to_string())],
         false,
     ));
 
     assert_that!(
         &group_result.unwrap_err(),
         is_variant!(IronOxideErr::UserDoesNotExist)
+    );
+
+    Ok(())
+}
+
+#[test]
+fn group_owner_not_an_admin() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk()?;
+
+    let group_result = sdk.group_create(&GroupCreateOpts::new(
+        Some(create_id_all_classes("").try_into()?),
+        None,
+        false,
+        false,
+        None,
+        vec![UserId::unsafe_from_string("antelope".to_string())],
+        vec![],
+        false,
+    ));
+
+    assert_that!(
+        &group_result.unwrap_err(),
+        is_variant!(IronOxideErr::ValidationError)
     );
 
     Ok(())

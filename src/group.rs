@@ -3,24 +3,10 @@ pub use crate::internal::group_api::{
     GroupListResult, GroupMetaResult, GroupName,
 };
 use crate::{
-    internal::{group_api, user_api::UserId},
+    internal::{group_api, group_api::GroupCreateOptsStd, user_api::UserId, IronOxideErr},
     Result,
 };
-use std::{collections::HashSet, iter::FromIterator};
 use tokio::runtime::current_thread::Runtime;
-
-// This is used for GroupCreateOpts that have been standardized with the GroupCreateOpts::standardize function.
-// `add_as_member` and `add_as_admin` have been removed, with the calling user added to the `members` and `admins` lists.
-// `all_users` holds all the users who need their public keys looked up with duplicates removed.
-struct GroupCreateOptsStd {
-    id: Option<GroupId>,
-    name: Option<GroupName>,
-    owner: Option<UserId>,
-    admins: Vec<UserId>,
-    members: Vec<UserId>,
-    all_users: Vec<UserId>,
-    needs_rotation: bool,
-}
 
 #[derive(Clone)]
 /// Options for group creation.
@@ -35,7 +21,7 @@ pub struct GroupCreateOpts {
     // true (default) - creating user will be added to the group's membership (in addition to being the group's admin);
     // false - creating user will not be added to the group's membership
     add_as_member: bool,
-    // Specifies who the owner of this group is. Group owners have the same permissions as other admins but they cannot be removed as admins from this group.
+    // Specifies who the owner of this group is. Group owners have the same permissions as other admins but they cannot be removed as an administrator.
     // None (default) - The creating user will be the owner of the group. Cannot be used if `add_as_admin` is set to false as the owner must be an admin.
     // Some(UserId) - The provided user will be the owner of the group. This ID will automatically be added to the admins list.
     owner: Option<UserId>,
@@ -62,9 +48,9 @@ impl GroupCreateOpts {
     /// - `add_as_member`
     ///     - true (default) - The creating user will be added as a member of the group.
     ///     - false - The creating user will not be a member of the group.
-    /// - `owner` - Note that the owner must be included in the `admins` list.
-    ///     - None (default) - The creating user will be the owner of the group.
-    ///     - Some(UserId) - The provided user will be the owner of the group.
+    /// - `owner` - Specifies the owner of the group
+    ///     - None (default) - The creating user will be the owner of the group. Cannot be used if `add_as_admin` is set to false as the owner must be an admin.
+    ///     - Some(UserId) - The provided user will be the owner of the group. This ID will automatically be added to the admins list.
     /// - `admins` - List of users to be added as admins of the group. This list takes priority over `add_as_admin`,
     ///             so the calling user will be added as a member if their id is in this list even if `add_as_admin` is false.
     /// - `members` - List of users to be added as members of the group. This list takes priority over `add_as_member`,
@@ -94,7 +80,7 @@ impl GroupCreateOpts {
         }
     }
 
-    fn standardize(self, calling_id: &UserId) -> GroupCreateOptsStd {
+    fn standardize(self, calling_id: &UserId) -> Result<GroupCreateOptsStd> {
         // if `add_as_member`, make sure the calling user is in the `members` list
         let standardized_members = if self.add_as_member && !self.members.contains(calling_id) {
             let mut members = self.members.clone();
@@ -103,7 +89,7 @@ impl GroupCreateOpts {
         } else {
             self.members
         };
-        let standardized_admins = {
+        let (standardized_admins, owner_id) = {
             // if `add_as_admin`, make sure the calling user is in the `admins` list
             let mut admins = if self.add_as_admin && !self.admins.contains(calling_id) {
                 let mut admins = self.admins.clone();
@@ -112,41 +98,42 @@ impl GroupCreateOpts {
             } else {
                 self.admins
             };
-            match self.owner.clone() {
+            let owner: &UserId = match &self.owner {
                 Some(owner_id) => {
                     // if the owner is specified, make sure they're in the `admins` list
-                    if !admins.contains(&owner_id) {
-                        admins.push(owner_id)
+                    if !admins.contains(owner_id) {
+                        admins.push(owner_id.clone());
                     }
+                    owner_id
                 }
                 // if the owner is the calling user (default), they should have been added to the
-                // admins list by `add_as_admin`. If they aren't it will error later on.
-                None => (),
-            }
-            admins
+                // admins list by `add_as_admin`. If they aren't, it will error later on.
+                None => calling_id,
+            };
+            (admins, owner)
         };
 
         // if `owner` contains own id, set to None, as this is the server's default
         let owner = if self.owner == Some(calling_id.clone()) {
             None
         } else {
-            self.owner
+            self.owner.clone()
         };
 
-        // concatenate the vectors of admin and member ids. duplicates will be removed later.
-        // owner should be in the list already, otherwise this will get caught later
-        let admins_and_members = [&standardized_admins[..], &standardized_members[..]].concat();
-        let set: HashSet<UserId> = HashSet::from_iter(admins_and_members);
-        let all_users: Vec<UserId> = set.into_iter().collect();
-
-        GroupCreateOptsStd {
-            id: self.id,
-            name: self.name,
-            owner: owner,
-            admins: standardized_admins,
-            members: standardized_members,
-            all_users: all_users,
-            needs_rotation: self.needs_rotation,
+        if !standardized_admins.contains(owner_id) {
+            Err(IronOxideErr::ValidationError(
+                format!("admins"),
+                format!("admins list must contain the owner"),
+            ))
+        } else {
+            Ok(GroupCreateOptsStd {
+                id: self.id,
+                name: self.name,
+                owner,
+                admins: standardized_admins,
+                members: standardized_members,
+                needs_rotation: self.needs_rotation,
+            })
         }
     }
 }
@@ -261,16 +248,16 @@ impl GroupOps for crate::IronOxide {
 
     fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupCreateResult> {
         let mut rt = Runtime::new().unwrap();
-
+        let standard_opts = opts.clone().standardize(self.device.auth().account_id())?;
+        let all_users = &standard_opts.all_users();
         let GroupCreateOptsStd {
             id,
             name,
             owner,
             admins,
             members,
-            all_users: users_to_lookup,
             needs_rotation,
-        } = opts.clone().standardize(self.device.auth().account_id());
+        } = standard_opts;
 
         rt.block_on(group_api::group_create(
             &self.recrypt,
@@ -280,7 +267,7 @@ impl GroupOps for crate::IronOxide {
             owner,
             admins,
             members,
-            &users_to_lookup,
+            all_users,
             needs_rotation,
         ))
     }
