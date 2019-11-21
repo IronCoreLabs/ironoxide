@@ -226,7 +226,7 @@ pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
                 .map(|encrypted_private_key| (encrypted_private_key, recrypt_pub))?)
             })
     }
-        .await?;
+    .await?;
 
     requests::user_create::user_create(
         &jwt,
@@ -312,15 +312,15 @@ pub async fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCo
             aug_factor,
         )
     };
-    requests::user_update_private_key::update_private_key(
+    Ok(requests::user_update_private_key::update_private_key(
         &auth,
         user_id,
         curr_key_id,
         new_encrypted_priv_key.into(),
         aug_factor.into(),
     )
-    .await
-    .map(|resp| resp.into())
+    .await?
+    .into())
 }
 
 /// Generate a device key for the user specified in the JWT.
@@ -340,12 +340,10 @@ pub async fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
         segment_id,
         ..
     } = requests::user_verify::user_verify(&jwt, &request)
-        .await
-        .and_then(|maybe_user| {
-            maybe_user.ok_or(IronOxideErr::UserDoesNotExist(
-                "Device cannot be added to a user that doesn't exist".to_string(),
-            ))
-        })?;
+        .await?
+        .ok_or(IronOxideErr::UserDoesNotExist(
+            "Device cannot be added to a user that doesn't exist".to_string(),
+        ))?;
     // unpack the verified user and create a DeviceAdd
     let (device_add, account_id, segment_id) = (
         {
@@ -368,28 +366,27 @@ pub async fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
     );
 
     // call device_add
-    requests::device_add::user_device_add(&jwt, &device_add, &device_name, &request)
-        .await
-        // on successful response, assemble a DeviceContext for the caller
-        .map(move |response| {
-            DeviceContext::new(
-                response.device_id,
-                account_id,
-                segment_id,
-                device_add.device_keys.private_key,
-                device_add.signing_keys,
-            )
-        })
+    let response =
+        requests::device_add::user_device_add(&jwt, &device_add, &device_name, &request).await?;
+    // on successful response, assemble a DeviceContext for the caller
+    Ok(DeviceContext::new(
+        response.device_id,
+        account_id,
+        segment_id,
+        device_add.device_keys.private_key,
+        device_add.signing_keys,
+    ))
 }
 
 pub async fn device_list(auth: &RequestAuth) -> Result<UserDeviceListResult, IronOxideErr> {
     let resp = requests::device_list::device_list(auth).await?;
-    {
+    let devices = {
         let mut vec: Vec<UserDevice> = resp.result.into_iter().map(UserDevice::from).collect();
         // sort the devices by device_id
         vec.sort_by(|a, b| a.id.0.cmp(&b.id.0));
-        Ok(UserDeviceListResult::new(vec))
-    }
+        vec
+    };
+    Ok(UserDeviceListResult::new(devices))
 }
 
 pub async fn device_delete<'a>(

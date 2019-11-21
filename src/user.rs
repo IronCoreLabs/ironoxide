@@ -230,7 +230,7 @@ impl UserOps for IronOxide {
                 password.try_into()?,
                 self.device().auth(),
             )
-            .boxed_local()
+            .boxed_local() //required because something isn't Send...
             .compat(),
         )
     }
