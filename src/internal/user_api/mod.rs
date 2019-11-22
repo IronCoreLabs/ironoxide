@@ -3,7 +3,6 @@ use crate::{
     internal::{rest::IronCoreRequest, *},
 };
 use chrono::{DateTime, Utc};
-use futures::prelude::*;
 use itertools::{Either, Itertools};
 use rand::rngs::EntropyRng;
 use recrypt::prelude::*;
@@ -195,46 +194,49 @@ impl UserDevice {
         self.is_current_device
     }
 }
-
 /// Verify an existing user given a valid JWT.
-pub fn user_verify(
+pub async fn user_verify(
     jwt: Jwt,
-    request: IronCoreRequest,
-) -> impl Future<Item = Option<UserResult>, Error = IronOxideErr> {
+    request: IronCoreRequest<'static>,
+) -> Result<Option<UserResult>, IronOxideErr> {
     requests::user_verify::user_verify(&jwt, &request)
-        .and_then(|e| e.map(|resp| resp.try_into()).transpose())
+        .await?
+        .map(|resp| resp.try_into())
+        .transpose()
 }
 
 /// Create a user
-pub fn user_create<CR: rand::CryptoRng + rand::RngCore>(
+pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: Jwt,
     passphrase: Password,
     needs_rotation: bool,
     request: IronCoreRequest<'static>,
-) -> impl Future<Item = UserCreateResult, Error = IronOxideErr> {
-    recrypt
-        .generate_key_pair()
-        .map_err(IronOxideErr::from)
-        .and_then(|(recrypt_priv, recrypt_pub)| {
-            Ok(aes::encrypt_user_master_key(
-                &Mutex::new(rand::thread_rng()),
-                passphrase.0.as_str(),
-                recrypt_priv.bytes(),
-            )
-            .map(|encrypted_private_key| (encrypted_private_key, recrypt_pub))?)
-        })
-        .into_future()
-        .and_then(move |(encrypted_priv_key, recrypt_pub)| {
-            requests::user_create::user_create(
-                &jwt,
-                recrypt_pub.into(),
-                encrypted_priv_key.into(),
-                needs_rotation,
-                request,
-            )
-        })
-        .and_then(|resp| resp.try_into())
+) -> Result<UserCreateResult, IronOxideErr> {
+    let (encrypted_priv_key, recrypt_pub) = async {
+        recrypt
+            .generate_key_pair()
+            .map_err(IronOxideErr::from)
+            .and_then(|(recrypt_priv, recrypt_pub)| {
+                Ok(aes::encrypt_user_master_key(
+                    &Mutex::new(rand::thread_rng()),
+                    passphrase.0.as_str(),
+                    recrypt_priv.bytes(),
+                )
+                .map(|encrypted_private_key| (encrypted_private_key, recrypt_pub))?)
+            })
+    }
+        .await?;
+
+    requests::user_create::user_create(
+        &jwt,
+        recrypt_pub.into(),
+        encrypted_priv_key.into(),
+        needs_rotation,
+        request,
+    )
+    .await?
+    .try_into()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -265,195 +267,186 @@ impl UserUpdatePrivateKeyResult {
 }
 
 /// Get metadata about the current user
-pub fn user_get_current(
-    auth: &RequestAuth,
-) -> impl Future<Item = UserResult, Error = IronOxideErr> + '_ {
-    requests::user_get::get_curr_user(auth).and_then(|result| {
-        Ok(UserResult {
-            needs_rotation: result.needs_rotation,
-            user_public_key: result.user_master_public_key.try_into()?,
-            segment_id: result.segment_id,
-            account_id: UserId::unsafe_from_string(result.id),
+pub async fn user_get_current(auth: &RequestAuth) -> Result<UserResult, IronOxideErr> {
+    requests::user_get::get_curr_user(auth)
+        .await
+        .and_then(|result| {
+            Ok(UserResult {
+                needs_rotation: result.needs_rotation,
+                user_public_key: result.user_master_public_key.try_into()?,
+                segment_id: result.segment_id,
+                account_id: UserId::unsafe_from_string(result.id),
+            })
         })
-    })
 }
 
 /// Rotate the user's private key. The public key for the user remains unchanged.
-pub fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
+pub async fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'apicall Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     password: Password,
     auth: &'apicall RequestAuth,
-) -> impl Future<Item = UserUpdatePrivateKeyResult, Error = IronOxideErr> + 'apicall {
-    requests::user_get::get_curr_user(&auth)
-        .and_then(move |curr_user| {
-            Ok({
-                let encrypt_priv_key = curr_user.user_private_key;
-                let priv_key: PrivateKey = aes::decrypt_user_master_key(
-                    &password.0,
-                    &aes::EncryptedMasterKey::new_from_slice(&encrypt_priv_key.0)?,
-                )?
-                .into();
+) -> Result<UserUpdatePrivateKeyResult, IronOxideErr> {
+    let requests::user_get::CurrentUserResponse {
+        user_private_key: encrypted_priv_key,
+        current_key_id,
+        id: curr_user_id,
+        ..
+    } = requests::user_get::get_curr_user(&auth).await?;
+    let (user_id, curr_key_id, new_encrypted_priv_key, aug_factor) = {
+        let priv_key: PrivateKey = aes::decrypt_user_master_key(
+            &password.0,
+            &aes::EncryptedMasterKey::new_from_slice(&encrypted_priv_key.0)?,
+        )?
+        .into();
 
-                let (new_priv_key, aug_factor) =
-                    augment_private_key_with_retry(recrypt, &priv_key)?;
-                let new_encrypted_priv_key = aes::encrypt_user_master_key(
-                    &Mutex::new(EntropyRng::default()),
-                    &password.0,
-                    new_priv_key.as_bytes(),
-                )?;
-                (
-                    UserId(curr_user.id),
-                    curr_user.current_key_id,
-                    new_encrypted_priv_key,
-                    aug_factor,
-                )
-            })
-        })
-        .and_then(
-            move |(user_id, curr_key_id, new_encrypted_priv_key, aug_factor)| {
-                requests::user_update_private_key::update_private_key(
-                    &auth,
-                    user_id,
-                    curr_key_id,
-                    new_encrypted_priv_key.into(),
-                    aug_factor.into(),
-                )
-                .map(|resp| resp.into())
-            },
+        let (new_priv_key, aug_factor) = augment_private_key_with_retry(recrypt, &priv_key)?;
+        let new_encrypted_priv_key = aes::encrypt_user_master_key(
+            &Mutex::new(EntropyRng::default()),
+            &password.0,
+            new_priv_key.as_bytes(),
+        )?;
+        (
+            UserId(curr_user_id),
+            current_key_id,
+            new_encrypted_priv_key,
+            aug_factor,
         )
+    };
+    Ok(requests::user_update_private_key::update_private_key(
+        &auth,
+        user_id,
+        curr_key_id,
+        new_encrypted_priv_key.into(),
+        aug_factor.into(),
+    )
+    .await?
+    .into())
 }
 
 /// Generate a device key for the user specified in the JWT.
-pub fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
+pub async fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: &'a Jwt,
     password: Password,
     device_name: Option<DeviceName>,
     signing_ts: &'a DateTime<Utc>,
-    request: IronCoreRequest<'static>,
-) -> impl Future<Item = DeviceContext, Error = IronOxideErr> + 'a {
+    request: &'a IronCoreRequest<'static>,
+) -> Result<DeviceContext, IronOxideErr> {
     // verify that this user exists
-    requests::user_verify::user_verify(&jwt, &request)
-        .and_then(|maybe_user| {
-            maybe_user.ok_or(IronOxideErr::UserDoesNotExist(
-                "Device cannot be added to a user that doesn't exist".to_string(),
-            ))
-        })
-        // unpack the verified user and create a DeviceAdd
-        .and_then(
-            move |requests::user_verify::UserVerifyResponse {
-                      user_private_key,
-                      user_master_public_key,
-                      id: account_id,
-                      segment_id,
-                      ..
-                  }| {
-                Ok((
-                    {
-                        let user_public_key: RecryptPublicKey =
-                            PublicKey::try_from(user_master_public_key)?.into();
-                        let user_private_key =
-                            EncryptedMasterKey::new_from_slice(&user_private_key.0)?;
+    let requests::user_verify::UserVerifyResponse {
+        user_private_key,
+        user_master_public_key,
+        id: account_id,
+        segment_id,
+        ..
+    } = requests::user_verify::user_verify(&jwt, &request)
+        .await?
+        .ok_or(IronOxideErr::UserDoesNotExist(
+            "Device cannot be added to a user that doesn't exist".to_string(),
+        ))?;
+    // unpack the verified user and create a DeviceAdd
+    let (device_add, account_id, segment_id) = (
+        {
+            let user_public_key: RecryptPublicKey =
+                PublicKey::try_from(user_master_public_key)?.into();
+            let user_private_key = EncryptedMasterKey::new_from_slice(&user_private_key.0)?;
 
-                        // decrypt the user's master key using the provided password
-                        let user_private_key =
-                            aes::decrypt_user_master_key(&password.0, &user_private_key)?;
+            // decrypt the user's master key using the provided password
+            let user_private_key = aes::decrypt_user_master_key(&password.0, &user_private_key)?;
 
-                        let user_keypair: KeyPair =
-                            KeyPair::new(user_public_key, RecryptPrivateKey::new(user_private_key));
+            let user_keypair: KeyPair =
+                KeyPair::new(user_public_key, RecryptPrivateKey::new(user_private_key));
 
-                        // generate info needed to add a device
-                        let device_add =
-                            generate_device_add(recrypt, &jwt, &user_keypair, &signing_ts)?;
-                        device_add
-                    },
-                    account_id.try_into()?,
-                    segment_id,
-                ))
-            },
-        )
-        // call device_add
-        .and_then(move |(device_add, account_id, segment_id)| {
-            requests::device_add::user_device_add(&jwt, &device_add, &device_name, &request)
-                // on successful response, assemble a DeviceContext for the caller
-                .map(move |response| {
-                    DeviceContext::new(
-                        response.device_id,
-                        account_id,
-                        segment_id,
-                        device_add.device_keys.private_key,
-                        device_add.signing_keys,
-                    )
-                })
-        })
+            // generate info needed to add a device
+            let device_add = generate_device_add(recrypt, &jwt, &user_keypair, &signing_ts)?;
+            device_add
+        },
+        account_id.try_into()?,
+        segment_id,
+    );
+
+    // call device_add
+    let response =
+        requests::device_add::user_device_add(&jwt, &device_add, &device_name, &request).await?;
+    // on successful response, assemble a DeviceContext for the caller
+    Ok(DeviceContext::new(
+        response.device_id,
+        account_id,
+        segment_id,
+        device_add.device_keys.private_key,
+        device_add.signing_keys,
+    ))
 }
 
-pub fn device_list(
-    auth: &RequestAuth,
-) -> impl Future<Item = UserDeviceListResult, Error = IronOxideErr> + '_ {
-    requests::device_list::device_list(auth).map(|resp| {
+pub async fn device_list(auth: &RequestAuth) -> Result<UserDeviceListResult, IronOxideErr> {
+    let resp = requests::device_list::device_list(auth).await?;
+    let devices = {
         let mut vec: Vec<UserDevice> = resp.result.into_iter().map(UserDevice::from).collect();
         // sort the devices by device_id
         vec.sort_by(|a, b| a.id.0.cmp(&b.id.0));
-        UserDeviceListResult::new(vec)
-    })
+        vec
+    };
+    Ok(UserDeviceListResult::new(devices))
 }
 
-pub fn device_delete<'a>(
+pub async fn device_delete<'a>(
     auth: &'a RequestAuth,
     device_id: Option<&'a DeviceId>,
-) -> impl Future<Item = DeviceId, Error = IronOxideErr> + 'a {
+) -> Result<DeviceId, IronOxideErr> {
     match device_id {
-        Some(device_id) => requests::device_delete::device_delete(auth, device_id),
-        None => requests::device_delete::device_delete_current(auth),
+        Some(device_id) => requests::device_delete::device_delete(auth, device_id).await,
+        None => requests::device_delete::device_delete_current(auth).await,
     }
     .map(|resp| resp.id)
 }
 
 /// Get a list of users public keys given a list of user account IDs
-pub fn user_key_list<'a>(
+pub async fn user_key_list<'a>(
     auth: &'a RequestAuth,
     user_ids: &'a Vec<UserId>,
-) -> impl Future<Item = HashMap<UserId, PublicKey>, Error = IronOxideErr> + 'a {
-    requests::user_key_list::user_key_list_request(auth, user_ids).map(
-        move |requests::user_key_list::UserKeyListResponse { result }| {
-            result
-                .into_iter()
-                .fold(HashMap::with_capacity(user_ids.len()), |mut acc, user| {
-                    let maybe_pub_key = PublicKey::try_from(user.user_master_public_key.clone());
-                    maybe_pub_key.into_iter().for_each(|pub_key| {
-                        //We asked the api for valid user ids. We're assuming here that the response has valid user ids.
-                        acc.insert(UserId::unsafe_from_string(user.id.clone()), pub_key);
-                    });
-                    acc
-                })
-        },
-    )
+) -> Result<HashMap<UserId, PublicKey>, IronOxideErr> {
+    requests::user_key_list::user_key_list_request(auth, user_ids)
+        .await
+        .map(
+            move |requests::user_key_list::UserKeyListResponse { result }| {
+                result
+                    .into_iter()
+                    .fold(HashMap::with_capacity(user_ids.len()), |mut acc, user| {
+                        let maybe_pub_key =
+                            PublicKey::try_from(user.user_master_public_key.clone());
+                        maybe_pub_key.into_iter().for_each(|pub_key| {
+                            //We asked the api for valid user ids. We're assuming here that the response has valid user ids.
+                            acc.insert(UserId::unsafe_from_string(user.id.clone()), pub_key);
+                        });
+                        acc
+                    })
+            },
+        )
 }
 
 /// Get the keys for users. The result should be either a failure for a specific UserId (Left) or the id with their public key (Right).
 /// The resulting lists will have the same combined size as the incoming list.
 /// Calling this with an empty `users` list will not result in a call to the server.
-pub(crate) fn get_user_keys<'a>(
+pub(crate) async fn get_user_keys<'a>(
     auth: &'a RequestAuth,
     users: &'a Vec<UserId>,
-) -> Box<dyn Future<Item = (Vec<UserId>, Vec<WithKey<UserId>>), Error = IronOxideErr> + 'a> {
+) -> Result<(Vec<UserId>, Vec<WithKey<UserId>>), IronOxideErr> {
     // if there aren't any users in the list, just return with empty results
     if users.len() == 0 {
-        return Box::new(futures::future::ok((vec![], vec![])));
+        Ok((vec![], vec![]))
+    } else {
+        user_api::user_key_list(auth, &users)
+            .await
+            .map(|ids_with_keys| {
+                users.clone().into_iter().partition_map(|user_id| {
+                    let maybe_public_key = ids_with_keys.get(&user_id).cloned();
+                    match maybe_public_key {
+                        Some(pk) => Either::Right(WithKey::new(user_id, pk)),
+                        None => Either::Left(user_id),
+                    }
+                })
+            })
     }
-
-    let cloned_users = users.clone();
-    let fetch_users = user_api::user_key_list(auth, &users);
-    Box::new(fetch_users.map(|ids_with_keys| {
-        cloned_users.into_iter().partition_map(|user_id| {
-            let maybe_public_key = ids_with_keys.get(&user_id).cloned();
-            match maybe_public_key {
-                Some(pk) => Either::Right(WithKey::new(user_id, pk)),
-                None => Either::Left(user_id),
-            }
-        })
-    }))
 }
 
 /// Generate all the necessary device keys, transform keys, and signatures to be able to add a new user device.
