@@ -346,11 +346,11 @@ impl DocumentOps for crate::IronOxide {
     ) -> Result<DocumentAccessResult> {
         let mut rt = Runtime::new().unwrap();
 
-        rt.block_on(document_api::document_revoke_access(
-            self.device.auth(),
-            id,
-            revoke_list,
-        ))
+        rt.block_on(
+            document_api::document_revoke_access(self.device.auth(), id, revoke_list)
+                .boxed_local() // required because something is not Send
+                .compat(),
+        )
     }
 }
 

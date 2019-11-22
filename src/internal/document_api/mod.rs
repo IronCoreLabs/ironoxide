@@ -1126,11 +1126,11 @@ pub async fn document_grant_access<CR: rand::CryptoRng + rand::RngCore>(
 }
 
 /// Remove access to a document from the provided list of users and/or groups
-pub fn document_revoke_access<'a>(
-    auth: &'a RequestAuth,
-    id: &'a DocumentId,
+pub async fn document_revoke_access(
+    auth: &RequestAuth,
+    id: &DocumentId,
     revoke_list: &Vec<UserOrGroup>,
-) -> impl Future<Item = DocumentAccessResult, Error = IronOxideErr> + 'a {
+) -> Result<DocumentAccessResult, IronOxideErr> {
     use requests::document_access::{self, resp};
 
     let revoke_request_list: Vec<_> = revoke_list
@@ -1141,8 +1141,8 @@ pub fn document_revoke_access<'a>(
         })
         .collect();
 
-    document_access::revoke_access_request(auth, id, revoke_request_list)
-        .map(|resp| resp::document_access_api_resp_to_result(resp, vec![]))
+    let resp = document_access::revoke_access_request(auth, id, revoke_request_list).await?;
+    Ok(resp::document_access_api_resp_to_result(resp, vec![]))
 }
 
 /// Map the groups that come back from the server into a common value/err structure

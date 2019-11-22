@@ -488,19 +488,22 @@ pub mod document_access {
         }
     }
 
-    pub fn revoke_access_request<'a>(
-        auth: &'a RequestAuth,
+    pub async fn revoke_access_request(
+        auth: &RequestAuth,
         doc_id: &DocumentId,
         revoke_list: Vec<UserOrGroupAccess>,
-    ) -> impl Future<Item = DocumentAccessResponse, Error = IronOxideErr> + 'a {
-        auth.request.delete(
-            &format!("documents/{}/access", rest::url_encode(&doc_id.0)),
-            &DocumentRevokeAccessRequest {
-                user_or_groups: revoke_list,
-            },
-            RequestErrorCode::DocumentRevokeAccess,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    ) -> Result<DocumentAccessResponse, IronOxideErr> {
+        auth.request
+            .delete(
+                &format!("documents/{}/access", rest::url_encode(&doc_id.0)),
+                &DocumentRevokeAccessRequest {
+                    user_or_groups: revoke_list,
+                },
+                RequestErrorCode::DocumentRevokeAccess,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }
 
