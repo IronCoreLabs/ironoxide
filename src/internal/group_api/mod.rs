@@ -397,7 +397,7 @@ fn compare_users<T: Eq + std::hash::Hash + std::fmt::Debug, X>(
 
 fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
-    auth: &RequestAuth,
+    signing_key: &crate::internal::DeviceSigningKeyPair,
     group_priv_key: recrypt::api::PrivateKey,
     admins: Vec<UserId>,
     members: Vec<UserId>,
@@ -420,7 +420,7 @@ fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
                 let maybe_transform_key = recrypt.generate_transform_key(
                     &group_priv_key.clone().into(),
                     &user_pub_key.clone().into(),
-                    &auth.signing_private_key().into(),
+                    &signing_key.into(),
                 );
                 match maybe_transform_key {
                     Ok(member_trans_key) => member_info.push(Ok((
@@ -475,7 +475,7 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                     .and_then(move |(plaintext, group_priv_key, group_pub_key)| {
                         let (member_info, admin_info) = collect_admin_and_member_info(
                             recrypt,
-                            auth,
+                            auth.signing_private_key(),
                             group_priv_key,
                             admins,
                             members,
