@@ -15,10 +15,7 @@ use crate::{
     },
 };
 use chrono::Utc;
-use futures::{
-    future::{ok, Either},
-    Future,
-};
+use futures3::compat::Future01CompatExt;
 use std::convert::TryFrom;
 
 use crate::internal::auth_v2::AuthV2Builder;
@@ -71,15 +68,18 @@ pub mod user_verify {
         pub(crate) needs_rotation: bool,
     }
 
-    pub fn user_verify(
-        jwt: &Jwt,
-        request: &IronCoreRequest,
-    ) -> impl Future<Item = Option<UserVerifyResponse>, Error = IronOxideErr> {
-        request.get_with_empty_result_jwt_auth(
-            "users/verify?returnKeys=true",
-            RequestErrorCode::UserVerify,
-            &Authorization::JwtAuth(jwt),
-        )
+    pub async fn user_verify<'a>(
+        jwt: &'a Jwt,
+        request: &'a IronCoreRequest<'static>,
+    ) -> Result<Option<UserVerifyResponse>, IronOxideErr> {
+        request
+            .get_with_empty_result_jwt_auth(
+                "users/verify?returnKeys=true",
+                RequestErrorCode::UserVerify,
+                &Authorization::JwtAuth(jwt),
+            )
+            .compat()
+            .await
     }
 
     impl TryFrom<UserVerifyResponse> for UserResult {
@@ -156,14 +156,15 @@ pub mod user_get {
         pub(in crate::internal) groups_needing_rotation: Vec<String>,
     }
 
-    pub fn get_curr_user(
-        auth: &RequestAuth,
-    ) -> impl Future<Item = CurrentUserResponse, Error = IronOxideErr> + '_ {
-        auth.request.get(
-            "users/current",
-            RequestErrorCode::UserGetCurrent,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    pub async fn get_curr_user(auth: &RequestAuth) -> Result<CurrentUserResponse, IronOxideErr> {
+        auth.request
+            .get(
+                "users/current",
+                RequestErrorCode::UserGetCurrent,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }
 
@@ -197,26 +198,29 @@ pub mod user_update_private_key {
         }
     }
 
-    pub fn update_private_key<'a>(
-        auth: &'a RequestAuth,
+    pub async fn update_private_key(
+        auth: &RequestAuth,
         user_id: UserId,
         user_key_id: u64,
         new_encrypted_private_key: EncryptedPrivateKey,
         augmenting_key: AugmentationFactor,
-    ) -> impl Future<Item = UserUpdatePrivateKeyResponse, Error = IronOxideErr> + 'a {
-        auth.request.put(
-            &format!(
-                "users/{}/keys/{}",
-                rest::url_encode(user_id.id()),
-                user_key_id
-            ),
-            &UserUpdatePrivateKey {
-                user_private_key: new_encrypted_private_key,
-                augmentation_factor: augmenting_key,
-            },
-            RequestErrorCode::UserKeyUpdate,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    ) -> Result<UserUpdatePrivateKeyResponse, IronOxideErr> {
+        auth.request
+            .put(
+                &format!(
+                    "users/{}/keys/{}",
+                    rest::url_encode(user_id.id()),
+                    user_key_id
+                ),
+                &UserUpdatePrivateKey {
+                    user_private_key: new_encrypted_private_key,
+                    augmentation_factor: augmenting_key,
+                },
+                RequestErrorCode::UserKeyUpdate,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }
 
@@ -244,24 +248,27 @@ pub mod user_create {
         needs_rotation: bool,
     }
 
-    pub fn user_create(
+    pub async fn user_create(
         jwt: &Jwt,
         user_public_key: PublicKey,
         encrypted_user_private_key: EncryptedPrivateKey,
         needs_rotation: bool,
-        request: IronCoreRequest,
-    ) -> impl Future<Item = UserCreateResponse, Error = IronOxideErr> {
+        request: IronCoreRequest<'_>,
+    ) -> Result<UserCreateResponse, IronOxideErr> {
         let req_body = UserCreateReq {
             user_private_key: encrypted_user_private_key,
             user_public_key,
             needs_rotation,
         };
-        request.post_jwt_auth(
-            "users",
-            &req_body,
-            RequestErrorCode::UserCreate,
-            &Authorization::JwtAuth(jwt),
-        )
+        request
+            .post_jwt_auth(
+                "users",
+                &req_body,
+                RequestErrorCode::UserCreate,
+                &Authorization::JwtAuth(jwt),
+            )
+            .compat()
+            .await
     }
     impl TryFrom<UserCreateResponse> for UserCreateResult {
         type Error = IronOxideErr;
@@ -289,20 +296,23 @@ pub mod user_key_list {
         pub(crate) result: Vec<UserPublicKey>,
     }
 
-    pub fn user_key_list_request<'a>(
-        auth: &'a RequestAuth,
+    pub async fn user_key_list_request(
+        auth: &RequestAuth,
         users: &Vec<UserId>,
-    ) -> impl Future<Item = UserKeyListResponse, Error = IronOxideErr> + 'a {
+    ) -> Result<UserKeyListResponse, IronOxideErr> {
         let user_ids: Vec<&str> = users.iter().map(|user| user.id()).collect();
         if user_ids.len() != 0 {
-            Either::A(auth.request.get_with_query_params(
-                "users".into(),
-                &vec![("id".into(), rest::url_encode(&user_ids.join(",")))],
-                RequestErrorCode::UserKeyList,
-                AuthV2Builder::new(&auth, Utc::now()),
-            ))
+            auth.request
+                .get_with_query_params(
+                    "users".into(),
+                    &vec![("id".into(), rest::url_encode(&user_ids.join(",")))],
+                    RequestErrorCode::UserKeyList,
+                    AuthV2Builder::new(&auth, Utc::now()),
+                )
+                .compat()
+                .await
         } else {
-            Either::B(ok(UserKeyListResponse { result: vec![] }))
+            Ok(UserKeyListResponse { result: vec![] })
         }
     }
 }
@@ -341,12 +351,12 @@ pub mod device_add {
         pub device_public_key: PublicKey,
     }
 
-    pub fn user_device_add(
+    pub async fn user_device_add(
         jwt: &Jwt,
         device_add: &DeviceAdd,
         name: &Option<DeviceName>,
-        request: &IronCoreRequest,
-    ) -> impl Future<Item = DeviceAddResponse, Error = IronOxideErr> {
+        request: &IronCoreRequest<'_>,
+    ) -> Result<DeviceAddResponse, IronOxideErr> {
         let req_body: DeviceAddReq = DeviceAddReq {
             timestamp: device_add.signature_ts.timestamp_millis() as u64,
             user_public_key: device_add.user_public_key.clone().into(),
@@ -356,12 +366,15 @@ pub mod device_add {
                 name: name.clone(),
             },
         };
-        request.post_jwt_auth(
-            "users/devices",
-            &req_body,
-            RequestErrorCode::UserDeviceAdd,
-            &Authorization::JwtAuth(jwt),
-        )
+        request
+            .post_jwt_auth(
+                "users/devices",
+                &req_body,
+                RequestErrorCode::UserDeviceAdd,
+                &Authorization::JwtAuth(jwt),
+            )
+            .compat()
+            .await
     }
 }
 
@@ -385,17 +398,18 @@ pub mod device_list {
 
     #[derive(Deserialize, PartialEq, Debug)]
     pub struct DeviceListResponse {
-        pub result: Vec<DeviceListItem>,
+        pub(in crate::internal) result: Vec<DeviceListItem>,
     }
 
-    pub fn device_list(
-        auth: &RequestAuth,
-    ) -> impl Future<Item = DeviceListResponse, Error = IronOxideErr> + '_ {
-        auth.request.get(
-            &format!("users/{}/devices", rest::url_encode(&auth.account_id().0)),
-            RequestErrorCode::UserDeviceList,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    pub async fn device_list(auth: &RequestAuth) -> Result<DeviceListResponse, IronOxideErr> {
+        auth.request
+            .get(
+                &format!("users/{}/devices", rest::url_encode(&auth.account_id().0)),
+                RequestErrorCode::UserDeviceList,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 
     impl From<DeviceListItem> for UserDevice {
@@ -420,31 +434,37 @@ pub mod device_delete {
         pub(crate) id: DeviceId,
     }
 
-    pub fn device_delete<'a>(
-        auth: &'a RequestAuth,
+    pub async fn device_delete(
+        auth: &RequestAuth,
         device_id: &DeviceId,
-    ) -> Box<dyn Future<Item = DeviceDeleteResponse, Error = IronOxideErr> + 'a> {
-        Box::new(auth.request.delete_with_no_body(
-            &format!(
-                "users/{}/devices/{}",
-                rest::url_encode(&auth.account_id().0),
-                device_id.0
-            ),
-            RequestErrorCode::UserDeviceDelete,
-            AuthV2Builder::new(&auth, Utc::now()),
-        ))
+    ) -> Result<DeviceDeleteResponse, IronOxideErr> {
+        auth.request
+            .delete_with_no_body(
+                &format!(
+                    "users/{}/devices/{}",
+                    rest::url_encode(&auth.account_id().0),
+                    device_id.0
+                ),
+                RequestErrorCode::UserDeviceDelete,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 
-    pub fn device_delete_current(
+    pub async fn device_delete_current(
         auth: &RequestAuth,
-    ) -> Box<dyn Future<Item = DeviceDeleteResponse, Error = IronOxideErr> + '_> {
-        Box::new(auth.request.delete_with_no_body(
-            &format!(
-                "users/{}/devices/current",
-                rest::url_encode(&auth.account_id().0)
-            ),
-            RequestErrorCode::UserDeviceDelete,
-            AuthV2Builder::new(&auth, Utc::now()),
-        ))
+    ) -> Result<DeviceDeleteResponse, IronOxideErr> {
+        auth.request
+            .delete_with_no_body(
+                &format!(
+                    "users/{}/devices/current",
+                    rest::url_encode(&auth.account_id().0)
+                ),
+                RequestErrorCode::UserDeviceDelete,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }

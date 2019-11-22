@@ -11,6 +11,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use core::convert::identity;
 use futures::{future::err, prelude::*};
+use futures3::{FutureExt, TryFutureExt};
 use itertools::{Either, Itertools};
 use recrypt::prelude::*;
 use std::{
@@ -473,6 +474,8 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     needs_rotation: bool,
 ) -> impl Future<Item = GroupCreateResult, Error = IronOxideErr> + 'a {
     user_api::user_key_list(auth, users_to_lookup)
+        .boxed()
+        .compat()
         .and_then(move |user_ids_and_keys| {
             // this will occur when one of the UserIds cannot be found
             if user_ids_and_keys.len() != users_to_lookup.len() {
@@ -715,15 +718,18 @@ fn get_user_keys<'a>(
     users: &'a Vec<UserId>,
 ) -> impl Future<Item = (Vec<GroupAccessEditErr>, Vec<WithKey<UserId>>), Error = IronOxideErr> + 'a
 {
-    user_api::get_user_keys(auth, &users).map(|(failed_ids, succeeded_ids)| {
-        (
-            failed_ids
-                .into_iter()
-                .map(|user| GroupAccessEditErr::new(user, "User does not exist".to_string()))
-                .collect::<Vec<_>>(),
-            succeeded_ids,
-        )
-    })
+    user_api::get_user_keys(auth, &users)
+        .boxed()
+        .compat()
+        .map(|(failed_ids, succeeded_ids)| {
+            (
+                failed_ids
+                    .into_iter()
+                    .map(|user| GroupAccessEditErr::new(user, "User does not exist".to_string()))
+                    .collect::<Vec<_>>(),
+                succeeded_ids,
+            )
+        })
 }
 
 ///Map the edit response into the edit result. If there are other failures, we'll append the errors in `edit_resp` to them.
