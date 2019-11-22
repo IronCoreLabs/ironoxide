@@ -283,14 +283,15 @@ pub mod policy_get {
     #[derive(Deserialize, Debug, Clone)]
     #[serde(rename_all = "camelCase")]
     pub struct PolicyResult {
+        //TODO rename to PolicyResponse
         pub(crate) users_and_groups: Vec<UserOrGroupWithKey>,
         pub(crate) invalid_users_and_groups: Vec<UserOrGroup>,
     }
 
-    pub fn policy_get_request<'a>(
-        auth: &'a RequestAuth,
+    pub async fn policy_get_request(
+        auth: &RequestAuth,
         policy_grant: &PolicyGrant,
-    ) -> impl Future<Item = PolicyResult, Error = IronOxideErr> + 'a {
+    ) -> Result<PolicyResult, IronOxideErr> {
         let query_params: Vec<(String, PercentEncodedString)> = [
             // all query params here are just letters, so no need to percent encode
             policy_grant
@@ -311,12 +312,15 @@ pub mod policy_get {
         .flatten()
         .collect();
 
-        auth.request.get_with_query_params(
-            "policies",
-            &query_params,
-            RequestErrorCode::PolicyGet,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+        auth.request
+            .get_with_query_params(
+                "policies",
+                &query_params,
+                RequestErrorCode::PolicyGet,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }
 

@@ -223,15 +223,14 @@ pub fn encrypt<R: CryptoRng + RngCore>(
 use futures::future::IntoFuture;
 use std::{ops::DerefMut, sync::Mutex};
 
+//TODO we can probably just remove this and just make encrypt async
 /// Like `encrypt`, just wrapped in a Future for convenience
-pub fn encrypt_future<R: CryptoRng + RngCore>(
+pub async fn encrypt_future<R: CryptoRng + RngCore>(
     rng: &Mutex<R>,
     plaintext: &Vec<u8>,
     key: [u8; AES_KEY_LEN],
-) -> impl Future<Item = AesEncryptedValue, Error = IronOxideErr> {
-    encrypt(rng, plaintext, key)
-        .map_err(IronOxideErr::from)
-        .into_future()
+) -> Result<AesEncryptedValue, IronOxideErr> {
+    async { encrypt(rng, plaintext, key).map_err(IronOxideErr::from) }.await
 }
 
 /// Decrypt the provided ciphertext using the provided 12 byte IV and 32 byte key. Mutates the provided ciphertext

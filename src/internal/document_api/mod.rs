@@ -21,6 +21,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use futures::prelude::*;
 use futures3::{FutureExt, TryFutureExt};
+use futures_util::future::try_join3;
 use hex::encode;
 use itertools::{Either, Itertools};
 use protobuf::{Message, RepeatedField};
@@ -516,7 +517,7 @@ pub fn get_id_from_bytes(encrypted_document: &[u8]) -> Result<DocumentId, IronOx
 }
 
 /// Encrypt a new document and share it with explicit users/groups and with users/groups specified by a policy
-pub fn encrypt_document<
+pub async fn encrypt_document<
     'a,
     R1: rand::CryptoRng + rand::RngCore,
     R2: rand::CryptoRng + rand::RngCore,
@@ -532,21 +533,29 @@ pub fn encrypt_document<
     user_grants: &'a Vec<UserId>,
     group_grants: &'a Vec<GroupId>,
     policy_grant: Option<&'a PolicyGrant>,
-) -> impl Future<Item = DocumentEncryptResult, Error = IronOxideErr> + 'a {
+) -> Result<DocumentEncryptResult, IronOxideErr> {
+
+    use futures3::compat::Future01CompatExt;
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
     let doc_id = document_id.unwrap_or(DocumentId::goo_id(rng));
     aes::encrypt_future(rng, &plaintext.to_vec(), *doc_sym_key.bytes())
-        .join(resolve_keys_for_grants(
-            auth,
-            user_grants,
-            group_grants,
-            policy_grant,
-            if grant_to_author {
-                Some(&user_master_pub_key)
-            } else {
-                None
-            },
-        ))
+        .boxed_local()
+        .compat()
+        .join(
+            resolve_keys_for_grants(
+                auth,
+                user_grants,
+                group_grants,
+                policy_grant,
+                if grant_to_author {
+                    Some(&user_master_pub_key)
+                } else {
+                    None
+                },
+            )
+            .boxed_local()
+            .compat(),
+        )
         .and_then(move |(encrypted_doc, (grants, key_errs))| {
             recrypt_document(
                 &auth.signing_private_key,
@@ -568,6 +577,8 @@ pub fn encrypt_document<
                 )
             })
         })
+        .compat()
+        .await
 }
 
 type UserMasterPublicKey = PublicKey;
@@ -585,29 +596,49 @@ type UserMasterPublicKey = PublicKey;
 /// A Future that will resolve to:
 /// (Left)  list of keys for all users and groups that should be granted access to the document
 /// (Right) errors for any invalid users/groups that were passed
-fn resolve_keys_for_grants<'a>(
+async fn resolve_keys_for_grants<'a>(
     auth: &'a RequestAuth,
     user_grants: &'a Vec<UserId>,
     group_grants: &'a Vec<GroupId>,
     policy_grant: Option<&'a PolicyGrant>,
     maybe_user_master_pub_key: Option<&'a UserMasterPublicKey>,
-) -> impl Future<Item = (Vec<WithKey<UserOrGroup>>, Vec<DocAccessEditErr>), Error = IronOxideErr> + 'a
-{
-    internal::user_api::get_user_keys(auth, user_grants)
-        .boxed()
-        .compat()
-        .join3(
-            internal::group_api::get_group_keys(auth, group_grants),
-            policy_grant.map(|p| requests::policy_get::policy_get_request(auth, p)),
-        )
-        .map(move |(users, groups, maybe_policy_res)| {
+) -> Result<(Vec<WithKey<UserOrGroup>>, Vec<DocAccessEditErr>), IronOxideErr> {
+    //    use futures3::join;
+    use futures3::prelude::*;
+    use futures_util::try_join;
+
+    use futures3::compat::Future01CompatExt;
+    let get_user_keys_f = internal::user_api::get_user_keys(auth, user_grants);
+    let get_group_keys_f = internal::group_api::get_group_keys(auth, group_grants).compat();
+
+    let maybe_policy_grants_f =
+        policy_grant.map(|p| requests::policy_get::policy_get_request(auth, p));
+    let policy_grants_f = async {
+        if let Some(pf) = maybe_policy_grants_f {
+            pf.await
+        } else {
+            Ok(PolicyResult {
+                users_and_groups: vec![],
+                invalid_users_and_groups: vec![],
+            })
+        }
+    };
+    //    let policy_grants_f = policy_grant.map(
+    //        |p| requests::policy_get::policy_get_request(auth, p),
+    //    ).un;
+
+    //    let (users, groups, maybe_policy_res) =
+    match try_join!(get_user_keys_f, get_group_keys_f, policy_grants_f) {
+        Ok((users, groups, policy_result)) => {
             let (group_errs, groups_with_key) = process_groups(groups);
             let (user_errs, users_with_key) = process_users(users);
             let explicit_grants = [users_with_key, groups_with_key].concat();
-            let (policy_errs, applied_policy_grants) = match maybe_policy_res {
-                None => (vec![], vec![]),
-                Some(res) => process_policy(&res),
-            };
+
+            let (policy_errs, applied_policy_grants) = process_policy(&policy_result);
+            //        = match maybe_policy_res {
+            //        None => (vec![], vec![]),
+            //        Some(res) => process_policy(&res),
+            //    };
             let maybe_self_grant = {
                 if let Some(user_master_pub_key) = maybe_user_master_pub_key {
                     vec![WithKey::new(
@@ -621,47 +652,90 @@ fn resolve_keys_for_grants<'a>(
                 }
             };
 
-            (
+            Ok((
                 { [maybe_self_grant, explicit_grants, applied_policy_grants].concat() },
                 [group_errs, user_errs, policy_errs].concat(),
-            )
-        })
+            ))
+        }
+        Err(e) => Err(e),
+    }
+
+    //    .boxed()
+    //        .compat()
+    //        .join3(
+    //            internal::group_api::get_group_keys(auth, group_grants),
+    //            policy_grant.map(|p| requests::policy_get::policy_get_request(auth, p)),
+    //        )
+    //        .map(move |(users, groups, maybe_policy_res)| {
+    //            let (group_errs, groups_with_key) = process_groups(groups);
+    //            let (user_errs, users_with_key) = process_users(users);
+    //            let explicit_grants = [users_with_key, groups_with_key].concat();
+    //            let (policy_errs, applied_policy_grants) = match maybe_policy_res {
+    //                None => (vec![], vec![]),
+    //                Some(res) => process_policy(&res),
+    //            };
+    //            let maybe_self_grant = {
+    //                if let Some(user_master_pub_key) = maybe_user_master_pub_key {
+    //                    vec![WithKey::new(
+    //                        UserOrGroup::User {
+    //                            id: auth.account_id.clone(),
+    //                        },
+    //                        user_master_pub_key.clone(),
+    //                    )]
+    //                } else {
+    //                    vec![]
+    //                }
+    //            };
+    //
+    //            (
+    //                { [maybe_self_grant, explicit_grants, applied_policy_grants].concat() },
+    //                [group_errs, user_errs, policy_errs].concat(),
+    //            )
+    //        })
 }
 
 /// Encrypts a document but does not create the document in the IronCore system.
 /// The resultant DocumentDetachedEncryptResult contains both the EncryptedDeks and the AesEncryptedValue
 /// Both pieces will be required for decryption.
-pub fn edek_encrypt_document<'a, R1, R2: 'a>(
+pub async fn edek_encrypt_document<'a, R1, R2: 'a>(
     auth: &'a RequestAuth,
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
     user_master_pub_key: &'a PublicKey,
-    rng: &Mutex<R2>,
+    rng: &'a Mutex<R2>,
     plaintext: &[u8],
     document_id: Option<DocumentId>,
     grant_to_author: bool,
     user_grants: &'a Vec<UserId>,
     group_grants: &'a Vec<GroupId>,
     policy_grant: Option<&'a PolicyGrant>,
-) -> impl Future<Item = DocumentEncryptUnmanagedResult, Error = IronOxideErr> + 'a
+) -> Result<DocumentEncryptUnmanagedResult, IronOxideErr>
 where
     R1: rand::CryptoRng + rand::RngCore,
     R2: rand::CryptoRng + rand::RngCore,
 {
+        use futures3::compat::Future01CompatExt;
+
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
     let doc_id = document_id.unwrap_or(DocumentId::goo_id(rng));
 
     aes::encrypt_future(rng, &plaintext.to_vec(), *doc_sym_key.bytes())
-        .join(resolve_keys_for_grants(
-            auth,
-            user_grants,
-            group_grants,
-            policy_grant,
-            if grant_to_author {
-                Some(&user_master_pub_key)
-            } else {
-                None
-            },
-        ))
+        .boxed_local()
+        .compat()
+        .join(
+            resolve_keys_for_grants(
+                auth,
+                user_grants,
+                group_grants,
+                policy_grant,
+                if grant_to_author {
+                    Some(&user_master_pub_key)
+                } else {
+                    None
+                },
+            )
+            .boxed_local()
+            .compat(),
+        )
         .and_then(move |(encryption_result, (grants, key_errs))| {
             Ok({
                 let r = recrypt_document(
@@ -679,7 +753,7 @@ where
                 let access_errs = [&key_errs[..], &enc_result.value.encryption_errs[..]].concat();
                 DocumentEncryptUnmanagedResult::new(enc_result, access_errs)?
             })
-        })
+        }).compat().await
 }
 
 /// Remove any duplicates in the grant list. Uses ids (not keys) for comparison.

@@ -246,19 +246,23 @@ impl DocumentOps for crate::IronOxide {
                 }
             };
 
-        rt.block_on(document_api::encrypt_document(
-            self.device.auth(),
-            &self.recrypt,
-            &self.user_master_pub_key,
-            &self.rng,
-            document_data,
-            encrypt_opts.id,
-            encrypt_opts.name,
-            grant_to_author,
-            &explicit_users,
-            &explicit_groups,
-            policy_grants.as_ref(),
-        ))
+        rt.block_on(
+            document_api::encrypt_document(
+                self.device.auth(),
+                &self.recrypt,
+                &self.user_master_pub_key,
+                &self.rng,
+                document_data,
+                encrypt_opts.id,
+                encrypt_opts.name,
+                grant_to_author,
+                &explicit_users,
+                &explicit_groups,
+                policy_grants.as_ref(),
+            )
+            .boxed_local()
+            .compat(),
+        )
     }
 
     fn document_update_bytes(
