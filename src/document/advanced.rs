@@ -73,7 +73,7 @@ impl DocumentAdvancedOps for crate::IronOxide {
             };
 
         rt.block_on(
-            internal::document_api::edek_encrypt_document(
+            internal::document_api::encrypted_document_unmanaged(
                 self.device.auth(),
                 &self.recrypt,
                 &self.user_master_pub_key,

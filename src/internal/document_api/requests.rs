@@ -239,12 +239,12 @@ pub mod document_create {
         pub(crate) shared_with: Vec<AccessGrant>,
     }
 
-    pub fn document_create_request<'a>(
-        auth: &'a RequestAuth,
+    pub async fn document_create_request(
+        auth: &RequestAuth,
         id: DocumentId,
         name: Option<DocumentName>,
         grants: Vec<EncryptedDek>,
-    ) -> Box<dyn Future<Item = DocumentCreateResponse, Error = IronOxideErr> + 'a> {
+    ) -> Result<DocumentCreateResponse, IronOxideErr> {
         let maybe_req_grants: Result<Vec<_>, _> =
             grants.into_iter().map(|g| g.try_into()).collect();
 
@@ -257,16 +257,19 @@ pub mod document_create {
                         shared_with: req_grants,
                     },
                 };
-                Box::new(auth.request.post(
-                    "documents",
-                    &req,
-                    RequestErrorCode::DocumentCreate,
-                    AuthV2Builder::new(&auth, Utc::now()),
-                ))
+                auth.request
+                    .post(
+                        "documents",
+                        &req,
+                        RequestErrorCode::DocumentCreate,
+                        AuthV2Builder::new(&auth, Utc::now()),
+                    )
+                    .compat()
+                    .await
             }
             // the failure case here is that we couldn't convert the recrypt EncryptedValue because
             // it was not an EncryptedOnceValue -- really just a limitation of Rust's enums as we expect these to be EncryptedOnceValues
-            Err(e) => Box::new(futures::future::failed(e)),
+            Err(e) => futures3::future::err(e).await,
         }
     }
 }

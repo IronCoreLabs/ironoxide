@@ -4,8 +4,8 @@ use rand::{self, CryptoRng, RngCore};
 use ring::{aead, aead::BoundKey, digest, error::Unspecified, pbkdf2};
 
 use crate::internal::{take_lock, IronOxideErr};
-use futures::Future;
 use std::convert::TryFrom;
+use std::{ops::DerefMut, sync::Mutex};
 
 //There is no way this can fail. Value is most definitely not less than one.
 const PBKDF2_ITERATIONS: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(250000) };
@@ -220,8 +220,6 @@ pub fn encrypt<R: CryptoRng + RngCore>(
     })
 }
 
-use futures::future::IntoFuture;
-use std::{ops::DerefMut, sync::Mutex};
 
 //TODO we can probably just remove this and just make encrypt async
 /// Like `encrypt`, just wrapped in a Future for convenience
