@@ -220,7 +220,6 @@ pub fn encrypt<R: CryptoRng + RngCore>(
     })
 }
 
-
 //TODO we can probably just remove this and just make encrypt async
 /// Like `encrypt`, just wrapped in a Future for convenience
 pub async fn encrypt_future<R: CryptoRng + RngCore>(

@@ -921,46 +921,39 @@ async fn document_create(
 
 /// Encrypt the provided plaintext using the DEK from the provided document ID but with a new AES IV. Allows updating the encrypted bytes
 /// of a document without having to change document access.
-pub fn document_update_bytes<
-    'a,
+pub async fn document_update_bytes<
     R1: rand::CryptoRng + rand::RngCore,
     R2: rand::CryptoRng + rand::RngCore,
 >(
-    auth: &'a RequestAuth,
-    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
-    device_private_key: &'a PrivateKey,
-    rng: &'a Mutex<R2>,
-    document_id: &'a DocumentId,
-    plaintext: &'a [u8],
-) -> impl Future<Item = DocumentEncryptResult, Error = IronOxideErr> + 'a {
-    document_get_metadata(auth, &document_id)
-        .boxed_local()
-        .compat()
-        .and_then(move |doc_meta| {
-            let (_, sym_key) = transform::decrypt_plaintext(
-                &recrypt,
-                doc_meta.0.encrypted_symmetric_key.clone().try_into()?,
-                &device_private_key.recrypt_key(),
-            )?;
-            Ok(
-                aes::encrypt(&rng, &plaintext.to_vec(), *sym_key.bytes()).map(
-                    move |encrypted_doc| {
-                        let mut encrypted_payload =
-                            DocumentHeader::new(document_id.clone(), auth.segment_id()).pack();
-                        encrypted_payload.0.append(&mut encrypted_doc.bytes());
-                        DocumentEncryptResult {
-                            id: doc_meta.0.id,
-                            name: doc_meta.0.name,
-                            created: doc_meta.0.created,
-                            updated: doc_meta.0.updated,
-                            encrypted_data: encrypted_payload.0,
-                            grants: vec![], // grants can't currently change via update
-                            access_errs: vec![], // no grants, no access errs
-                        }
-                    },
-                )?,
-            )
-        })
+    auth: &RequestAuth,
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
+    device_private_key: &PrivateKey,
+    rng: &Mutex<R2>,
+    document_id: &DocumentId,
+    plaintext: &[u8],
+) -> Result<DocumentEncryptResult, IronOxideErr> {
+    let doc_meta = document_get_metadata(auth, &document_id).await?;
+    let (_, sym_key) = transform::decrypt_plaintext(
+        &recrypt,
+        doc_meta.0.encrypted_symmetric_key.clone().try_into()?,
+        &device_private_key.recrypt_key(),
+    )?;
+    Ok(
+        aes::encrypt(&rng, &plaintext.to_vec(), *sym_key.bytes()).map(move |encrypted_doc| {
+            let mut encrypted_payload =
+                DocumentHeader::new(document_id.clone(), auth.segment_id()).pack();
+            encrypted_payload.0.append(&mut encrypted_doc.bytes());
+            DocumentEncryptResult {
+                id: doc_meta.0.id,
+                name: doc_meta.0.name,
+                created: doc_meta.0.created,
+                updated: doc_meta.0.updated,
+                encrypted_data: encrypted_payload.0,
+                grants: vec![],      // grants can't currently change via update
+                access_errs: vec![], // no grants, no access errs
+            }
+        })?,
+    )
 }
 
 /// Decrypt the provided document with the provided device private key. Return metadata about the document

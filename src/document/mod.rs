@@ -272,14 +272,18 @@ impl DocumentOps for crate::IronOxide {
     ) -> Result<DocumentEncryptResult> {
         let mut rt = Runtime::new().unwrap();
 
-        rt.block_on(document_api::document_update_bytes(
-            self.device.auth(),
-            &self.recrypt,
-            self.device.device_private_key(),
-            &self.rng,
-            id,
-            &new_document_data,
-        ))
+        rt.block_on(
+            document_api::document_update_bytes(
+                self.device.auth(),
+                &self.recrypt,
+                self.device.device_private_key(),
+                &self.rng,
+                id,
+                &new_document_data,
+            )
+            .boxed_local()
+            .compat(),
+        )
     }
 
     fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult> {
