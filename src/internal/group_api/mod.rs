@@ -416,7 +416,6 @@ fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
     user_ids_and_keys
         .into_iter()
         .for_each(|(id, user_pub_key)| {
-            // only calculate transform key if they're to be a member
             if members_set.contains(&id) {
                 let maybe_transform_key = recrypt.generate_transform_key(
                     &group_priv_key.clone().into(),
@@ -436,10 +435,10 @@ fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
                 admin_info.push((id, user_pub_key));
             }
         });
-    let test: Result<Vec<(UserId, PublicKey, TransformKey)>, IronOxideErr> =
+    let member_info_result: Result<Vec<(UserId, PublicKey, TransformKey)>, IronOxideErr> =
         member_info.into_iter().collect();
-    let test = test?;
-    Ok((test, admin_info))
+    let member_info = member_info_result?;
+    Ok((member_info, admin_info))
 }
 
 /// Create a group with the calling user as the group admin.
@@ -905,5 +904,21 @@ mod test {
     }
 
     #[test]
-    fn group_create() {}
+    fn compare_users_test() -> Result<(), String> {
+        let user1 = UserId::unsafe_from_string("user1".to_string());
+        let user2 = UserId::unsafe_from_string("user2".to_string());
+        let desired_users = vec![user1.clone(), user2];
+        let mut found_users = HashMap::new();
+        found_users.insert(user1, "test");
+        let err = compare_users(&desired_users, found_users);
+        let err_msg = match err {
+            IronOxideErr::UserDoesNotExist(msg) => Ok(msg),
+            _ => Err("Wrong type of error. Should never happen."),
+        }?;
+        assert_eq!(
+            err_msg,
+            "Failed to find the following users: [UserId(\"user2\")]"
+        );
+        Ok(())
+    }
 }
