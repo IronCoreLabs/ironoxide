@@ -384,24 +384,15 @@ pub(crate) fn get_group_keys<'a>(
     )
 }
 
-fn compare_users(
-    desired_users: &Vec<UserId>,
-    found_users: HashMap<UserId, PublicKey>,
-) -> futures::future::FutureResult<
-    (
-        PublicKey,
-        Option<Vec<requests::GroupMember>>,
-        Vec<requests::GroupAdmin>,
-    ),
-    IronOxideErr,
-> {
-    let desired_users_set: HashSet<UserId> = HashSet::from_iter(desired_users.clone());
-    let found_users_set: HashSet<UserId> = found_users.into_iter().map(|(x, _)| x).collect();
-    let diff: Vec<&UserId> = desired_users_set.difference(&found_users_set).collect();
-    err(IronOxideErr::UserDoesNotExist(format!(
-        "Failed to find the following users: {:?}",
-        diff
-    )))
+fn compare_users<T: Eq + std::hash::Hash + std::fmt::Debug, X>(
+    desired_users: &Vec<T>,
+    found_users: HashMap<T, X>,
+) -> IronOxideErr {
+    let desired_users_set: HashSet<&T> = HashSet::from_iter(desired_users);
+    let found_users_vec: Vec<T> = found_users.into_iter().map(|(x, _)| x).collect();
+    let found_users_set: HashSet<&T> = HashSet::from_iter(&found_users_vec);
+    let diff: Vec<&&T> = desired_users_set.difference(&found_users_set).collect();
+    IronOxideErr::UserDoesNotExist(format!("Failed to find the following users: {:?}", diff))
 }
 
 fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
@@ -479,7 +470,7 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
         .and_then(move |user_ids_and_keys| {
             // this will occur when one of the UserIds cannot be found
             if user_ids_and_keys.len() != users_to_lookup.len() {
-                compare_users(users_to_lookup, user_ids_and_keys)
+                err(compare_users(users_to_lookup, user_ids_and_keys))
             } else {
                 transform::gen_group_keys(recrypt)
                     .and_then(move |(plaintext, group_priv_key, group_pub_key)| {
