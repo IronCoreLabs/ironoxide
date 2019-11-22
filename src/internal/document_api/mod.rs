@@ -1062,28 +1062,24 @@ pub async fn update_document_name<'a>(
         .map(DocumentMetadataResult)
 }
 
-pub fn document_grant_access<'a, CR: rand::CryptoRng + rand::RngCore>(
-    auth: &'a RequestAuth,
-    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
-    id: &'a DocumentId,
-    user_master_pub_key: &'a PublicKey,
-    priv_device_key: &'a PrivateKey,
-    user_grants: &'a Vec<UserId>,
-    group_grants: &'a Vec<GroupId>,
-) -> impl Future<Item = DocumentAccessResult, Error = IronOxideErr> + 'a {
-    // get the document metadata
-    document_get_metadata(auth, id)
-        .boxed_local()
-        .compat()
+pub async fn document_grant_access<CR: rand::CryptoRng + rand::RngCore>(
+    auth: &RequestAuth,
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    id: &DocumentId,
+    user_master_pub_key: &PublicKey,
+    priv_device_key: &PrivateKey,
+    user_grants: &Vec<UserId>,
+    group_grants: &Vec<GroupId>,
+) -> Result<DocumentAccessResult, IronOxideErr> {
+    use futures3::compat::Future01CompatExt;
+    match try_join!(
+        document_get_metadata(auth, id),
         // and the public keys for the users and groups
-        .join3(
-            internal::user_api::get_user_keys(auth, user_grants)
-                .boxed()
-                .compat(),
-            internal::group_api::get_group_keys(auth, group_grants),
-        )
-        .and_then(move |(doc_meta, users, groups)| {
-            Ok({
+        internal::user_api::get_user_keys(auth, user_grants),
+        internal::group_api::get_group_keys(auth, group_grants).compat(),
+    ) {
+        Ok((doc_meta, users, groups)) => {
+            let (grants, other_errs) = {
                 // decrypt the dek
                 let edek = doc_meta.to_encrypted_symmetric_key()?;
                 let dek = recrypt.decrypt(edek, &priv_device_key.clone().into())?;
@@ -1110,16 +1106,23 @@ pub fn document_grant_access<'a, CR: rand::CryptoRng + rand::RngCore>(
                 .into_iter()
                 .concat();
                 (grants, other_errs)
-            })
-        })
-        .and_then(move |(grants, other_errs)| {
-            requests::document_access::grant_access_request(auth, id, user_master_pub_key, grants)
-                .map(|resp| {
-                    requests::document_access::resp::document_access_api_resp_to_result(
-                        resp, other_errs,
-                    )
-                })
-        })
+            };
+
+            let resp = requests::document_access::grant_access_request(
+                auth,
+                id,
+                user_master_pub_key,
+                grants,
+            )
+            .await?;
+            Ok(
+                requests::document_access::resp::document_access_api_resp_to_result(
+                    resp, other_errs,
+                ),
+            )
+        }
+        Err(e) => Err(e),
+    }
 }
 
 /// Remove access to a document from the provided list of users and/or groups

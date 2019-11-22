@@ -324,15 +324,19 @@ impl DocumentOps for crate::IronOxide {
 
         let (users, groups) = partition_user_or_group(grant_list);
 
-        rt.block_on(document_api::document_grant_access(
-            self.device.auth(),
-            &self.recrypt,
-            id,
-            &self.user_master_pub_key,
-            &self.device.device_private_key(),
-            &users,
-            &groups,
-        ))
+        rt.block_on(
+            document_api::document_grant_access(
+                self.device.auth(),
+                &self.recrypt,
+                id,
+                &self.user_master_pub_key,
+                &self.device.device_private_key(),
+                &users,
+                &groups,
+            )
+            .boxed_local() // required because something is not Send
+            .compat(),
+        )
     }
 
     fn document_revoke_access(

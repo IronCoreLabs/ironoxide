@@ -457,12 +457,12 @@ pub mod document_access {
         user_or_groups: Vec<UserOrGroupAccess>,
     }
 
-    pub fn grant_access_request<'a>(
-        auth: &'a RequestAuth,
-        id: &'a DocumentId,
-        from_pub_key: &'a internal::PublicKey,
+    pub async fn grant_access_request(
+        auth: &RequestAuth,
+        id: &DocumentId,
+        from_pub_key: &internal::PublicKey,
         grants: Vec<(WithKey<UserOrGroup>, recrypt::api::EncryptedValue)>,
-    ) -> Box<dyn Future<Item = DocumentAccessResponse, Error = IronOxideErr> + 'a> {
+    ) -> Result<DocumentAccessResponse, IronOxideErr> {
         let maybe_req_grants: Result<Vec<_>, _> =
             grants.into_iter().map(|g| g.try_into()).collect();
 
@@ -472,16 +472,19 @@ pub mod document_access {
                     from_public_key: from_pub_key.clone().into(),
                     to: req_grants,
                 };
-                Box::new(auth.request.post(
-                    &format!("documents/{}/access", rest::url_encode(id.id())),
-                    &req,
-                    RequestErrorCode::DocumentGrantAccess,
-                    AuthV2Builder::new(&auth, Utc::now()),
-                ))
+                auth.request
+                    .post(
+                        &format!("documents/{}/access", rest::url_encode(id.id())),
+                        &req,
+                        RequestErrorCode::DocumentGrantAccess,
+                        AuthV2Builder::new(&auth, Utc::now()),
+                    )
+                    .compat()
+                    .await
             }
             // the failure case here is that we couldn't convert the recrypt EncryptedValue because
             // it was not an EncryptedOnceValue -- really just a limitation of Rust's enums as we expect these to be EncryptedOnceValues
-            Err(e) => Box::new(futures::future::failed(e)),
+            Err(e) => Err(e),
         }
     }
 
