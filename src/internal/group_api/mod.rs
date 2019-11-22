@@ -921,4 +921,65 @@ mod test {
         );
         Ok(())
     }
+
+    #[test]
+    fn collect_admin_and_member_info_test() -> Result<(), IronOxideErr> {
+        let recrypt = recrypt::api::Recrypt::new();
+        let signing_key =
+            crate::internal::DeviceSigningKeyPair::from(recrypt.generate_ed25519_key_pair());
+        let (group_priv_key, _) = recrypt.generate_key_pair()?;
+        let user1 = UserId::unsafe_from_string("user1".to_string());
+        let user2 = UserId::unsafe_from_string("user2".to_string());
+        let user3 = UserId::unsafe_from_string("user3".to_string());
+        let admins_vec = vec![user1.clone()];
+        let members_vec = vec![user1, user2, user3];
+
+        let user_ids_and_keys_result: Result<HashMap<UserId, PublicKey>, IronOxideErr> =
+            members_vec
+                .clone()
+                .into_iter()
+                .map(|id| {
+                    recrypt
+                        .generate_key_pair()
+                        .map_err(|e| e.into())
+                        .map(|(_, key)| (id, key.into()))
+                })
+                .collect();
+        let user_ids_and_keys = user_ids_and_keys_result?;
+
+        let (member_info, admin_info) = collect_admin_and_member_info(
+            &recrypt,
+            &signing_key,
+            group_priv_key,
+            admins_vec.clone(),
+            members_vec.clone(),
+            user_ids_and_keys,
+        )?;
+        assert_eq!(member_info.len(), members_vec.len());
+        assert_eq!(admin_info.len(), admins_vec.len());
+        Ok(())
+    }
+
+    #[test]
+    fn collect_admin_and_member_info_empty_members() -> Result<(), IronOxideErr> {
+        let recrypt = recrypt::api::Recrypt::new();
+        let signing_key =
+            crate::internal::DeviceSigningKeyPair::from(recrypt.generate_ed25519_key_pair());
+        let (group_priv_key, pub_key) = recrypt.generate_key_pair()?;
+        let user1 = UserId::unsafe_from_string("user1".to_string());
+        let mut user_ids_and_keys = HashMap::new();
+        user_ids_and_keys.insert(user1.clone(), pub_key.into());
+
+        let (member_info, admin_info) = collect_admin_and_member_info(
+            &recrypt,
+            &signing_key,
+            group_priv_key,
+            vec![user1],
+            vec![],
+            user_ids_and_keys,
+        )?;
+        assert!(member_info.is_empty());
+        assert_eq!(admin_info.len(), 1);
+        Ok(())
+    }
 }
