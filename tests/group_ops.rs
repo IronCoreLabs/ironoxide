@@ -227,7 +227,7 @@ fn group_add_admin_on_create() -> Result<(), IronOxideErr> {
         None,
         true,
         false,
-        None,
+        Some(account_id.clone()),
         vec![second_account_id.clone()],
         vec![],
         false,

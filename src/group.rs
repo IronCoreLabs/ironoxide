@@ -80,7 +80,7 @@ impl GroupCreateOpts {
         }
     }
 
-    fn standardize(self, calling_id: &UserId) -> Result<GroupCreateOptsStd> {
+    pub(crate) fn standardize(self, calling_id: &UserId) -> Result<GroupCreateOptsStd> {
         // if `add_as_member`, make sure the calling user is in the `members` list
         let standardized_members = if self.add_as_member && !self.members.contains(calling_id) {
             let mut members = self.members.clone();
@@ -113,13 +113,6 @@ impl GroupCreateOpts {
             (admins, owner)
         };
 
-        // if `owner` contains own id, set to None, as this is the server's default
-        let owner = if self.owner == Some(calling_id.clone()) {
-            None
-        } else {
-            self.owner.clone()
-        };
-
         if !standardized_admins.contains(owner_id) {
             Err(IronOxideErr::ValidationError(
                 format!("admins"),
@@ -129,7 +122,7 @@ impl GroupCreateOpts {
             Ok(GroupCreateOptsStd {
                 id: self.id,
                 name: self.name,
-                owner,
+                owner: self.owner,
                 admins: standardized_admins,
                 members: standardized_members,
                 needs_rotation: self.needs_rotation,
@@ -344,7 +337,10 @@ impl GroupOps for crate::IronOxide {
 
 #[cfg(test)]
 mod test {
-    use crate::group::GroupCreateOpts;
+    use crate::{
+        group::GroupCreateOpts,
+        internal::{user_api::UserId, IronOxideErr},
+    };
 
     #[test]
     fn build_group_create_opts_default() {
@@ -352,5 +348,50 @@ mod test {
         assert_eq!(None, opts.id);
         assert_eq!(None, opts.name);
         assert_eq!(true, opts.add_as_member);
+    }
+
+    #[test]
+    fn group_create_opts_default_standardize() -> Result<(), IronOxideErr> {
+        let calling_user_id = UserId::unsafe_from_string("test_user".to_string());
+        let opts = GroupCreateOpts::default();
+        let std_opts = opts.standardize(&calling_user_id)?;
+        assert_eq!(std_opts.all_users(), [calling_user_id.clone()]);
+        assert_eq!(std_opts.owner, None);
+        assert_eq!(std_opts.admins, [calling_user_id.clone()]);
+        assert_eq!(std_opts.members, [calling_user_id]);
+        assert_eq!(std_opts.needs_rotation, false);
+        Ok(())
+    }
+
+    #[test]
+    fn group_create_opts_standardize_non_owner() -> Result<(), IronOxideErr> {
+        let calling_user_id = UserId::unsafe_from_string("test_user".to_string());
+        let owner = UserId::unsafe_from_string("owner".to_string());
+        let opts = GroupCreateOpts::new(
+            None,
+            None,
+            false,
+            false,
+            Some(owner.clone()),
+            vec![],
+            vec![],
+            true,
+        );
+        let std_opts = opts.standardize(&calling_user_id)?;
+        assert_eq!(std_opts.all_users(), [owner.clone()]);
+        assert_eq!(std_opts.owner, Some(owner.clone()));
+        assert_eq!(std_opts.admins, [owner.clone()]);
+        assert_eq!(std_opts.members, []);
+        assert_eq!(std_opts.needs_rotation, true);
+        Ok(())
+    }
+
+    #[test]
+    fn group_create_opts_standardize_invalid() -> Result<(), IronOxideErr> {
+        let calling_user_id = UserId::unsafe_from_string("test_user".to_string());
+        let opts = GroupCreateOpts::new(None, None, false, true, None, vec![], vec![], false);
+        let std_opts = opts.standardize(&calling_user_id);
+        assert!(std_opts.is_err());
+        Ok(())
     }
 }
