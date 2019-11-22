@@ -1052,12 +1052,14 @@ pub fn decrypt_document_unmanaged<'a, CR: rand::CryptoRng + rand::RngCore>(
 
 // Update a documents name. Value can be updated to either a new name with a Some or the name value can be cleared out
 // by providing a None.
-pub fn update_document_name<'a>(
+pub async fn update_document_name<'a>(
     auth: &'a RequestAuth,
     id: &'a DocumentId,
     name: Option<&'a DocumentName>,
-) -> impl Future<Item = DocumentMetadataResult, Error = IronOxideErr> + 'a {
-    requests::document_update::document_update_request(auth, id, name).map(DocumentMetadataResult)
+) -> Result<DocumentMetadataResult, IronOxideErr> {
+    requests::document_update::document_update_request(auth, id, name)
+        .await
+        .map(DocumentMetadataResult)
 }
 
 pub fn document_grant_access<'a, CR: rand::CryptoRng + rand::RngCore>(

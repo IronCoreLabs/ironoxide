@@ -281,7 +281,7 @@ impl DocumentOps for crate::IronOxide {
                 id,
                 &new_document_data,
             )
-            .boxed_local()
+            .boxed_local() // required because something is not Send
             .compat(),
         )
     }
@@ -308,11 +308,11 @@ impl DocumentOps for crate::IronOxide {
     ) -> Result<DocumentMetadataResult> {
         let mut rt = Runtime::new().unwrap();
 
-        rt.block_on(document_api::update_document_name(
-            self.device.auth(),
-            id,
-            name,
-        ))
+        rt.block_on(
+            document_api::update_document_name(self.device.auth(), id, name)
+                .boxed_local() // required because something is not Send
+                .compat(),
+        )
     }
 
     fn document_grant_access(

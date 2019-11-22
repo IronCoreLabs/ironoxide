@@ -335,17 +335,20 @@ pub mod document_update {
         name: Option<&'a DocumentName>,
     }
 
-    pub fn document_update_request<'a>(
-        auth: &'a RequestAuth,
-        id: &'a DocumentId,
-        name: Option<&'a DocumentName>,
-    ) -> impl Future<Item = DocumentMetaApiResponse, Error = IronOxideErr> + 'a {
-        auth.request.put(
-            &format!("documents/{}", rest::url_encode(&id.0)),
-            &DocumentUpdateRequest { name },
-            RequestErrorCode::DocumentUpdate,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    pub async fn document_update_request(
+        auth: &RequestAuth,
+        id: &DocumentId,
+        name: Option<&DocumentName>,
+    ) -> Result<DocumentMetaApiResponse, IronOxideErr> {
+        auth.request
+            .put(
+                &format!("documents/{}", rest::url_encode(&id.0)),
+                &DocumentUpdateRequest { name },
+                RequestErrorCode::DocumentUpdate,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }
 

@@ -4,8 +4,7 @@ use rand::{self, CryptoRng, RngCore};
 use ring::{aead, aead::BoundKey, digest, error::Unspecified, pbkdf2};
 
 use crate::internal::{take_lock, IronOxideErr};
-use std::convert::TryFrom;
-use std::{ops::DerefMut, sync::Mutex};
+use std::{convert::TryFrom, ops::DerefMut, sync::Mutex};
 
 //There is no way this can fail. Value is most definitely not less than one.
 const PBKDF2_ITERATIONS: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(250000) };
