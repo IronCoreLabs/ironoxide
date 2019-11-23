@@ -85,7 +85,7 @@ impl DocumentAdvancedOps for crate::IronOxide {
                 &explicit_groups,
                 policy_grants,
             )
-            .boxed_local()
+            .boxed_local() // required because something is not Send
             .compat(),
         )
     }
@@ -97,12 +97,16 @@ impl DocumentAdvancedOps for crate::IronOxide {
     ) -> Result<DocumentDecryptUnmanagedResult> {
         let mut rt = Runtime::new().unwrap();
 
-        rt.block_on(internal::document_api::decrypt_document_unmanaged(
-            self.device.auth(),
-            &self.recrypt,
-            self.device().device_private_key(),
-            encrypted_data,
-            encrypted_deks,
-        ))
+        rt.block_on(
+            internal::document_api::decrypt_document_unmanaged(
+                self.device.auth(),
+                &self.recrypt,
+                self.device().device_private_key(),
+                encrypted_data,
+                encrypted_deks,
+            )
+            .boxed_local() // required because something is not Send
+            .compat(),
+        )
     }
 }

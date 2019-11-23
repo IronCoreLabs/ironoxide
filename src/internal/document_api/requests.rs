@@ -12,7 +12,6 @@ use crate::internal::{
     IronOxideErr, RequestAuth, RequestErrorCode,
 };
 use chrono::{DateTime, Utc};
-use futures::Future;
 use futures3::compat::Future01CompatExt;
 use std::convert::{TryFrom, TryInto};
 
@@ -188,16 +187,19 @@ pub mod document_get {
 pub mod edek_transform {
     use super::*;
 
-    pub fn edek_transform<'a>(
-        auth: &'a RequestAuth,
-        edek_bytes: &'a [u8],
-    ) -> impl Future<Item = EdekTransformResponse, Error = IronOxideErr> + 'a {
-        auth.request.post_raw(
-            "edeks/transform",
-            edek_bytes,
-            RequestErrorCode::EdekTransform,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    pub async fn edek_transform(
+        auth: &RequestAuth,
+        edek_bytes: &[u8],
+    ) -> Result<EdekTransformResponse, IronOxideErr> {
+        auth.request
+            .post_raw(
+                "edeks/transform",
+                edek_bytes,
+                RequestErrorCode::EdekTransform,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 
     #[derive(Serialize, Debug, Clone, Deserialize, PartialEq)]
