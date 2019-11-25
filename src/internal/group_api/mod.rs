@@ -2,7 +2,7 @@ use crate::{
     crypto::transform,
     internal::{
         group_api::requests::{group_list::GroupListResponse, GroupUserEditResponse},
-        rest::json::TransformedEncryptedValue,
+        rest::json::{EncryptedOnceValue, TransformedEncryptedValue},
         user_api::{self, UserId},
         validate_id, validate_name, IronOxideErr, PrivateKey, PublicKey, RequestAuth,
         SchnorrSignature, TransformKey, WithKey,
@@ -10,20 +10,41 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use core::convert::identity;
-use futures::prelude::*;
+use futures::{future::err, prelude::*};
 use futures3::{FutureExt, TryFutureExt};
 use itertools::{Either, Itertools};
 use recrypt::prelude::*;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     convert::{TryFrom, TryInto},
+    iter::FromIterator,
 };
-
+use vec1::Vec1;
 mod requests;
 
 pub enum GroupEntity {
     Member,
     Admin,
+}
+
+/// This is used for GroupCreateOpts that have been standardized with the GroupCreateOpts::standardize function.
+/// `add_as_member` and `add_as_admin` have been removed, with the calling user added to the `members` and `admins` lists.
+#[derive(Clone)]
+pub struct GroupCreateOptsStd {
+    pub(crate) id: Option<GroupId>,
+    pub(crate) name: Option<GroupName>,
+    pub(crate) owner: Option<UserId>,
+    pub(crate) admins: Vec1<UserId>,
+    pub(crate) members: Vec<UserId>,
+    pub(crate) needs_rotation: bool,
+}
+impl GroupCreateOptsStd {
+    /// returns all the users who need their public keys looked up (with duplicates removed).
+    pub fn all_users(&self) -> Vec<UserId> {
+        let admins_and_members = [&self.admins[..], &self.members[..]].concat();
+        let set: HashSet<UserId> = HashSet::from_iter(admins_and_members);
+        set.into_iter().collect()
+    }
 }
 
 /// Group ID. Unique within a segment. Must match the regex `^[a-zA-Z0-9_.$#|@/:;=+'-]+$`
@@ -141,12 +162,14 @@ impl GroupMetaResult {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct GroupCreateResult {
     id: GroupId,
     name: Option<GroupName>,
     group_master_public_key: PublicKey,
     is_admin: bool,
     is_member: bool,
+    owner: UserId,
     admins: Vec<UserId>,
     members: Vec<UserId>,
     created: DateTime<Utc>,
@@ -173,6 +196,10 @@ impl GroupCreateResult {
     /// true if the calling user is a group member
     pub fn is_member(&self) -> bool {
         self.is_member
+    }
+    /// owner of the group
+    pub fn owner(&self) -> &UserId {
+        &self.owner
     }
     /// List of all group admins. Group admins can change group membership.
     pub fn admins(&self) -> &Vec<UserId> {
@@ -204,6 +231,7 @@ pub struct GroupGetResult {
     group_master_public_key: PublicKey,
     is_admin: bool,
     is_member: bool,
+    owner: Option<UserId>,
     admin_list: Option<Vec<UserId>>,
     member_list: Option<Vec<UserId>>,
     created: DateTime<Utc>,
@@ -239,6 +267,12 @@ impl GroupGetResult {
     /// Date and time of when the group was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
+    }
+    /// The owner of the group. The group owner cannot be removed as an admin.
+    ///     Some(UserId) - The id of the group owner.
+    ///     None - The calling user is not a member of the group and cannot view the owner.
+    pub fn owner(&self) -> Option<&UserId> {
+        self.owner.as_ref()
     }
     /// List of all group admins. Group admins can change group membership.
     pub fn admin_list(&self) -> Option<&Vec<UserId>> {
@@ -351,6 +385,63 @@ pub(crate) fn get_group_keys<'a>(
     )
 }
 
+fn compare_users<T: Eq + std::hash::Hash + std::fmt::Debug, X>(
+    desired_users: &Vec<T>,
+    found_users: HashMap<T, X>,
+) -> IronOxideErr {
+    let desired_users_set: HashSet<&T> = HashSet::from_iter(desired_users);
+    let found_users_vec: Vec<T> = found_users.into_iter().map(|(x, _)| x).collect();
+    let found_users_set: HashSet<&T> = HashSet::from_iter(&found_users_vec);
+    let diff: Vec<&&T> = desired_users_set.difference(&found_users_set).collect();
+    IronOxideErr::UserDoesNotExist(format!("Failed to find the following users: {:?}", diff))
+}
+
+// Partitions `user_ids_and_keys` into a vector of admins and a vector of members.
+// Also generates TransformKeys for members to prepare for making requests::GroupMembers
+fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    signing_key: &crate::internal::DeviceSigningKeyPair,
+    group_priv_key: recrypt::api::PrivateKey,
+    admins: Vec1<UserId>,
+    members: Vec<UserId>,
+    user_ids_and_keys: HashMap<UserId, PublicKey>,
+) -> Result<
+    (
+        Vec<(UserId, PublicKey, TransformKey)>,
+        Vec<(UserId, PublicKey)>,
+    ),
+    IronOxideErr,
+> {
+    let members_set: HashSet<_> = HashSet::from_iter(&members);
+    let admins_set: HashSet<_> = HashSet::from_iter(&admins);
+    let mut member_info: Vec<Result<(UserId, PublicKey, TransformKey), IronOxideErr>> = vec![];
+    let mut admin_info: Vec<(UserId, PublicKey)> = vec![];
+    user_ids_and_keys
+        .into_iter()
+        .for_each(|(id, user_pub_key)| {
+            if members_set.contains(&id) {
+                let maybe_transform_key = recrypt.generate_transform_key(
+                    &group_priv_key.clone().into(),
+                    &user_pub_key.clone().into(),
+                    &signing_key.into(),
+                );
+                match maybe_transform_key {
+                    Ok(member_trans_key) => member_info.push(Ok((
+                        id.clone(),
+                        user_pub_key.clone(),
+                        member_trans_key.into(),
+                    ))),
+                    Err(err) => member_info.push(Err(err.into())),
+                };
+            }
+            if admins_set.contains(&id) {
+                admin_info.push((id, user_pub_key));
+            }
+        });
+    let member_info = member_info.into_iter().collect::<Result<Vec<_>, _>>()?;
+    Ok((member_info, admin_info))
+}
+
 /// Create a group with the calling user as the group admin.
 ///
 /// # Arguments
@@ -360,90 +451,93 @@ pub(crate) fn get_group_keys<'a>(
 /// `user_master_pub_key` - public key of the user creating this group.
 /// `group_id` - unique id for the group within the segment.
 /// `name` - name for the group. Does not need to be unique.
-/// `members` - list of user ids to add as members of the group. This list takes priority over `add_as_member`,
-///     so the calling user will be added as a member if their id is in this list even if `add_as_member` is false.
+/// `members` - list of user ids to add as members of the group.
 /// `needs_rotation` - true if the group private key should be rotated by an admin, else false
 pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &'a RequestAuth,
-    user_master_pub_key: &'a PublicKey,
     group_id: Option<GroupId>,
     name: Option<GroupName>,
-    members: &'a Vec<UserId>,
+    owner: Option<UserId>,
+    admins: Vec1<UserId>,
+    members: Vec<UserId>,
+    users_to_lookup: &'a Vec<UserId>,
     needs_rotation: bool,
 ) -> impl Future<Item = GroupCreateResult, Error = IronOxideErr> + 'a {
-    user_api::user_key_list(auth, members)
+    user_api::user_key_list(auth, users_to_lookup)
         .boxed()
         .compat()
-        .and_then(move |member_ids_and_keys| {
-            // this will occur when one of the UserIds in the members list cannot be found
-            if member_ids_and_keys.len() != members.len() {
-                // figure out which user ids could not be found in the database and include them in the error message.
-                use std::{collections::HashSet, iter::FromIterator};
-                let desired_members_set: HashSet<&UserId> = HashSet::from_iter(members);
-                let found_members: Vec<UserId> =
-                    member_ids_and_keys.into_iter().map(|(x, _)| x).collect();
-                let found_members_set: HashSet<&UserId> = HashSet::from_iter(&found_members);
-                let diff: HashSet<&&UserId> =
-                    desired_members_set.difference(&found_members_set).collect();
-                futures::future::err(IronOxideErr::UserDoesNotExist(format!(
-                    "Failed to find the following users from the `members` list: {:?}",
-                    diff
-                )))
+        .and_then(move |user_ids_and_keys| {
+            // this will occur when one of the UserIds cannot be found
+            if user_ids_and_keys.len() != users_to_lookup.len() {
+                err(compare_users(users_to_lookup, user_ids_and_keys))
             } else {
                 transform::gen_group_keys(recrypt)
                     .and_then(move |(plaintext, group_priv_key, group_pub_key)| {
-                        // encrypt the group secret to the current user as they will be the group admin
-                        let encrypted_group_key = recrypt.encrypt(
-                            &plaintext,
-                            &user_master_pub_key.into(),
-                            &auth.signing_private_key().into(),
+                        let (member_info, admin_info) = collect_admin_and_member_info(
+                            recrypt,
+                            auth.signing_private_key(),
+                            group_priv_key,
+                            admins,
+                            members,
+                            user_ids_and_keys,
                         )?;
-                        // Map from UserId to (PublicKey, Optional TransformKey)
-                        // TransformKey is optional because we need it for members, but won't need it
-                        // when we expand this to include admins
-                        let member_info_result: Result<
-                            HashMap<UserId, (PublicKey, Option<TransformKey>)>,
-                            _,
-                        > = member_ids_and_keys
+
+                        let group_members: Vec<requests::GroupMember> = member_info
                             .into_iter()
-                            .map(|(id, user_pub_key)| {
-                                let maybe_transform_key = recrypt.generate_transform_key(
-                                    &group_priv_key.clone().into(),
-                                    &user_pub_key.clone().into(),
-                                    &auth.signing_private_key().into(),
-                                );
-                                maybe_transform_key.map(|transform_key| {
-                                    (id, (user_pub_key, Some(transform_key.into())))
-                                })
+                            .map(|(member_id, member_pub_key, member_trans_key)| {
+                                requests::GroupMember {
+                                    user_id: member_id,
+                                    transform_key: member_trans_key.into(),
+                                    user_master_public_key: member_pub_key.into(),
+                                }
                             })
                             .collect();
-                        let member_info = member_info_result?;
-
-                        let maybe_member_info = if !member_info.is_empty() {
-                            Some(member_info)
-                        } else {
+                        let maybe_group_members = if group_members.is_empty() {
                             None
+                        } else {
+                            Some(group_members)
                         };
-                        Ok((group_pub_key, encrypted_group_key, maybe_member_info))
+
+                        let group_admins: Vec<requests::GroupAdmin> = admin_info
+                            .into_iter()
+                            .map(|(admin_id, admin_pub_key)| {
+                                let encrypted_group_key = recrypt.encrypt(
+                                    &plaintext,
+                                    &admin_pub_key.clone().into(),
+                                    &auth.signing_private_key().into(),
+                                );
+                                encrypted_group_key
+                                    .map_err(|e| e.into())
+                                    .and_then(EncryptedOnceValue::try_from)
+                                    .map(|enc_msg| requests::GroupAdmin {
+                                        encrypted_msg: enc_msg,
+                                        user: requests::User {
+                                            user_id: admin_id,
+                                            user_master_public_key: admin_pub_key.into(),
+                                        },
+                                    })
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+
+                        Ok((group_pub_key, maybe_group_members, group_admins))
                     })
                     .into_future()
             }
         })
-        .and_then(move |(group_pub_key, encrypted_group_key, member_info)| {
+        .and_then(move |(group_pub_key, member_vec, admin_vec)| {
             requests::group_create::group_create(
                 &auth,
-                user_master_pub_key,
                 group_id,
                 name,
-                encrypted_group_key,
                 group_pub_key,
-                auth.account_id(),
-                member_info,
+                owner,
+                admin_vec,
+                member_vec,
                 needs_rotation,
             )
         })
-        .and_then(|resp| resp.try_into())
+        .and_then(move |resp| resp.try_into())
 }
 
 /// Get the metadata for a group given its ID
@@ -810,5 +904,80 @@ mod test {
     }
 
     #[test]
-    fn group_create() {}
+    fn compare_users_test() -> Result<(), String> {
+        let user1 = UserId::unsafe_from_string("user1".to_string());
+        let user2 = UserId::unsafe_from_string("user2".to_string());
+        let desired_users = vec![user1.clone(), user2];
+        let mut found_users = HashMap::new();
+        found_users.insert(user1, "test");
+        let err = compare_users(&desired_users, found_users);
+        let err_msg = match err {
+            IronOxideErr::UserDoesNotExist(msg) => Ok(msg),
+            _ => Err("Wrong type of error. Should never happen."),
+        }?;
+        assert_eq!(
+            err_msg,
+            "Failed to find the following users: [UserId(\"user2\")]"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn collect_admin_and_member_info_test() -> Result<(), IronOxideErr> {
+        let recrypt = recrypt::api::Recrypt::new();
+        let signing_key =
+            crate::internal::DeviceSigningKeyPair::from(recrypt.generate_ed25519_key_pair());
+        let (group_priv_key, _) = recrypt.generate_key_pair()?;
+        let user1 = UserId::unsafe_from_string("user1".to_string());
+        let user2 = UserId::unsafe_from_string("user2".to_string());
+        let user3 = UserId::unsafe_from_string("user3".to_string());
+        let admins_vec = vec1![user1.clone()];
+        let members_vec = vec![user1, user2, user3];
+
+        let user_ids_and_keys = members_vec
+            .clone()
+            .into_iter()
+            .map(|id| {
+                recrypt
+                    .generate_key_pair()
+                    .map_err(|e| e.into())
+                    .map(|(_, key)| (id, key.into()))
+            })
+            .collect::<Result<HashMap<UserId, PublicKey>, IronOxideErr>>()?;
+
+        let (member_info, admin_info) = collect_admin_and_member_info(
+            &recrypt,
+            &signing_key,
+            group_priv_key,
+            admins_vec.clone(),
+            members_vec.clone(),
+            user_ids_and_keys,
+        )?;
+        assert_eq!(member_info.len(), members_vec.len());
+        assert_eq!(admin_info.len(), admins_vec.len());
+        Ok(())
+    }
+
+    #[test]
+    fn collect_admin_and_member_info_empty_members() -> Result<(), IronOxideErr> {
+        let recrypt = recrypt::api::Recrypt::new();
+        let signing_key =
+            crate::internal::DeviceSigningKeyPair::from(recrypt.generate_ed25519_key_pair());
+        let (group_priv_key, pub_key) = recrypt.generate_key_pair()?;
+        let user1 = UserId::unsafe_from_string("user1".to_string());
+        let mut user_ids_and_keys = HashMap::new();
+        user_ids_and_keys.insert(user1.clone(), pub_key.into());
+
+        let (member_info, admin_info) = collect_admin_and_member_info(
+            &recrypt,
+            &signing_key,
+            group_priv_key,
+            vec1![user1],
+            vec![],
+            user_ids_and_keys,
+        )?;
+        assert!(member_info.is_empty());
+        assert_eq!(admin_info.len(), 1);
+        Ok(())
+    }
 }

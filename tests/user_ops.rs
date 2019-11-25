@@ -1,4 +1,5 @@
 mod common;
+use crate::common::initialize_sdk;
 use common::{create_id_all_classes, gen_jwt};
 use ironoxide::{
     document::DocumentEncryptOpts,
@@ -19,25 +20,25 @@ fn user_verify_non_existing_user() -> Result<(), IronOxideErr> {
 }
 
 #[test]
-fn user_verify_existing_user() {
-    let account_id: UserId = create_id_all_classes("").try_into().unwrap();
+fn user_verify_existing_user() -> Result<(), IronOxideErr> {
+    let account_id: UserId = create_id_all_classes("").try_into()?;
     IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
         "foo",
         &Default::default(),
-    )
-    .unwrap();
+    )?;
 
-    let result = IronOxide::user_verify(&gen_jwt(Some(account_id.id())).0).unwrap();
+    let result = IronOxide::user_verify(&gen_jwt(Some(account_id.id())).0)?;
     assert_eq!(true, result.is_some());
     let verify_resp = result.unwrap();
 
     assert_eq!(&account_id, verify_resp.account_id());
+    Ok(())
 }
 
 #[test]
 fn user_verify_after_create_with_needs_rotation() -> Result<(), IronOxideErr> {
-    let account_id: UserId = Uuid::new_v4().to_string().try_into().unwrap();
+    let account_id: UserId = Uuid::new_v4().to_string().try_into()?;
     IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
         "foo",
@@ -45,43 +46,38 @@ fn user_verify_after_create_with_needs_rotation() -> Result<(), IronOxideErr> {
     )?;
 
     let result = IronOxide::user_verify(&gen_jwt(Some(account_id.id())).0)?;
-    assert_eq!(true, result.is_some());
+    assert!(result.is_some());
     let verify_resp = result.unwrap();
-
-    Ok(assert!(verify_resp.needs_rotation()))
+    assert!(verify_resp.needs_rotation());
+    Ok(())
 }
 #[test]
-fn user_create_good_with_devices() {
-    let account_id: UserId = Uuid::new_v4().to_string().try_into().unwrap();
-    let result = IronOxide::user_create(
+fn user_create_good_with_devices() -> Result<(), IronOxideErr> {
+    let account_id: UserId = Uuid::new_v4().to_string().try_into()?;
+    IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
         "foo",
         &Default::default(),
-    );
-    assert!(result.is_ok());
-
+    )?;
     let device = IronOxide::generate_new_device(
         &gen_jwt(Some(account_id.id())).0,
         "foo",
-        &DeviceCreateOpts::new(Some("myDevice".try_into().unwrap())),
-    );
-
-    assert!(device.is_ok());
-
-    let sdk = ironoxide::initialize(&device.unwrap()).unwrap();
-
-    let device_list = sdk.user_list_devices().unwrap();
+        &DeviceCreateOpts::new(Some("myDevice".try_into()?)),
+    )?;
+    let sdk = ironoxide::initialize(&device)?;
+    let device_list = sdk.user_list_devices()?;
 
     assert_eq!(1, device_list.result().len());
     assert_eq!(
         &"myDevice".to_string(),
         device_list.result()[0].name().unwrap().name()
     );
+    Ok(())
 }
 
 #[test]
 fn user_private_key_rotation() -> Result<(), IronOxideErr> {
-    let io = common::init_sdk();
+    let io = initialize_sdk()?;
 
     let result1 = io.user_rotate_private_key(common::USER_PASSWORD)?;
     assert_eq!(result1.needs_rotation(), false);
@@ -146,7 +142,7 @@ fn user_add_device_after_rotation() -> Result<(), IronOxideErr> {
 
 #[test]
 fn user_create_with_needs_rotation() -> Result<(), IronOxideErr> {
-    let account_id: UserId = Uuid::new_v4().to_string().try_into().unwrap();
+    let account_id: UserId = Uuid::new_v4().to_string().try_into()?;
     let result = IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
         common::USER_PASSWORD,

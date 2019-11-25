@@ -38,6 +38,8 @@ extern crate base64_serde;
 extern crate quick_error;
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate vec1;
 #[cfg(test)]
 #[macro_use]
 extern crate galvanic_assert;

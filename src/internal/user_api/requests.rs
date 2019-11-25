@@ -312,7 +312,7 @@ pub mod user_key_list {
                 .compat()
                 .await
         } else {
-            Ok(UserKeyListResponse { result: Vec::new() })
+            Ok(UserKeyListResponse { result: vec![] })
         }
     }
 }

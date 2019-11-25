@@ -65,6 +65,7 @@ pub struct GroupGetApiResponse {
     pub(crate) status: u32,
     pub(crate) updated: DateTime<Utc>,
     pub(crate) created: DateTime<Utc>,
+    pub(crate) owner: Option<UserId>,
     pub(crate) admin_ids: Option<Vec<String>>,
     pub(crate) member_ids: Option<Vec<String>>,
     pub(crate) group_master_public_key: PublicKey,
@@ -83,6 +84,7 @@ impl TryFrom<GroupGetApiResponse> for GroupGetResult {
             group_master_public_key,
             is_admin: resp.permissions.contains(&Permission::Admin),
             is_member: resp.permissions.contains(&Permission::Member),
+            owner: resp.owner,
             admin_list: resp
                 .admin_ids
                 .map(|admins| admins.into_iter().map(UserId).collect()),
@@ -99,15 +101,16 @@ impl TryFrom<GroupGetApiResponse> for GroupGetResult {
 #[derive(Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupCreateApiResponse {
-    pub(crate) id: GroupId,
-    pub(crate) name: Option<GroupName>,
-    pub(crate) permissions: HashSet<Permission>,
-    pub(crate) updated: DateTime<Utc>,
-    pub(crate) created: DateTime<Utc>,
-    pub(crate) admin_ids: Vec<String>,
-    pub(crate) member_ids: Vec<String>,
-    pub(crate) group_master_public_key: PublicKey,
-    pub(crate) needs_rotation: Option<bool>,
+    pub(in crate::internal) id: GroupId,
+    pub(in crate::internal) name: Option<GroupName>,
+    pub(in crate::internal) permissions: HashSet<Permission>,
+    pub(in crate::internal) updated: DateTime<Utc>,
+    pub(in crate::internal) created: DateTime<Utc>,
+    pub(in crate::internal) owner: UserId,
+    pub(in crate::internal) admin_ids: Vec<String>,
+    pub(in crate::internal) member_ids: Vec<String>,
+    pub(in crate::internal) group_master_public_key: PublicKey,
+    pub(in crate::internal) needs_rotation: Option<bool>,
 }
 impl TryFrom<GroupCreateApiResponse> for GroupCreateResult {
     type Error = IronOxideErr;
@@ -120,6 +123,7 @@ impl TryFrom<GroupCreateApiResponse> for GroupCreateResult {
             group_master_public_key,
             is_admin: resp.permissions.contains(&Permission::Admin),
             is_member: resp.permissions.contains(&Permission::Member),
+            owner: resp.owner,
             admins: resp.admin_ids.into_iter().map(|id| UserId(id)).collect(),
             members: resp.member_ids.into_iter().map(|id| UserId(id)).collect(),
             created: resp.created,
@@ -131,24 +135,24 @@ impl TryFrom<GroupCreateApiResponse> for GroupCreateResult {
 
 #[derive(Serialize, Debug, PartialEq)]
 pub struct GroupAdmin {
-    user: User,
+    pub(in crate::internal) user: User,
     #[serde(flatten)]
-    encrypted_msg: EncryptedOnceValue,
+    pub(in crate::internal) encrypted_msg: EncryptedOnceValue,
 }
 
 #[derive(Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupMember {
-    user_id: UserId,
-    transform_key: TransformKey,
-    user_master_public_key: PublicKey,
+    pub(in crate::internal) user_id: UserId,
+    pub(in crate::internal) transform_key: TransformKey,
+    pub(in crate::internal) user_master_public_key: PublicKey,
 }
 
 #[derive(Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct User {
-    user_id: UserId,
-    user_master_public_key: PublicKey,
+    pub(in crate::internal) user_id: UserId,
+    pub(in crate::internal) user_master_public_key: PublicKey,
 }
 
 #[derive(Deserialize, Debug)]
@@ -207,71 +211,46 @@ pub mod group_list {
 
 pub mod group_create {
     use super::*;
-    use crate::internal::{self, auth_v2::AuthV2Builder, rest::json::EncryptedOnceValue};
-    use futures::prelude::*;
-    use std::{collections::HashMap, convert::TryFrom};
+    use crate::internal::{self, auth_v2::AuthV2Builder};
 
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct GroupCreateReq {
         pub(in crate::internal) id: Option<GroupId>,
         pub(in crate::internal) name: Option<GroupName>,
+        pub(in crate::internal) owner: Option<UserId>,
         pub(in crate::internal) admins: Vec<GroupAdmin>,
-        pub(in crate::internal) group_public_key: PublicKey,
         pub(in crate::internal) members: Option<Vec<GroupMember>>,
+        pub(in crate::internal) group_public_key: PublicKey,
         pub(in crate::internal) needs_rotation: bool,
     }
 
     pub fn group_create<'a>(
         auth: &'a RequestAuth,
-        user_master_pub_key: &'a internal::PublicKey,
         id: Option<GroupId>, // if None, server will generate
         name: Option<GroupName>,
-        re_encrypted_once_value: recrypt::api::EncryptedValue,
         group_pub_key: internal::PublicKey,
-        calling_user_id: &'a UserId,
-        member_info: Option<HashMap<UserId, (internal::PublicKey, Option<internal::TransformKey>)>>,
+        owner: Option<UserId>,
+        admins: Vec<GroupAdmin>,
+        members: Option<Vec<GroupMember>>,
         needs_rotation: bool,
     ) -> impl Future<Item = GroupCreateApiResponse, Error = IronOxideErr> + 'a {
-        EncryptedOnceValue::try_from(re_encrypted_once_value)
-            .into_future()
-            .and_then(move |enc_msg| {
-                let req_admins = vec![GroupAdmin {
-                    encrypted_msg: enc_msg,
-                    user: User {
-                        user_id: calling_user_id.clone(),
-                        user_master_public_key: user_master_pub_key.clone().into(),
-                    },
-                }];
-                let req_members = member_info.map(|member| {
-                    member
-                        .into_iter()
-                        .map(|(mem_id, (mem_pub_key, maybe_trans_key))| {
-                            maybe_trans_key.map(|mem_trans_key| GroupMember {
-                                user_id: mem_id,
-                                transform_key: mem_trans_key.into(),
-                                user_master_public_key: mem_pub_key.into(),
-                            })
-                        })
-                        .flatten()
-                        .collect()
-                });
-                let req = GroupCreateReq {
-                    id,
-                    name,
-                    admins: req_admins,
-                    group_public_key: group_pub_key.into(),
-                    members: req_members,
-                    needs_rotation,
-                };
+        let req = GroupCreateReq {
+            id,
+            name,
+            owner: owner,
+            admins: admins,
+            group_public_key: group_pub_key.into(),
+            members: members,
+            needs_rotation,
+        };
 
-                auth.request.post(
-                    "groups",
-                    &req,
-                    RequestErrorCode::GroupCreate,
-                    AuthV2Builder::new(&auth, Utc::now()),
-                )
-            })
+        auth.request.post(
+            "groups",
+            &req,
+            RequestErrorCode::GroupCreate,
+            AuthV2Builder::new(&auth, Utc::now()),
+        )
     }
 }
 

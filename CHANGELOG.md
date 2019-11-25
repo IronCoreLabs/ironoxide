@@ -2,8 +2,11 @@
 
 ## 0.14.0 (Unreleased)
 
+- [[#76](https://github.com/IronCoreLabs/ironoxide/pull/76)]
+  - Allows adding admins at group creation time.
+  - Allows specifying an owner at group creation time.
 - [[#72](https://github.com/IronCoreLabs/ironoxide/pull/72)]
-  - Allows adding members at group creation time
+  - Allows adding members at group creation time.
 - [[#69](https://github.com/IronCoreLabs/ironoxide/pull/69)]
   - Allows changing of IronCore environment at runtime.
 - [[#64](https://github.com/IronCoreLabs/ironoxide/pull/64)]
