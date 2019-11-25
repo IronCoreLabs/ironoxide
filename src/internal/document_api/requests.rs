@@ -250,29 +250,22 @@ pub mod document_create {
         let maybe_req_grants: Result<Vec<_>, _> =
             grants.into_iter().map(|g| g.try_into()).collect();
 
-        match maybe_req_grants {
-            Ok(req_grants) => {
-                let req = DocumentCreateRequest {
-                    id,
-                    value: DocumentCreateValue {
-                        name,
-                        shared_with: req_grants,
-                    },
-                };
-                auth.request
-                    .post(
-                        "documents",
-                        &req,
-                        RequestErrorCode::DocumentCreate,
-                        AuthV2Builder::new(&auth, Utc::now()),
-                    )
-                    .compat()
-                    .await
-            }
-            // the failure case here is that we couldn't convert the recrypt EncryptedValue because
-            // it was not an EncryptedOnceValue -- really just a limitation of Rust's enums as we expect these to be EncryptedOnceValues
-            Err(e) => futures3::future::err(e).await,
-        }
+        let req = DocumentCreateRequest {
+            id,
+            value: DocumentCreateValue {
+                name,
+                shared_with: maybe_req_grants?,
+            },
+        };
+        auth.request
+            .post(
+                "documents",
+                &req,
+                RequestErrorCode::DocumentCreate,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }
 
@@ -468,26 +461,19 @@ pub mod document_access {
         let maybe_req_grants: Result<Vec<_>, _> =
             grants.into_iter().map(|g| g.try_into()).collect();
 
-        match maybe_req_grants {
-            Ok(req_grants) => {
-                let req = DocumentGrantAccessRequest {
-                    from_public_key: from_pub_key.clone().into(),
-                    to: req_grants,
-                };
-                auth.request
-                    .post(
-                        &format!("documents/{}/access", rest::url_encode(id.id())),
-                        &req,
-                        RequestErrorCode::DocumentGrantAccess,
-                        AuthV2Builder::new(&auth, Utc::now()),
-                    )
-                    .compat()
-                    .await
-            }
-            // the failure case here is that we couldn't convert the recrypt EncryptedValue because
-            // it was not an EncryptedOnceValue -- really just a limitation of Rust's enums as we expect these to be EncryptedOnceValues
-            Err(e) => Err(e),
-        }
+        let req = DocumentGrantAccessRequest {
+            from_public_key: from_pub_key.clone().into(),
+            to: maybe_req_grants?,
+        };
+        auth.request
+            .post(
+                &format!("documents/{}/access", rest::url_encode(id.id())),
+                &req,
+                RequestErrorCode::DocumentGrantAccess,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 
     pub async fn revoke_access_request(

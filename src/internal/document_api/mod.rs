@@ -535,7 +535,7 @@ pub async fn encrypt_document<
     let doc_id = document_id.unwrap_or(DocumentId::goo_id(rng));
     let pt_bytes = plaintext.to_vec();
 
-    match try_join!(
+    let (encrypted_doc, (grants, key_errs)) = try_join!(
         aes::encrypt_future(rng, &pt_bytes, *doc_sym_key.bytes()),
         resolve_keys_for_grants(
             auth,
@@ -548,28 +548,24 @@ pub async fn encrypt_document<
                 None
             },
         )
-    ) {
-        Ok((encrypted_doc, (grants, key_errs))) => {
-            let r = recrypt_document(
-                &auth.signing_private_key,
-                recrypt,
-                dek,
-                encrypted_doc,
-                &doc_id,
-                grants,
-            )?;
-            let encryption_errs = r.encryption_errs.clone();
-            document_create(
-                &auth,
-                r.into_edoc(DocumentHeader::new(doc_id.clone(), auth.segment_id)),
-                doc_id,
-                &document_name,
-                [key_errs, encryption_errs].concat(),
-            )
-            .await
-        }
-        Err(e) => Err(e),
-    }
+    )?;
+    let r = recrypt_document(
+        &auth.signing_private_key,
+        recrypt,
+        dek,
+        encrypted_doc,
+        &doc_id,
+        grants,
+    )?;
+    let encryption_errs = r.encryption_errs.clone();
+    document_create(
+        &auth,
+        r.into_edoc(DocumentHeader::new(doc_id.clone(), auth.segment_id)),
+        doc_id,
+        &document_name,
+        [key_errs, encryption_errs].concat(),
+    )
+    .await
 }
 
 type UserMasterPublicKey = PublicKey;
@@ -612,33 +608,30 @@ async fn resolve_keys_for_grants(
             })
         }
     };
-    match try_join!(get_user_keys_f, get_group_keys_f, policy_grants_f) {
-        Ok((users, groups, policy_result)) => {
-            let (group_errs, groups_with_key) = process_groups(groups);
-            let (user_errs, users_with_key) = process_users(users);
-            let explicit_grants = [users_with_key, groups_with_key].concat();
+    let (users, groups, policy_result) =
+        try_join!(get_user_keys_f, get_group_keys_f, policy_grants_f)?;
+    let (group_errs, groups_with_key) = process_groups(groups);
+    let (user_errs, users_with_key) = process_users(users);
+    let explicit_grants = [users_with_key, groups_with_key].concat();
 
-            let (policy_errs, applied_policy_grants) = process_policy(&policy_result);
-            let maybe_self_grant = {
-                if let Some(user_master_pub_key) = maybe_user_master_pub_key {
-                    vec![WithKey::new(
-                        UserOrGroup::User {
-                            id: auth.account_id.clone(),
-                        },
-                        user_master_pub_key.clone(),
-                    )]
-                } else {
-                    vec![]
-                }
-            };
-
-            Ok((
-                { [maybe_self_grant, explicit_grants, applied_policy_grants].concat() },
-                [group_errs, user_errs, policy_errs].concat(),
-            ))
+    let (policy_errs, applied_policy_grants) = process_policy(&policy_result);
+    let maybe_self_grant = {
+        if let Some(user_master_pub_key) = maybe_user_master_pub_key {
+            vec![WithKey::new(
+                UserOrGroup::User {
+                    id: auth.account_id.clone(),
+                },
+                user_master_pub_key.clone(),
+            )]
+        } else {
+            vec![]
         }
-        Err(e) => Err(e),
-    }
+    };
+
+    Ok((
+        { [maybe_self_grant, explicit_grants, applied_policy_grants].concat() },
+        [group_errs, user_errs, policy_errs].concat(),
+    ))
 }
 
 /// Encrypts a document but does not create the document in the IronCore system.
@@ -664,7 +657,7 @@ where
     let doc_id = document_id.unwrap_or(DocumentId::goo_id(rng));
     let pt_bytes = plaintext.to_vec();
 
-    match try_join!(
+    let (encryption_result, (grants, key_errs)) = try_join!(
         aes::encrypt_future(rng, &pt_bytes, *doc_sym_key.bytes()),
         resolve_keys_for_grants(
             auth,
@@ -677,25 +670,21 @@ where
                 None
             },
         )
-    ) {
-        Ok((encryption_result, (grants, key_errs))) => {
-            let r = recrypt_document(
-                &auth.signing_private_key,
-                recrypt,
-                dek,
-                encryption_result,
-                &doc_id,
-                grants,
-            )?;
-            let enc_result = EncryptedDoc {
-                header: DocumentHeader::new(doc_id.clone(), auth.segment_id),
-                value: r,
-            };
-            let access_errs = [&key_errs[..], &enc_result.value.encryption_errs[..]].concat();
-            DocumentEncryptUnmanagedResult::new(enc_result, access_errs)
-        }
-        Err(e) => Err(e),
-    }
+    )?;
+    let r = recrypt_document(
+        &auth.signing_private_key,
+        recrypt,
+        dek,
+        encryption_result,
+        &doc_id,
+        grants,
+    )?;
+    let enc_result = EncryptedDoc {
+        header: DocumentHeader::new(doc_id.clone(), auth.segment_id),
+        value: r,
+    };
+    let access_errs = [&key_errs[..], &enc_result.value.encryption_errs[..]].concat();
+    DocumentEncryptUnmanagedResult::new(enc_result, access_errs)
 }
 /// Remove any duplicates in the grant list. Uses ids (not keys) for comparison.
 fn dedupe_grants(grants: &[WithKey<UserOrGroup>]) -> Vec<WithKey<UserOrGroup>> {
@@ -962,7 +951,6 @@ pub async fn decrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
     device_private_key: &'a PrivateKey,
     encrypted_doc: &'a [u8],
 ) -> Result<DocumentDecryptResult, IronOxideErr> {
-    //TODO join?
     let (doc_header, mut enc_doc) = parse_document_parts(encrypted_doc)?;
     let doc_meta = document_get_metadata(auth, &doc_header.document_id).await?;
     let (_, sym_key) = transform::decrypt_plaintext(
@@ -982,7 +970,6 @@ pub async fn decrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
         })
 }
 
-
 // TODO reviewers - the decrypt_document_unmanaged code was heavily reworked and should have additional review
 
 /// Decrypt the unmanaged document. The caller must provide both the encrypted data as well as the
@@ -996,54 +983,50 @@ pub async fn decrypt_document_unmanaged<CR: rand::CryptoRng + rand::RngCore>(
 ) -> Result<DocumentDecryptUnmanagedResult, IronOxideErr> {
     // attempt to parse the proto as fail-fast validation. If it fails decrypt will fail
 
-    match try_join!(
+    let (
+        proto_edeks,
+        (
+            DocumentHeader {
+                document_id,
+                segment_id,
+            },
+            mut aes_encrypted_value,
+        ),
+        transform_resp,
+    ) = try_join!(
         async {
             protobuf::parse_from_bytes::<EncryptedDeksP>(encrypted_deks).map_err(IronOxideErr::from)
         },
         async { parse_document_parts(encrypted_doc) },
         requests::edek_transform::edek_transform(&auth, encrypted_deks,)
-    ) {
-        Ok((
-            proto_edeks,
-            (
-                DocumentHeader {
-                    document_id,
-                    segment_id,
-                },
-                mut aes_encrypted_value,
-            ),
-            transform_resp,
-        )) => {
-            if document_id.id() == proto_edeks.get_documentId()
-                && segment_id as i32 == proto_edeks.get_segmentId()
-            {
-                let requests::edek_transform::EdekTransformResponse {
-                    user_or_group,
-                    encrypted_symmetric_key,
-                } = transform_resp;
+    )?;
+    if document_id.id() == proto_edeks.get_documentId()
+        && segment_id as i32 == proto_edeks.get_segmentId()
+    {
+        let requests::edek_transform::EdekTransformResponse {
+            user_or_group,
+            encrypted_symmetric_key,
+        } = transform_resp;
 
-                let (_, sym_key) = transform::decrypt_plaintext(
-                    &recrypt,
-                    encrypted_symmetric_key.try_into()?,
-                    &device_private_key.recrypt_key(),
-                )?;
-                aes::decrypt(&mut aes_encrypted_value, *sym_key.bytes())
-                    .map_err(|e| e.into())
-                    .map(move |decrypted_doc| DocumentDecryptUnmanagedResult {
-                        id: document_id,
-                        access_via: user_or_group,
-                        decrypted_data: DecryptedData(decrypted_doc.to_vec()),
-                    })
-            } else {
-                Err(IronOxideErr::UnmanagedDecryptionError(
-                    proto_edeks.get_documentId().into(),
-                    proto_edeks.get_segmentId(),
-                    document_id.0,
-                    segment_id as i32,
-                ))
-            }
-        }
-        Err(e) => Err(e),
+        let (_, sym_key) = transform::decrypt_plaintext(
+            &recrypt,
+            encrypted_symmetric_key.try_into()?,
+            &device_private_key.recrypt_key(),
+        )?;
+        aes::decrypt(&mut aes_encrypted_value, *sym_key.bytes())
+            .map_err(|e| e.into())
+            .map(move |decrypted_doc| DocumentDecryptUnmanagedResult {
+                id: document_id,
+                access_via: user_or_group,
+                decrypted_data: DecryptedData(decrypted_doc.to_vec()),
+            })
+    } else {
+        Err(IronOxideErr::UnmanagedDecryptionError(
+            proto_edeks.get_documentId().into(),
+            proto_edeks.get_segmentId(),
+            document_id.0,
+            segment_id as i32,
+        ))
     }
 }
 
@@ -1069,57 +1052,44 @@ pub async fn document_grant_access<CR: rand::CryptoRng + rand::RngCore>(
     group_grants: &Vec<GroupId>,
 ) -> Result<DocumentAccessResult, IronOxideErr> {
     use futures3::compat::Future01CompatExt;
-    match try_join!(
+    let (doc_meta, users, groups) = try_join!(
         document_get_metadata(auth, id),
         // and the public keys for the users and groups
         internal::user_api::get_user_keys(auth, user_grants),
         internal::group_api::get_group_keys(auth, group_grants).compat(),
-    ) {
-        Ok((doc_meta, users, groups)) => {
-            let (grants, other_errs) = {
-                // decrypt the dek
-                let edek = doc_meta.to_encrypted_symmetric_key()?;
-                let dek = recrypt.decrypt(edek, &priv_device_key.clone().into())?;
+    )?;
+    let (grants, other_errs) = {
+        // decrypt the dek
+        let edek = doc_meta.to_encrypted_symmetric_key()?;
+        let dek = recrypt.decrypt(edek, &priv_device_key.clone().into())?;
 
-                let (group_errs, groups_with_key) = process_groups(groups);
-                let (user_errs, users_with_key) = process_users(users);
-                let users_and_groups =
-                    dedupe_grants(&[&users_with_key[..], &groups_with_key[..]].concat());
+        let (group_errs, groups_with_key) = process_groups(groups);
+        let (user_errs, users_with_key) = process_users(users);
+        let users_and_groups = dedupe_grants(&[&users_with_key[..], &groups_with_key[..]].concat());
 
-                // encrypt to all the users and groups
-                let (grant_errs, grants) = transform::encrypt_to_with_key(
-                    recrypt,
-                    &dek,
-                    &auth.signing_private_key().into(),
-                    users_and_groups,
-                );
+        // encrypt to all the users and groups
+        let (grant_errs, grants) = transform::encrypt_to_with_key(
+            recrypt,
+            &dek,
+            &auth.signing_private_key().into(),
+            users_and_groups,
+        );
 
-                // squish all accumulated errors into one list
-                let other_errs = vec![
-                    group_errs,
-                    user_errs,
-                    grant_errs.into_iter().map(|e| e.into()).collect(),
-                ]
-                .into_iter()
-                .concat();
-                (grants, other_errs)
-            };
+        // squish all accumulated errors into one list
+        let other_errs = vec![
+            group_errs,
+            user_errs,
+            grant_errs.into_iter().map(|e| e.into()).collect(),
+        ]
+        .into_iter()
+        .concat();
+        (grants, other_errs)
+    };
 
-            let resp = requests::document_access::grant_access_request(
-                auth,
-                id,
-                user_master_pub_key,
-                grants,
-            )
+    let resp =
+        requests::document_access::grant_access_request(auth, id, user_master_pub_key, grants)
             .await?;
-            Ok(
-                requests::document_access::resp::document_access_api_resp_to_result(
-                    resp, other_errs,
-                ),
-            )
-        }
-        Err(e) => Err(e),
-    }
+    Ok(requests::document_access::resp::document_access_api_resp_to_result(resp, other_errs))
 }
 
 /// Remove access to a document from the provided list of users and/or groups
