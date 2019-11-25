@@ -396,6 +396,8 @@ fn compare_users<T: Eq + std::hash::Hash + std::fmt::Debug, X>(
     IronOxideErr::UserDoesNotExist(format!("Failed to find the following users: {:?}", diff))
 }
 
+// Partitions `user_ids_and_keys` into a vector of admins and a vector of members.
+// Also generates TransformKeys for members to prepare for making requests::GroupMembers
 fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     signing_key: &crate::internal::DeviceSigningKeyPair,
