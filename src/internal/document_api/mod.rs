@@ -991,7 +991,7 @@ pub async fn decrypt_document_unmanaged<CR: rand::CryptoRng + rand::RngCore>(
         requests::edek_transform::edek_transform(&auth, encrypted_deks,)
     )?;
 
-    let _ = edeks_and_header_match_or_err(&proto_edeks, &doc_meta)?;
+    edeks_and_header_match_or_err(&proto_edeks, &doc_meta)?;
     let requests::edek_transform::EdekTransformResponse {
         user_or_group,
         encrypted_symmetric_key,
