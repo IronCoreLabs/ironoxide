@@ -226,7 +226,7 @@ pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
                 .map(|encrypted_private_key| (encrypted_private_key, recrypt_pub))?)
             })
     }
-    .await?;
+        .await?;
 
     requests::user_create::user_create(
         &jwt,
