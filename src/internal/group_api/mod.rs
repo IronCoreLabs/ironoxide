@@ -26,8 +26,8 @@ pub enum GroupEntity {
     Admin,
 }
 
-// This is used for GroupCreateOpts that have been standardized with the GroupCreateOpts::standardize function.
-// `add_as_member` and `add_as_admin` have been removed, with the calling user added to the `members` and `admins` lists.
+/// This is used for GroupCreateOpts that have been standardized with the GroupCreateOpts::standardize function.
+/// `add_as_member` and `add_as_admin` have been removed, with the calling user added to the `members` and `admins` lists.
 #[derive(Clone)]
 pub struct GroupCreateOptsStd {
     pub(crate) id: Option<GroupId>,
@@ -38,7 +38,7 @@ pub struct GroupCreateOptsStd {
     pub(crate) needs_rotation: bool,
 }
 impl GroupCreateOptsStd {
-    // returns all the users who need their public keys looked up with duplicates removed.
+    /// returns all the users who need their public keys looked up (with duplicates removed).
     pub fn all_users(&self) -> Vec<UserId> {
         let admins_and_members = [&self.admins[..], &self.members[..]].concat();
         let set: HashSet<UserId> = HashSet::from_iter(admins_and_members);
@@ -428,7 +428,7 @@ fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
                         user_pub_key.clone(),
                         member_trans_key.into(),
                     ))),
-                    Err(_) => (),
+                    Err(err) => member_info.push(Err(err.into())),
                 };
             }
             if admins_set.contains(&id) {

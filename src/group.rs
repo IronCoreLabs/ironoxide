@@ -80,7 +80,7 @@ impl GroupCreateOpts {
         }
     }
 
-    pub(crate) fn standardize(self, calling_id: &UserId) -> Result<GroupCreateOptsStd> {
+    fn standardize(self, calling_id: &UserId) -> Result<GroupCreateOptsStd> {
         // if `add_as_member`, make sure the calling user is in the `members` list
         let standardized_members = if self.add_as_member && !self.members.contains(calling_id) {
             let mut members = self.members.clone();
@@ -132,8 +132,8 @@ impl GroupCreateOpts {
 }
 
 impl Default for GroupCreateOpts {
-    // Default GroupCreateOpts for common use cases. The user who calls `group_create()` will be the owner of the group
-    // as well as an admin and member of the group.
+    /// Default GroupCreateOpts for common use cases. The user who calls `group_create()` will be the owner of the group
+    /// as well as an admin and member of the group.
     fn default() -> Self {
         GroupCreateOpts::new(None, None, true, true, None, vec![], vec![], false)
     }
