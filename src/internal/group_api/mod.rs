@@ -435,9 +435,7 @@ fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
                 admin_info.push((id, user_pub_key));
             }
         });
-    let member_info_result: Result<Vec<(UserId, PublicKey, TransformKey)>, IronOxideErr> =
-        member_info.into_iter().collect();
-    let member_info = member_info_result?;
+    let member_info = member_info.into_iter().collect::<Result<Vec<_>, _>>()?;
     Ok((member_info, admin_info))
 }
 
@@ -498,7 +496,7 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                             Some(group_members)
                         };
 
-                        let group_admins_result: Result<Vec<requests::GroupAdmin>, _> = admin_info
+                        let group_admins: Vec<requests::GroupAdmin> = admin_info
                             .into_iter()
                             .map(|(admin_id, admin_pub_key)| {
                                 let encrypted_group_key = recrypt.encrypt(
@@ -517,8 +515,7 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
                                         },
                                     })
                             })
-                            .collect();
-                        let group_admins = group_admins_result?;
+                            .collect::<Result<Vec<_>, _>>()?;
 
                         Ok((group_pub_key, maybe_group_members, group_admins))
                     })
