@@ -19,6 +19,7 @@ use std::{
     convert::{TryFrom, TryInto},
     iter::FromIterator,
 };
+use vec1::Vec1;
 mod requests;
 
 pub enum GroupEntity {
@@ -33,7 +34,7 @@ pub struct GroupCreateOptsStd {
     pub(crate) id: Option<GroupId>,
     pub(crate) name: Option<GroupName>,
     pub(crate) owner: Option<UserId>,
-    pub(crate) admins: Vec<UserId>,
+    pub(crate) admins: Vec1<UserId>,
     pub(crate) members: Vec<UserId>,
     pub(crate) needs_rotation: bool,
 }
@@ -399,7 +400,7 @@ fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     signing_key: &crate::internal::DeviceSigningKeyPair,
     group_priv_key: recrypt::api::PrivateKey,
-    admins: Vec<UserId>,
+    admins: Vec1<UserId>,
     members: Vec<UserId>,
     user_ids_and_keys: HashMap<UserId, PublicKey>,
 ) -> Result<
@@ -456,7 +457,7 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     group_id: Option<GroupId>,
     name: Option<GroupName>,
     owner: Option<UserId>,
-    admins: Vec<UserId>,
+    admins: Vec1<UserId>,
     members: Vec<UserId>,
     users_to_lookup: &'a Vec<UserId>,
     needs_rotation: bool,
@@ -928,21 +929,19 @@ mod test {
         let user1 = UserId::unsafe_from_string("user1".to_string());
         let user2 = UserId::unsafe_from_string("user2".to_string());
         let user3 = UserId::unsafe_from_string("user3".to_string());
-        let admins_vec = vec![user1.clone()];
+        let admins_vec = vec1![user1.clone()];
         let members_vec = vec![user1, user2, user3];
 
-        let user_ids_and_keys_result: Result<HashMap<UserId, PublicKey>, IronOxideErr> =
-            members_vec
-                .clone()
-                .into_iter()
-                .map(|id| {
-                    recrypt
-                        .generate_key_pair()
-                        .map_err(|e| e.into())
-                        .map(|(_, key)| (id, key.into()))
-                })
-                .collect();
-        let user_ids_and_keys = user_ids_and_keys_result?;
+        let user_ids_and_keys = members_vec
+            .clone()
+            .into_iter()
+            .map(|id| {
+                recrypt
+                    .generate_key_pair()
+                    .map_err(|e| e.into())
+                    .map(|(_, key)| (id, key.into()))
+            })
+            .collect::<Result<HashMap<UserId, PublicKey>, IronOxideErr>>()?;
 
         let (member_info, admin_info) = collect_admin_and_member_info(
             &recrypt,
@@ -971,7 +970,7 @@ mod test {
             &recrypt,
             &signing_key,
             group_priv_key,
-            vec![user1],
+            vec1![user1],
             vec![],
             user_ids_and_keys,
         )?;

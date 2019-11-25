@@ -7,6 +7,7 @@ use crate::{
     Result,
 };
 use tokio::runtime::current_thread::Runtime;
+use vec1::Vec1;
 
 #[derive(Clone)]
 /// Options for group creation.
@@ -113,7 +114,11 @@ impl GroupCreateOpts {
             (admins, owner)
         };
 
-        if !standardized_admins.contains(owner_id) {
+        let non_empty_admins = Vec1::try_from_vec(standardized_admins).map_err(|_| {
+            IronOxideErr::ValidationError(format!("admins"), format!("admins list cannot be empty"))
+        })?;
+
+        if !non_empty_admins.contains(owner_id) {
             Err(IronOxideErr::ValidationError(
                 format!("admins"),
                 format!("admins list must contain the owner"),
@@ -123,7 +128,7 @@ impl GroupCreateOpts {
                 id: self.id,
                 name: self.name,
                 owner: self.owner,
-                admins: standardized_admins,
+                admins: non_empty_admins,
                 members: standardized_members,
                 needs_rotation: self.needs_rotation,
             })
