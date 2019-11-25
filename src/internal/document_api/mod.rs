@@ -25,7 +25,7 @@ use itertools::{Either, Itertools};
 use protobuf::{Message, RepeatedField};
 use rand::{self, CryptoRng, RngCore};
 use recrypt::{api::Plaintext, prelude::*};
-pub use requests::policy_get::PolicyResult;
+pub use requests::policy_get::PolicyResponse;
 use requests::{
     document_create,
     document_list::{DocumentListApiResponse, DocumentListApiResponseItem},
@@ -597,12 +597,11 @@ async fn resolve_keys_for_grants(
     let maybe_policy_grants_f =
         policy_grant.map(|p| requests::policy_get::policy_get_request(auth, p));
 
-    // TODO Reviewers: I want to make this better
     let policy_grants_f = async {
         if let Some(pf) = maybe_policy_grants_f {
             pf.await
         } else {
-            Ok(PolicyResult {
+            Ok(PolicyResponse {
                 users_and_groups: vec![],
                 invalid_users_and_groups: vec![],
             })
@@ -970,8 +969,6 @@ pub async fn decrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
         })
 }
 
-// TODO reviewers - the decrypt_document_unmanaged code was heavily reworked and should have additional review
-
 /// Decrypt the unmanaged document. The caller must provide both the encrypted data as well as the
 /// encrypted DEKs. Most use cases would want `decrypt_document` instead.
 pub async fn decrypt_document_unmanaged<CR: rand::CryptoRng + rand::RngCore>(
@@ -1167,7 +1164,7 @@ fn process_users(
 
 /// Extract users/groups + keys from a PolicyResult (Right). Errors from applying the policy are Left.
 fn process_policy(
-    policy_result: &PolicyResult,
+    policy_result: &PolicyResponse,
 ) -> (Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>) {
     let (pubkey_errs, policy_eval_results): (Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>) =
         policy_result
@@ -1402,7 +1399,7 @@ mod tests {
         let recrypt = recrypt::api::Recrypt::new();
         let (_, pubk) = recrypt.generate_key_pair().unwrap();
 
-        let policy = PolicyResult {
+        let policy = PolicyResponse {
             users_and_groups: vec![
                 UserOrGroupWithKey::User {
                     id: "userid1".to_string(),
