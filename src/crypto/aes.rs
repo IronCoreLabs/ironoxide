@@ -219,9 +219,8 @@ pub fn encrypt<R: CryptoRng + RngCore>(
     })
 }
 
-//TODO we can probably just remove this and just make encrypt async
-/// Like `encrypt`, just wrapped in a Future for convenience
-pub async fn encrypt_future<R: CryptoRng + RngCore>(
+/// Like `encrypt`, just async for convenience
+pub async fn encrypt_async<R: CryptoRng + RngCore>(
     rng: &Mutex<R>,
     plaintext: &Vec<u8>,
     key: [u8; AES_KEY_LEN],

@@ -536,7 +536,7 @@ pub async fn encrypt_document<
     let pt_bytes = plaintext.to_vec();
 
     let (encrypted_doc, (grants, key_errs)) = try_join!(
-        aes::encrypt_future(rng, &pt_bytes, *doc_sym_key.bytes()),
+        aes::encrypt_async(rng, &pt_bytes, *doc_sym_key.bytes()),
         resolve_keys_for_grants(
             auth,
             user_grants,
@@ -657,7 +657,7 @@ where
     let pt_bytes = plaintext.to_vec();
 
     let (encryption_result, (grants, key_errs)) = try_join!(
-        aes::encrypt_future(rng, &pt_bytes, *doc_sym_key.bytes()),
+        aes::encrypt_async(rng, &pt_bytes, *doc_sym_key.bytes()),
         resolve_keys_for_grants(
             auth,
             user_grants,
