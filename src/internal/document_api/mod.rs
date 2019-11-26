@@ -590,9 +590,8 @@ async fn resolve_keys_for_grants(
     policy_grant: Option<&PolicyGrant>,
     maybe_user_master_pub_key: Option<&UserMasterPublicKey>,
 ) -> Result<(Vec<WithKey<UserOrGroup>>, Vec<DocAccessEditErr>), IronOxideErr> {
-    use futures3::compat::Future01CompatExt;
     let get_user_keys_f = internal::user_api::get_user_keys(auth, user_grants);
-    let get_group_keys_f = internal::group_api::get_group_keys(auth, group_grants).compat();
+    let get_group_keys_f = internal::group_api::get_group_keys(auth, group_grants);
 
     let maybe_policy_grants_f =
         policy_grant.map(|p| requests::policy_get::policy_get_request(auth, p));
@@ -1051,12 +1050,11 @@ pub async fn document_grant_access<CR: rand::CryptoRng + rand::RngCore>(
     user_grants: &Vec<UserId>,
     group_grants: &Vec<GroupId>,
 ) -> Result<DocumentAccessResult, IronOxideErr> {
-    use futures3::compat::Future01CompatExt;
     let (doc_meta, users, groups) = try_join!(
         document_get_metadata(auth, id),
         // and the public keys for the users and groups
         internal::user_api::get_user_keys(auth, user_grants),
-        internal::group_api::get_group_keys(auth, group_grants).compat(),
+        internal::group_api::get_group_keys(auth, group_grants),
     )?;
     let (grants, other_errs) = {
         // decrypt the dek

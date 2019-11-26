@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 pub const USER_PASSWORD: &str = "foo";
 
-#[derive(serde::Deserialize)]
+#[derive(serde_derive::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Config {
     project_id: usize,

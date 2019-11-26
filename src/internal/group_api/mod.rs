@@ -10,8 +10,7 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use core::convert::identity;
-use futures::{future::err, prelude::*};
-use futures3::{FutureExt, TryFutureExt};
+use futures_util::try_join;
 use itertools::{Either, Itertools};
 use recrypt::prelude::*;
 use std::{
@@ -327,62 +326,56 @@ impl GroupAccessEditResult {
 }
 
 // List all of the groups that the requesting user is either a member or admin of
-pub fn list<'a>(
+pub async fn list<'a>(
     auth: &'a RequestAuth,
     ids: Option<&'a Vec<GroupId>>,
-) -> impl Future<Item = GroupListResult, Error = IronOxideErr> + 'a {
+) -> Result<GroupListResult, IronOxideErr> {
     let resp = match ids {
-        Some(group_ids) => requests::group_list::group_limited_list_request(auth, &group_ids),
-        None => requests::group_list::group_list_request(auth),
-    };
+        Some(group_ids) => requests::group_list::group_limited_list_request(auth, &group_ids).await,
+        None => requests::group_list::group_list_request(auth).await,
+    }?;
 
-    resp.and_then(|GroupListResponse { result }| {
-        let group_list = result
-            .into_iter()
-            .map(|g| g.try_into())
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(GroupListResult::new(group_list))
-    })
+    let GroupListResponse { result } = resp;
+    let group_list = result
+        .into_iter()
+        .map(|g| g.try_into())
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(GroupListResult::new(group_list))
 }
 
 /// Get the keys for groups. The result should be either a failure for a specific UserId (Left) or the id with their public key (Right).
 /// The resulting lists will have the same combined size as the incoming list.
 /// Calling this with an empty `groups` list will not result in a call to the server.
-pub(crate) fn get_group_keys<'a>(
+pub(crate) async fn get_group_keys<'a>(
     auth: &'a RequestAuth,
     groups: &'a Vec<GroupId>,
-) -> Box<dyn Future<Item = (Vec<GroupId>, Vec<WithKey<GroupId>>), Error = IronOxideErr> + 'a> {
+) -> Result<(Vec<GroupId>, Vec<WithKey<GroupId>>), IronOxideErr> {
     // if there aren't any groups in the list, just return with empty results
     if groups.len() == 0 {
-        return Box::new(futures::future::ok((vec![], vec![])));
+        return Ok((vec![], vec![]));
     }
 
     let cloned_groups: Vec<GroupId> = groups.clone();
-    let fetch_groups = list(auth, Some(&groups));
-    Box::new(
-        fetch_groups
-            .map(move |GroupListResult { result }| {
-                result
-                    .iter()
-                    .fold(HashMap::with_capacity(groups.len()), |mut acc, group| {
-                        let public_key = group.group_master_public_key();
-                        acc.insert(group.id().clone(), public_key.clone());
-                        acc
-                    })
-            })
-            .map(move |ids_with_keys| {
-                cloned_groups.into_iter().partition_map(move |group_id| {
-                    let maybe_public_key = ids_with_keys.get(&group_id).cloned();
-                    match maybe_public_key {
-                        Some(public_key) => Either::Right(WithKey {
-                            id: group_id,
-                            public_key,
-                        }),
-                        None => Either::Left(group_id),
-                    }
-                })
+    let list_resp = list(auth, Some(&groups)).await;
+    let GroupListResult { result } = list_resp?;
+    let ids_with_keys =
+        result
+            .iter()
+            .fold(HashMap::with_capacity(groups.len()), |mut acc, group| {
+                let public_key = group.group_master_public_key();
+                acc.insert(group.id().clone(), public_key.clone());
+                acc
+            });
+    Ok(cloned_groups.into_iter().partition_map(move |group_id| {
+        let maybe_public_key = ids_with_keys.get(&group_id).cloned();
+        match maybe_public_key {
+            Some(public_key) => Either::Right(WithKey {
+                id: group_id,
+                public_key,
             }),
-    )
+            None => Either::Left(group_id),
+        }
+    }))
 }
 
 fn compare_users<T: Eq + std::hash::Hash + std::fmt::Debug, X>(
@@ -453,7 +446,7 @@ fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
 /// `name` - name for the group. Does not need to be unique.
 /// `members` - list of user ids to add as members of the group.
 /// `needs_rotation` - true if the group private key should be rotated by an admin, else false
-pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
+pub async fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &'a RequestAuth,
     group_id: Option<GroupId>,
@@ -463,98 +456,94 @@ pub fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
     members: Vec<UserId>,
     users_to_lookup: &'a Vec<UserId>,
     needs_rotation: bool,
-) -> impl Future<Item = GroupCreateResult, Error = IronOxideErr> + 'a {
-    user_api::user_key_list(auth, users_to_lookup)
-        .boxed()
-        .compat()
-        .and_then(move |user_ids_and_keys| {
-            // this will occur when one of the UserIds cannot be found
-            if user_ids_and_keys.len() != users_to_lookup.len() {
-                err(compare_users(users_to_lookup, user_ids_and_keys))
-            } else {
-                transform::gen_group_keys(recrypt)
-                    .and_then(move |(plaintext, group_priv_key, group_pub_key)| {
-                        let (member_info, admin_info) = collect_admin_and_member_info(
-                            recrypt,
-                            auth.signing_private_key(),
-                            group_priv_key,
-                            admins,
-                            members,
-                            user_ids_and_keys,
-                        )?;
+) -> Result<GroupCreateResult, IronOxideErr> {
+    let user_ids_and_keys = user_api::user_key_list(auth, users_to_lookup).await?;
+    // this will occur when one of the UserIds cannot be found
+    let (group_pub_key, member_vec, admin_vec) = if user_ids_and_keys.len() != users_to_lookup.len()
+    {
+        Err(compare_users(users_to_lookup, user_ids_and_keys))
+    } else {
+        let (plaintext, group_priv_key, group_pub_key) = transform::gen_group_keys(recrypt)?;
+        let (member_info, admin_info) = collect_admin_and_member_info(
+            recrypt,
+            auth.signing_private_key(),
+            group_priv_key,
+            admins,
+            members,
+            user_ids_and_keys,
+        )?;
 
-                        let group_members: Vec<requests::GroupMember> = member_info
-                            .into_iter()
-                            .map(|(member_id, member_pub_key, member_trans_key)| {
-                                requests::GroupMember {
-                                    user_id: member_id,
-                                    transform_key: member_trans_key.into(),
-                                    user_master_public_key: member_pub_key.into(),
-                                }
-                            })
-                            .collect();
-                        let maybe_group_members = if group_members.is_empty() {
-                            None
-                        } else {
-                            Some(group_members)
-                        };
-
-                        let group_admins: Vec<requests::GroupAdmin> = admin_info
-                            .into_iter()
-                            .map(|(admin_id, admin_pub_key)| {
-                                let encrypted_group_key = recrypt.encrypt(
-                                    &plaintext,
-                                    &admin_pub_key.clone().into(),
-                                    &auth.signing_private_key().into(),
-                                );
-                                encrypted_group_key
-                                    .map_err(|e| e.into())
-                                    .and_then(EncryptedOnceValue::try_from)
-                                    .map(|enc_msg| requests::GroupAdmin {
-                                        encrypted_msg: enc_msg,
-                                        user: requests::User {
-                                            user_id: admin_id,
-                                            user_master_public_key: admin_pub_key.into(),
-                                        },
-                                    })
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-
-                        Ok((group_pub_key, maybe_group_members, group_admins))
-                    })
-                    .into_future()
-            }
-        })
-        .and_then(move |(group_pub_key, member_vec, admin_vec)| {
-            requests::group_create::group_create(
-                &auth,
-                group_id,
-                name,
-                group_pub_key,
-                owner,
-                admin_vec,
-                member_vec,
-                needs_rotation,
+        let group_members: Vec<requests::GroupMember> = member_info
+            .into_iter()
+            .map(
+                |(member_id, member_pub_key, member_trans_key)| requests::GroupMember {
+                    user_id: member_id,
+                    transform_key: member_trans_key.into(),
+                    user_master_public_key: member_pub_key.into(),
+                },
             )
-        })
-        .and_then(move |resp| resp.try_into())
+            .collect();
+        let maybe_group_members = if group_members.is_empty() {
+            None
+        } else {
+            Some(group_members)
+        };
+
+        let group_admins: Vec<requests::GroupAdmin> = admin_info
+            .into_iter()
+            .map(|(admin_id, admin_pub_key)| {
+                let encrypted_group_key = recrypt.encrypt(
+                    &plaintext,
+                    &admin_pub_key.clone().into(),
+                    &auth.signing_private_key().into(),
+                );
+                encrypted_group_key
+                    .map_err(|e| e.into())
+                    .and_then(EncryptedOnceValue::try_from)
+                    .map(|enc_msg| requests::GroupAdmin {
+                        encrypted_msg: enc_msg,
+                        user: requests::User {
+                            user_id: admin_id,
+                            user_master_public_key: admin_pub_key.into(),
+                        },
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok((group_pub_key, maybe_group_members, group_admins))
+    }?;
+
+    let resp = requests::group_create::group_create(
+        &auth,
+        group_id,
+        name,
+        group_pub_key,
+        owner,
+        admin_vec,
+        member_vec,
+        needs_rotation,
+    )
+    .await?;
+
+    resp.try_into()
 }
 
 /// Get the metadata for a group given its ID
-pub fn get_metadata<'a>(
+pub async fn get_metadata<'a>(
     auth: &'a RequestAuth,
     id: &GroupId,
-) -> impl Future<Item = GroupGetResult, Error = IronOxideErr> + 'a {
-    requests::group_get::group_get_request(auth, id).and_then(|resp| resp.try_into())
+) -> Result<GroupGetResult, IronOxideErr> {
+    let resp = requests::group_get::group_get_request(auth, id).await?;
+    resp.try_into()
 }
 
 //Delete the provided group given it's ID
-pub fn group_delete<'a>(
+pub async fn group_delete<'a>(
     auth: &'a RequestAuth,
     group_id: &GroupId,
-) -> impl Future<Item = GroupId, Error = IronOxideErr> + 'a {
-    requests::group_delete::group_delete_request(auth, &group_id)
-        .and_then(|resp| resp.id.try_into())
+) -> Result<GroupId, IronOxideErr> {
+    let resp = requests::group_delete::group_delete_request(auth, &group_id).await?;
+    resp.id.try_into()
 }
 
 /// Add the users as members of a group.
@@ -566,60 +555,55 @@ pub fn group_delete<'a>(
 /// `users` - The list of users thet will be added to the group as members.
 /// # Returns GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
 ///   the reason they were not.
-pub fn group_add_members<'a, CR: rand::CryptoRng + rand::RngCore>(
+pub async fn group_add_members<'a, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &'a RequestAuth,
     device_private_key: &'a PrivateKey,
     group_id: &'a GroupId,
     users: &'a Vec<UserId>,
-) -> impl Future<Item = GroupAccessEditResult, Error = IronOxideErr> + 'a {
-    get_metadata(auth, group_id)
-        .join(get_user_keys(auth, users))
-        //At this point the acc_fails list is just the key fetch failures. We append to it as we go.
-        .and_then(move |(group_get, (mut acc_fails, successes))| {
-            let encrypted_group_key = group_get
-                .encrypted_private_key
-                .ok_or(IronOxideErr::NotGroupAdmin(group_id.clone()))?;
-            let (plaintext, _) = transform::decrypt_plaintext(
-                &recrypt,
-                encrypted_group_key.try_into()?,
-                &device_private_key.recrypt_key(),
-            )?;
-            let group_private_key = recrypt.derive_private_key(&plaintext);
-            let recrypt_schnorr_sig = recrypt.schnorr_sign(
-                &group_private_key,
-                &group_get.group_master_public_key.into(),
-                group_id,
-            );
-            let (mut transform_fails, transform_success) = generate_transform_for_keys(
-                recrypt,
-                &group_private_key,
-                &auth.signing_private_key().into(),
-                successes,
-            );
-            acc_fails.append(&mut transform_fails);
-            Ok((
-                SchnorrSignature(recrypt_schnorr_sig),
-                acc_fails,
-                transform_success,
-            ))
-        })
-        //Now actually add the members that we have transform keys for.
-        //acc_fails is currently the transform generation fails and the key fetch failures.
-        .and_then(move |(schnorr_sig, acc_fails, transforms_to_send)| {
-            requests::group_add_member::group_add_member_request(
-                &auth,
-                &group_id,
-                transforms_to_send
-                    .into_iter()
-                    .map(|(user_id, pub_key, transform)| {
-                        (user_id, pub_key.into(), transform.into())
-                    })
-                    .collect(),
-                schnorr_sig,
-            )
-            .map(|response| group_access_api_response_to_result(acc_fails, response))
-        })
+) -> Result<GroupAccessEditResult, IronOxideErr> {
+    let (group_get, (mut acc_fails, successes)) =
+        try_join!(get_metadata(auth, group_id), get_user_keys(auth, users))?;
+    //At this point the acc_fails list is just the key fetch failures. We append to it as we go.
+    let encrypted_group_key = group_get
+        .encrypted_private_key
+        .ok_or(IronOxideErr::NotGroupAdmin(group_id.clone()))?;
+    let (plaintext, _) = transform::decrypt_plaintext(
+        &recrypt,
+        encrypted_group_key.try_into()?,
+        &device_private_key.recrypt_key(),
+    )?;
+    let group_private_key = recrypt.derive_private_key(&plaintext);
+    let recrypt_schnorr_sig = recrypt.schnorr_sign(
+        &group_private_key,
+        &group_get.group_master_public_key.into(),
+        group_id,
+    );
+    let (mut transform_fails, transform_success) = generate_transform_for_keys(
+        recrypt,
+        &group_private_key,
+        &auth.signing_private_key().into(),
+        successes,
+    );
+    acc_fails.append(&mut transform_fails);
+    let (schnorr_sig, acc_fails, transforms_to_send) = (
+        SchnorrSignature(recrypt_schnorr_sig),
+        acc_fails,
+        transform_success,
+    );
+    //Now actually add the members that we have transform keys for.
+    //acc_fails is currently the transform generation fails and the key fetch failures.
+    requests::group_add_member::group_add_member_request(
+        &auth,
+        &group_id,
+        transforms_to_send
+            .into_iter()
+            .map(|(user_id, pub_key, transform)| (user_id, pub_key.into(), transform.into()))
+            .collect(),
+        schnorr_sig,
+    )
+    .await
+    .map(|response| group_access_api_response_to_result(acc_fails, response))
 }
 
 /// Add the users as admins of a group.
@@ -631,95 +615,83 @@ pub fn group_add_members<'a, CR: rand::CryptoRng + rand::RngCore>(
 /// `users` - The list of users that will be added to the group as admins.
 /// # Returns GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
 ///   the reason they were not.
-pub fn group_add_admins<'a, CR: rand::CryptoRng + rand::RngCore>(
+pub async fn group_add_admins<'a, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &'a RequestAuth,
     device_private_key: &'a PrivateKey,
     group_id: &'a GroupId,
     users: &'a Vec<UserId>,
-) -> impl Future<Item = GroupAccessEditResult, Error = IronOxideErr> + 'a {
-    get_metadata(auth, group_id)
-        .join(get_user_keys(auth, users))
-        //At this point the acc_fails list is just the key fetch failures. We append to it as we go.
-        .and_then(move |(group_get, (mut acc_fails, successes))| {
-            let encrypted_group_key = group_get
-                .encrypted_private_key
-                .ok_or(IronOxideErr::NotGroupAdmin(group_id.clone()))?;
-            let (plaintext, _) = transform::decrypt_plaintext(
-                &recrypt,
-                encrypted_group_key.try_into()?,
-                &device_private_key.recrypt_key(),
-            )?;
-            let private_group_key = recrypt.derive_private_key(&plaintext);
-            let recrypt_schnorr_sig = recrypt.schnorr_sign(
-                &private_group_key,
-                &group_get.group_master_public_key.into(),
-                group_id,
-            );
-            let (recrypt_errors, transform_success) = transform::encrypt_to_with_key(
-                recrypt,
-                &plaintext,
-                &auth.signing_private_key().into(),
-                successes,
-            );
-            let mut transform_fails = recrypt_errors
-                .into_iter()
-                .map(|(WithKey { id: user_id, .. }, _)| GroupAccessEditErr {
-                    user: user_id,
-                    error: "Transform key could not be generated.".to_string(),
-                })
-                .collect();
-            acc_fails.append(&mut transform_fails);
-            Ok((
-                SchnorrSignature(recrypt_schnorr_sig),
-                acc_fails,
-                transform_success,
-            ))
+) -> Result<GroupAccessEditResult, IronOxideErr> {
+    let (group_get, (mut acc_fails, successes)) =
+        try_join!(get_metadata(auth, group_id), get_user_keys(auth, users))?;
+    //At this point the acc_fails list is just the key fetch failures. We append to it as we go.
+    let encrypted_group_key = group_get
+        .encrypted_private_key
+        .ok_or(IronOxideErr::NotGroupAdmin(group_id.clone()))?;
+    let (plaintext, _) = transform::decrypt_plaintext(
+        &recrypt,
+        encrypted_group_key.try_into()?,
+        &device_private_key.recrypt_key(),
+    )?;
+    let private_group_key = recrypt.derive_private_key(&plaintext);
+    let recrypt_schnorr_sig = recrypt.schnorr_sign(
+        &private_group_key,
+        &group_get.group_master_public_key.into(),
+        group_id,
+    );
+    let (recrypt_errors, transform_success) = transform::encrypt_to_with_key(
+        recrypt,
+        &plaintext,
+        &auth.signing_private_key().into(),
+        successes,
+    );
+    let mut transform_fails = recrypt_errors
+        .into_iter()
+        .map(|(WithKey { id: user_id, .. }, _)| GroupAccessEditErr {
+            user: user_id,
+            error: "Transform key could not be generated.".to_string(),
         })
-        //Now actually add the members that we have transform keys for.
-        //acc_fails is currently the transform generation fails and the key fetch failures.
-        .and_then(move |(schnorr_sig, acc_fails, admin_keys_to_send)| {
-            requests::group_add_admin::group_add_admin_request(
-                &auth,
-                &group_id,
-                admin_keys_to_send
-                    .into_iter()
-                    .map(
-                        |(
-                            WithKey {
-                                id: user_id,
-                                public_key,
-                            },
-                            encrypted_admin_key,
-                        )| {
-                            (user_id, public_key.into(), encrypted_admin_key)
-                        },
-                    )
-                    .collect(),
-                schnorr_sig,
+        .collect();
+    acc_fails.append(&mut transform_fails);
+    let (schnorr_sig, acc_fails, admin_keys_to_send) = (
+        SchnorrSignature(recrypt_schnorr_sig),
+        acc_fails,
+        transform_success,
+    );
+    //Now actually add the members that we have transform keys for.
+    //acc_fails is currently the transform generation fails and the key fetch failures.
+    requests::group_add_admin::group_add_admin_request(
+        &auth,
+        &group_id,
+        admin_keys_to_send
+            .into_iter()
+            .map(
+                |(
+                    WithKey {
+                        id: user_id,
+                        public_key,
+                    },
+                    encrypted_admin_key,
+                )| { (user_id, public_key.into(), encrypted_admin_key) },
             )
-            .map(|response| group_access_api_response_to_result(acc_fails, response))
-        })
+            .collect(),
+        schnorr_sig,
+    )
+    .await
+    .map(|response| group_access_api_response_to_result(acc_fails, response))
 }
 
 ///This is a thin wrapper that's just mapping the errors into the type we need for add member and add admin
-fn get_user_keys<'a>(
+async fn get_user_keys<'a>(
     auth: &'a RequestAuth,
     users: &'a Vec<UserId>,
-) -> impl Future<Item = (Vec<GroupAccessEditErr>, Vec<WithKey<UserId>>), Error = IronOxideErr> + 'a
-{
-    user_api::get_user_keys(auth, &users)
-        .boxed()
-        .compat()
-        .map(|(failed_ids, succeeded_ids)| {
-            (
-                failed_ids
-                    .into_iter()
-                    .map(|user| GroupAccessEditErr::new(user, "User does not exist".to_string()))
-                    .collect::<Vec<_>>(),
-                succeeded_ids,
-            )
-        })
+) -> Result<(Vec<GroupAccessEditErr>, Vec<WithKey<UserId>>), IronOxideErr> {
+    let (failed_ids, succeeded_ids) = user_api::get_user_keys(auth, &users).await?;
+    let failed_ids_result = failed_ids
+        .into_iter()
+        .map(|user| GroupAccessEditErr::new(user, "User does not exist".to_string()))
+        .collect::<Vec<_>>();
+    Ok((failed_ids_result, succeeded_ids))
 }
 
 ///Map the edit response into the edit result. If there are other failures, we'll append the errors in `edit_resp` to them.
@@ -745,34 +717,34 @@ fn group_access_api_response_to_result(
 
 // Update a group's name. Value can be updated to either a new name with a Some or the name value can be cleared out
 // by providing a None.
-pub fn update_group_name<'a>(
+pub async fn update_group_name<'a>(
     auth: &'a RequestAuth,
     id: &'a GroupId,
     name: Option<&'a GroupName>,
-) -> impl Future<Item = GroupMetaResult, Error = IronOxideErr> + 'a {
-    requests::group_update::group_update_request(auth, id, name).and_then(|resp| resp.try_into())
+) -> Result<GroupMetaResult, IronOxideErr> {
+    let resp = requests::group_update::group_update_request(auth, id, name).await?;
+    resp.try_into()
 }
 
 /// Remove the provided list of users as either members or admins (based on the entity_type) from the provided group ID. The
 /// request and response format of these two operations are identical which is why we have a single method for it.
-pub fn group_remove_entity<'a>(
+pub async fn group_remove_entity<'a>(
     auth: &'a RequestAuth,
     id: &'a GroupId,
     users: &'a Vec<UserId>,
     entity_type: GroupEntity,
-) -> impl Future<Item = GroupAccessEditResult, Error = IronOxideErr> + 'a {
-    requests::group_remove_entity::remove_entity_request(auth, id, users, entity_type).map(
-        |GroupUserEditResponse {
-             succeeded_ids,
-             failed_ids,
-         }| GroupAccessEditResult {
-            succeeded: succeeded_ids.into_iter().map(|user| user.user_id).collect(),
-            failed: failed_ids
-                .into_iter()
-                .map(|fail| GroupAccessEditErr::new(fail.user_id, fail.error_message))
-                .collect(),
-        },
-    )
+) -> Result<GroupAccessEditResult, IronOxideErr> {
+    let GroupUserEditResponse {
+        succeeded_ids,
+        failed_ids,
+    } = requests::group_remove_entity::remove_entity_request(auth, id, users, entity_type).await?;
+    Ok(GroupAccessEditResult {
+        succeeded: succeeded_ids.into_iter().map(|user| user.user_id).collect(),
+        failed: failed_ids
+            .into_iter()
+            .map(|fail| GroupAccessEditErr::new(fail.user_id, fail.error_message))
+            .collect(),
+    })
 }
 
 ///A stripped down version of this could be put in `transform.rs`, but since it was inconvenient to do the type mapping afterwards

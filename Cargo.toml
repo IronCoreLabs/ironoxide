@@ -17,15 +17,15 @@ base64-serde = "~0.3.1"
 bytes = "~0.4.12"
 serde = "~1.0"
 serde_json = "~1.0"
-publicsuffix = "=1.5.2" # exact version needed to match url used by reqwest 0.9
+publicsuffix = "^1.5.4" # exact version needed to match url used by reqwest 0.9
 serde_derive = "~1.0"
 rand = "~0.6"
 rand_chacha = "~0.1"
-regex = "~1.1"
+regex = "^1.0"
 ring = { version= "~0.16", features = ["std"] }
 recrypt = "~0.9" 
-reqwest = "~0.9"
-reqwest10 = {package = "reqwest", version = "0.10.0-alpha.2"}
+url= "^2.1.0"
+reqwest = {version="0.10.0-alpha.2", features = ["json"]}
 tokio = "~0.1"
 futures3 = {package = "futures", version = "0.3.1", features = ["compat"]}
 futures-util = "0.3.1" # shouldn't need to bring this in explicitly. Perhaps after futures v1 is completely gone we can just import this out of the (new) futures crate?

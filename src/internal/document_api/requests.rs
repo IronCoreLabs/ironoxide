@@ -12,7 +12,6 @@ use crate::internal::{
     IronOxideErr, RequestAuth, RequestErrorCode,
 };
 use chrono::{DateTime, Utc};
-use futures3::compat::Future01CompatExt;
 use std::convert::{TryFrom, TryInto};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -161,7 +160,6 @@ pub mod document_list {
                 RequestErrorCode::DocumentList,
                 AuthV2Builder::new(&auth, Utc::now()),
             )
-            .compat()
             .await
     }
 }
@@ -179,7 +177,6 @@ pub mod document_get {
                 RequestErrorCode::DocumentGet,
                 AuthV2Builder::new(&auth, Utc::now()),
             )
-            .compat()
             .await
     }
 }
@@ -198,7 +195,6 @@ pub mod edek_transform {
                 RequestErrorCode::EdekTransform,
                 AuthV2Builder::new(&auth, Utc::now()),
             )
-            .compat()
             .await
     }
 
@@ -264,7 +260,6 @@ pub mod document_create {
                 RequestErrorCode::DocumentCreate,
                 AuthV2Builder::new(&auth, Utc::now()),
             )
-            .compat()
             .await
     }
 }
@@ -316,7 +311,6 @@ pub mod policy_get {
                 RequestErrorCode::PolicyGet,
                 AuthV2Builder::new(&auth, Utc::now()),
             )
-            .compat()
             .await
     }
 }
@@ -341,7 +335,6 @@ pub mod document_update {
                 RequestErrorCode::DocumentUpdate,
                 AuthV2Builder::new(&auth, Utc::now()),
             )
-            .compat()
             .await
     }
 }
@@ -471,7 +464,6 @@ pub mod document_access {
                 RequestErrorCode::DocumentGrantAccess,
                 AuthV2Builder::new(&auth, Utc::now()),
             )
-            .compat()
             .await
     }
 
@@ -489,7 +481,6 @@ pub mod document_access {
                 RequestErrorCode::DocumentRevokeAccess,
                 AuthV2Builder::new(&auth, Utc::now()),
             )
-            .compat()
             .await
     }
 }

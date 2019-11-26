@@ -11,7 +11,6 @@ use crate::internal::{
     IronOxideErr, RequestAuth, RequestErrorCode, SchnorrSignature,
 };
 use chrono::{DateTime, Utc};
-use futures::Future;
 use std::{
     collections::HashSet,
     convert::{TryFrom, TryInto},
@@ -184,28 +183,30 @@ pub mod group_list {
     }
 
     ///List all the groups that the user is in or is an admin of.
-    pub fn group_list_request(
-        auth: &RequestAuth,
-    ) -> Box<dyn Future<Item = GroupListResponse, Error = IronOxideErr> + '_> {
-        Box::new(auth.request.get(
-            "groups",
-            RequestErrorCode::GroupList,
-            AuthV2Builder::new(&auth, Utc::now()),
-        ))
+    pub async fn group_list_request(auth: &RequestAuth) -> Result<GroupListResponse, IronOxideErr> {
+        auth.request
+            .get(
+                "groups",
+                RequestErrorCode::GroupList,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .await
     }
 
     //List a specific set of groups given a list of group IDs
-    pub fn group_limited_list_request<'a>(
+    pub async fn group_limited_list_request<'a>(
         auth: &'a RequestAuth,
         groups: &'a Vec<GroupId>,
-    ) -> Box<dyn Future<Item = GroupListResponse, Error = IronOxideErr> + 'a> {
+    ) -> Result<GroupListResponse, IronOxideErr> {
         let group_ids: Vec<&str> = groups.iter().map(|group| group.id()).collect();
-        Box::new(auth.request.get_with_query_params(
-            &format!("groups"),
-            &vec![("id".into(), rest::url_encode(&group_ids.join(",")))],
-            RequestErrorCode::GroupList,
-            AuthV2Builder::new(&auth, Utc::now()),
-        ))
+        auth.request
+            .get_with_query_params(
+                &format!("groups"),
+                &vec![("id".into(), rest::url_encode(&group_ids.join(",")))],
+                RequestErrorCode::GroupList,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .await
     }
 }
 
@@ -225,7 +226,7 @@ pub mod group_create {
         pub(in crate::internal) needs_rotation: bool,
     }
 
-    pub fn group_create<'a>(
+    pub async fn group_create<'a>(
         auth: &'a RequestAuth,
         id: Option<GroupId>, // if None, server will generate
         name: Option<GroupName>,
@@ -234,7 +235,7 @@ pub mod group_create {
         admins: Vec<GroupAdmin>,
         members: Option<Vec<GroupMember>>,
         needs_rotation: bool,
-    ) -> impl Future<Item = GroupCreateApiResponse, Error = IronOxideErr> + 'a {
+    ) -> Result<GroupCreateApiResponse, IronOxideErr> {
         let req = GroupCreateReq {
             id,
             name,
@@ -245,27 +246,31 @@ pub mod group_create {
             needs_rotation,
         };
 
-        auth.request.post(
-            "groups",
-            &req,
-            RequestErrorCode::GroupCreate,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+        auth.request
+            .post(
+                "groups",
+                &req,
+                RequestErrorCode::GroupCreate,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .await
     }
 }
 
 pub mod group_get {
     use super::*;
 
-    pub fn group_get_request<'a>(
+    pub async fn group_get_request<'a>(
         auth: &'a RequestAuth,
         id: &GroupId,
-    ) -> impl Future<Item = GroupGetApiResponse, Error = IronOxideErr> + 'a {
-        auth.request.get(
-            &format!("groups/{}", rest::url_encode(&id.0)),
-            RequestErrorCode::GroupGet,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    ) -> Result<GroupGetApiResponse, IronOxideErr> {
+        auth.request
+            .get(
+                &format!("groups/{}", rest::url_encode(&id.0)),
+                RequestErrorCode::GroupGet,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .await
     }
 }
 
@@ -277,15 +282,17 @@ pub mod group_delete {
         pub(crate) id: String,
     }
 
-    pub fn group_delete_request<'a>(
+    pub async fn group_delete_request<'a>(
         auth: &'a RequestAuth,
         id: &GroupId,
-    ) -> impl Future<Item = GroupDeleteApiResponse, Error = IronOxideErr> + 'a {
-        auth.request.delete_with_no_body(
-            &format!("groups/{}", rest::url_encode(&id.0)),
-            RequestErrorCode::GroupDelete,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    ) -> Result<GroupDeleteApiResponse, IronOxideErr> {
+        auth.request
+            .delete_with_no_body(
+                &format!("groups/{}", rest::url_encode(&id.0)),
+                RequestErrorCode::GroupDelete,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .await
     }
 }
 
@@ -298,17 +305,19 @@ pub mod group_update {
         name: Option<&'a GroupName>,
     }
 
-    pub fn group_update_request<'a>(
+    pub async fn group_update_request<'a>(
         auth: &'a RequestAuth,
         id: &'a GroupId,
         name: Option<&'a GroupName>,
-    ) -> impl Future<Item = GroupBasicApiResponse, Error = IronOxideErr> + 'a {
-        auth.request.put(
-            &format!("groups/{}", rest::url_encode(&id.0)),
-            &GroupUpdateRequest { name },
-            RequestErrorCode::GroupUpdate,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    ) -> Result<GroupBasicApiResponse, IronOxideErr> {
+        auth.request
+            .put(
+                &format!("groups/{}", rest::url_encode(&id.0)),
+                &GroupUpdateRequest { name },
+                RequestErrorCode::GroupUpdate,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .await
     }
 }
 
@@ -324,12 +333,12 @@ pub mod group_add_member {
         pub signature: Vec<u8>,
     }
 
-    pub fn group_add_member_request<'a>(
+    pub async fn group_add_member_request<'a>(
         auth: &'a RequestAuth,
         id: &GroupId,
         users: Vec<(UserId, PublicKey, TransformKey)>,
         signature: SchnorrSignature,
-    ) -> impl Future<Item = GroupUserEditResponse, Error = IronOxideErr> + 'a {
+    ) -> Result<GroupUserEditResponse, IronOxideErr> {
         let encoded_id = rest::url_encode(&id.0).to_string();
         let users = users
             .into_iter()
@@ -339,22 +348,23 @@ pub mod group_add_member {
                 user_master_public_key: pk.into(),
             })
             .collect();
-        auth.request.post(
-            &format!("groups/{}/users", encoded_id),
-            &GroupAddMembersReq {
-                users,
-                signature: signature.into(),
-            },
-            RequestErrorCode::GroupAddMember,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+        auth.request
+            .post(
+                &format!("groups/{}/users", encoded_id),
+                &GroupAddMembersReq {
+                    users,
+                    signature: signature.into(),
+                },
+                RequestErrorCode::GroupAddMember,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .await
     }
 }
 
 pub mod group_add_admin {
     use super::*;
     use crate::internal::auth_v2::AuthV2Builder;
-    use futures::prelude::*;
     use std::convert::TryInto;
 
     #[derive(Serialize)]
@@ -365,15 +375,15 @@ pub mod group_add_admin {
         pub signature: Vec<u8>,
     }
 
-    pub fn group_add_admin_request<'a>(
+    pub async fn group_add_admin_request<'a>(
         auth: &'a RequestAuth,
         id: &'a GroupId,
         users: Vec<(UserId, PublicKey, recrypt::api::EncryptedValue)>,
         signature: SchnorrSignature,
-    ) -> impl Future<Item = GroupUserEditResponse, Error = IronOxideErr> + 'a {
+    ) -> Result<GroupUserEditResponse, IronOxideErr> {
         //The users could _technically_ contiain a reencrypted value, if that happened the `try_into` would fail.
         //This can't happen in a normal usecase.
-        let users_or_error = users
+        let admins = users
             .into_iter()
             .map(|(user_id, user_master_public_key, encrypted_value)| {
                 encrypted_value.try_into().map(|encrypted_msg| GroupAdmin {
@@ -384,10 +394,10 @@ pub mod group_add_admin {
                     encrypted_msg,
                 })
             })
-            .collect::<Result<Vec<GroupAdmin>, IronOxideErr>>();
-        users_or_error.into_future().and_then(move |admins| {
-            let encoded_id = rest::url_encode(&id.0).to_string();
-            auth.request.post(
+            .collect::<Result<Vec<GroupAdmin>, IronOxideErr>>()?;
+        let encoded_id = rest::url_encode(&id.0).to_string();
+        auth.request
+            .post(
                 &format!("groups/{}/admins", encoded_id),
                 &GroupAddAdminsReq {
                     admins,
@@ -396,7 +406,7 @@ pub mod group_add_admin {
                 RequestErrorCode::GroupAddMember,
                 AuthV2Builder::new(&auth, Utc::now()),
             )
-        })
+            .await
     }
 }
 
@@ -414,12 +424,12 @@ pub mod group_remove_entity {
         users: Vec<GroupEntityId<'a>>,
     }
 
-    pub fn remove_entity_request<'a>(
+    pub async fn remove_entity_request<'a>(
         auth: &'a RequestAuth,
         group_id: &'a GroupId,
         user_ids: &'a Vec<UserId>,
         entity_type: GroupEntity,
-    ) -> impl Future<Item = GroupUserEditResponse, Error = IronOxideErr> + 'a {
+    ) -> Result<GroupUserEditResponse, IronOxideErr> {
         let removed_users = user_ids
             .into_iter()
             .map(|user_id| GroupEntityId { user_id })
@@ -428,18 +438,20 @@ pub mod group_remove_entity {
             GroupEntity::Admin => ("admins", RequestErrorCode::GroupAdminRemove),
             GroupEntity::Member => ("users", RequestErrorCode::GroupMemberRemove),
         };
-        auth.request.delete(
-            &format!(
-                "groups/{}/{}",
-                rest::url_encode(&group_id.0),
-                url_entity_path
-            ),
-            &GroupEntityRemoveRequest {
-                users: removed_users,
-            },
-            error_code,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+        auth.request
+            .delete(
+                &format!(
+                    "groups/{}/{}",
+                    rest::url_encode(&group_id.0),
+                    url_entity_path
+                ),
+                &GroupEntityRemoveRequest {
+                    users: removed_users,
+                },
+                error_code,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .await
     }
 }
 

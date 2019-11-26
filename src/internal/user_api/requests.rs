@@ -15,7 +15,6 @@ use crate::{
     },
 };
 use chrono::Utc;
-use futures3::compat::Future01CompatExt;
 use std::convert::TryFrom;
 
 use crate::internal::auth_v2::AuthV2Builder;
@@ -78,7 +77,6 @@ pub mod user_verify {
                 RequestErrorCode::UserVerify,
                 &Authorization::JwtAuth(jwt),
             )
-            .compat()
             .await
     }
 
@@ -163,7 +161,6 @@ pub mod user_get {
                 RequestErrorCode::UserGetCurrent,
                 AuthV2Builder::new(&auth, Utc::now()),
             )
-            .compat()
             .await
     }
 }
@@ -219,7 +216,6 @@ pub mod user_update_private_key {
                 RequestErrorCode::UserKeyUpdate,
                 AuthV2Builder::new(&auth, Utc::now()),
             )
-            .compat()
             .await
     }
 }
@@ -267,7 +263,6 @@ pub mod user_create {
                 RequestErrorCode::UserCreate,
                 &Authorization::JwtAuth(jwt),
             )
-            .compat()
             .await
     }
     impl TryFrom<UserCreateResponse> for UserCreateResult {
@@ -309,7 +304,6 @@ pub mod user_key_list {
                     RequestErrorCode::UserKeyList,
                     AuthV2Builder::new(&auth, Utc::now()),
                 )
-                .compat()
                 .await
         } else {
             Ok(UserKeyListResponse { result: vec![] })
@@ -373,7 +367,6 @@ pub mod device_add {
                 RequestErrorCode::UserDeviceAdd,
                 &Authorization::JwtAuth(jwt),
             )
-            .compat()
             .await
     }
 }
@@ -408,7 +401,6 @@ pub mod device_list {
                 RequestErrorCode::UserDeviceList,
                 AuthV2Builder::new(&auth, Utc::now()),
             )
-            .compat()
             .await
     }
 
@@ -448,7 +440,6 @@ pub mod device_delete {
                 RequestErrorCode::UserDeviceDelete,
                 AuthV2Builder::new(&auth, Utc::now()),
             )
-            .compat()
             .await
     }
 
@@ -464,7 +455,6 @@ pub mod device_delete {
                 RequestErrorCode::UserDeviceDelete,
                 AuthV2Builder::new(&auth, Utc::now()),
             )
-            .compat()
             .await
     }
 }
