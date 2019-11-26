@@ -326,9 +326,9 @@ impl GroupAccessEditResult {
 }
 
 // List all of the groups that the requesting user is either a member or admin of
-pub async fn list<'a>(
-    auth: &'a RequestAuth,
-    ids: Option<&'a Vec<GroupId>>,
+pub async fn list(
+    auth: &RequestAuth,
+    ids: Option<&Vec<GroupId>>,
 ) -> Result<GroupListResult, IronOxideErr> {
     let resp = match ids {
         Some(group_ids) => requests::group_list::group_limited_list_request(auth, &group_ids).await,
@@ -346,9 +346,9 @@ pub async fn list<'a>(
 /// Get the keys for groups. The result should be either a failure for a specific UserId (Left) or the id with their public key (Right).
 /// The resulting lists will have the same combined size as the incoming list.
 /// Calling this with an empty `groups` list will not result in a call to the server.
-pub(crate) async fn get_group_keys<'a>(
-    auth: &'a RequestAuth,
-    groups: &'a Vec<GroupId>,
+pub(crate) async fn get_group_keys(
+    auth: &RequestAuth,
+    groups: &Vec<GroupId>,
 ) -> Result<(Vec<GroupId>, Vec<WithKey<GroupId>>), IronOxideErr> {
     // if there aren't any groups in the list, just return with empty results
     if groups.len() == 0 {
@@ -446,15 +446,15 @@ fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
 /// `name` - name for the group. Does not need to be unique.
 /// `members` - list of user ids to add as members of the group.
 /// `needs_rotation` - true if the group private key should be rotated by an admin, else false
-pub async fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
-    auth: &'a RequestAuth,
+pub async fn group_create<CR: rand::CryptoRng + rand::RngCore>(
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    auth: &RequestAuth,
     group_id: Option<GroupId>,
     name: Option<GroupName>,
     owner: Option<UserId>,
     admins: Vec1<UserId>,
     members: Vec<UserId>,
-    users_to_lookup: &'a Vec<UserId>,
+    users_to_lookup: &Vec<UserId>,
     needs_rotation: bool,
 ) -> Result<GroupCreateResult, IronOxideErr> {
     let user_ids_and_keys = user_api::user_key_list(auth, users_to_lookup).await?;
@@ -529,19 +529,16 @@ pub async fn group_create<'a, CR: rand::CryptoRng + rand::RngCore>(
 }
 
 /// Get the metadata for a group given its ID
-pub async fn get_metadata<'a>(
-    auth: &'a RequestAuth,
+pub async fn get_metadata(
+    auth: &RequestAuth,
     id: &GroupId,
 ) -> Result<GroupGetResult, IronOxideErr> {
     let resp = requests::group_get::group_get_request(auth, id).await?;
     resp.try_into()
 }
 
-//Delete the provided group given it's ID
-pub async fn group_delete<'a>(
-    auth: &'a RequestAuth,
-    group_id: &GroupId,
-) -> Result<GroupId, IronOxideErr> {
+//Delete the provided group given its ID
+pub async fn group_delete(auth: &RequestAuth, group_id: &GroupId) -> Result<GroupId, IronOxideErr> {
     let resp = requests::group_delete::group_delete_request(auth, &group_id).await?;
     resp.id.try_into()
 }
@@ -555,12 +552,12 @@ pub async fn group_delete<'a>(
 /// `users` - The list of users thet will be added to the group as members.
 /// # Returns GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
 ///   the reason they were not.
-pub async fn group_add_members<'a, CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
-    auth: &'a RequestAuth,
-    device_private_key: &'a PrivateKey,
-    group_id: &'a GroupId,
-    users: &'a Vec<UserId>,
+pub async fn group_add_members<CR: rand::CryptoRng + rand::RngCore>(
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    auth: &RequestAuth,
+    device_private_key: &PrivateKey,
+    group_id: &GroupId,
+    users: &Vec<UserId>,
 ) -> Result<GroupAccessEditResult, IronOxideErr> {
     let (group_get, (mut acc_fails, successes)) =
         try_join!(get_metadata(auth, group_id), get_user_keys(auth, users))?;
@@ -615,12 +612,12 @@ pub async fn group_add_members<'a, CR: rand::CryptoRng + rand::RngCore>(
 /// `users` - The list of users that will be added to the group as admins.
 /// # Returns GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
 ///   the reason they were not.
-pub async fn group_add_admins<'a, CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
-    auth: &'a RequestAuth,
-    device_private_key: &'a PrivateKey,
-    group_id: &'a GroupId,
-    users: &'a Vec<UserId>,
+pub async fn group_add_admins<CR: rand::CryptoRng + rand::RngCore>(
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    auth: &RequestAuth,
+    device_private_key: &PrivateKey,
+    group_id: &GroupId,
+    users: &Vec<UserId>,
 ) -> Result<GroupAccessEditResult, IronOxideErr> {
     let (group_get, (mut acc_fails, successes)) =
         try_join!(get_metadata(auth, group_id), get_user_keys(auth, users))?;
@@ -682,9 +679,9 @@ pub async fn group_add_admins<'a, CR: rand::CryptoRng + rand::RngCore>(
 }
 
 ///This is a thin wrapper that's just mapping the errors into the type we need for add member and add admin
-async fn get_user_keys<'a>(
-    auth: &'a RequestAuth,
-    users: &'a Vec<UserId>,
+async fn get_user_keys(
+    auth: &RequestAuth,
+    users: &Vec<UserId>,
 ) -> Result<(Vec<GroupAccessEditErr>, Vec<WithKey<UserId>>), IronOxideErr> {
     let (failed_ids, succeeded_ids) = user_api::get_user_keys(auth, &users).await?;
     let failed_ids_result = failed_ids
@@ -717,10 +714,10 @@ fn group_access_api_response_to_result(
 
 // Update a group's name. Value can be updated to either a new name with a Some or the name value can be cleared out
 // by providing a None.
-pub async fn update_group_name<'a>(
-    auth: &'a RequestAuth,
-    id: &'a GroupId,
-    name: Option<&'a GroupName>,
+pub async fn update_group_name(
+    auth: &RequestAuth,
+    id: &GroupId,
+    name: Option<&GroupName>,
 ) -> Result<GroupMetaResult, IronOxideErr> {
     let resp = requests::group_update::group_update_request(auth, id, name).await?;
     resp.try_into()
@@ -728,10 +725,10 @@ pub async fn update_group_name<'a>(
 
 /// Remove the provided list of users as either members or admins (based on the entity_type) from the provided group ID. The
 /// request and response format of these two operations are identical which is why we have a single method for it.
-pub async fn group_remove_entity<'a>(
-    auth: &'a RequestAuth,
-    id: &'a GroupId,
-    users: &'a Vec<UserId>,
+pub async fn group_remove_entity(
+    auth: &RequestAuth,
+    id: &GroupId,
+    users: &Vec<UserId>,
     entity_type: GroupEntity,
 ) -> Result<GroupAccessEditResult, IronOxideErr> {
     let GroupUserEditResponse {

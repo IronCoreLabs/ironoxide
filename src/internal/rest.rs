@@ -8,21 +8,19 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use percent_encoding::SIMPLE_ENCODE_SET;
 use reqwest::{
-    header::HeaderMap,
-    r#async::{Client as RClient, Request as ARequest},
+    header::{HeaderMap, HeaderValue, CONTENT_TYPE},
+    r#async::{Client as RClient, Request as ARequest, RequestBuilder},
     Method, StatusCode, Url,
 };
-use reqwest::{
-    header::{HeaderValue, CONTENT_TYPE},
-    r#async::RequestBuilder,
+use serde::{
+    de::DeserializeOwned,
+    export::{
+        fmt::{Display, Error},
+        Formatter,
+    },
+    Serialize,
 };
-use serde::export::{
-    fmt::{Display, Error},
-    Formatter,
-};
-use serde::{de::DeserializeOwned, Serialize};
-use std::marker::PhantomData;
-use std::{borrow::BorrowMut, ops::Deref};
+use std::{borrow::BorrowMut, marker::PhantomData, ops::Deref};
 use url;
 
 lazy_static! {
@@ -342,12 +340,12 @@ impl<'a> IronCoreRequest<'a> {
 
     ///POST body to the resource at relative_url using IronCore authorization.
     ///If the request fails a RequestError will be raised.
-    pub async fn post<A: Serialize + 'a, B: DeserializeOwned + 'a>(
+    pub async fn post<A: Serialize, B: DeserializeOwned>(
         &self,
         relative_url: &str,
         body: &A,
         error_code: RequestErrorCode,
-        auth_b: crate::internal::auth_v2::AuthV2Builder<'a>,
+        auth_b: crate::internal::auth_v2::AuthV2Builder<'_>,
     ) -> Result<B, IronOxideErr> {
         self.request_ironcore_auth::<A, _, _>(
             relative_url,
@@ -360,12 +358,12 @@ impl<'a> IronCoreRequest<'a> {
         )
         .await
     }
-    pub async fn post_raw<B: DeserializeOwned + 'a>(
+    pub async fn post_raw<B: DeserializeOwned>(
         &self,
         relative_url: &str,
-        body: &'a [u8],
+        body: &[u8],
         error_code: RequestErrorCode,
-        auth_b: AuthV2Builder<'a>,
+        auth_b: AuthV2Builder<'_>,
     ) -> Result<B, IronOxideErr> {
         use publicsuffix::IntoUrl;
 
@@ -418,12 +416,12 @@ impl<'a> IronCoreRequest<'a> {
     }
     ///PUT body to the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
-    pub async fn put<A: Serialize + 'a, B: DeserializeOwned + 'a>(
+    pub async fn put<A: Serialize, B: DeserializeOwned>(
         &self,
         relative_url: &str,
         body: &A,
         error_code: RequestErrorCode,
-        auth_b: AuthV2Builder<'a>,
+        auth_b: AuthV2Builder<'_>,
     ) -> Result<B, IronOxideErr> {
         self.request_ironcore_auth::<A, _, _>(
             relative_url,
@@ -460,12 +458,12 @@ impl<'a> IronCoreRequest<'a> {
 
     ///GET the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
-    pub async fn get_with_query_params<A: DeserializeOwned + 'a>(
+    pub async fn get_with_query_params<A: DeserializeOwned>(
         &self,
         relative_url: &str,
         query_params: &[(String, PercentEncodedString)],
         error_code: RequestErrorCode,
-        auth_b: AuthV2Builder<'a>,
+        auth_b: AuthV2Builder<'_>,
     ) -> Result<A, IronOxideErr> {
         self.request_ironcore_auth::<String, _, _>(
             relative_url,
@@ -507,12 +505,12 @@ impl<'a> IronCoreRequest<'a> {
 
     /// DELETE body to the resource at relative_url using auth for authorization.
     /// If the request fails a RequestError will be raised.
-    pub async fn delete<A: Serialize + 'a, B: DeserializeOwned + 'a>(
+    pub async fn delete<A: Serialize, B: DeserializeOwned>(
         &self,
         relative_url: &str,
         body: &A,
         error_code: RequestErrorCode,
-        auth_b: AuthV2Builder<'a>,
+        auth_b: AuthV2Builder<'_>,
     ) -> Result<B, IronOxideErr> {
         self.request_ironcore_auth::<A, _, _>(
             relative_url,
@@ -577,8 +575,8 @@ impl<'a> IronCoreRequest<'a> {
     ) -> Result<B, IronOxideErr>
     where
         A: Serialize,
-        B: DeserializeOwned + 'a,
-        F: FnOnce(&Bytes) -> Result<B, IronOxideErr> + 'a,
+        B: DeserializeOwned,
+        F: FnOnce(&Bytes) -> Result<B, IronOxideErr>,
     {
         use publicsuffix::IntoUrl;
         let make_req: Result<_, IronOxideErr> = Ok({
@@ -661,8 +659,8 @@ impl<'a> IronCoreRequest<'a> {
         resp_handler: F,
     ) -> Result<B, IronOxideErr>
     where
-        B: DeserializeOwned + 'a,
-        F: FnOnce(&Bytes) -> Result<B, IronOxideErr> + 'a,
+        B: DeserializeOwned,
+        F: FnOnce(&Bytes) -> Result<B, IronOxideErr>,
     {
         let client = RClient::new();
         let server_res = client.execute(req).await;
@@ -716,11 +714,11 @@ impl<'a> IronCoreRequest<'a> {
         }
     }
 
-    pub async fn delete_with_no_body<B: DeserializeOwned + 'a>(
+    pub async fn delete_with_no_body<B: DeserializeOwned>(
         &self,
         relative_url: &str,
         error_code: RequestErrorCode,
-        auth_b: AuthV2Builder<'a>,
+        auth_b: AuthV2Builder<'_>,
     ) -> Result<B, IronOxideErr> {
         self.delete(
             relative_url,

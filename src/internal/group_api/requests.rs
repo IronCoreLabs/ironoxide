@@ -194,9 +194,9 @@ pub mod group_list {
     }
 
     //List a specific set of groups given a list of group IDs
-    pub async fn group_limited_list_request<'a>(
-        auth: &'a RequestAuth,
-        groups: &'a Vec<GroupId>,
+    pub async fn group_limited_list_request(
+        auth: &RequestAuth,
+        groups: &Vec<GroupId>,
     ) -> Result<GroupListResponse, IronOxideErr> {
         let group_ids: Vec<&str> = groups.iter().map(|group| group.id()).collect();
         auth.request
@@ -226,8 +226,8 @@ pub mod group_create {
         pub(in crate::internal) needs_rotation: bool,
     }
 
-    pub async fn group_create<'a>(
-        auth: &'a RequestAuth,
+    pub async fn group_create(
+        auth: &RequestAuth,
         id: Option<GroupId>, // if None, server will generate
         name: Option<GroupName>,
         group_pub_key: internal::PublicKey,
@@ -260,8 +260,8 @@ pub mod group_create {
 pub mod group_get {
     use super::*;
 
-    pub async fn group_get_request<'a>(
-        auth: &'a RequestAuth,
+    pub async fn group_get_request(
+        auth: &RequestAuth,
         id: &GroupId,
     ) -> Result<GroupGetApiResponse, IronOxideErr> {
         auth.request
@@ -282,8 +282,8 @@ pub mod group_delete {
         pub(crate) id: String,
     }
 
-    pub async fn group_delete_request<'a>(
-        auth: &'a RequestAuth,
+    pub async fn group_delete_request(
+        auth: &RequestAuth,
         id: &GroupId,
     ) -> Result<GroupDeleteApiResponse, IronOxideErr> {
         auth.request
@@ -305,10 +305,10 @@ pub mod group_update {
         name: Option<&'a GroupName>,
     }
 
-    pub async fn group_update_request<'a>(
-        auth: &'a RequestAuth,
-        id: &'a GroupId,
-        name: Option<&'a GroupName>,
+    pub async fn group_update_request(
+        auth: &RequestAuth,
+        id: &GroupId,
+        name: Option<&GroupName>,
     ) -> Result<GroupBasicApiResponse, IronOxideErr> {
         auth.request
             .put(
@@ -333,8 +333,8 @@ pub mod group_add_member {
         pub signature: Vec<u8>,
     }
 
-    pub async fn group_add_member_request<'a>(
-        auth: &'a RequestAuth,
+    pub async fn group_add_member_request(
+        auth: &RequestAuth,
         id: &GroupId,
         users: Vec<(UserId, PublicKey, TransformKey)>,
         signature: SchnorrSignature,
@@ -375,13 +375,13 @@ pub mod group_add_admin {
         pub signature: Vec<u8>,
     }
 
-    pub async fn group_add_admin_request<'a>(
-        auth: &'a RequestAuth,
-        id: &'a GroupId,
+    pub async fn group_add_admin_request(
+        auth: &RequestAuth,
+        id: &GroupId,
         users: Vec<(UserId, PublicKey, recrypt::api::EncryptedValue)>,
         signature: SchnorrSignature,
     ) -> Result<GroupUserEditResponse, IronOxideErr> {
-        //The users could _technically_ contiain a reencrypted value, if that happened the `try_into` would fail.
+        //The users could _technically_ contain a reencrypted value, if that happened the `try_into` would fail.
         //This can't happen in a normal usecase.
         let admins = users
             .into_iter()
@@ -424,10 +424,10 @@ pub mod group_remove_entity {
         users: Vec<GroupEntityId<'a>>,
     }
 
-    pub async fn remove_entity_request<'a>(
-        auth: &'a RequestAuth,
-        group_id: &'a GroupId,
-        user_ids: &'a Vec<UserId>,
+    pub async fn remove_entity_request(
+        auth: &RequestAuth,
+        group_id: &GroupId,
+        user_ids: &Vec<UserId>,
         entity_type: GroupEntity,
     ) -> Result<GroupUserEditResponse, IronOxideErr> {
         let removed_users = user_ids
