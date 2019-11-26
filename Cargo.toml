@@ -26,12 +26,11 @@ ring = { version= "~0.16", features = ["std"] }
 recrypt = "~0.9" 
 url= "^2.1.0"
 reqwest = {version="0.10.0-alpha.2", features = ["json"]}
-tokio = "~0.1"
-futures3 = {package = "futures", version = "0.3.1", features = ["compat"]}
-futures-util = "0.3.1" # shouldn't need to bring this in explicitly. Perhaps after futures v1 is completely gone we can just import this out of the (new) futures crate?
+tokio = "0.2.0-alpha.6"
 hex = "~0.3"
 itertools = "~0.8"
-futures = "~0.1.25"
+futures = "~0.3.1"
+futures-util = "0.3.1"
 quick-error = "~1.2"
 lazy_static = "~1.4"
 chrono = { version = "0.4", features = ["serde"] }
