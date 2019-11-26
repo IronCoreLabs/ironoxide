@@ -281,10 +281,10 @@ pub async fn user_get_current(auth: &RequestAuth) -> Result<UserResult, IronOxid
 }
 
 /// Rotate the user's private key. The public key for the user remains unchanged.
-pub async fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &'apicall Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+pub async fn user_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     password: Password,
-    auth: &'apicall RequestAuth,
+    auth: &RequestAuth,
 ) -> Result<UserUpdatePrivateKeyResult, IronOxideErr> {
     let requests::user_get::CurrentUserResponse {
         user_private_key: encrypted_priv_key,
@@ -324,13 +324,13 @@ pub async fn user_rotate_private_key<'apicall, CR: rand::CryptoRng + rand::RngCo
 }
 
 /// Generate a device key for the user specified in the JWT.
-pub async fn generate_device_key<'a, CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
-    jwt: &'a Jwt,
+pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    jwt: &Jwt,
     password: Password,
     device_name: Option<DeviceName>,
-    signing_ts: &'a DateTime<Utc>,
-    request: &'a IronCoreRequest<'static>,
+    signing_ts: &DateTime<Utc>,
+    request: &IronCoreRequest<'static>,
 ) -> Result<DeviceContext, IronOxideErr> {
     // verify that this user exists
     let requests::user_verify::UserVerifyResponse {
@@ -389,9 +389,9 @@ pub async fn device_list(auth: &RequestAuth) -> Result<UserDeviceListResult, Iro
     Ok(UserDeviceListResult::new(devices))
 }
 
-pub async fn device_delete<'a>(
-    auth: &'a RequestAuth,
-    device_id: Option<&'a DeviceId>,
+pub async fn device_delete(
+    auth: &RequestAuth,
+    device_id: Option<&DeviceId>,
 ) -> Result<DeviceId, IronOxideErr> {
     match device_id {
         Some(device_id) => requests::device_delete::device_delete(auth, device_id).await,
@@ -401,9 +401,9 @@ pub async fn device_delete<'a>(
 }
 
 /// Get a list of users public keys given a list of user account IDs
-pub async fn user_key_list<'a>(
-    auth: &'a RequestAuth,
-    user_ids: &'a Vec<UserId>,
+pub async fn user_key_list(
+    auth: &RequestAuth,
+    user_ids: &Vec<UserId>,
 ) -> Result<HashMap<UserId, PublicKey>, IronOxideErr> {
     requests::user_key_list::user_key_list_request(auth, user_ids)
         .await
@@ -427,9 +427,9 @@ pub async fn user_key_list<'a>(
 /// Get the keys for users. The result should be either a failure for a specific UserId (Left) or the id with their public key (Right).
 /// The resulting lists will have the same combined size as the incoming list.
 /// Calling this with an empty `users` list will not result in a call to the server.
-pub(crate) async fn get_user_keys<'a>(
-    auth: &'a RequestAuth,
-    users: &'a Vec<UserId>,
+pub(crate) async fn get_user_keys(
+    auth: &RequestAuth,
+    users: &Vec<UserId>,
 ) -> Result<(Vec<UserId>, Vec<WithKey<UserId>>), IronOxideErr> {
     // if there aren't any users in the list, just return with empty results
     if users.len() == 0 {

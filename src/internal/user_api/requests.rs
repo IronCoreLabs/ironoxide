@@ -67,9 +67,9 @@ pub mod user_verify {
         pub(crate) needs_rotation: bool,
     }
 
-    pub async fn user_verify<'a>(
-        jwt: &'a Jwt,
-        request: &'a IronCoreRequest<'static>,
+    pub async fn user_verify(
+        jwt: &Jwt,
+        request: &IronCoreRequest<'static>,
     ) -> Result<Option<UserVerifyResponse>, IronOxideErr> {
         request
             .get_with_empty_result_jwt_auth(

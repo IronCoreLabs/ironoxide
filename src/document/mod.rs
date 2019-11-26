@@ -45,7 +45,7 @@ impl ExplicitGrant {
     }
 }
 
-impl<'a> DocumentEncryptOpts {
+impl DocumentEncryptOpts {
     pub fn new(
         id: Option<DocumentId>,
         name: Option<DocumentName>,
