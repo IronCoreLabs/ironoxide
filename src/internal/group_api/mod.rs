@@ -330,12 +330,10 @@ pub async fn list(
     auth: &RequestAuth,
     ids: Option<&Vec<GroupId>>,
 ) -> Result<GroupListResult, IronOxideErr> {
-    let resp = match ids {
+    let GroupListResponse { result } = match ids {
         Some(group_ids) => requests::group_list::group_limited_list_request(auth, &group_ids).await,
         None => requests::group_list::group_list_request(auth).await,
     }?;
-
-    let GroupListResponse { result } = resp;
     let group_list = result
         .into_iter()
         .map(|g| g.try_into())
@@ -356,8 +354,7 @@ pub(crate) async fn get_group_keys(
     }
 
     let cloned_groups: Vec<GroupId> = groups.clone();
-    let list_resp = list(auth, Some(&groups)).await;
-    let GroupListResult { result } = list_resp?;
+    let GroupListResult { result } = list(auth, Some(&groups)).await?;
     let ids_with_keys =
         result
             .iter()
@@ -378,15 +375,22 @@ pub(crate) async fn get_group_keys(
     }))
 }
 
-fn compare_users<T: Eq + std::hash::Hash + std::fmt::Debug, X>(
+fn check_user_mismatch<T: Eq + std::hash::Hash + std::fmt::Debug, X>(
     desired_users: &Vec<T>,
     found_users: HashMap<T, X>,
-) -> IronOxideErr {
-    let desired_users_set: HashSet<&T> = HashSet::from_iter(desired_users);
-    let found_users_vec: Vec<T> = found_users.into_iter().map(|(x, _)| x).collect();
-    let found_users_set: HashSet<&T> = HashSet::from_iter(&found_users_vec);
-    let diff: Vec<&&T> = desired_users_set.difference(&found_users_set).collect();
-    IronOxideErr::UserDoesNotExist(format!("Failed to find the following users: {:?}", diff))
+) -> Result<HashMap<T, X>, IronOxideErr> {
+    if found_users.len() != desired_users.len() {
+        let desired_users_set: HashSet<&T> = HashSet::from_iter(desired_users);
+        let found_users_vec: Vec<T> = found_users.into_iter().map(|(x, _)| x).collect();
+        let found_users_set: HashSet<&T> = HashSet::from_iter(&found_users_vec);
+        let diff: Vec<&&T> = desired_users_set.difference(&found_users_set).collect();
+        Err(IronOxideErr::UserDoesNotExist(format!(
+            "Failed to find the following users: {:?}",
+            diff
+        )))
+    } else {
+        Ok(found_users)
+    }
 }
 
 // Partitions `user_ids_and_keys` into a vector of admins and a vector of members.
@@ -459,59 +463,53 @@ pub async fn group_create<CR: rand::CryptoRng + rand::RngCore>(
 ) -> Result<GroupCreateResult, IronOxideErr> {
     let user_ids_and_keys = user_api::user_key_list(auth, users_to_lookup).await?;
     // this will occur when one of the UserIds cannot be found
-    let (group_pub_key, member_vec, admin_vec) = if user_ids_and_keys.len() != users_to_lookup.len()
-    {
-        Err(compare_users(users_to_lookup, user_ids_and_keys))
+    let user_ids_and_keys = check_user_mismatch(users_to_lookup, user_ids_and_keys)?;
+    let (plaintext, group_priv_key, group_pub_key) = transform::gen_group_keys(recrypt)?;
+    let (member_info, admin_info) = collect_admin_and_member_info(
+        recrypt,
+        auth.signing_private_key(),
+        group_priv_key,
+        admins,
+        members,
+        user_ids_and_keys,
+    )?;
+
+    let group_members: Vec<requests::GroupMember> = member_info
+        .into_iter()
+        .map(
+            |(member_id, member_pub_key, member_trans_key)| requests::GroupMember {
+                user_id: member_id,
+                transform_key: member_trans_key.into(),
+                user_master_public_key: member_pub_key.into(),
+            },
+        )
+        .collect();
+    let maybe_group_members = if group_members.is_empty() {
+        None
     } else {
-        let (plaintext, group_priv_key, group_pub_key) = transform::gen_group_keys(recrypt)?;
-        let (member_info, admin_info) = collect_admin_and_member_info(
-            recrypt,
-            auth.signing_private_key(),
-            group_priv_key,
-            admins,
-            members,
-            user_ids_and_keys,
-        )?;
+        Some(group_members)
+    };
 
-        let group_members: Vec<requests::GroupMember> = member_info
-            .into_iter()
-            .map(
-                |(member_id, member_pub_key, member_trans_key)| requests::GroupMember {
-                    user_id: member_id,
-                    transform_key: member_trans_key.into(),
-                    user_master_public_key: member_pub_key.into(),
-                },
-            )
-            .collect();
-        let maybe_group_members = if group_members.is_empty() {
-            None
-        } else {
-            Some(group_members)
-        };
-
-        let group_admins: Vec<requests::GroupAdmin> = admin_info
-            .into_iter()
-            .map(|(admin_id, admin_pub_key)| {
-                let encrypted_group_key = recrypt.encrypt(
-                    &plaintext,
-                    &admin_pub_key.clone().into(),
-                    &auth.signing_private_key().into(),
-                );
-                encrypted_group_key
-                    .map_err(|e| e.into())
-                    .and_then(EncryptedOnceValue::try_from)
-                    .map(|enc_msg| requests::GroupAdmin {
-                        encrypted_msg: enc_msg,
-                        user: requests::User {
-                            user_id: admin_id,
-                            user_master_public_key: admin_pub_key.into(),
-                        },
-                    })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        Ok((group_pub_key, maybe_group_members, group_admins))
-    }?;
+    let group_admins: Vec<requests::GroupAdmin> = admin_info
+        .into_iter()
+        .map(|(admin_id, admin_pub_key)| {
+            let encrypted_group_key = recrypt.encrypt(
+                &plaintext,
+                &admin_pub_key.clone().into(),
+                &auth.signing_private_key().into(),
+            );
+            encrypted_group_key
+                .map_err(|e| e.into())
+                .and_then(EncryptedOnceValue::try_from)
+                .map(|enc_msg| requests::GroupAdmin {
+                    encrypted_msg: enc_msg,
+                    user: requests::User {
+                        user_id: admin_id,
+                        user_master_public_key: admin_pub_key.into(),
+                    },
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     let resp = requests::group_create::group_create(
         &auth,
@@ -519,8 +517,8 @@ pub async fn group_create<CR: rand::CryptoRng + rand::RngCore>(
         name,
         group_pub_key,
         owner,
-        admin_vec,
-        member_vec,
+        group_admins,
+        maybe_group_members,
         needs_rotation,
     )
     .await?;
@@ -873,13 +871,14 @@ mod test {
     }
 
     #[test]
-    fn compare_users_test() -> Result<(), String> {
+    fn check_user_mismatch_test() -> Result<(), String> {
         let user1 = UserId::unsafe_from_string("user1".to_string());
         let user2 = UserId::unsafe_from_string("user2".to_string());
         let desired_users = vec![user1.clone(), user2];
         let mut found_users = HashMap::new();
         found_users.insert(user1, "test");
-        let err = compare_users(&desired_users, found_users);
+        let err = check_user_mismatch(&desired_users, found_users)
+            .expect_err("check_user_mismatch should return error.");
         let err_msg = match err {
             IronOxideErr::UserDoesNotExist(msg) => Ok(msg),
             _ => Err("Wrong type of error. Should never happen."),

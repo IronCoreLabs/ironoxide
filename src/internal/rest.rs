@@ -175,7 +175,7 @@ impl<'a> Authorization<'a> {
 /// For API auth, we sign over the path + query string percent encoded with specific rules.
 ///
 /// For the URL: `https://api.ironcorelabs.com/api/1/users?id=abcABC012_.$#|@/:;=+'-`
-/// We sign over: `/api/1/users?id=abcABC012_.%24%23%7C%40%2F%3A%3B%3D%2B%27-`
+/// We sign over: `/api/1/users?id=abcABC012_.%24%23%7C%40%2F%3A%3B%3D%2B'-`
 ///
 /// Anyone wanting to verify this signature will need to be able to match this exact encoding.
 #[derive(Debug, Clone)]
@@ -184,6 +184,8 @@ pub struct SignatureUrlString(String);
 impl SignatureUrlString {
     pub fn new(encoded_full_url: &str) -> Result<SignatureUrlString, url::ParseError> {
         let parsed_url = Url::parse(encoded_full_url)?;
+        //The formatter for the query string is overfomatting compared to what we want, so we want to replace
+        //the %27 with a ' so we're signing over the right value.
         let query_str_format = |q: &str| format!("?{}", q.replace("%27", "'"));
 
         Ok(SignatureUrlString(format!(
@@ -378,40 +380,30 @@ impl IronCoreRequest {
             *req.body_mut() = Some(body.to_vec().into());
             (req, body.to_vec())
         });
-        let (mut req, body_bytes) = make_req?; //COLT: See if you can do better
-                                               // use the completed request to finish authorization v2 headers
-        let maybe_auth = SignatureUrlString::new(req.url().as_str())
+        let (mut req, body_bytes) = make_req?;
+        // use the completed request to finish authorization v2 headers
+        let auth = SignatureUrlString::new(req.url().as_str())
             .map(|sig_url| auth_b.finish_with(sig_url, req.method().clone(), Some(&body_bytes)))
-            .map_err(|e| IronOxideErr::from((e, error_code)));
+            .map_err(|e| IronOxideErr::from((e, error_code)))?;
 
         // we only support Authorization::Version2 with this call
-        match maybe_auth {
-            Ok(auth) => {
-                if let Authorization::Version2 {
-                    user_context,
-                    request_sig,
-                } = &auth
-                {
-                    match user_context.to_header(error_code) {
-                        Ok(user_context_header) => {
-                            replace_headers(req.headers_mut(), user_context_header);
-                            replace_headers(req.headers_mut(), DEFAULT_HEADERS.clone());
-                            replace_headers(req.headers_mut(), auth.to_auth_header());
-                            replace_headers(req.headers_mut(), request_sig.to_header());
+        if let Authorization::Version2 {
+            user_context,
+            request_sig,
+        } = &auth
+        {
+            let user_context_header = user_context.to_header(error_code)?;
+            replace_headers(req.headers_mut(), user_context_header);
+            replace_headers(req.headers_mut(), DEFAULT_HEADERS.clone());
+            replace_headers(req.headers_mut(), auth.to_auth_header());
+            replace_headers(req.headers_mut(), request_sig.to_header());
 
-                            let result = Self::send_req(req, error_code, move |server_resp| {
-                                IronCoreRequest::deserialize_body(server_resp, error_code)
-                            })
-                            .await;
-                            result
-                        }
-                        Err(e) => futures::future::err(e).await,
-                    }
-                } else {
-                    panic!("authorized requests must use version 2 of API authentication")
-                }
-            }
-            Err(e) => Err(e),
+            Self::send_req(req, error_code, move |server_resp| {
+                IronCoreRequest::deserialize_body(server_resp, error_code)
+            })
+            .await
+        } else {
+            panic!("authorized requests must use version 2 of API authentication")
         }
     }
     ///PUT body to the resource at relative_url using auth for authorization.
@@ -1330,7 +1322,6 @@ mod tests {
             maybe_path.unwrap().signature_string(),
             "/api/1/users?id=user-10"
         );
-        //
         // test a user id that uses more allowed characters
         let maybe_path = SignatureUrlString::new(&user_list_url("abcABC012_.$#|@/:;=+'-"));
 
@@ -1363,7 +1354,6 @@ mod tests {
     }
 
     #[test]
-
     fn query_params_encoded_correctly() {
         use publicsuffix::IntoUrl;
 

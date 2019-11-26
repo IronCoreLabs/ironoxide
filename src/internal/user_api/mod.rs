@@ -213,20 +213,17 @@ pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
     needs_rotation: bool,
     request: IronCoreRequest,
 ) -> Result<UserCreateResult, IronOxideErr> {
-    let (encrypted_priv_key, recrypt_pub) = async {
-        recrypt
-            .generate_key_pair()
-            .map_err(IronOxideErr::from)
-            .and_then(|(recrypt_priv, recrypt_pub)| {
-                Ok(aes::encrypt_user_master_key(
-                    &Mutex::new(rand::thread_rng()),
-                    passphrase.0.as_str(),
-                    recrypt_priv.bytes(),
-                )
-                .map(|encrypted_private_key| (encrypted_private_key, recrypt_pub))?)
-            })
-    }
-    .await?;
+    let (encrypted_priv_key, recrypt_pub) = recrypt
+        .generate_key_pair()
+        .map_err(IronOxideErr::from)
+        .and_then(|(recrypt_priv, recrypt_pub)| {
+            Ok(aes::encrypt_user_master_key(
+                &Mutex::new(rand::thread_rng()),
+                passphrase.0.as_str(),
+                recrypt_priv.bytes(),
+            )
+            .map(|encrypted_private_key| (encrypted_private_key, recrypt_pub))?)
+        })?;
 
     requests::user_create::user_create(
         &jwt,
