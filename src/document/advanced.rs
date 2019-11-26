@@ -5,6 +5,7 @@ use crate::{
     document::{partition_user_or_group, DocumentEncryptOpts},
     internal, Result,
 };
+use futures3::future::{FutureExt, TryFutureExt};
 use itertools::EitherOrBoth;
 use tokio::runtime::current_thread::Runtime;
 
@@ -71,18 +72,22 @@ impl DocumentAdvancedOps for crate::IronOxide {
                 }
             };
 
-        rt.block_on(internal::document_api::edek_encrypt_document(
-            self.device.auth(),
-            &self.recrypt,
-            &self.user_master_pub_key,
-            &self.rng,
-            data,
-            encrypt_opts.id.clone(),
-            grant_to_author,
-            &explicit_users,
-            &explicit_groups,
-            policy_grants,
-        ))
+        rt.block_on(
+            internal::document_api::encrypted_document_unmanaged(
+                self.device.auth(),
+                &self.recrypt,
+                &self.user_master_pub_key,
+                &self.rng,
+                data,
+                encrypt_opts.id.clone(),
+                grant_to_author,
+                &explicit_users,
+                &explicit_groups,
+                policy_grants,
+            )
+            .boxed_local() // required because something is not Send
+            .compat(),
+        )
     }
 
     fn document_decrypt_unmanaged(
@@ -92,12 +97,16 @@ impl DocumentAdvancedOps for crate::IronOxide {
     ) -> Result<DocumentDecryptUnmanagedResult> {
         let mut rt = Runtime::new().unwrap();
 
-        rt.block_on(internal::document_api::decrypt_document_unmanaged(
-            self.device.auth(),
-            &self.recrypt,
-            self.device().device_private_key(),
-            encrypted_data,
-            encrypted_deks,
-        ))
+        rt.block_on(
+            internal::document_api::decrypt_document_unmanaged(
+                self.device.auth(),
+                &self.recrypt,
+                self.device().device_private_key(),
+                encrypted_data,
+                encrypted_deks,
+            )
+            .boxed_local() // required because something is not Send
+            .compat(),
+        )
     }
 }

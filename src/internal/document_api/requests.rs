@@ -1,6 +1,7 @@
 use super::{AssociationType, DocumentId, DocumentName};
 use crate::internal::{
     self,
+    auth_v2::AuthV2Builder,
     document_api::{EncryptedDek, UserOrGroup, VisibleGroup, VisibleUser, WithKey},
     group_api::GroupId,
     rest::{
@@ -11,10 +12,8 @@ use crate::internal::{
     IronOxideErr, RequestAuth, RequestErrorCode,
 };
 use chrono::{DateTime, Utc};
-use futures::Future;
+use futures3::compat::Future01CompatExt;
 use std::convert::{TryFrom, TryInto};
-
-use crate::internal::auth_v2::AuthV2Builder;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Association {
@@ -153,45 +152,54 @@ pub mod document_list {
     }
 
     /// Make GET request to document list endpoint for the current user/device context
-    pub fn document_list_request(
+    pub async fn document_list_request(
         auth: &RequestAuth,
-    ) -> impl Future<Item = DocumentListApiResponse, Error = IronOxideErr> + '_ {
-        auth.request.get(
-            "documents",
-            RequestErrorCode::DocumentList,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    ) -> Result<DocumentListApiResponse, IronOxideErr> {
+        auth.request
+            .get(
+                "documents",
+                RequestErrorCode::DocumentList,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }
 
 pub mod document_get {
     use super::*;
 
-    pub fn document_get_request<'a>(
-        auth: &'a RequestAuth,
+    pub async fn document_get_request(
+        auth: &RequestAuth,
         id: &DocumentId,
-    ) -> impl Future<Item = DocumentMetaApiResponse, Error = IronOxideErr> + 'a {
-        auth.request.get(
-            &format!("documents/{}", rest::url_encode(&id.0)),
-            RequestErrorCode::DocumentGet,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    ) -> Result<DocumentMetaApiResponse, IronOxideErr> {
+        auth.request
+            .get(
+                &format!("documents/{}", rest::url_encode(&id.0)),
+                RequestErrorCode::DocumentGet,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }
 
 pub mod edek_transform {
     use super::*;
 
-    pub fn edek_transform<'a>(
-        auth: &'a RequestAuth,
-        edek_bytes: &'a [u8],
-    ) -> impl Future<Item = EdekTransformResponse, Error = IronOxideErr> + 'a {
-        auth.request.post_raw(
-            "edeks/transform",
-            edek_bytes,
-            RequestErrorCode::EdekTransform,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    pub async fn edek_transform(
+        auth: &RequestAuth,
+        edek_bytes: &[u8],
+    ) -> Result<EdekTransformResponse, IronOxideErr> {
+        auth.request
+            .post_raw(
+                "edeks/transform",
+                edek_bytes,
+                RequestErrorCode::EdekTransform,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 
     #[derive(Serialize, Debug, Clone, Deserialize, PartialEq)]
@@ -233,35 +241,31 @@ pub mod document_create {
         pub(crate) shared_with: Vec<AccessGrant>,
     }
 
-    pub fn document_create_request<'a>(
-        auth: &'a RequestAuth,
+    pub async fn document_create_request(
+        auth: &RequestAuth,
         id: DocumentId,
         name: Option<DocumentName>,
         grants: Vec<EncryptedDek>,
-    ) -> Box<dyn Future<Item = DocumentCreateResponse, Error = IronOxideErr> + 'a> {
+    ) -> Result<DocumentCreateResponse, IronOxideErr> {
         let maybe_req_grants: Result<Vec<_>, _> =
             grants.into_iter().map(|g| g.try_into()).collect();
 
-        match maybe_req_grants {
-            Ok(req_grants) => {
-                let req = DocumentCreateRequest {
-                    id,
-                    value: DocumentCreateValue {
-                        name,
-                        shared_with: req_grants,
-                    },
-                };
-                Box::new(auth.request.post(
-                    "documents",
-                    &req,
-                    RequestErrorCode::DocumentCreate,
-                    AuthV2Builder::new(&auth, Utc::now()),
-                ))
-            }
-            // the failure case here is that we couldn't convert the recrypt EncryptedValue because
-            // it was not an EncryptedOnceValue -- really just a limitation of Rust's enums as we expect these to be EncryptedOnceValues
-            Err(e) => Box::new(futures::future::failed(e)),
-        }
+        let req = DocumentCreateRequest {
+            id,
+            value: DocumentCreateValue {
+                name,
+                shared_with: maybe_req_grants?,
+            },
+        };
+        auth.request
+            .post(
+                "documents",
+                &req,
+                RequestErrorCode::DocumentCreate,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }
 
@@ -276,15 +280,15 @@ pub mod policy_get {
 
     #[derive(Deserialize, Debug, Clone)]
     #[serde(rename_all = "camelCase")]
-    pub struct PolicyResult {
+    pub struct PolicyResponse {
         pub(crate) users_and_groups: Vec<UserOrGroupWithKey>,
         pub(crate) invalid_users_and_groups: Vec<UserOrGroup>,
     }
 
-    pub fn policy_get_request<'a>(
-        auth: &'a RequestAuth,
+    pub async fn policy_get_request(
+        auth: &RequestAuth,
         policy_grant: &PolicyGrant,
-    ) -> impl Future<Item = PolicyResult, Error = IronOxideErr> + 'a {
+    ) -> Result<PolicyResponse, IronOxideErr> {
         let query_params: Vec<(String, PercentEncodedString)> = [
             // all query params here are just letters, so no need to percent encode
             policy_grant
@@ -305,12 +309,15 @@ pub mod policy_get {
         .flatten()
         .collect();
 
-        auth.request.get_with_query_params(
-            "policies",
-            &query_params,
-            RequestErrorCode::PolicyGet,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+        auth.request
+            .get_with_query_params(
+                "policies",
+                &query_params,
+                RequestErrorCode::PolicyGet,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }
 
@@ -322,17 +329,20 @@ pub mod document_update {
         name: Option<&'a DocumentName>,
     }
 
-    pub fn document_update_request<'a>(
-        auth: &'a RequestAuth,
-        id: &'a DocumentId,
-        name: Option<&'a DocumentName>,
-    ) -> impl Future<Item = DocumentMetaApiResponse, Error = IronOxideErr> + 'a {
-        auth.request.put(
-            &format!("documents/{}", rest::url_encode(&id.0)),
-            &DocumentUpdateRequest { name },
-            RequestErrorCode::DocumentUpdate,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    pub async fn document_update_request(
+        auth: &RequestAuth,
+        id: &DocumentId,
+        name: Option<&DocumentName>,
+    ) -> Result<DocumentMetaApiResponse, IronOxideErr> {
+        auth.request
+            .put(
+                &format!("documents/{}", rest::url_encode(&id.0)),
+                &DocumentUpdateRequest { name },
+                RequestErrorCode::DocumentUpdate,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }
 
@@ -441,47 +451,46 @@ pub mod document_access {
         user_or_groups: Vec<UserOrGroupAccess>,
     }
 
-    pub fn grant_access_request<'a>(
-        auth: &'a RequestAuth,
-        id: &'a DocumentId,
-        from_pub_key: &'a internal::PublicKey,
+    pub async fn grant_access_request(
+        auth: &RequestAuth,
+        id: &DocumentId,
+        from_pub_key: &internal::PublicKey,
         grants: Vec<(WithKey<UserOrGroup>, recrypt::api::EncryptedValue)>,
-    ) -> Box<dyn Future<Item = DocumentAccessResponse, Error = IronOxideErr> + 'a> {
+    ) -> Result<DocumentAccessResponse, IronOxideErr> {
         let maybe_req_grants: Result<Vec<_>, _> =
             grants.into_iter().map(|g| g.try_into()).collect();
 
-        match maybe_req_grants {
-            Ok(req_grants) => {
-                let req = DocumentGrantAccessRequest {
-                    from_public_key: from_pub_key.clone().into(),
-                    to: req_grants,
-                };
-                Box::new(auth.request.post(
-                    &format!("documents/{}/access", rest::url_encode(id.id())),
-                    &req,
-                    RequestErrorCode::DocumentGrantAccess,
-                    AuthV2Builder::new(&auth, Utc::now()),
-                ))
-            }
-            // the failure case here is that we couldn't convert the recrypt EncryptedValue because
-            // it was not an EncryptedOnceValue -- really just a limitation of Rust's enums as we expect these to be EncryptedOnceValues
-            Err(e) => Box::new(futures::future::failed(e)),
-        }
+        let req = DocumentGrantAccessRequest {
+            from_public_key: from_pub_key.clone().into(),
+            to: maybe_req_grants?,
+        };
+        auth.request
+            .post(
+                &format!("documents/{}/access", rest::url_encode(id.id())),
+                &req,
+                RequestErrorCode::DocumentGrantAccess,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 
-    pub fn revoke_access_request<'a>(
-        auth: &'a RequestAuth,
+    pub async fn revoke_access_request(
+        auth: &RequestAuth,
         doc_id: &DocumentId,
         revoke_list: Vec<UserOrGroupAccess>,
-    ) -> impl Future<Item = DocumentAccessResponse, Error = IronOxideErr> + 'a {
-        auth.request.delete(
-            &format!("documents/{}/access", rest::url_encode(&doc_id.0)),
-            &DocumentRevokeAccessRequest {
-                user_or_groups: revoke_list,
-            },
-            RequestErrorCode::DocumentRevokeAccess,
-            AuthV2Builder::new(&auth, Utc::now()),
-        )
+    ) -> Result<DocumentAccessResponse, IronOxideErr> {
+        auth.request
+            .delete(
+                &format!("documents/{}/access", rest::url_encode(&doc_id.0)),
+                &DocumentRevokeAccessRequest {
+                    user_or_groups: revoke_list,
+                },
+                RequestErrorCode::DocumentRevokeAccess,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .compat()
+            .await
     }
 }
 

@@ -12,6 +12,7 @@ use crate::{
     policy::*,
     Result,
 };
+use futures3::future::{FutureExt, TryFutureExt};
 use itertools::{Either, EitherOrBoth, Itertools};
 use tokio::runtime::current_thread::Runtime;
 
@@ -199,12 +200,20 @@ pub trait DocumentOps {
 impl DocumentOps for crate::IronOxide {
     fn document_list(&self) -> Result<DocumentListResult> {
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(document_api::document_list(self.device.auth()))
+        rt.block_on(
+            document_api::document_list(self.device.auth())
+                .boxed()
+                .compat(),
+        )
     }
 
     fn document_get_metadata(&self, id: &DocumentId) -> Result<DocumentMetadataResult> {
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(document_api::document_get_metadata(self.device.auth(), id))
+        rt.block_on(
+            document_api::document_get_metadata(self.device.auth(), id)
+                .boxed_local()
+                .compat(),
+        )
     }
 
     fn document_get_id_from_bytes(&self, encrypted_document: &[u8]) -> Result<DocumentId> {
@@ -237,19 +246,23 @@ impl DocumentOps for crate::IronOxide {
                 }
             };
 
-        rt.block_on(document_api::encrypt_document(
-            self.device.auth(),
-            &self.recrypt,
-            &self.user_master_pub_key,
-            &self.rng,
-            document_data,
-            encrypt_opts.id,
-            encrypt_opts.name,
-            grant_to_author,
-            &explicit_users,
-            &explicit_groups,
-            policy_grants.as_ref(),
-        ))
+        rt.block_on(
+            document_api::encrypt_document(
+                self.device.auth(),
+                &self.recrypt,
+                &self.user_master_pub_key,
+                &self.rng,
+                document_data,
+                encrypt_opts.id,
+                encrypt_opts.name,
+                grant_to_author,
+                &explicit_users,
+                &explicit_groups,
+                policy_grants.as_ref(),
+            )
+            .boxed_local()
+            .compat(),
+        )
     }
 
     fn document_update_bytes(
@@ -259,25 +272,33 @@ impl DocumentOps for crate::IronOxide {
     ) -> Result<DocumentEncryptResult> {
         let mut rt = Runtime::new().unwrap();
 
-        rt.block_on(document_api::document_update_bytes(
-            self.device.auth(),
-            &self.recrypt,
-            self.device.device_private_key(),
-            &self.rng,
-            id,
-            &new_document_data,
-        ))
+        rt.block_on(
+            document_api::document_update_bytes(
+                self.device.auth(),
+                &self.recrypt,
+                self.device.device_private_key(),
+                &self.rng,
+                id,
+                &new_document_data,
+            )
+            .boxed_local() // required because something is not Send
+            .compat(),
+        )
     }
 
     fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult> {
         let mut rt = Runtime::new().unwrap();
 
-        rt.block_on(document_api::decrypt_document(
-            self.device.auth(),
-            &self.recrypt,
-            self.device.device_private_key(),
-            encrypted_document,
-        ))
+        rt.block_on(
+            document_api::decrypt_document(
+                self.device.auth(),
+                &self.recrypt,
+                self.device.device_private_key(),
+                encrypted_document,
+            )
+            .boxed_local() // required because something is not Send
+            .compat(),
+        )
     }
 
     fn document_update_name(
@@ -287,11 +308,11 @@ impl DocumentOps for crate::IronOxide {
     ) -> Result<DocumentMetadataResult> {
         let mut rt = Runtime::new().unwrap();
 
-        rt.block_on(document_api::update_document_name(
-            self.device.auth(),
-            id,
-            name,
-        ))
+        rt.block_on(
+            document_api::update_document_name(self.device.auth(), id, name)
+                .boxed_local() // required because something is not Send
+                .compat(),
+        )
     }
 
     fn document_grant_access(
@@ -303,15 +324,19 @@ impl DocumentOps for crate::IronOxide {
 
         let (users, groups) = partition_user_or_group(grant_list);
 
-        rt.block_on(document_api::document_grant_access(
-            self.device.auth(),
-            &self.recrypt,
-            id,
-            &self.user_master_pub_key,
-            &self.device.device_private_key(),
-            &users,
-            &groups,
-        ))
+        rt.block_on(
+            document_api::document_grant_access(
+                self.device.auth(),
+                &self.recrypt,
+                id,
+                &self.user_master_pub_key,
+                &self.device.device_private_key(),
+                &users,
+                &groups,
+            )
+            .boxed_local() // required because something is not Send
+            .compat(),
+        )
     }
 
     fn document_revoke_access(
@@ -321,11 +346,11 @@ impl DocumentOps for crate::IronOxide {
     ) -> Result<DocumentAccessResult> {
         let mut rt = Runtime::new().unwrap();
 
-        rt.block_on(document_api::document_revoke_access(
-            self.device.auth(),
-            id,
-            revoke_list,
-        ))
+        rt.block_on(
+            document_api::document_revoke_access(self.device.auth(), id, revoke_list)
+                .boxed_local() // required because something is not Send
+                .compat(),
+        )
     }
 }
 

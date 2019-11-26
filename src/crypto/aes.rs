@@ -4,8 +4,7 @@ use rand::{self, CryptoRng, RngCore};
 use ring::{aead, aead::BoundKey, digest, error::Unspecified, pbkdf2};
 
 use crate::internal::{take_lock, IronOxideErr};
-use futures::Future;
-use std::convert::TryFrom;
+use std::{convert::TryFrom, ops::DerefMut, sync::Mutex};
 
 //There is no way this can fail. Value is most definitely not less than one.
 const PBKDF2_ITERATIONS: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(250000) };
@@ -220,18 +219,13 @@ pub fn encrypt<R: CryptoRng + RngCore>(
     })
 }
 
-use futures::future::IntoFuture;
-use std::{ops::DerefMut, sync::Mutex};
-
-/// Like `encrypt`, just wrapped in a Future for convenience
-pub fn encrypt_future<R: CryptoRng + RngCore>(
+/// Like `encrypt`, just async for convenience
+pub async fn encrypt_async<R: CryptoRng + RngCore>(
     rng: &Mutex<R>,
     plaintext: &Vec<u8>,
     key: [u8; AES_KEY_LEN],
-) -> impl Future<Item = AesEncryptedValue, Error = IronOxideErr> {
-    encrypt(rng, plaintext, key)
-        .map_err(IronOxideErr::from)
-        .into_future()
+) -> Result<AesEncryptedValue, IronOxideErr> {
+    async { encrypt(rng, plaintext, key).map_err(IronOxideErr::from) }.await
 }
 
 /// Decrypt the provided ciphertext using the provided 12 byte IV and 32 byte key. Mutates the provided ciphertext
