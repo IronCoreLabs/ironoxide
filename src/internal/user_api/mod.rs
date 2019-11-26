@@ -197,7 +197,7 @@ impl UserDevice {
 /// Verify an existing user given a valid JWT.
 pub async fn user_verify(
     jwt: Jwt,
-    request: IronCoreRequest<'static>,
+    request: IronCoreRequest,
 ) -> Result<Option<UserResult>, IronOxideErr> {
     requests::user_verify::user_verify(&jwt, &request)
         .await?
@@ -211,7 +211,7 @@ pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
     jwt: Jwt,
     passphrase: Password,
     needs_rotation: bool,
-    request: IronCoreRequest<'static>,
+    request: IronCoreRequest,
 ) -> Result<UserCreateResult, IronOxideErr> {
     let (encrypted_priv_key, recrypt_pub) = async {
         recrypt
@@ -330,7 +330,7 @@ pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
     password: Password,
     device_name: Option<DeviceName>,
     signing_ts: &DateTime<Utc>,
-    request: &IronCoreRequest<'static>,
+    request: &IronCoreRequest,
 ) -> Result<DeviceContext, IronOxideErr> {
     // verify that this user exists
     let requests::user_verify::UserVerifyResponse {

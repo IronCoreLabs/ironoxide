@@ -69,7 +69,7 @@ pub mod user_verify {
 
     pub async fn user_verify(
         jwt: &Jwt,
-        request: &IronCoreRequest<'static>,
+        request: &IronCoreRequest,
     ) -> Result<Option<UserVerifyResponse>, IronOxideErr> {
         request
             .get_with_empty_result_jwt_auth(
@@ -249,7 +249,7 @@ pub mod user_create {
         user_public_key: PublicKey,
         encrypted_user_private_key: EncryptedPrivateKey,
         needs_rotation: bool,
-        request: IronCoreRequest<'_>,
+        request: IronCoreRequest,
     ) -> Result<UserCreateResponse, IronOxideErr> {
         let req_body = UserCreateReq {
             user_private_key: encrypted_user_private_key,
@@ -349,7 +349,7 @@ pub mod device_add {
         jwt: &Jwt,
         device_add: &DeviceAdd,
         name: &Option<DeviceName>,
-        request: &IronCoreRequest<'_>,
+        request: &IronCoreRequest,
     ) -> Result<DeviceAddResponse, IronOxideErr> {
         let req_body: DeviceAddReq = DeviceAddReq {
             timestamp: device_add.signature_ts.timestamp_millis() as u64,
