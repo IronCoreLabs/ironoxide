@@ -10,7 +10,7 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use core::convert::identity;
-use futures_util::try_join;
+use futures::try_join;
 use itertools::{Either, Itertools};
 use recrypt::prelude::*;
 use std::{

@@ -1333,7 +1333,7 @@ mod tests {
             maybe_path.unwrap().signature_string(),
             "/api/1/users?id=user-10"
         );
-
+        //
         // test a user id that uses more allowed characters
         let maybe_path = SignatureUrlString::new(&user_list_url("abcABC012_.$#|@/:;=+'-"));
 
@@ -1379,6 +1379,6 @@ mod tests {
         );
         let q = "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
         IronCoreRequest::req_add_query(&mut req, &[("id".to_string(), url_encode(&q))]);
-        assert_eq!(req.url().query(), Some("id=!%22%23%24%25%26\'()*%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"))
+        assert_eq!(req.url().query(), Some("id=!%22%23%24%25%26%27()*%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"))
     }
 }

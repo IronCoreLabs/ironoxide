@@ -19,7 +19,7 @@ use crate::{
     DeviceSigningKeyPair,
 };
 use chrono::{DateTime, Utc};
-use futures_util::try_join;
+use futures::try_join;
 use hex::encode;
 use itertools::{Either, Itertools};
 use protobuf::{Message, RepeatedField};
