@@ -9,7 +9,6 @@ use crate::{
     },
     DeviceContext, IronOxide, Result,
 };
-use futures3::future::{FutureExt, TryFutureExt};
 use recrypt::api::Recrypt;
 use std::{collections::HashMap, convert::TryInto};
 use tokio::runtime::current_thread::Runtime;
@@ -150,26 +149,18 @@ impl UserOps for IronOxide {
     ) -> Result<UserCreateResult> {
         let recrypt = Recrypt::new();
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(
-            user_api::user_create(
-                &recrypt,
-                jwt.try_into()?,
-                password.try_into()?,
-                user_create_opts.needs_rotation,
-                *OUR_REQUEST,
-            )
-            .boxed()
-            .compat(),
-        )
+        rt.block_on(user_api::user_create(
+            &recrypt,
+            jwt.try_into()?,
+            password.try_into()?,
+            user_create_opts.needs_rotation,
+            *OUR_REQUEST,
+        ))
     }
 
     fn user_list_devices(&self) -> Result<UserDeviceListResult> {
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(
-            user_api::device_list(self.device.auth())
-                .boxed_local() // required because something isn't Send; perhaps related to IronCoreRequest
-                .compat(),
-        )
+        rt.block_on(user_api::device_list(self.device.auth()))
     }
 
     fn generate_new_device(
@@ -181,58 +172,38 @@ impl UserOps for IronOxide {
         let mut rt = Runtime::new().unwrap();
         let device_create_options = device_create_options.clone();
 
-        rt.block_on(
-            user_api::generate_device_key(
-                &recrypt,
-                &jwt.try_into()?,
-                password.try_into()?,
-                device_create_options.device_name,
-                &std::time::SystemTime::now().into(),
-                &OUR_REQUEST,
-            )
-            .boxed()
-            .compat(),
-        )
+        rt.block_on(user_api::generate_device_key(
+            &recrypt,
+            &jwt.try_into()?,
+            password.try_into()?,
+            device_create_options.device_name,
+            &std::time::SystemTime::now().into(),
+            &OUR_REQUEST,
+        ))
     }
 
     fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId> {
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(
-            user_api::device_delete(self.device.auth(), device_id)
-                .boxed_local() // required because something isn't Send; perhaps related to IronCoreRequest
-                .compat(),
-        )
+        rt.block_on(user_api::device_delete(self.device.auth(), device_id))
     }
 
     fn user_verify(jwt: &str) -> Result<Option<UserResult>> {
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(
-            user_api::user_verify(jwt.try_into()?, *OUR_REQUEST)
-                .boxed()
-                .compat(),
-        )
+        rt.block_on(user_api::user_verify(jwt.try_into()?, *OUR_REQUEST))
     }
 
     fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(
-            user_api::user_key_list(self.device.auth(), &users.to_vec())
-                .boxed()
-                .compat(),
-        )
+        rt.block_on(user_api::user_key_list(self.device.auth(), &users.to_vec()))
     }
 
     fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult> {
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(
-            user_api::user_rotate_private_key(
-                &self.recrypt,
-                password.try_into()?,
-                self.device().auth(),
-            )
-            .boxed_local() //required because something isn't Send...
-            .compat(),
-        )
+        rt.block_on(user_api::user_rotate_private_key(
+            &self.recrypt,
+            password.try_into()?,
+            self.device().auth(),
+        ))
     }
 }
 

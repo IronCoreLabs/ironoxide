@@ -19,7 +19,7 @@ use crate::{
     DeviceSigningKeyPair,
 };
 use chrono::{DateTime, Utc};
-use futures_util::try_join;
+use futures::try_join;
 use hex::encode;
 use itertools::{Either, Itertools};
 use protobuf::{Message, RepeatedField};
@@ -590,9 +590,8 @@ async fn resolve_keys_for_grants(
     policy_grant: Option<&PolicyGrant>,
     maybe_user_master_pub_key: Option<&UserMasterPublicKey>,
 ) -> Result<(Vec<WithKey<UserOrGroup>>, Vec<DocAccessEditErr>), IronOxideErr> {
-    use futures3::compat::Future01CompatExt;
     let get_user_keys_f = internal::user_api::get_user_keys(auth, user_grants);
-    let get_group_keys_f = internal::group_api::get_group_keys(auth, group_grants).compat();
+    let get_group_keys_f = internal::group_api::get_group_keys(auth, group_grants);
 
     let maybe_policy_grants_f =
         policy_grant.map(|p| requests::policy_get::policy_get_request(auth, p));
@@ -697,9 +696,9 @@ fn dedupe_grants(grants: &[WithKey<UserOrGroup>]) -> Vec<WithKey<UserOrGroup>> {
 /// Encrypt the document using transform crypto (recrypt).
 /// Can be called once you have public keys for users/groups that should have access as well as the
 /// AES encrypted data.
-fn recrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
-    signing_keys: &'a DeviceSigningKeyPair,
-    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+fn recrypt_document<CR: rand::CryptoRng + rand::RngCore>(
+    signing_keys: &DeviceSigningKeyPair,
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     dek: Plaintext,
     encrypted_doc: AesEncryptedValue,
     doc_id: &DocumentId,
@@ -944,11 +943,11 @@ pub async fn document_update_bytes<
 
 /// Decrypt the provided document with the provided device private key. Return metadata about the document
 /// that was decrypted along with its decrypted bytes.
-pub async fn decrypt_document<'a, CR: rand::CryptoRng + rand::RngCore>(
-    auth: &'a RequestAuth,
-    recrypt: &'a Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
-    device_private_key: &'a PrivateKey,
-    encrypted_doc: &'a [u8],
+pub async fn decrypt_document<CR: rand::CryptoRng + rand::RngCore>(
+    auth: &RequestAuth,
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    device_private_key: &PrivateKey,
+    encrypted_doc: &[u8],
 ) -> Result<DocumentDecryptResult, IronOxideErr> {
     let (doc_header, mut enc_doc) = parse_document_parts(encrypted_doc)?;
     let doc_meta = document_get_metadata(auth, &doc_header.document_id).await?;
@@ -1032,10 +1031,10 @@ fn edeks_and_header_match_or_err(
 
 // Update a documents name. Value can be updated to either a new name with a Some or the name value can be cleared out
 // by providing a None.
-pub async fn update_document_name<'a>(
-    auth: &'a RequestAuth,
-    id: &'a DocumentId,
-    name: Option<&'a DocumentName>,
+pub async fn update_document_name(
+    auth: &RequestAuth,
+    id: &DocumentId,
+    name: Option<&DocumentName>,
 ) -> Result<DocumentMetadataResult, IronOxideErr> {
     requests::document_update::document_update_request(auth, id, name)
         .await
@@ -1051,12 +1050,11 @@ pub async fn document_grant_access<CR: rand::CryptoRng + rand::RngCore>(
     user_grants: &Vec<UserId>,
     group_grants: &Vec<GroupId>,
 ) -> Result<DocumentAccessResult, IronOxideErr> {
-    use futures3::compat::Future01CompatExt;
     let (doc_meta, users, groups) = try_join!(
         document_get_metadata(auth, id),
         // and the public keys for the users and groups
         internal::user_api::get_user_keys(auth, user_grants),
-        internal::group_api::get_group_keys(auth, group_grants).compat(),
+        internal::group_api::get_group_keys(auth, group_grants),
     )?;
     let (grants, other_errs) = {
         // decrypt the dek

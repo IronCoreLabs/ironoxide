@@ -38,8 +38,7 @@ lazy_static! {
         .to_string(),
         _ => "https://api.ironcorelabs.com/api/1/".to_string(),
     };
-    pub static ref OUR_REQUEST: IronCoreRequest::<'static> =
-        IronCoreRequest::new(URL_STRING.as_str());
+    pub static ref OUR_REQUEST: IronCoreRequest = IronCoreRequest::new(URL_STRING.as_str());
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -254,7 +253,7 @@ pub struct RequestAuth {
     ///The signing key which was generated for the device. “expanded private key” (both pub/priv)
     signing_private_key: DeviceSigningKeyPair,
     #[serde(skip_serializing, skip_deserializing)]
-    pub(crate) request: IronCoreRequest<'static>,
+    pub(crate) request: IronCoreRequest,
 }
 
 impl RequestAuth {
