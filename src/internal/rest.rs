@@ -9,8 +9,7 @@ use chrono::{DateTime, Utc};
 use percent_encoding::SIMPLE_ENCODE_SET;
 use reqwest::{
     header::{HeaderMap, HeaderValue, CONTENT_TYPE},
-    r#async::{Client as RClient, Request as ARequest, RequestBuilder},
-    Method, StatusCode, Url,
+    Client, Method, Request, RequestBuilder, StatusCode, Url,
 };
 use serde::{
     de::DeserializeOwned,
@@ -371,7 +370,7 @@ impl IronCoreRequest {
 
         let make_req: Result<_, IronOxideErr> = Ok({
             // build up a request...
-            let mut req = ARequest::new(
+            let mut req = Request::new(
                 Method::POST,
                 format!("{}{}", self.base_url(), relative_url)
                     .into_url()
@@ -534,7 +533,7 @@ impl IronCoreRequest {
         Q: Serialize + ?Sized,
         F: FnOnce(&Bytes) -> Result<B, IronOxideErr>,
     {
-        let client = RClient::new();
+        let client = Client::new();
         let mut builder = client.request(
             method,
             format!("{}{}", self.base_url, relative_url).as_str(),
@@ -573,7 +572,7 @@ impl IronCoreRequest {
         use publicsuffix::IntoUrl;
         let make_req: Result<_, IronOxideErr> = Ok({
             // build up a request...
-            let mut req = ARequest::new(
+            let mut req = Request::new(
                 method,
                 format!("{}{}", self.base_url(), relative_url)
                     .into_url()
@@ -633,7 +632,7 @@ impl IronCoreRequest {
         }
     }
 
-    fn req_add_query(req: &mut ARequest, query_params: &[(String, PercentEncodedString)]) {
+    fn req_add_query(req: &mut Request, query_params: &[(String, PercentEncodedString)]) {
         // side-effect to the stars!
         // can't use serde_urlencoded here as we need a custom percent encoding
         let query_string: String = query_params
@@ -646,7 +645,7 @@ impl IronCoreRequest {
     }
 
     async fn send_req<B, F>(
-        req: ARequest,
+        req: Request,
         error_code: RequestErrorCode,
         resp_handler: F,
     ) -> Result<B, IronOxideErr>
@@ -654,7 +653,7 @@ impl IronCoreRequest {
         B: DeserializeOwned,
         F: FnOnce(&Bytes) -> Result<B, IronOxideErr>,
     {
-        let client = RClient::new();
+        let client = Client::new();
         let server_res = client.execute(req).await;
         let res = server_res.map_err(|e| (e, error_code))?;
         //Parse the body content into bytes
@@ -1358,7 +1357,7 @@ mod tests {
         use publicsuffix::IntoUrl;
 
         let icl_req = IronCoreRequest::new("https://example.com");
-        let mut req = ARequest::new(
+        let mut req = Request::new(
             Method::GET,
             format!("{}/{}", icl_req.base_url(), "users")
                 .into_url()
