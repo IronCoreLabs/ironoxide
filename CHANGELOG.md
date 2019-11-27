@@ -3,7 +3,7 @@
 ## 0.14.0
 
 - [[#81](https://github.com/IronCoreLabs/ironoxide/pull/81)][[#80](https://github.com/IronCoreLabs/ironoxide/pull/80)][[#77](https://github.com/IronCoreLabs/ironoxide/pull/77)]
-  - Moves internal group api to async/await syntax
+  - internal group api to async/await syntax
   - internal document api to async/await syntax
   - internal user api to async/await syntax
   - Tokio 0.2.0-alpha.2 upgrade
