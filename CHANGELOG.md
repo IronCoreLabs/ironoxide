@@ -1,7 +1,14 @@
 # Changelog
 
-## 0.14.0 (Unreleased)
+## 0.14.0
 
+- [[#81](https://github.com/IronCoreLabs/ironoxide/pull/81)]
+  - Moves group apis to async/await syntax
+  - Tokio 0.2.0-alpha.2 upgrade
+- [[#80](https://github.com/IronCoreLabs/ironoxide/pull/80)]
+  - Document api to async/await syntax
+- [[#77](https://github.com/IronCoreLabs/ironoxide/pull/77)]
+  - User api to async/await syntax
 - [[#76](https://github.com/IronCoreLabs/ironoxide/pull/76)]
   - Allows adding admins at group creation time.
   - Allows specifying an owner at group creation time.

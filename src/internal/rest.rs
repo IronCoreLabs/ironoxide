@@ -368,7 +368,7 @@ impl IronCoreRequest {
     ) -> Result<B, IronOxideErr> {
         use publicsuffix::IntoUrl;
 
-        let make_req: Result<_, IronOxideErr> = Ok({
+        let (mut req, body_bytes) = Result::<_, IronOxideErr>::Ok({
             // build up a request...
             let mut req = Request::new(
                 Method::POST,
@@ -378,8 +378,7 @@ impl IronCoreRequest {
             );
             *req.body_mut() = Some(body.to_vec().into());
             (req, body.to_vec())
-        });
-        let (mut req, body_bytes) = make_req?;
+        })?;
         // use the completed request to finish authorization v2 headers
         let auth = SignatureUrlString::new(req.url().as_str())
             .map(|sig_url| auth_b.finish_with(sig_url, req.method().clone(), Some(&body_bytes)))
@@ -570,7 +569,7 @@ impl IronCoreRequest {
         F: FnOnce(&Bytes) -> Result<B, IronOxideErr>,
     {
         use publicsuffix::IntoUrl;
-        let make_req: Result<_, IronOxideErr> = Ok({
+        let (mut req, body_bytes) = Result::<_, IronOxideErr>::Ok({
             // build up a request...
             let mut req = Request::new(
                 method,
@@ -597,38 +596,28 @@ impl IronCoreRequest {
             };
 
             (req, body_bytes)
-        });
-        let (mut req, body_bytes) = make_req?;
+        })?;
 
         // use the completed request to finish authorization v2 headers
-        let maybe_auth = SignatureUrlString::new(req.url().as_str())
+        let auth = SignatureUrlString::new(req.url().as_str())
             .map(|sig_url| auth_b.finish_with(sig_url, req.method().clone(), Some(&body_bytes)))
-            .map_err(|e| IronOxideErr::from((e, error_code)));
+            .map_err(|e| IronOxideErr::from((e, error_code)))?;
 
         // we only support Authorization::Version2 with this call
-        match maybe_auth {
-            Ok(auth) => {
-                if let Authorization::Version2 {
-                    user_context,
-                    request_sig,
-                } = &auth
-                {
-                    match user_context.to_header(error_code) {
-                        Ok(user_context_header) => {
-                            replace_headers(req.headers_mut(), user_context_header);
-                            replace_headers(req.headers_mut(), DEFAULT_HEADERS.clone());
-                            replace_headers(req.headers_mut(), auth.to_auth_header());
-                            replace_headers(req.headers_mut(), request_sig.to_header());
+        if let Authorization::Version2 {
+            user_context,
+            request_sig,
+        } = &auth
+        {
+            let user_context_header = user_context.to_header(error_code)?;
+            replace_headers(req.headers_mut(), user_context_header);
+            replace_headers(req.headers_mut(), DEFAULT_HEADERS.clone());
+            replace_headers(req.headers_mut(), auth.to_auth_header());
+            replace_headers(req.headers_mut(), request_sig.to_header());
 
-                            Self::send_req(req, error_code, resp_handler).await
-                        }
-                        Err(e) => futures::future::err(e).await,
-                    }
-                } else {
-                    panic!("authorized requests must use version 2 of API authentication")
-                }
-            }
-            Err(e) => futures::future::err(e).await,
+            Self::send_req(req, error_code, resp_handler).await
+        } else {
+            panic!("authorized requests must use version 2 of API authentication")
         }
     }
 
