@@ -244,6 +244,7 @@ pub mod user_create {
         needs_rotation: bool,
     }
 
+    #[cfg_attr(feature = "flame_it", flame("requests"))]
     pub async fn user_create(
         jwt: &Jwt,
         user_public_key: PublicKey,
@@ -291,6 +292,7 @@ pub mod user_key_list {
         pub(crate) result: Vec<UserPublicKey>,
     }
 
+    #[cfg_attr(feature = "flame_it", flame("requests"))]
     pub async fn user_key_list_request(
         auth: &RequestAuth,
         users: &Vec<UserId>,

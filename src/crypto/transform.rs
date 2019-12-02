@@ -9,6 +9,7 @@ use recrypt::{
 };
 
 /// Generate a DEK and it's associated symmetric key for a new document
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn generate_new_doc_key<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
 ) -> (Plaintext, DerivedSymmetricKey) {
@@ -18,6 +19,7 @@ pub fn generate_new_doc_key<CR: rand::CryptoRng + rand::RngCore>(
 }
 
 /// Generate a plaintext and a keypair necessary to create a new group
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn gen_group_keys<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
 ) -> Result<(Plaintext, PrivateKey, PublicKey), IronOxideErr> {
@@ -42,6 +44,7 @@ pub fn decrypt_plaintext<CR: rand::CryptoRng + rand::RngCore>(
 
 /// Encrypt the plaintext to all the public keys in the `with_keys` list. If the encryption succeeds, return the values in the right
 /// list. If encryption fails, return them in the left list.
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn encrypt_to_with_key<T, CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     plaintext: &recrypt::api::Plaintext,

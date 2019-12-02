@@ -206,6 +206,7 @@ pub async fn user_verify(
 }
 
 /// Create a user
+#[cfg_attr(feature = "flame_it", flame("internal"))]
 pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: Jwt,
@@ -398,6 +399,7 @@ pub async fn device_delete(
 }
 
 /// Get a list of users public keys given a list of user account IDs
+#[cfg_attr(feature = "flame_it", flame("internal"))]
 pub async fn user_key_list(
     auth: &RequestAuth,
     user_ids: &Vec<UserId>,
@@ -424,6 +426,7 @@ pub async fn user_key_list(
 /// Get the keys for users. The result should be either a failure for a specific UserId (Left) or the id with their public key (Right).
 /// The resulting lists will have the same combined size as the incoming list.
 /// Calling this with an empty `users` list will not result in a call to the server.
+//#[cfg_attr(feature = "flame_it", flame)]
 pub(crate) async fn get_user_keys(
     auth: &RequestAuth,
     users: &Vec<UserId>,

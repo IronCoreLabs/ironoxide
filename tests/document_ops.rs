@@ -9,6 +9,7 @@ use ironoxide::{
     IronOxide,
 };
 use itertools::EitherOrBoth;
+use std::fs::File;
 use std::{
     convert::{TryFrom, TryInto},
     sync::Arc,
@@ -216,6 +217,9 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
         ),
     )?;
     assert_eq!(doc_result3.grants().len(), 1);
+    flame::dump_html(File::create("target/doc_create_with_policy_grants.html").unwrap());
+    flame::dump_stdout();
+
     Ok(())
 }
 
@@ -271,6 +275,8 @@ fn doc_create_with_explicit_self_grant() -> Result<(), IronOxideErr> {
     let doc_result = sdk.document_encrypt(&doc, &encrypt_opts)?;
 
     check_encrypt_with_explicit_self_grant(&sdk, Box::new(doc_result));
+    flame::dump_html(File::create("target/doc_create_with_explicit_self_grant.html").unwrap());
+    flame::dump_stdout();
     Ok(())
 }
 

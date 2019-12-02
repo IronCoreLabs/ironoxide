@@ -46,13 +46,12 @@ pub trait DocumentAdvancedOps {
 }
 
 impl DocumentAdvancedOps for crate::IronOxide {
+    #[cfg_attr(feature = "flame_it", flame("sdk"))]
     fn document_encrypt_unmanaged(
         &self,
         data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptUnmanagedResult> {
-        let mut rt = Runtime::new().unwrap();
-
         let (explicit_users, explicit_groups, grant_to_author, policy_grants) =
             match &encrypt_opts.grants {
                 EitherOrBoth::Left(explicit_grants) => {
@@ -71,18 +70,19 @@ impl DocumentAdvancedOps for crate::IronOxide {
                 }
             };
 
-        rt.block_on(internal::document_api::encrypted_document_unmanaged(
-            self.device.auth(),
-            &self.recrypt,
-            &self.user_master_pub_key,
-            &self.rng,
-            data,
-            encrypt_opts.id.clone(),
-            grant_to_author,
-            &explicit_users,
-            &explicit_groups,
-            policy_grants,
-        ))
+        self.runtime
+            .block_on(internal::document_api::encrypted_document_unmanaged(
+                self.device.auth(),
+                &self.recrypt,
+                &self.user_master_pub_key,
+                &self.rng,
+                data,
+                encrypt_opts.id.clone(),
+                grant_to_author,
+                &explicit_users,
+                &explicit_groups,
+                policy_grants,
+            ))
     }
 
     fn document_decrypt_unmanaged(

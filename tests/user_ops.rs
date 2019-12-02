@@ -1,11 +1,13 @@
 mod common;
 use crate::common::initialize_sdk;
 use common::{create_id_all_classes, gen_jwt};
+use flame;
 use ironoxide::{
     document::DocumentEncryptOpts,
     prelude::*,
     user::{DeviceCreateOpts, UserCreateOpts},
 };
+use std::fs::File;
 use std::{convert::TryInto, default::Default};
 use uuid::Uuid;
 
@@ -72,6 +74,8 @@ fn user_create_good_with_devices() -> Result<(), IronOxideErr> {
         &"myDevice".to_string(),
         device_list.result()[0].name().unwrap().name()
     );
+    flame::dump_html(File::create("target/user_create_good_with_devices.html").unwrap());
+    flame::dump_stdout();
     Ok(())
 }
 

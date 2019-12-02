@@ -280,6 +280,7 @@ pub mod policy_get {
         pub(crate) invalid_users_and_groups: Vec<UserOrGroup>,
     }
 
+    #[cfg_attr(feature = "flame_it", flame("requests"))]
     pub async fn policy_get_request(
         auth: &RequestAuth,
         policy_grant: &PolicyGrant,

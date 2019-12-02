@@ -2,6 +2,7 @@ use crate::common::create_second_user;
 use common::{create_id_all_classes, init_sdk_get_user, initialize_sdk};
 use ironoxide::{group::*, prelude::*};
 use std::convert::TryInto;
+use std::fs::File;
 use uuid::Uuid;
 
 mod common;
@@ -42,6 +43,8 @@ fn group_create_with_defaults() -> Result<(), IronOxideErr> {
     assert!(group_result.is_member());
     assert!(group_result.is_admin());
     assert_eq!(group_result.owner(), sdk.device().account_id());
+    flame::dump_html(File::create("target/group_create_with_defaults.html").unwrap());
+    flame::dump_stdout();
     Ok(())
 }
 

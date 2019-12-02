@@ -344,35 +344,36 @@ pub async fn list(
 /// Get the keys for groups. The result should be either a failure for a specific UserId (Left) or the id with their public key (Right).
 /// The resulting lists will have the same combined size as the incoming list.
 /// Calling this with an empty `groups` list will not result in a call to the server.
+//#[cfg_attr(feature = "flame_it", flame)]
 pub(crate) async fn get_group_keys(
     auth: &RequestAuth,
     groups: &Vec<GroupId>,
 ) -> Result<(Vec<GroupId>, Vec<WithKey<GroupId>>), IronOxideErr> {
     // if there aren't any groups in the list, just return with empty results
     if groups.len() == 0 {
-        return Ok((vec![], vec![]));
+        Ok((vec![], vec![]))
+    } else {
+        let cloned_groups: Vec<GroupId> = groups.clone();
+        let GroupListResult { result } = list(auth, Some(&groups)).await?;
+        let ids_with_keys =
+            result
+                .iter()
+                .fold(HashMap::with_capacity(groups.len()), |mut acc, group| {
+                    let public_key = group.group_master_public_key();
+                    acc.insert(group.id().clone(), public_key.clone());
+                    acc
+                });
+        Ok(cloned_groups.into_iter().partition_map(move |group_id| {
+            let maybe_public_key = ids_with_keys.get(&group_id).cloned();
+            match maybe_public_key {
+                Some(public_key) => Either::Right(WithKey {
+                    id: group_id,
+                    public_key,
+                }),
+                None => Either::Left(group_id),
+            }
+        }))
     }
-
-    let cloned_groups: Vec<GroupId> = groups.clone();
-    let GroupListResult { result } = list(auth, Some(&groups)).await?;
-    let ids_with_keys =
-        result
-            .iter()
-            .fold(HashMap::with_capacity(groups.len()), |mut acc, group| {
-                let public_key = group.group_master_public_key();
-                acc.insert(group.id().clone(), public_key.clone());
-                acc
-            });
-    Ok(cloned_groups.into_iter().partition_map(move |group_id| {
-        let maybe_public_key = ids_with_keys.get(&group_id).cloned();
-        match maybe_public_key {
-            Some(public_key) => Either::Right(WithKey {
-                id: group_id,
-                public_key,
-            }),
-            None => Either::Left(group_id),
-        }
-    }))
 }
 
 fn check_user_mismatch<T: Eq + std::hash::Hash + std::fmt::Debug, X>(
@@ -395,6 +396,7 @@ fn check_user_mismatch<T: Eq + std::hash::Hash + std::fmt::Debug, X>(
 
 // Partitions `user_ids_and_keys` into a vector of admins and a vector of members.
 // Also generates TransformKeys for members to prepare for making requests::GroupMembers
+#[cfg_attr(feature = "flame_it", flame)]
 fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     signing_key: &crate::internal::DeviceSigningKeyPair,
@@ -450,6 +452,7 @@ fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
 /// `name` - name for the group. Does not need to be unique.
 /// `members` - list of user ids to add as members of the group.
 /// `needs_rotation` - true if the group private key should be rotated by an admin, else false
+#[cfg_attr(feature = "flame_it", flame("internal"))]
 pub async fn group_create<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &RequestAuth,
@@ -490,6 +493,8 @@ pub async fn group_create<CR: rand::CryptoRng + rand::RngCore>(
         Some(group_members)
     };
 
+//    #[cfg(flame_it)]
+    flame::start("encrypt_to_admin");
     let group_admins: Vec<requests::GroupAdmin> = admin_info
         .into_iter()
         .map(|(admin_id, admin_pub_key)| {
@@ -510,6 +515,8 @@ pub async fn group_create<CR: rand::CryptoRng + rand::RngCore>(
                 })
         })
         .collect::<Result<Vec<_>, _>>()?;
+//    #[cfg(flame_it)]
+    flame::end("encrypt_to_admin");
 
     let resp = requests::group_create::group_create(
         &auth,

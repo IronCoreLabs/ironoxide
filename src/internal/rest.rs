@@ -320,6 +320,7 @@ impl IronCoreRequest {
 
     ///POST body to the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
+    //    #[cfg_attr(feature = "flame_it", flame)]
     pub async fn post_jwt_auth<A: Serialize, B: DeserializeOwned>(
         &self,
         relative_url: &str,
@@ -341,6 +342,8 @@ impl IronCoreRequest {
 
     ///POST body to the resource at relative_url using IronCore authorization.
     ///If the request fails a RequestError will be raised.
+
+    #[cfg_attr(feature = "flame_it", flame("rest"))]
     pub async fn post<A: Serialize, B: DeserializeOwned>(
         &self,
         relative_url: &str,
@@ -448,6 +451,7 @@ impl IronCoreRequest {
 
     ///GET the resource at relative_url using auth for authorization.
     ///If the request fails a RequestError will be raised.
+    #[cfg_attr(feature = "flame_it", flame("rest"))]
     pub async fn get_with_query_params<A: DeserializeOwned>(
         &self,
         relative_url: &str,
@@ -516,6 +520,7 @@ impl IronCoreRequest {
 
     ///Make a request to the url using the specified method. DEFAULT_HEADERS will be used as well as whatever headers are passed
     /// in. The response will be sent to `resp_handler` so the caller can make the received bytes however they want.
+    //    #[cfg_attr(feature = "flame_it", flame("rest"))]
     pub async fn request<A, B, Q, F>(
         &self,
         relative_url: &str,
@@ -553,6 +558,7 @@ impl IronCoreRequest {
 
     ///Make a request to the url using the specified method. DEFAULT_HEADERS will be used as well as whatever headers are passed
     /// in. The response will be sent to `resp_handler` so the caller can make the received bytes however they want.
+    #[cfg_attr(feature = "flame_it", flame("rest"))]
     pub async fn request_ironcore_auth<A, B, F>(
         &self,
         relative_url: &str,

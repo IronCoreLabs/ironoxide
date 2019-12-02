@@ -134,6 +134,7 @@ fn derive_key_from_password(password: &str, salt: [u8; PBKDF2_SALT_LEN]) -> [u8;
 
 /// Encrypt a users master private key using the provided password. Uses the password to generate a derived AES key
 /// via PBKDF2 and then AES encrypts the users private key with the derived AES key.
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn encrypt_user_master_key<R: CryptoRng + RngCore>(
     rng: &Mutex<R>,
     password: &str,
@@ -220,6 +221,7 @@ pub fn encrypt<R: CryptoRng + RngCore>(
 }
 
 /// Like `encrypt`, just async for convenience
+#[cfg_attr(feature = "flame_it", flame("aes"))]
 pub async fn encrypt_async<R: CryptoRng + RngCore>(
     rng: &Mutex<R>,
     plaintext: &Vec<u8>,

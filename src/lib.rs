@@ -47,6 +47,12 @@ extern crate galvanic_assert;
 #[macro_use]
 extern crate double;
 
+#[cfg(feature = "flame_it")]
+extern crate flame;
+#[cfg(feature = "flame_it")]
+#[macro_use]
+extern crate flamer;
+
 #[macro_use]
 extern crate percent_encoding;
 
@@ -101,6 +107,7 @@ pub struct IronOxide {
     pub(crate) user_master_pub_key: PublicKey,
     pub(crate) device: DeviceContext,
     pub(crate) rng: Mutex<ReseedingRng<ChaChaCore, EntropyRng>>,
+    pub runtime: tokio::runtime::Runtime,
 }
 
 /// Result of calling `initialize_check_rotation`
@@ -202,6 +209,7 @@ impl IronOxide {
                 BYTES_BEFORE_RESEEDING,
                 EntropyRng::new(),
             )),
+            runtime: tokio::runtime::Runtime::new().expect("tokio runtime failed to initialize"),
         }
     }
 }

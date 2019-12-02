@@ -53,6 +53,7 @@ impl DocumentId {
     }
 
     /// Generate a random id for a document
+    #[cfg_attr(feature = "flame_it", flame)]
     pub(crate) fn goo_id<R: CryptoRng + RngCore>(rng: &Mutex<R>) -> DocumentId {
         let mut id = [0u8; 16];
         take_lock(rng).deref_mut().fill_bytes(&mut id);
@@ -583,6 +584,7 @@ type UserMasterPublicKey = PublicKey;
 /// A Future that will resolve to:
 /// (Left)  list of keys for all users and groups that should be granted access to the document
 /// (Right) errors for any invalid users/groups that were passed
+#[cfg_attr(feature = "flame_it", flame)]
 async fn resolve_keys_for_grants(
     auth: &RequestAuth,
     user_grants: &Vec<UserId>,
@@ -635,6 +637,7 @@ async fn resolve_keys_for_grants(
 /// Encrypts a document but does not create the document in the IronCore system.
 /// The resultant DocumentDetachedEncryptResult contains both the EncryptedDeks and the AesEncryptedValue
 /// Both pieces will be required for decryption.
+#[cfg_attr(feature = "flame_it", flame("internal"))]
 pub async fn encrypted_document_unmanaged<R1, R2>(
     auth: &RequestAuth,
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
@@ -696,6 +699,7 @@ fn dedupe_grants(grants: &[WithKey<UserOrGroup>]) -> Vec<WithKey<UserOrGroup>> {
 /// Encrypt the document using transform crypto (recrypt).
 /// Can be called once you have public keys for users/groups that should have access as well as the
 /// AES encrypted data.
+#[cfg_attr(feature = "flame_it", flame)]
 fn recrypt_document<CR: rand::CryptoRng + rand::RngCore>(
     signing_keys: &DeviceSigningKeyPair,
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,

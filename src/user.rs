@@ -142,6 +142,7 @@ pub trait UserOps {
     fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult>;
 }
 impl UserOps for IronOxide {
+    #[cfg_attr(feature = "flame_it", flame)]
     fn user_create(
         jwt: &str,
         password: &str,
@@ -159,8 +160,8 @@ impl UserOps for IronOxide {
     }
 
     fn user_list_devices(&self) -> Result<UserDeviceListResult> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(user_api::device_list(self.device.auth()))
+        self.runtime
+            .block_on(user_api::device_list(self.device.auth()))
     }
 
     fn generate_new_device(
@@ -183,8 +184,8 @@ impl UserOps for IronOxide {
     }
 
     fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(user_api::device_delete(self.device.auth(), device_id))
+        self.runtime
+            .block_on(user_api::device_delete(self.device.auth(), device_id))
     }
 
     fn user_verify(jwt: &str) -> Result<Option<UserResult>> {
@@ -193,13 +194,12 @@ impl UserOps for IronOxide {
     }
 
     fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(user_api::user_key_list(self.device.auth(), &users.to_vec()))
+        self.runtime
+            .block_on(user_api::user_key_list(self.device.auth(), &users.to_vec()))
     }
 
     fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(user_api::user_rotate_private_key(
+        self.runtime.block_on(user_api::user_rotate_private_key(
             &self.recrypt,
             password.try_into()?,
             self.device().auth(),

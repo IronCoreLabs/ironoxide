@@ -226,6 +226,7 @@ pub mod group_create {
         pub(in crate::internal) needs_rotation: bool,
     }
 
+    #[cfg_attr(feature = "flame_it", flame("requests"))]
     pub async fn group_create(
         auth: &RequestAuth,
         id: Option<GroupId>, // if None, server will generate
