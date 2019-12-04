@@ -47,7 +47,7 @@ fn group_create_with_defaults() -> Result<(), IronOxideErr> {
 
 #[test]
 fn group_rotate_private_key() -> Result<(), IronOxideErr> {
-    let (_, creator_sdk) = init_sdk_get_user();
+    let creator_sdk = initialize_sdk()?;
     let (member, member_sdk) = init_sdk_get_user();
 
     // making non-default group so I can specify needs_rotation of true
@@ -88,6 +88,32 @@ fn group_rotate_private_key() -> Result<(), IronOxideErr> {
     let member_decrypt_result = member_sdk.document_decrypt(encrypted_data)?;
     let member_decrypted_data = member_decrypt_result.decrypted_data().to_vec();
     assert_eq!(member_decrypted_data, bytes);
+
+    Ok(())
+}
+
+#[test]
+fn group_rotate_private_key_non_admin() -> Result<(), IronOxideErr> {
+    let creator_sdk = initialize_sdk()?;
+    let member_sdk = initialize_sdk()?;
+
+    // making non-default group so I can specify needs_rotation of true
+    let group_create = creator_sdk.group_create(&GroupCreateOpts::new(
+        None,
+        None,
+        true,
+        true,
+        None,
+        vec![],
+        vec![],
+        true,
+    ))?;
+
+    let group_rotate = member_sdk.group_rotate_private_key(group_create.id());
+    assert_that!(
+        &group_rotate.unwrap_err(),
+        is_variant!(IronOxideErr::NotGroupAdmin)
+    );
 
     Ok(())
 }
