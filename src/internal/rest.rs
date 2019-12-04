@@ -925,6 +925,15 @@ pub mod json {
         public_signing_key: Vec<u8>,
     }
 
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    pub struct AugmentationFactor(#[serde(with = "Base64Standard")] pub Vec<u8>);
+
+    impl From<internal::AugmentationFactor> for AugmentationFactor {
+        fn from(af: internal::AugmentationFactor) -> Self {
+            AugmentationFactor(af.as_bytes().to_vec())
+        }
+    }
+
     #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
     #[serde(rename_all = "camelCase")]
     pub struct TransformedEncryptedValue {

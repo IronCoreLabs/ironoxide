@@ -1,4 +1,5 @@
 use crate::internal::{
+    self,
     group_api::{
         GroupCreateResult, GroupEntity, GroupGetResult, GroupId, GroupMetaResult, GroupName, UserId,
     },
@@ -11,12 +12,11 @@ use crate::internal::{
     IronOxideErr, RequestAuth, RequestErrorCode, SchnorrSignature,
 };
 use chrono::{DateTime, Utc};
+use internal::auth_v2::AuthV2Builder;
 use std::{
     collections::HashSet,
     convert::{TryFrom, TryInto},
 };
-
-use crate::internal::auth_v2::AuthV2Builder;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -29,6 +29,7 @@ pub enum Permission {
 #[serde(rename_all = "camelCase")]
 pub struct GroupBasicApiResponse {
     pub(crate) id: GroupId,
+    pub(crate) current_key_id: u64,
     pub(crate) name: Option<GroupName>,
     pub(crate) permissions: HashSet<Permission>,
     pub(crate) status: u32,
@@ -59,6 +60,7 @@ impl TryFrom<GroupBasicApiResponse> for GroupMetaResult {
 #[serde(rename_all = "camelCase")]
 pub struct GroupGetApiResponse {
     pub(crate) id: GroupId,
+    pub(crate) current_key_id: u64,
     pub(crate) name: Option<GroupName>,
     pub(crate) permissions: HashSet<Permission>,
     pub(crate) status: u32,
@@ -274,6 +276,59 @@ pub mod group_get {
     }
 }
 
+/// PUT /groups/{groupId}/keys/{groupKeyId}
+pub mod group_update_private_key {
+    use super::*;
+    use internal::{group_api::GroupUpdatePrivateKeyResult, rest::json::AugmentationFactor};
+
+    #[derive(Serialize, Debug)]
+    #[serde(rename_all = "camelCase")]
+    pub struct GroupUpdatePrivateKeyRequest {
+        admins: Vec<GroupAdmin>,
+        augmentation_factor: AugmentationFactor,
+    }
+
+    #[derive(Deserialize, PartialEq, Debug)]
+    #[serde(rename_all = "camelCase")]
+    pub struct GroupUpdatePrivateKeyResponse {
+        group_key_id: u64,
+        needs_rotation: bool,
+    }
+
+    impl From<GroupUpdatePrivateKeyResponse> for GroupUpdatePrivateKeyResult {
+        fn from(resp: GroupUpdatePrivateKeyResponse) -> Self {
+            // don't expose the current_key_id to the outside world until we need to
+            GroupUpdatePrivateKeyResult {
+                needs_rotation: resp.needs_rotation,
+            }
+        }
+    }
+
+    pub async fn update_private_key(
+        auth: &RequestAuth,
+        group_id: &GroupId,
+        group_key_id: u64,
+        admins: Vec<GroupAdmin>,
+        augmentation_factor: AugmentationFactor,
+    ) -> Result<GroupUpdatePrivateKeyResponse, IronOxideErr> {
+        auth.request
+            .put(
+                &format!(
+                    "groups/{}/keys/{}",
+                    rest::url_encode(group_id.id()),
+                    group_key_id
+                ),
+                &GroupUpdatePrivateKeyRequest {
+                    augmentation_factor,
+                    admins,
+                },
+                RequestErrorCode::GroupKeyUpdate,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .await
+    }
+}
+
 pub mod group_delete {
     use super::*;
 
@@ -475,6 +530,7 @@ mod tests {
         let (_, pk) = recrypt.generate_key_pair().unwrap();
         let item = GroupBasicApiResponse {
             id: GroupId("my_id".to_string()),
+            current_key_id: 10,
             name: None,
             status: 1,
             group_master_public_key: pk.into(),

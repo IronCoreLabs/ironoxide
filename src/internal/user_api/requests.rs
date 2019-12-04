@@ -21,15 +21,6 @@ use crate::internal::auth_v2::AuthV2Builder;
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
 pub struct EncryptedPrivateKey(#[serde(with = "Base64Standard")] pub Vec<u8>);
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub struct AugmentationFactor(#[serde(with = "Base64Standard")] pub Vec<u8>);
-
-impl From<internal::AugmentationFactor> for AugmentationFactor {
-    fn from(af: internal::AugmentationFactor) -> Self {
-        AugmentationFactor(af.as_bytes().to_vec())
-    }
-}
-
 impl From<EncryptedMasterKey> for EncryptedPrivateKey {
     fn from(enc_master_key: EncryptedMasterKey) -> Self {
         EncryptedPrivateKey(enc_master_key.bytes().to_vec())
@@ -168,7 +159,7 @@ pub mod user_get {
 /// PUT /users/{userId}/keys/{userKeyId}
 pub mod user_update_private_key {
     use super::*;
-    use crate::internal::user_api::UserUpdatePrivateKeyResult;
+    use internal::{rest::json::AugmentationFactor, user_api::UserUpdatePrivateKeyResult};
 
     #[derive(Serialize, Debug)]
     #[serde(rename_all = "camelCase")]

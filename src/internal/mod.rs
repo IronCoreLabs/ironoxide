@@ -3,6 +3,7 @@
 //! size to a minimum.
 
 use crate::internal::{
+    group_api::GroupId,
     rest::{Authorization, IronCoreRequest, SignatureUrlString},
     user_api::{DeviceId, UserId},
 };
@@ -59,6 +60,7 @@ pub enum RequestErrorCode {
     GroupUpdate,
     GroupMemberRemove,
     GroupAdminRemove,
+    GroupKeyUpdate,
     DocumentList,
     DocumentGet,
     DocumentCreate,
@@ -113,8 +115,8 @@ quick_error! {
             display("Expected at least one TransformBlock in transformed value but received none.")
         }
         ///The operation failed because the accessing user was not a group admin, but must be for the operation to work.
-        NotGroupAdmin(group_id:group_api::GroupId) {
-            display("You're are not an administrator of group '{}'", group_id.0)
+        NotGroupAdmin(id: GroupId) {
+            display("You are not an administrator of group '{}'", id.id())
         }
         /// Protobuf encode/decode error
         ProtobufSerdeError(err: protobuf::ProtobufError) {

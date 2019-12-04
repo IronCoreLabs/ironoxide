@@ -1,6 +1,6 @@
 pub use crate::internal::group_api::{
     GroupAccessEditErr, GroupAccessEditResult, GroupCreateResult, GroupGetResult, GroupId,
-    GroupListResult, GroupMetaResult, GroupName,
+    GroupListResult, GroupMetaResult, GroupName, GroupUpdatePrivateKeyResult,
 };
 use crate::{
     internal::{group_api, group_api::GroupCreateOptsStd, user_api::UserId, IronOxideErr},
@@ -236,6 +236,18 @@ pub trait GroupOps {
         id: &GroupId,
         revoke_list: &[UserId],
     ) -> Result<GroupAccessEditResult>;
+
+    /// Rotate the provided group's private key, but leave the public key the same.
+    /// There's no black magic here! This is accomplished via multi-party computation with the
+    /// IronCore webservice.
+    /// Note: You must be an admin of the group in order to rotate its private key.
+    ///
+    /// # Arguments
+    /// `id` - ID of the group you wish to rotate the private key of
+    ///
+    /// # Returns
+    /// An indication of whether the group's private key needs an additional rotation
+    fn group_rotate_private_key(&self, id: &GroupId) -> Result<GroupUpdatePrivateKeyResult>;
 }
 
 impl GroupOps for crate::IronOxide {
@@ -336,6 +348,16 @@ impl GroupOps for crate::IronOxide {
             id,
             &revoke_list.to_vec(),
             group_api::GroupEntity::Admin,
+        ))
+    }
+
+    fn group_rotate_private_key(&self, id: &GroupId) -> Result<GroupUpdatePrivateKeyResult> {
+        let mut rt = Runtime::new().unwrap();
+        rt.block_on(group_api::group_rotate_private_key(
+            &self.recrypt,
+            id,
+            self.device().auth(),
+            self.device().device_private_key(),
         ))
     }
 }

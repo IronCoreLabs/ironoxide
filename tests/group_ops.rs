@@ -1,6 +1,6 @@
 use crate::common::create_second_user;
 use common::{create_id_all_classes, init_sdk_get_user, initialize_sdk};
-use ironoxide::{group::*, prelude::*};
+use ironoxide::{document::DocumentEncryptOpts, group::*, prelude::*};
 use std::convert::TryInto;
 use uuid::Uuid;
 
@@ -42,6 +42,53 @@ fn group_create_with_defaults() -> Result<(), IronOxideErr> {
     assert!(group_result.is_member());
     assert!(group_result.is_admin());
     assert_eq!(group_result.owner(), sdk.device().account_id());
+    Ok(())
+}
+
+#[test]
+fn group_rotate_private_key() -> Result<(), IronOxideErr> {
+    let (_, creator_sdk) = init_sdk_get_user();
+    let (member, member_sdk) = init_sdk_get_user();
+
+    // making non-default group so I can specify needs_rotation of true
+    let group_create = creator_sdk.group_create(&GroupCreateOpts::new(
+        None,
+        None,
+        true,
+        true,
+        None,
+        vec![],
+        vec![],
+        true,
+    ))?;
+    assert_eq!(group_create.needs_rotation(), Some(true));
+
+    let bytes = vec![42u8, 43u8];
+
+    let encrypt_result = creator_sdk.document_encrypt(
+        &bytes,
+        &DocumentEncryptOpts::with_explicit_grants(
+            None,
+            None,
+            false,
+            vec![group_create.id().into()],
+        ),
+    )?;
+    let encrypted_data = encrypt_result.encrypted_data();
+
+    let group_rotate = creator_sdk.group_rotate_private_key(group_create.id())?;
+    assert_eq!(group_rotate.needs_rotation(), false);
+
+    creator_sdk.group_add_members(group_create.id(), &vec![member])?;
+
+    let creator_decrypt_result = creator_sdk.document_decrypt(encrypted_data)?;
+    let creator_decrypted_data = creator_decrypt_result.decrypted_data().to_vec();
+    assert_eq!(creator_decrypted_data, bytes);
+
+    let member_decrypt_result = member_sdk.document_decrypt(encrypted_data)?;
+    let member_decrypted_data = member_decrypt_result.decrypted_data().to_vec();
+    assert_eq!(member_decrypted_data, bytes);
+
     Ok(())
 }
 
