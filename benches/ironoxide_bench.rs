@@ -54,11 +54,11 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| io.document_get_metadata(black_box(enc_result.id())))
     });
 
-    c.bench_function("document encrypt [1 user]", |b| {
+    c.bench_function("document encrypt [self]", |b| {
         b.iter(|| io.document_encrypt(black_box(&data), &Default::default()))
     });
 
-    c.bench_function("document encrypt (unmanaged) [1 user]", |b| {
+    c.bench_function("document encrypt (unmanaged) [self]", |b| {
         b.iter(|| io.document_encrypt_unmanaged(black_box(&data), &Default::default()))
     });
 
