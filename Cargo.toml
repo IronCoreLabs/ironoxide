@@ -43,7 +43,12 @@ frank_jwt = "~3.1.2"
 galvanic-assert = "~0.8"
 uuid = { version = "~0.7.2", features = ["serde", "v4"] }
 double = "~0.2.4"
-
+criterion = "~0.3"
 
 [build-dependencies]
 protobuf-codegen-pure = "~2.8"
+
+[[bench]]
+name = "ironoxide_bench"
+harness = false
+
