@@ -138,11 +138,15 @@ impl PrivateKeyRotationCheckResult {
         }
     }
 
-    //    pub fn group_rotation_needed() -> Option<Vec<GroupId>> {
-    //        unimplemented!()
-    //    }
+    pub fn group_rotation_needed(&self) -> Option<Vec<GroupId>> {
+        match &self.rotations_needed {
+            EitherOrBoth::Right(groups) | EitherOrBoth::Both(_, groups) => Some(groups.to_owned()),
+            _ => None,
+        }
+    }
 
-    //    pub fn rotate_all(ironoxide: &IronOxide) -> (UserId, Vec<GroupId>) //TODO consider when group private key rotation is added
+    // TODO (reviewers): Is this something we want and I should implement as part of this ticket?
+    // pub fn rotate_all(ironoxide: &IronOxide) -> (UserId, Vec<GroupId>) //TODO consider when group private key rotation is added
 }
 
 /// Initialize the IronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
