@@ -550,10 +550,10 @@ pub async fn group_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
     device_private_key: &PrivateKey,
 ) -> Result<GroupUpdatePrivateKeyResult, IronOxideErr> {
     let group_info = group_get_request(&auth, group_id).await?;
-    let admins = match &group_info.admin_ids {
+    let admins = match group_info.admin_ids {
         Some(user_id_strings) => user_id_strings
             .into_iter()
-            .map(|string_id| string_id.to_owned().try_into())
+            .map(|string_id| string_id.try_into())
             .collect::<Result<Vec<_>, _>>(),
         None => Err(IronOxideErr::NotGroupAdmin(group_id.to_owned())),
     }?;
