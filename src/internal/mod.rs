@@ -38,10 +38,8 @@ lazy_static! {
         .to_string(),
         _ => "https://api.ironcorelabs.com/api/1/".to_string(),
     };
-    pub static ref OUR_REQUEST: IronCoreRequest = IronCoreRequest::new(
-        reqwest::Client::new()
-        URL_STRING.as_str()
-    );
+    pub static ref OUR_REQUEST: IronCoreRequest =
+        IronCoreRequest::new(reqwest::Client::new(), URL_STRING.as_str());
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
