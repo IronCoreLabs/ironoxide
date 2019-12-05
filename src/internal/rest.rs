@@ -298,20 +298,21 @@ impl<'a> HeaderIronCoreRequestSig<'a> {
 }
 
 ///A struct which holds the basic info that will be needed for making requests to an ironcore service. Currently just the base_url.
-#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
+#[derive(Debug, Clone)]
 pub struct IronCoreRequest {
     base_url: &'static str,
+    client: Client,
 }
 
 impl Default for IronCoreRequest {
     fn default() -> Self {
-        *OUR_REQUEST
+        OUR_REQUEST.clone()
     }
 }
 
 impl IronCoreRequest {
-    pub const fn new(base_url: &'static str) -> IronCoreRequest {
-        IronCoreRequest { base_url }
+    pub const fn new(client: Client, base_url: &'static str) -> IronCoreRequest {
+        IronCoreRequest { client, base_url }
     }
 
     pub fn base_url(&self) -> &str {
@@ -396,7 +397,7 @@ impl IronCoreRequest {
             replace_headers(req.headers_mut(), auth.to_auth_header());
             replace_headers(req.headers_mut(), request_sig.to_header());
 
-            Self::send_req(req, error_code, move |server_resp| {
+            self.send_req(req, error_code, move |server_resp| {
                 IronCoreRequest::deserialize_body(server_resp, error_code)
             })
             .await
@@ -532,8 +533,7 @@ impl IronCoreRequest {
         Q: Serialize + ?Sized,
         F: FnOnce(&Bytes) -> Result<B, IronOxideErr>,
     {
-        let client = Client::new();
-        let mut builder = client.request(
+        let mut builder = self.client.request(
             method,
             format!("{}{}", self.base_url, relative_url).as_str(),
         );
@@ -615,7 +615,7 @@ impl IronCoreRequest {
             replace_headers(req.headers_mut(), auth.to_auth_header());
             replace_headers(req.headers_mut(), request_sig.to_header());
 
-            Self::send_req(req, error_code, resp_handler).await
+            self.send_req(req, error_code, resp_handler).await
         } else {
             panic!("authorized requests must use version 2 of API authentication")
         }
@@ -634,6 +634,7 @@ impl IronCoreRequest {
     }
 
     async fn send_req<B, F>(
+        &self,
         req: Request,
         error_code: RequestErrorCode,
         resp_handler: F,
@@ -642,8 +643,7 @@ impl IronCoreRequest {
         B: DeserializeOwned,
         F: FnOnce(&Bytes) -> Result<B, IronOxideErr>,
     {
-        let client = Client::new();
-        let server_res = client.execute(req).await;
+        let server_res = self.client.execute(req).await;
         let res = server_res.map_err(|e| (e, error_code))?;
         //Parse the body content into bytes
         let status = res.status();
@@ -1345,7 +1345,7 @@ mod tests {
     fn query_params_encoded_correctly() {
         use publicsuffix::IntoUrl;
 
-        let icl_req = IronCoreRequest::new("https://example.com");
+        let icl_req = IronCoreRequest::new(reqwest::Client::new(), "https://example.com");
         let mut req = Request::new(
             Method::GET,
             format!("{}/{}", icl_req.base_url(), "users")

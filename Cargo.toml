@@ -25,7 +25,7 @@ regex = "^1.0"
 ring = { version= "~0.16", features = ["std"] }
 recrypt = "~0.9" 
 url= "^2.1.0"
-reqwest = {version="0.10.0-alpha.2", features = ["json"]}
+reqwest = {version="0.10.0-alpha.2", features = ["json", "gzip", "default-tls"]}
 tokio = "0.2.0-alpha.6"
 hex = "~0.3"
 itertools = "~0.8"
