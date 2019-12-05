@@ -1,4 +1,4 @@
-use crate::common::create_second_user;
+use crate::common::{create_second_user, gen_jwt, USER_PASSWORD};
 use common::{create_id_all_classes, init_sdk_get_user, initialize_sdk};
 use ironoxide::{document::DocumentEncryptOpts, group::*, prelude::*};
 use std::convert::TryInto;
@@ -42,6 +42,42 @@ fn group_create_with_defaults() -> Result<(), IronOxideErr> {
     assert!(group_result.is_member());
     assert!(group_result.is_admin());
     assert_eq!(group_result.owner(), sdk.device().account_id());
+    Ok(())
+}
+
+#[test]
+fn init_and_rotation_check_groups() -> Result<(), IronOxideErr> {
+    use ironoxide::InitAndRotationCheck;
+    let user: UserId = create_id_all_classes("").try_into()?;
+    IronOxide::user_create(
+        &gen_jwt(Some(user.id())).0,
+        USER_PASSWORD,
+        &Default::default(),
+    )?;
+    let device = IronOxide::generate_new_device(
+        &gen_jwt(Some(user.id())).0,
+        USER_PASSWORD,
+        &Default::default(),
+    )?;
+    let sdk = ironoxide::initialize(&device)?;
+    sdk.group_create(&GroupCreateOpts::new(
+        None,
+        None,
+        true,
+        true,
+        None,
+        vec![],
+        vec![],
+        true,
+    ))?;
+    let init_and_rotation_check = ironoxide::initialize_check_rotation(&device)?;
+    match init_and_rotation_check {
+        InitAndRotationCheck::RotationNeeded(_, rotations_needed) => {
+            assert_eq!(rotations_needed.group_rotation_needed().len(), 1);
+            assert_eq!(rotations_needed.user_rotation_needed(), None);
+        }
+        InitAndRotationCheck::NoRotationNeeded(_) => panic!("User group should need rotation"),
+    };
     Ok(())
 }
 
