@@ -101,6 +101,7 @@ pub struct IronOxide {
     pub(crate) user_master_pub_key: PublicKey,
     pub(crate) device: DeviceContext,
     pub(crate) rng: Mutex<ReseedingRng<ChaChaCore, EntropyRng>>,
+    pub(crate) runtime: tokio::runtime::Runtime,
 }
 
 /// Result of calling `initialize_check_rotation`
@@ -193,6 +194,12 @@ impl IronOxide {
 
     /// Create an IronOxide instance. Depends on the system having enough entropy to seed a RNG.
     fn create(curr_user: &UserResult, device_context: &DeviceContext) -> IronOxide {
+        let rt = tokio::runtime::Builder::new()
+//            .core_threads(8)  // default is num_cpus
+            .blocking_threads(250) // most all SDK methods will block on the network
+            .keep_alive(None)
+            .build()
+            .expect("tokio runtime failed to initialize");
         IronOxide {
             recrypt: Recrypt::new(),
             device: device_context.clone(),
@@ -202,6 +209,7 @@ impl IronOxide {
                 BYTES_BEFORE_RESEEDING,
                 EntropyRng::new(),
             )),
+            runtime: rt,
         }
     }
 }

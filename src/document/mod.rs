@@ -13,7 +13,6 @@ use crate::{
     Result,
 };
 use itertools::{Either, EitherOrBoth, Itertools};
-use tokio::runtime::current_thread::Runtime;
 
 /// Advanced document operations
 pub mod advanced;
@@ -198,13 +197,13 @@ pub trait DocumentOps {
 
 impl DocumentOps for crate::IronOxide {
     fn document_list(&self) -> Result<DocumentListResult> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(document_api::document_list(self.device.auth()))
+        self.runtime
+            .block_on(document_api::document_list(self.device.auth()))
     }
 
     fn document_get_metadata(&self, id: &DocumentId) -> Result<DocumentMetadataResult> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(document_api::document_get_metadata(self.device.auth(), id))
+        self.runtime
+            .block_on(document_api::document_get_metadata(self.device.auth(), id))
     }
 
     fn document_get_id_from_bytes(&self, encrypted_document: &[u8]) -> Result<DocumentId> {
@@ -216,7 +215,6 @@ impl DocumentOps for crate::IronOxide {
         document_data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptResult> {
-        let mut rt = Runtime::new().unwrap();
         let encrypt_opts = encrypt_opts.clone();
 
         let (explicit_users, explicit_groups, grant_to_author, policy_grants) =
@@ -237,7 +235,7 @@ impl DocumentOps for crate::IronOxide {
                 }
             };
 
-        rt.block_on(document_api::encrypt_document(
+        self.runtime.block_on(document_api::encrypt_document(
             self.device.auth(),
             &self.recrypt,
             &self.user_master_pub_key,
@@ -257,9 +255,7 @@ impl DocumentOps for crate::IronOxide {
         id: &DocumentId,
         new_document_data: &[u8],
     ) -> Result<DocumentEncryptResult> {
-        let mut rt = Runtime::new().unwrap();
-
-        rt.block_on(document_api::document_update_bytes(
+        self.runtime.block_on(document_api::document_update_bytes(
             self.device.auth(),
             &self.recrypt,
             self.device.device_private_key(),
@@ -270,9 +266,7 @@ impl DocumentOps for crate::IronOxide {
     }
 
     fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult> {
-        let mut rt = Runtime::new().unwrap();
-
-        rt.block_on(document_api::decrypt_document(
+        self.runtime.block_on(document_api::decrypt_document(
             self.device.auth(),
             &self.recrypt,
             self.device.device_private_key(),
@@ -285,9 +279,7 @@ impl DocumentOps for crate::IronOxide {
         id: &DocumentId,
         name: Option<&DocumentName>,
     ) -> Result<DocumentMetadataResult> {
-        let mut rt = Runtime::new().unwrap();
-
-        rt.block_on(document_api::update_document_name(
+        self.runtime.block_on(document_api::update_document_name(
             self.device.auth(),
             id,
             name,
@@ -299,11 +291,9 @@ impl DocumentOps for crate::IronOxide {
         id: &DocumentId,
         grant_list: &Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult> {
-        let mut rt = Runtime::new().unwrap();
-
         let (users, groups) = partition_user_or_group(grant_list);
 
-        rt.block_on(document_api::document_grant_access(
+        self.runtime.block_on(document_api::document_grant_access(
             self.device.auth(),
             &self.recrypt,
             id,
@@ -319,9 +309,7 @@ impl DocumentOps for crate::IronOxide {
         id: &DocumentId,
         revoke_list: &Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult> {
-        let mut rt = Runtime::new().unwrap();
-
-        rt.block_on(document_api::document_revoke_access(
+        self.runtime.block_on(document_api::document_revoke_access(
             self.device.auth(),
             id,
             revoke_list,
