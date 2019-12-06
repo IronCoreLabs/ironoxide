@@ -6,7 +6,6 @@ use crate::{
     internal::{group_api, group_api::GroupCreateOptsStd, user_api::UserId, IronOxideErr},
     Result,
 };
-use tokio::runtime::current_thread::Runtime;
 use vec1::Vec1;
 
 #[derive(Clone)]
@@ -240,12 +239,11 @@ pub trait GroupOps {
 
 impl GroupOps for crate::IronOxide {
     fn group_list(&self) -> Result<GroupListResult> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(group_api::list(self.device.auth(), None))
+        self.runtime
+            .block_on(group_api::list(self.device.auth(), None))
     }
 
     fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupCreateResult> {
-        let mut rt = Runtime::new().unwrap();
         let standard_opts = opts.clone().standardize(self.device.auth().account_id())?;
         let all_users = &standard_opts.all_users();
         let GroupCreateOptsStd {
@@ -257,7 +255,7 @@ impl GroupOps for crate::IronOxide {
             needs_rotation,
         } = standard_opts;
 
-        rt.block_on(group_api::group_create(
+        self.runtime.block_on(group_api::group_create(
             &self.recrypt,
             self.device.auth(),
             id,
@@ -271,18 +269,18 @@ impl GroupOps for crate::IronOxide {
     }
 
     fn group_get_metadata(&self, id: &GroupId) -> Result<GroupGetResult> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(group_api::get_metadata(self.device.auth(), id))
+        self.runtime
+            .block_on(group_api::get_metadata(self.device.auth(), id))
     }
 
     fn group_delete(&self, id: &GroupId) -> Result<GroupId> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(group_api::group_delete(self.device.auth(), id))
+        self.runtime
+            .block_on(group_api::group_delete(self.device.auth(), id))
     }
 
     fn group_update_name(&self, id: &GroupId, name: Option<&GroupName>) -> Result<GroupMetaResult> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(group_api::update_group_name(self.device.auth(), id, name))
+        self.runtime
+            .block_on(group_api::update_group_name(self.device.auth(), id, name))
     }
 
     fn group_add_members(
@@ -290,8 +288,7 @@ impl GroupOps for crate::IronOxide {
         id: &GroupId,
         grant_list: &[UserId],
     ) -> Result<GroupAccessEditResult> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(group_api::group_add_members(
+        self.runtime.block_on(group_api::group_add_members(
             &self.recrypt,
             self.device.auth(),
             self.device.device_private_key(),
@@ -305,8 +302,7 @@ impl GroupOps for crate::IronOxide {
         id: &GroupId,
         revoke_list: &[UserId],
     ) -> Result<GroupAccessEditResult> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(group_api::group_remove_entity(
+        self.runtime.block_on(group_api::group_remove_entity(
             self.device.auth(),
             id,
             &revoke_list.to_vec(),
@@ -315,8 +311,7 @@ impl GroupOps for crate::IronOxide {
     }
 
     fn group_add_admins(&self, id: &GroupId, users: &[UserId]) -> Result<GroupAccessEditResult> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(group_api::group_add_admins(
+        self.runtime.block_on(group_api::group_add_admins(
             &self.recrypt,
             self.device.auth(),
             self.device.device_private_key(),
@@ -330,8 +325,7 @@ impl GroupOps for crate::IronOxide {
         id: &GroupId,
         revoke_list: &[UserId],
     ) -> Result<GroupAccessEditResult> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(group_api::group_remove_entity(
+        self.runtime.block_on(group_api::group_remove_entity(
             self.device.auth(),
             id,
             &revoke_list.to_vec(),
