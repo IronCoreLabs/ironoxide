@@ -194,8 +194,9 @@ impl IronOxide {
 
     /// Create an IronOxide instance. Depends on the system having enough entropy to seed a RNG.
     fn create(curr_user: &UserResult, device_context: &DeviceContext) -> IronOxide {
-        let rt = tokio::runtime::Builder::new()
-            //            .core_threads(8)  // default is num_cpus
+        // create a tokio runtime with the default number of core threads (num of cores on a machine)
+        // and an elevated number of blocking_threads as we expect heavy concurrency to be network-bound
+        let runtime = tokio::runtime::Builder::new()
             .blocking_threads(250) // most all SDK methods will block on the network
             .keep_alive(None)
             .build()
@@ -209,7 +210,7 @@ impl IronOxide {
                 BYTES_BEFORE_RESEEDING,
                 EntropyRng::new(),
             )),
-            runtime: rt,
+            runtime,
         }
     }
 }
