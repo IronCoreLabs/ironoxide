@@ -355,8 +355,8 @@ impl GroupOps for crate::IronOxide {
         let mut rt = Runtime::new().unwrap();
         rt.block_on(group_api::group_rotate_private_key(
             &self.recrypt,
-            id,
             self.device().auth(),
+            id,
             self.device().device_private_key(),
         ))
     }

@@ -46,7 +46,7 @@ fn group_create_with_defaults() -> Result<(), IronOxideErr> {
 }
 
 #[test]
-fn init_and_rotation_check_groups() -> Result<(), IronOxideErr> {
+fn group_init_and_rotation_check() -> Result<(), IronOxideErr> {
     use ironoxide::InitAndRotationCheck;
     let user: UserId = create_id_all_classes("").try_into()?;
     IronOxide::user_create(
@@ -73,8 +73,8 @@ fn init_and_rotation_check_groups() -> Result<(), IronOxideErr> {
     let init_and_rotation_check = ironoxide::initialize_check_rotation(&device)?;
     match init_and_rotation_check {
         InitAndRotationCheck::RotationNeeded(_, rotations_needed) => {
-            assert_eq!(rotations_needed.group_rotation_needed().len(), 1);
-            assert_eq!(rotations_needed.user_rotation_needed(), None);
+            assert!(rotations_needed.group_rotation_needed().is_some());
+            assert!(rotations_needed.user_rotation_needed().is_none());
         }
         InitAndRotationCheck::NoRotationNeeded(_) => panic!("User group should need rotation"),
     };

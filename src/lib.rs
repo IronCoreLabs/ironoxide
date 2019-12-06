@@ -121,6 +121,15 @@ impl InitAndRotationCheck {
             | InitAndRotationCheck::RotationNeeded(io, _) => io,
         }
     }
+
+    /// Convenience constructor to make an InitAndRotationCheck::RotationNeeded from an IronOxide
+    /// and an EitherOrBoth<UserId, Vec1<GroupId>> directly.
+    pub fn new_rotation_needed(
+        io: IronOxide,
+        rotations_needed: EitherOrBoth<UserId, Vec1<GroupId>>,
+    ) -> InitAndRotationCheck {
+        InitAndRotationCheck::RotationNeeded(io, PrivateKeyRotationCheckResult { rotations_needed })
+    }
 }
 
 /// number of bytes that can be read from `IronOxide.rng` before it is reseeded. 1 MB
@@ -139,14 +148,13 @@ impl PrivateKeyRotationCheckResult {
         }
     }
 
-    pub fn group_rotation_needed(&self) -> Vec<GroupId> {
+    pub fn group_rotation_needed(&self) -> Option<Vec1<GroupId>> {
         match &self.rotations_needed {
-            EitherOrBoth::Right(groups) | EitherOrBoth::Both(_, groups) => groups.to_vec(),
-            _ => vec![],
+            EitherOrBoth::Right(groups) | EitherOrBoth::Both(_, groups) => Some(groups.clone()),
+            _ => None,
         }
     }
 
-    // TODO (reviewers): Is this something we want and I should implement as part of this ticket?
     // pub fn rotate_all(ironoxide: &IronOxide) -> (UserId, Vec<GroupId>) //TODO consider when group private key rotation is added
 }
 
@@ -154,11 +162,9 @@ impl PrivateKeyRotationCheckResult {
 /// keys are valid and exist for the provided account. If successful returns an instance of the IronOxide SDK
 pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
     let mut rt = Runtime::new().unwrap();
-    rt.block_on(crate::internal::user_api::user_get_current(
-        &device_context.auth(),
-    ))
-    .map(|current_user| IronOxide::create(&current_user, device_context))
-    .map_err(|_| IronOxideErr::InitializeError)
+    rt.block_on(internal::user_api::user_get_current(&device_context.auth()))
+        .map(|current_user| IronOxide::create(&current_user, device_context))
+        .map_err(|_| IronOxideErr::InitializeError)
 }
 /// Initialize the IronOxide SDK and check to see if the user that owns this `DeviceContext` is
 /// marked for private key rotation, or if any of the groups that the user is an admin of is marked
@@ -167,16 +173,6 @@ pub fn initialize_check_rotation(device_context: &DeviceContext) -> Result<InitA
     Runtime::new()
         .unwrap()
         .block_on(initialize_check_rotation_async(device_context))
-}
-
-fn form_rotation_needed(
-    rotations_needed: EitherOrBoth<UserId, Vec1<GroupId>>,
-    ironoxide: IronOxide,
-) -> InitAndRotationCheck {
-    InitAndRotationCheck::RotationNeeded(
-        ironoxide,
-        PrivateKeyRotationCheckResult { rotations_needed },
-    )
 }
 
 async fn initialize_check_rotation_async(
@@ -203,9 +199,13 @@ async fn initialize_check_rotation_async(
     Ok(
         match (curr_user.needs_rotation(), maybe_groups_needing_rotation) {
             (false, None) => InitAndRotationCheck::NoRotationNeeded(ironoxide),
-            (true, None) => form_rotation_needed(Left(account_id), ironoxide),
-            (false, Some(groups)) => form_rotation_needed(Right(groups), ironoxide),
-            (true, Some(groups)) => form_rotation_needed(Both(account_id, groups), ironoxide),
+            (true, None) => InitAndRotationCheck::new_rotation_needed(ironoxide, Left(account_id)),
+            (false, Some(groups)) => {
+                InitAndRotationCheck::new_rotation_needed(ironoxide, Right(groups))
+            }
+            (true, Some(groups)) => {
+                InitAndRotationCheck::new_rotation_needed(ironoxide, Both(account_id, groups))
+            }
         },
     )
 }

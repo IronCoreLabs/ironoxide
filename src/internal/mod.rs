@@ -2,17 +2,22 @@
 //! If it can be defined in API specific file, it should go there to keep this file's
 //! size to a minimum.
 
-use crate::internal::{
-    group_api::GroupId,
-    rest::{Authorization, IronCoreRequest, SignatureUrlString},
-    user_api::{DeviceId, UserId},
+use crate::{
+    crypto::transform,
+    internal::{
+        self,
+        group_api::GroupId,
+        rest::{Authorization, IronCoreRequest, SignatureUrlString},
+        user_api::{DeviceId, UserId},
+    },
 };
 use chrono::{DateTime, Utc};
 use log::error;
 use protobuf::{self, ProtobufError};
 use recrypt::api::{
-    Hashable, KeyGenOps, PrivateKey as RecryptPrivateKey, PublicKey as RecryptPublicKey,
-    RecryptErr, SigningKeypair as RecryptSigningKeypair,
+    Ed25519, Hashable, KeyGenOps, Plaintext, PrivateKey as RecryptPrivateKey,
+    PublicKey as RecryptPublicKey, RandomBytes, Recrypt, RecryptErr, Sha256,
+    SigningKeypair as RecryptSigningKeypair,
 };
 use regex::Regex;
 use reqwest::Method;
@@ -731,6 +736,22 @@ fn augment_private_key_with_retry<R: KeyGenOps>(
     aug_private_key().or_else(|_| aug_private_key())
 }
 
+//TODO: docs
+fn gen_plaintext_and_aug_with_retry<R: recrypt::api::CryptoOps + KeyGenOps>(
+    recrypt: &R,
+    priv_key: &PrivateKey,
+) -> Result<(Plaintext, AugmentationFactor), IronOxideErr> {
+    let aug_private_key = || -> Result<(Plaintext, PrivateKey), IronOxideErr> {
+        let (new_plaintext, new_group_private_key, _) = transform::gen_group_keys(recrypt)?;
+        let aug_factor = internal::AugmentationFactor(new_group_private_key.into());
+        priv_key.augment(&aug_factor).map(|p| (new_plaintext, p))
+    };
+    // retry generation of private key one time. If this fails twice there's something wrong.
+    aug_private_key()
+        .or_else(|_| aug_private_key())
+        .map(|(plaintext, priv_key)| (plaintext, AugmentationFactor(priv_key.into())))
+}
+
 #[cfg(test)]
 pub(crate) mod test {
     use super::*;
@@ -1029,6 +1050,43 @@ pub(crate) mod test {
             unimplemented!()
         }
     }
+    // impl CryptoOps for MockKeyGenOps {
+    //     fn derive_symmetric_key(
+    //         &self,
+    //         _: &recrypt::api::Plaintext,
+    //     ) -> recrypt::api::DerivedSymmetricKey {
+    //         unimplemented!()
+    //     }
+    //     fn gen_plaintext(&self) -> recrypt::api::Plaintext {
+    //         unimplemented!()
+    //     }
+    //     fn transform(
+    //         &self,
+    //         _: recrypt::api::EncryptedValue,
+    //         _: recrypt::api::TransformKey,
+    //         _: &recrypt::api::SigningKeypair,
+    //     ) -> std::result::Result<recrypt::api::EncryptedValue, RecryptErr> {
+    //         unimplemented!()
+    //     }
+    //     fn decrypt(
+    //         &self,
+    //         _: recrypt::api::EncryptedValue,
+    //         _: &recrypt::api::PrivateKey,
+    //     ) -> std::result::Result<recrypt::api::Plaintext, RecryptErr> {
+    //         unimplemented!()
+    //     }
+    //     fn encrypt(
+    //         &self,
+    //         _: &recrypt::api::Plaintext,
+    //         _: &recrypt::api::PublicKey,
+    //         _: &recrypt::api::SigningKeypair,
+    //     ) -> std::result::Result<recrypt::api::EncryptedValue, RecryptErr> {
+    //         unimplemented!()
+    //     }
+    //     fn derive_private_key(&self, _: &recrypt::api::Plaintext) -> recrypt::api::PrivateKey {
+    //         unimplemented!()
+    //     }
+    // }
     #[test]
     fn augment_private_key_with_retry_retries_once() {
         let recrypt_mock = MockKeyGenOps::default();
@@ -1071,4 +1129,33 @@ pub(crate) mod test {
             is_variant!(IronOxideErr::UserPrivateKeyRotationError)
         );
     }
+    // #[test]
+    // fn gen_plaintext_and_diff_with_retry_retries_once() {
+    //     let recrypt_mock = MockKeyGenOps::default();
+    //     let good_re_private_key = RecryptPrivateKey::new([42u8; 32]); // good private key
+    //     recrypt_mock.random_private_key.return_values(vec![
+    //         RecryptPrivateKey::new([0u8; 32]), // bad private key, 0s
+    //         good_re_private_key.clone(),       // good private key. Used for aug factor
+    //     ]);
+
+    //     let curr_priv_key = PrivateKey::from([100u8; 32]);
+    //     let expected_priv_key_bytes: [u8; 32] = [
+    //         58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58,
+    //         58, 58, 58, 58, 58, 58, 58, 58, 58, 58,
+    //     ];
+
+    //     let result = gen_plaintext_and_diff_with_retry(&recrypt_mock, &curr_priv_key).unwrap();
+    //     assert_eq!(
+    //         recrypt::Revealed((result.1.clone()).0),
+    //         recrypt::Revealed(RecryptPrivateKey::new(expected_priv_key_bytes))
+    //     );
+    //     // assert_eq!(
+    //     //     recrypt::Revealed(((result.1.clone()).0).0),
+    //     //     recrypt::Revealed(good_re_private_key)
+    //     // )
+    // }
 }
+
+// let plaintext = recrypt.gen_plaintext();
+// let priv_key = recrypt.derive_private_key(&plaintext);
+// let pub_key = recrypt.compute_public_key(&priv_key)?;

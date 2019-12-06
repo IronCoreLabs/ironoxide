@@ -918,7 +918,7 @@ pub async fn document_update_bytes<
     plaintext: &[u8],
 ) -> Result<DocumentEncryptResult, IronOxideErr> {
     let doc_meta = document_get_metadata(auth, &document_id).await?;
-    let (_, sym_key) = transform::decrypt_plaintext(
+    let sym_key = transform::decrypt_symmetric_key(
         &recrypt,
         doc_meta.0.encrypted_symmetric_key.clone().try_into()?,
         &device_private_key.recrypt_key(),
@@ -951,7 +951,7 @@ pub async fn decrypt_document<CR: rand::CryptoRng + rand::RngCore>(
 ) -> Result<DocumentDecryptResult, IronOxideErr> {
     let (doc_header, mut enc_doc) = parse_document_parts(encrypted_doc)?;
     let doc_meta = document_get_metadata(auth, &doc_header.document_id).await?;
-    let (_, sym_key) = transform::decrypt_plaintext(
+    let sym_key = transform::decrypt_symmetric_key(
         &recrypt,
         doc_meta.0.encrypted_symmetric_key.clone().try_into()?,
         &device_private_key.recrypt_key(),
@@ -996,7 +996,7 @@ pub async fn decrypt_document_unmanaged<CR: rand::CryptoRng + rand::RngCore>(
         encrypted_symmetric_key,
     } = transform_resp;
 
-    let (_, sym_key) = transform::decrypt_plaintext(
+    let sym_key = transform::decrypt_symmetric_key(
         &recrypt,
         encrypted_symmetric_key.try_into()?,
         &device_private_key.recrypt_key(),

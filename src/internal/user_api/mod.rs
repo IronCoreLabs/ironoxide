@@ -272,7 +272,7 @@ pub async fn user_get_current(auth: &RequestAuth) -> Result<UserResult, IronOxid
                 needs_rotation: result.needs_rotation,
                 user_public_key: result.user_master_public_key.try_into()?,
                 segment_id: result.segment_id,
-                account_id: UserId::unsafe_from_string(result.id),
+                account_id: result.id,
             })
         })
 }
@@ -303,7 +303,7 @@ pub async fn user_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
             new_priv_key.as_bytes(),
         )?;
         (
-            UserId(curr_user_id),
+            curr_user_id,
             current_key_id,
             new_encrypted_priv_key,
             aug_factor,

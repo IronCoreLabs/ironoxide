@@ -131,18 +131,19 @@ pub mod user_verify {
 
 pub mod user_get {
     use super::*;
+    use crate::internal::group_api::GroupId;
 
     #[derive(Deserialize, PartialEq, Debug)]
     #[serde(rename_all = "camelCase")]
     pub struct CurrentUserResponse {
         pub(in crate::internal) current_key_id: u64,
-        pub(in crate::internal) id: String,
+        pub(in crate::internal) id: UserId,
         pub(in crate::internal) status: usize,
         pub(in crate::internal) segment_id: usize,
         pub(in crate::internal) user_master_public_key: PublicKey,
         pub(in crate::internal) user_private_key: EncryptedPrivateKey,
         pub(in crate::internal) needs_rotation: bool,
-        pub(in crate::internal) groups_needing_rotation: Vec<String>,
+        pub(in crate::internal) groups_needing_rotation: Vec<GroupId>,
     }
 
     pub async fn get_curr_user(auth: &RequestAuth) -> Result<CurrentUserResponse, IronOxideErr> {

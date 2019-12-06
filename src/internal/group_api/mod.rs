@@ -6,7 +6,7 @@ use crate::{
             group_get::group_get_request, group_list::GroupListResponse, GroupAdmin,
             GroupUserEditResponse, User,
         },
-        rest::json::{EncryptedOnceValue, TransformedEncryptedValue},
+        rest::json::{AugmentationFactor, EncryptedOnceValue, TransformedEncryptedValue},
         user_api::{self, UserId},
         validate_id, validate_name, IronOxideErr, PrivateKey, PublicKey, RequestAuth,
         SchnorrSignature, TransformKey, WithKey,
@@ -16,7 +16,7 @@ use chrono::{DateTime, Utc};
 use core::convert::identity;
 use futures::try_join;
 use itertools::{Either, Itertools};
-use recrypt::prelude::*;
+use recrypt::{api::EncryptedValue, prelude::*};
 use std::{
     collections::{HashMap, HashSet},
     convert::{TryFrom, TryInto},
@@ -542,46 +542,11 @@ impl GroupUpdatePrivateKeyResult {
     }
 }
 
-/// Rotate the group's private key. The public key for the group remains unchanged.
-pub async fn group_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
-    group_id: &GroupId,
-    auth: &RequestAuth,
-    device_private_key: &PrivateKey,
-) -> Result<GroupUpdatePrivateKeyResult, IronOxideErr> {
-    let group_info = group_get_request(&auth, group_id).await?;
-    let admins = match group_info.admin_ids {
-        Some(user_id_strings) => user_id_strings
-            .into_iter()
-            .map(|string_id| string_id.try_into())
-            .collect::<Result<Vec<_>, _>>(),
-        None => Err(IronOxideErr::NotGroupAdmin(group_id.to_owned())),
-    }?;
-    let (_, admins_with_keys) = get_user_keys(auth, &admins).await?;
-    let encrypted_group_key = group_info
-        .encrypted_private_key
-        .ok_or(IronOxideErr::NotGroupAdmin(group_id.to_owned()))?;
-    let (old_plaintext, _) = transform::decrypt_plaintext(
-        &recrypt,
-        encrypted_group_key.try_into()?,
-        &device_private_key.recrypt_key(),
-    )?;
-    let old_group_private_key = recrypt.derive_private_key(&old_plaintext);
-    let (new_plaintext, new_group_private_key, _) = transform::gen_group_keys(recrypt)?;
-    let private_key_diff = old_group_private_key.augment_minus(&new_group_private_key);
-    let aug_factor = internal::AugmentationFactor(private_key_diff.into());
-    let (errors, admin_info) = transform::encrypt_to_with_key(
-        recrypt,
-        &new_plaintext,
-        &auth.signing_private_key().into(),
-        admins_with_keys,
-    );
-    // This will return an Err for the function if encrypting to any of the admins failed.
-    errors
-        .into_iter()
-        .map(|(_, error)| Err(error.into()))
-        .collect::<Result<(), IronOxideErr>>()?;
-    let new_group_admins = admin_info
+// Maps the successful results of `transform::encrypt_to_with_key()` into a vector of GroupAdmins
+fn collect_request_admins(
+    admin_info: Vec<(WithKey<UserId>, recrypt::api::EncryptedValue)>,
+) -> Result<Vec<requests::GroupAdmin>, IronOxideErr> {
+    admin_info
         .into_iter()
         .map(|(key_and_id, encrypted_admin_key)| {
             encrypted_admin_key
@@ -594,13 +559,79 @@ pub async fn group_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
                     encrypted_msg,
                 })
         })
-        .collect::<Result<Vec<GroupAdmin>, IronOxideErr>>()?;
+        .collect::<Result<Vec<GroupAdmin>, IronOxideErr>>()
+}
+
+// Decrypts the group's private key, generates a new private key and plaintext,
+// computes the difference between the old and new private keys, and encrypts the new plaintext to each group admin.
+fn generate_aug_and_admins<CR: rand::CryptoRng + rand::RngCore>(
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    auth: &RequestAuth,
+    encrypted_group_key: TransformedEncryptedValue,
+    device_private_key: &PrivateKey,
+    admin_map: HashMap<UserId, PublicKey>,
+) -> Result<(AugmentationFactor, Vec<(WithKey<UserId>, EncryptedValue)>), IronOxideErr> {
+    let (_, old_group_private_key) = transform::decrypt_plaintext(
+        &recrypt,
+        encrypted_group_key.try_into()?,
+        device_private_key.recrypt_key(),
+    )?;
+    let (new_plaintext, aug_factor) =
+        internal::gen_plaintext_and_aug_with_retry(recrypt, &old_group_private_key.into())?;
+    let (errors, updated_group_admins) = transform::encrypt_to_with_key(
+        recrypt,
+        &new_plaintext,
+        &auth.signing_private_key().into(),
+        admin_map
+            .into_iter()
+            .map(|(id, public_key)| WithKey { id, public_key })
+            .collect(),
+    );
+    errors
+        .into_iter()
+        .map(|(_, e)| Err(e.into()))
+        .collect::<Result<(), IronOxideErr>>()?;
+    Ok((aug_factor.into(), updated_group_admins))
+}
+
+/// Rotate the group's private key. The public key for the group remains unchanged.
+///
+/// # Arguments
+/// `recrypt` - recrypt instance to use for cryptographic operations
+/// `auth` - Auth context details for making API requests. The user associated with this device must be an admin of the group.
+/// `group_id` - unique id for the group needing rotation within the segment.
+/// `device_private_key` - user's device private key to use for decrypting the group's private key.
+pub async fn group_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    auth: &RequestAuth,
+    group_id: &GroupId,
+    device_private_key: &PrivateKey,
+) -> Result<GroupUpdatePrivateKeyResult, IronOxideErr> {
+    let group_info = group_get_request(&auth, group_id).await?;
+    let encrypted_group_key = group_info
+        .encrypted_private_key
+        .ok_or(IronOxideErr::NotGroupAdmin(group_id.to_owned()))?;
+    let admins = match group_info.admin_ids {
+        Some(admin_ids) => Ok(admin_ids),
+        None => Err(IronOxideErr::NotGroupAdmin(group_id.to_owned())),
+    }?;
+    let found_admins = user_api::user_key_list(auth, &admins).await?;
+    let admin_info = check_user_mismatch(&admins, found_admins)?;
+    let (aug_factor, updated_group_admins) = generate_aug_and_admins(
+        recrypt,
+        auth,
+        encrypted_group_key,
+        device_private_key,
+        admin_info,
+    )?;
+    let request_admins = collect_request_admins(updated_group_admins)?;
+
     requests::group_update_private_key::update_private_key(
         &auth,
         group_id,
         group_info.current_key_id,
-        new_group_admins,
-        aug_factor.into(),
+        request_admins,
+        aug_factor,
     )
     .await
     .map(|resp| resp.into())
@@ -617,8 +648,9 @@ pub async fn get_metadata(
 
 //Delete the provided group given its ID
 pub async fn group_delete(auth: &RequestAuth, group_id: &GroupId) -> Result<GroupId, IronOxideErr> {
-    let resp = requests::group_delete::group_delete_request(auth, &group_id).await?;
-    resp.id.try_into()
+    requests::group_delete::group_delete_request(auth, &group_id)
+        .await
+        .map(|resp| resp.id)
 }
 
 /// Add the users as members of a group.
@@ -733,23 +765,11 @@ pub async fn group_add_admins<CR: rand::CryptoRng + rand::RngCore>(
         acc_fails,
         transform_success,
     );
-    //Now actually add the members that we have transform keys for.
     //acc_fails is currently the transform generation fails and the key fetch failures.
     requests::group_add_admin::group_add_admin_request(
         &auth,
         &group_id,
-        admin_keys_to_send
-            .into_iter()
-            .map(
-                |(
-                    WithKey {
-                        id: user_id,
-                        public_key,
-                    },
-                    encrypted_admin_key,
-                )| { (user_id, public_key.into(), encrypted_admin_key) },
-            )
-            .collect(),
+        collect_request_admins(admin_keys_to_send)?,
         schnorr_sig,
     )
     .await
