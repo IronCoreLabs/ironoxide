@@ -121,10 +121,10 @@ pub struct DeviceAdd {
 /// IDs and public key for existing user on verify result
 #[derive(Debug)]
 pub struct UserResult {
-    account_id: UserId,
-    segment_id: usize,
-    user_public_key: PublicKey,
-    needs_rotation: bool,
+    pub(crate) account_id: UserId,
+    pub(crate) segment_id: usize,
+    pub(crate) user_public_key: PublicKey,
+    pub(crate) needs_rotation: bool,
 }
 impl UserResult {
     pub fn user_public_key(&self) -> &PublicKey {

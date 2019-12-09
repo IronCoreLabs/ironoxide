@@ -175,39 +175,50 @@ pub fn initialize_check_rotation(device_context: &DeviceContext) -> Result<InitA
         .block_on(initialize_check_rotation_async(device_context))
 }
 
-async fn initialize_check_rotation_async(
-    device_context: &DeviceContext,
-) -> Result<InitAndRotationCheck> {
+// Finds the groups that the caller is an admin of that need rotation and
+// forms an InitAndRotationCheck from the user/groups needing rotation.
+fn check_groups_and_collect_rotation(
+    groups: &Vec<internal::group_api::GroupMetaResult>,
+    user_needs_rotation: bool,
+    account_id: UserId,
+    ironoxide: IronOxide,
+) -> InitAndRotationCheck {
     use EitherOrBoth::{Both, Left, Right};
-    let (curr_user, group_list_result) = futures::try_join!(
-        internal::user_api::user_get_current(device_context.auth()),
-        internal::group_api::list(device_context.auth(), None)
-    )?;
-    let account_id = curr_user.account_id().to_owned();
-    let ironoxide = IronOxide::create(&curr_user, &device_context);
-    let user_groups = group_list_result.result();
-
-    let groups_needing_rotation = user_groups
+    let groups_needing_rotation = groups
         .into_iter()
         .filter(|meta_result| meta_result.needs_rotation() == Some(true))
         .map(|meta_result| meta_result.id().to_owned())
         .collect::<Vec<_>>();
-
     // If this is a Some, there are groups needing rotation
     let maybe_groups_needing_rotation = Vec1::try_from_vec(groups_needing_rotation).ok();
+    match (user_needs_rotation, maybe_groups_needing_rotation) {
+        (false, None) => InitAndRotationCheck::NoRotationNeeded(ironoxide),
+        (true, None) => InitAndRotationCheck::new_rotation_needed(ironoxide, Left(account_id)),
+        (false, Some(groups)) => {
+            InitAndRotationCheck::new_rotation_needed(ironoxide, Right(groups))
+        }
+        (true, Some(groups)) => {
+            InitAndRotationCheck::new_rotation_needed(ironoxide, Both(account_id, groups))
+        }
+    }
+}
 
-    Ok(
-        match (curr_user.needs_rotation(), maybe_groups_needing_rotation) {
-            (false, None) => InitAndRotationCheck::NoRotationNeeded(ironoxide),
-            (true, None) => InitAndRotationCheck::new_rotation_needed(ironoxide, Left(account_id)),
-            (false, Some(groups)) => {
-                InitAndRotationCheck::new_rotation_needed(ironoxide, Right(groups))
-            }
-            (true, Some(groups)) => {
-                InitAndRotationCheck::new_rotation_needed(ironoxide, Both(account_id, groups))
-            }
-        },
-    )
+async fn initialize_check_rotation_async(
+    device_context: &DeviceContext,
+) -> Result<InitAndRotationCheck> {
+    let (curr_user, group_list_result) = futures::try_join!(
+        internal::user_api::user_get_current(device_context.auth()),
+        internal::group_api::list(device_context.auth(), None)
+    )?;
+    let ironoxide = IronOxide::create(&curr_user, &device_context);
+    let user_groups = group_list_result.result();
+
+    Ok(check_groups_and_collect_rotation(
+        user_groups,
+        curr_user.needs_rotation(),
+        curr_user.account_id().to_owned(),
+        ironoxide,
+    ))
 }
 
 impl IronOxide {

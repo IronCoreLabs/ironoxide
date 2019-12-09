@@ -120,14 +120,14 @@ impl GroupListResult {
 /// Abbreviated group information.
 #[derive(Clone, Debug)]
 pub struct GroupMetaResult {
-    id: GroupId,
-    name: Option<GroupName>,
-    group_master_public_key: PublicKey,
-    is_admin: bool,
-    is_member: bool,
-    created: DateTime<Utc>,
-    updated: DateTime<Utc>,
-    needs_rotation: Option<bool>,
+    pub(crate) id: GroupId,
+    pub(crate) name: Option<GroupName>,
+    pub(crate) group_master_public_key: PublicKey,
+    pub(crate) is_admin: bool,
+    pub(crate) is_member: bool,
+    pub(crate) created: DateTime<Utc>,
+    pub(crate) updated: DateTime<Utc>,
+    pub(crate) needs_rotation: Option<bool>,
 }
 impl GroupMetaResult {
     /// A single document grant/revoke failure for a user or group.

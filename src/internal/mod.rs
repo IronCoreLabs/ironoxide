@@ -1154,8 +1154,51 @@ pub(crate) mod test {
     //     //     recrypt::Revealed(good_re_private_key)
     //     // )
     // }
-}
 
-// let plaintext = recrypt.gen_plaintext();
-// let priv_key = recrypt.derive_private_key(&plaintext);
-// let pub_key = recrypt.compute_public_key(&priv_key)?;
+    #[test]
+    fn init_and_rotation_user_and_groups() -> Result<(), IronOxideErr> {
+        use crate::{
+            check_groups_and_collect_rotation,
+            internal::{group_api::GroupMetaResult, user_api::UserResult},
+            InitAndRotationCheck, IronOxide,
+        };
+        let recrypt = recrypt::api::Recrypt::new();
+        let (_, pub_key) = recrypt.generate_key_pair()?;
+        let time = chrono::Utc::now();
+        let create_gmr = |id: GroupId, needs_rotation: Option<bool>| GroupMetaResult {
+            id,
+            name: None,
+            group_master_public_key: pub_key.into(),
+            is_admin: true,
+            is_member: true,
+            created: time,
+            updated: time,
+            needs_rotation,
+        };
+        let de_json = r#"{"deviceId":314,"accountId":"account_id","segmentId":22,"signingPrivateKey":"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQGKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXA==","devicePrivateKey":"bzb0Rlg0u7gx9wDuk1ppRI77OH/0ferXleenJ3Ag6Jg="}"#;
+        let de: DeviceContext = serde_json::from_str(&de_json).unwrap();
+        let user_id = UserId::try_from("account_id")?;
+        let user = UserResult {
+            account_id: user_id.clone(),
+            segment_id: 22,
+            user_public_key: pub_key.into(),
+            needs_rotation: true,
+        };
+        let io = IronOxide::create(&user, &de);
+
+        let good_group_id = GroupId::try_from("group")?;
+        let gmr_vec = vec![
+            create_gmr(good_group_id.clone(), Some(true)),
+            create_gmr(GroupId::try_from("notthisone")?, Some(false)),
+            create_gmr(GroupId::try_from("northisone")?, None),
+        ];
+        let init = check_groups_and_collect_rotation(&gmr_vec, true, user_id.clone(), io);
+        let rotation = match init {
+            InitAndRotationCheck::NoRotationNeeded(_) => panic!("user and group need rotation"),
+            InitAndRotationCheck::RotationNeeded(_, rotation) => rotation,
+        };
+        assert_eq!(rotation.group_rotation_needed(), Some(vec1![good_group_id]));
+        assert_eq!(rotation.user_rotation_needed(), Some(user_id));
+        Ok(())
+    }
+}
