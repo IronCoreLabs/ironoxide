@@ -736,7 +736,10 @@ fn augment_private_key_with_retry<R: KeyGenOps>(
     aug_private_key().or_else(|_| aug_private_key())
 }
 
-//TODO: docs
+// Subtracts a generated private key from the provided PrivateKey, returning
+// the result and the plaintext associated with the generated key.
+// There is a very small chance that the generated private key could not be compatible with
+// the given PrivateKey, so we retry once internally before giving the caller an error.
 fn gen_plaintext_and_aug_with_retry<R: recrypt::api::CryptoOps + KeyGenOps>(
     recrypt: &R,
     priv_key: &PrivateKey,

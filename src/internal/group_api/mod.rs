@@ -567,13 +567,13 @@ fn collect_request_admins(
 fn generate_aug_and_admins<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &RequestAuth,
-    encrypted_group_key: TransformedEncryptedValue,
+    encrypted_group_key: EncryptedValue,
     device_private_key: &PrivateKey,
     admin_map: HashMap<UserId, PublicKey>,
 ) -> Result<(AugmentationFactor, Vec<(WithKey<UserId>, EncryptedValue)>), IronOxideErr> {
     let (_, old_group_private_key) = transform::decrypt_plaintext(
         &recrypt,
-        encrypted_group_key.try_into()?,
+        encrypted_group_key,
         device_private_key.recrypt_key(),
     )?;
     let (new_plaintext, aug_factor) =
@@ -620,7 +620,7 @@ pub async fn group_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
     let (aug_factor, updated_group_admins) = generate_aug_and_admins(
         recrypt,
         auth,
-        encrypted_group_key,
+        encrypted_group_key.try_into()?,
         device_private_key,
         admin_info,
     )?;
@@ -1046,6 +1046,59 @@ mod test {
         )?;
         assert!(member_info.is_empty());
         assert_eq!(admin_info.len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn augment_admin_list() -> Result<(), IronOxideErr> {
+        use crate::internal::DeviceContext;
+        use uuid::Uuid;
+        let recrypt = recrypt::api::Recrypt::new();
+        let mut admin_map: HashMap<UserId, (PrivateKey, PublicKey)> = HashMap::new();
+        for _ in 0..10 {
+            let (priv_key, pub_key) = recrypt.generate_key_pair()?;
+            admin_map.insert(
+                Uuid::new_v4().to_string().try_into()?,
+                (priv_key.into(), pub_key.into()),
+            );
+        }
+        let de_json = r#"{"deviceId":314,"accountId":"account_id","segmentId":22,"signingPrivateKey":"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQGKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXA==","devicePrivateKey":"bzb0Rlg0u7gx9wDuk1ppRI77OH/0ferXleenJ3Ag6Jg="}"#;
+        let de: DeviceContext = serde_json::from_str(&de_json).unwrap();
+        let (priv_key, pub_key) = recrypt.generate_key_pair()?;
+        let plaintext = recrypt.gen_plaintext();
+        let signing_key = recrypt.generate_ed25519_key_pair();
+        let encrypted_value = recrypt.encrypt(&plaintext, &pub_key, &signing_key)?;
+        let (aug, new_admins) = generate_aug_and_admins(
+            &recrypt,
+            de.auth(),
+            encrypted_value,
+            &priv_key.into(),
+            admin_map
+                .clone()
+                .into_iter()
+                .map(|(k, (_, pu))| (k, pu))
+                .collect(),
+        )?;
+        let admin_plaintexts: Vec<_> = new_admins
+            .into_iter()
+            .map(|(with_key, enc)| {
+                recrypt
+                    .decrypt(enc, &admin_map.get(&with_key.id).unwrap().0.clone().into())
+                    .unwrap()
+            })
+            .collect();
+
+        assert!(admin_plaintexts
+            .iter()
+            .all(|text| text.bytes()[..] == admin_plaintexts.first().unwrap().bytes()[..]));
+
+        let dec_private = recrypt.derive_private_key(&admin_plaintexts.first().unwrap());
+        let group_private = recrypt.derive_private_key(&plaintext);
+        let aug_private: PrivateKey = aug.0.as_slice().try_into()?;
+        let dec_plus_aug = dec_private.augment_plus(&aug_private.into());
+
+        assert_eq!(dec_plus_aug.bytes(), group_private.bytes());
+
         Ok(())
     }
 }
