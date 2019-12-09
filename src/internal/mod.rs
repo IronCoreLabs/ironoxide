@@ -24,7 +24,7 @@ use std::{
 
 pub mod document_api;
 pub mod group_api;
-mod rest;
+pub(crate) mod rest; //COLT: Feels a bit bad.
 pub mod user_api;
 
 lazy_static! {
@@ -38,8 +38,8 @@ lazy_static! {
         .to_string(),
         _ => "https://api.ironcorelabs.com/api/1/".to_string(),
     };
-    pub static ref OUR_REQUEST: IronCoreRequest =
-        IronCoreRequest::new(reqwest::Client::new(), URL_STRING.as_str());
+    // pub static ref OUR_REQUEST: IronCoreRequest =
+    //     IronCoreRequest::new(reqwest::Client::new(), URL_STRING.as_str());
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -316,7 +316,7 @@ impl DeviceContext {
                 account_id,
                 segment_id,
                 signing_private_key,
-                request: OUR_REQUEST.clone(),
+                request: IronCoreRequest::new(reqwest::Client::new(), URL_STRING.as_str()),
             },
             device_private_key,
         }

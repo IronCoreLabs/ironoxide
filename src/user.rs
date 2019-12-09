@@ -4,8 +4,9 @@ pub use crate::internal::user_api::{
 };
 use crate::{
     internal::{
+        rest::IronCoreRequest,
         user_api::{self, DeviceId, DeviceName},
-        PublicKey, OUR_REQUEST,
+        PublicKey,
     },
     DeviceContext, IronOxide, Result,
 };
@@ -154,7 +155,7 @@ impl UserOps for IronOxide {
             jwt.try_into()?,
             password.try_into()?,
             user_create_opts.needs_rotation,
-            OUR_REQUEST.clone(),
+            IronCoreRequest::default(),
         ))
     }
 
@@ -171,14 +172,14 @@ impl UserOps for IronOxide {
         let recrypt = Recrypt::new();
         let mut rt = Runtime::new().unwrap();
         let device_create_options = device_create_options.clone();
-
+        let req = IronCoreRequest::default();
         rt.block_on(user_api::generate_device_key(
             &recrypt,
             &jwt.try_into()?,
             password.try_into()?,
             device_create_options.device_name,
             &std::time::SystemTime::now().into(),
-            &OUR_REQUEST,
+            &req,
         ))
     }
 
@@ -189,7 +190,10 @@ impl UserOps for IronOxide {
 
     fn user_verify(jwt: &str) -> Result<Option<UserResult>> {
         let mut rt = Runtime::new().unwrap();
-        rt.block_on(user_api::user_verify(jwt.try_into()?, OUR_REQUEST.clone()))
+        rt.block_on(user_api::user_verify(
+            jwt.try_into()?,
+            IronCoreRequest::default(),
+        ))
     }
 
     fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {

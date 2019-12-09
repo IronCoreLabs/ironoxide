@@ -2,7 +2,7 @@
 
 use crate::internal::{
     auth_v2::AuthV2Builder, user_api::UserId, DeviceSigningKeyPair, IronOxideErr, Jwt,
-    RequestErrorCode, OUR_REQUEST,
+    RequestErrorCode, URL_STRING,
 };
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -306,7 +306,7 @@ pub struct IronCoreRequest {
 
 impl Default for IronCoreRequest {
     fn default() -> Self {
-        OUR_REQUEST.clone()
+        IronCoreRequest::new(reqwest::Client::new(), URL_STRING.as_str())
     }
 }
 
@@ -1207,7 +1207,7 @@ mod tests {
             public_signing_key: signing_keys.public_key(),
         };
 
-        let build_url = |relative_url| format!("{}{}", OUR_REQUEST.base_url(), relative_url);
+        let build_url = |relative_url| format!("{}{}", URL_STRING.as_str(), relative_url);
         let signing_url_string = SignatureUrlString::new(&build_url("users?id=user-10")).unwrap();
 
         // note that this and the expected value must correspond
