@@ -5,7 +5,6 @@
 use crate::{
     crypto::transform,
     internal::{
-        self,
         group_api::GroupId,
         rest::{Authorization, IronCoreRequest, SignatureUrlString},
         user_api::{DeviceId, UserId},
@@ -744,15 +743,14 @@ fn gen_plaintext_and_aug_with_retry<R: recrypt::api::CryptoOps + KeyGenOps>(
     recrypt: &R,
     priv_key: &PrivateKey,
 ) -> Result<(Plaintext, AugmentationFactor), IronOxideErr> {
-    let aug_private_key = || -> Result<(Plaintext, PrivateKey), IronOxideErr> {
+    let aug_private_key = || -> Result<(Plaintext, AugmentationFactor), IronOxideErr> {
         let (new_plaintext, new_group_private_key, _) = transform::gen_group_keys(recrypt)?;
-        let aug_factor = internal::AugmentationFactor(new_group_private_key.into());
-        priv_key.augment(&aug_factor).map(|p| (new_plaintext, p))
+        let new_key_aug = AugmentationFactor(new_group_private_key.into());
+        let aug_factor = priv_key.augment(&new_key_aug)?;
+        Ok((new_plaintext, AugmentationFactor(aug_factor.into())))
     };
     // retry generation of private key one time. If this fails twice there's something wrong.
-    aug_private_key()
-        .or_else(|_| aug_private_key())
-        .map(|(plaintext, priv_key)| (plaintext, AugmentationFactor(priv_key.into())))
+    aug_private_key().or_else(|_| aug_private_key())
 }
 
 #[cfg(test)]
@@ -1195,7 +1193,7 @@ pub(crate) mod test {
             create_gmr(GroupId::try_from("notthisone")?, Some(false)),
             create_gmr(GroupId::try_from("northisone")?, None),
         ];
-        let init = check_groups_and_collect_rotation(&gmr_vec, true, user_id.clone(), io);
+        let init = check_groups_and_collect_rotation(gmr_vec, true, user_id.clone(), io);
         let rotation = match init {
             InitAndRotationCheck::NoRotationNeeded(_) => panic!("user and group need rotation"),
             InitAndRotationCheck::RotationNeeded(_, rotation) => rotation,

@@ -972,7 +972,7 @@ pub mod json {
                     public_signing_key: public_signing_key.bytes().to_vec(),
                 }),
                 _ => Err(IronOxideErr::InvalidRecryptEncryptedValue(
-                    "Expected an EncryptedOnceValue but got an TransformedValue".to_string(),
+                    "Expected an EncryptedOnceValue but got a TransformedValue".to_string(),
                 )),
             }
         }

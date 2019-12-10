@@ -1059,7 +1059,7 @@ pub async fn document_grant_access<CR: rand::CryptoRng + rand::RngCore>(
     let (grants, other_errs) = {
         // decrypt the dek
         let edek = doc_meta.to_encrypted_symmetric_key()?;
-        let dek = recrypt.decrypt(edek, &priv_device_key.clone().into())?;
+        let dek = recrypt.decrypt(edek, priv_device_key.recrypt_key())?;
 
         let (group_errs, groups_with_key) = process_groups(groups);
         let (user_errs, users_with_key) = process_users(users);

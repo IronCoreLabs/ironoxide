@@ -179,7 +179,7 @@ pub fn initialize_check_rotation(device_context: &DeviceContext) -> Result<InitA
 // Finds the groups that the caller is an admin of that need rotation and
 // forms an InitAndRotationCheck from the user/groups needing rotation.
 fn check_groups_and_collect_rotation(
-    groups: &Vec<internal::group_api::GroupMetaResult>,
+    groups: Vec<internal::group_api::GroupMetaResult>,
     user_needs_rotation: bool,
     account_id: UserId,
     ironoxide: IronOxide,
@@ -212,7 +212,7 @@ async fn initialize_check_rotation_async(
         internal::group_api::list(device_context.auth(), None)
     )?;
     let ironoxide = IronOxide::create(&curr_user, &device_context);
-    let user_groups = group_list_result.result();
+    let user_groups = group_list_result.result;
 
     Ok(check_groups_and_collect_rotation(
         user_groups,

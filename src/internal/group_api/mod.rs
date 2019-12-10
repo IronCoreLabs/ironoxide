@@ -106,7 +106,7 @@ impl TryFrom<&str> for GroupName {
 /// List of (abbreviated) groups for which the requesting user is either an admin or member.
 #[derive(Debug)]
 pub struct GroupListResult {
-    result: Vec<GroupMetaResult>,
+    pub(crate) result: Vec<GroupMetaResult>,
 }
 impl GroupListResult {
     pub fn new(metas: Vec<GroupMetaResult>) -> GroupListResult {
@@ -494,7 +494,7 @@ pub async fn group_create<CR: rand::CryptoRng + rand::RngCore>(
         Some(group_members)
     };
 
-    let group_admins: Vec<requests::GroupAdmin> = admin_info
+    let group_admins: Vec<GroupAdmin> = admin_info
         .into_iter()
         .map(|(admin_id, admin_pub_key)| {
             let encrypted_group_key = recrypt.encrypt(
@@ -505,7 +505,7 @@ pub async fn group_create<CR: rand::CryptoRng + rand::RngCore>(
             encrypted_group_key
                 .map_err(|e| e.into())
                 .and_then(EncryptedOnceValue::try_from)
-                .map(|enc_msg| requests::GroupAdmin {
+                .map(|enc_msg| GroupAdmin {
                     encrypted_msg: enc_msg,
                     user: requests::User {
                         user_id: admin_id,
@@ -544,14 +544,14 @@ impl GroupUpdatePrivateKeyResult {
 
 // Maps the successful results of `transform::encrypt_to_with_key()` into a vector of GroupAdmins
 fn collect_request_admins(
-    admin_info: Vec<(WithKey<UserId>, recrypt::api::EncryptedValue)>,
-) -> Result<Vec<requests::GroupAdmin>, IronOxideErr> {
+    admin_info: Vec<(WithKey<UserId>, EncryptedValue)>,
+) -> Result<Vec<GroupAdmin>, IronOxideErr> {
     admin_info
         .into_iter()
         .map(|(key_and_id, encrypted_admin_key)| {
             encrypted_admin_key
                 .try_into()
-                .map(|encrypted_msg| requests::GroupAdmin {
+                .map(|encrypted_msg| GroupAdmin {
                     user: User {
                         user_id: key_and_id.id,
                         user_master_public_key: key_and_id.public_key.into(),
@@ -559,7 +559,7 @@ fn collect_request_admins(
                     encrypted_msg,
                 })
         })
-        .collect::<Result<Vec<GroupAdmin>, IronOxideErr>>()
+        .collect()
 }
 
 // Decrypts the group's private key, generates a new private key and plaintext,
@@ -607,14 +607,13 @@ pub async fn group_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
     group_id: &GroupId,
     device_private_key: &PrivateKey,
 ) -> Result<GroupUpdatePrivateKeyResult, IronOxideErr> {
-    let group_info = group_get_request(&auth, group_id).await?;
+    let group_info = group_get_request(auth, group_id).await?;
     let encrypted_group_key = group_info
         .encrypted_private_key
         .ok_or(IronOxideErr::NotGroupAdmin(group_id.to_owned()))?;
-    let admins = match group_info.admin_ids {
-        Some(admin_ids) => Ok(admin_ids),
-        None => Err(IronOxideErr::NotGroupAdmin(group_id.to_owned())),
-    }?;
+    let admins = group_info
+        .admin_ids
+        .ok_or(IronOxideErr::NotGroupAdmin(group_id.to_owned()))?;
     let found_admins = user_api::user_key_list(auth, &admins).await?;
     let admin_info = check_user_mismatch(&admins, found_admins)?;
     let (aug_factor, updated_group_admins) = generate_aug_and_admins(
@@ -627,7 +626,7 @@ pub async fn group_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
     let request_admins = collect_request_admins(updated_group_admins)?;
 
     requests::group_update_private_key::update_private_key(
-        &auth,
+        auth,
         group_id,
         group_info.current_key_id,
         request_admins,
@@ -1083,19 +1082,20 @@ mod test {
             .into_iter()
             .map(|(with_key, enc)| {
                 recrypt
-                    .decrypt(enc, &admin_map.get(&with_key.id).unwrap().0.clone().into())
+                    .decrypt(enc, &admin_map.get(&with_key.id).unwrap().0.recrypt_key())
                     .unwrap()
             })
             .collect();
 
+        let first_admin = admin_plaintexts.first().unwrap();
         assert!(admin_plaintexts
             .iter()
-            .all(|text| text.bytes()[..] == admin_plaintexts.first().unwrap().bytes()[..]));
+            .all(|text| text.bytes()[..] == first_admin.bytes()[..]));
 
-        let dec_private = recrypt.derive_private_key(&admin_plaintexts.first().unwrap());
+        let dec_private = recrypt.derive_private_key(&first_admin);
         let group_private = recrypt.derive_private_key(&plaintext);
         let aug_private: PrivateKey = aug.0.as_slice().try_into()?;
-        let dec_plus_aug = dec_private.augment_plus(&aug_private.into());
+        let dec_plus_aug = dec_private.augment_plus(aug_private.recrypt_key());
 
         assert_eq!(dec_plus_aug.bytes(), group_private.bytes());
 
