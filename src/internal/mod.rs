@@ -14,7 +14,7 @@ use chrono::{DateTime, Utc};
 use log::error;
 use protobuf::{self, ProtobufError};
 use recrypt::api::{
-    Ed25519, Hashable, KeyGenOps, Plaintext, PrivateKey as RecryptPrivateKey,
+    CryptoOps, Ed25519, Hashable, KeyGenOps, Plaintext, PrivateKey as RecryptPrivateKey,
     PublicKey as RecryptPublicKey, RandomBytes, Recrypt, RecryptErr, Sha256,
     SigningKeypair as RecryptSigningKeypair,
 };
@@ -735,11 +735,11 @@ fn augment_private_key_with_retry<R: KeyGenOps>(
     aug_private_key().or_else(|_| aug_private_key())
 }
 
-// Subtracts a generated private key from the provided PrivateKey, returning
-// the result and the plaintext associated with the generated key.
-// There is a very small chance that the generated private key could not be compatible with
-// the given PrivateKey, so we retry once internally before giving the caller an error.
-fn gen_plaintext_and_aug_with_retry<R: recrypt::api::CryptoOps + KeyGenOps>(
+/// Subtracts a generated private key from the provided PrivateKey, returning
+/// the result and the plaintext associated with the generated key.
+/// There is a very small chance that the generated private key could not be compatible with
+/// the given PrivateKey, so we retry once internally before giving the caller an error.
+fn gen_plaintext_and_aug_with_retry<R: CryptoOps + KeyGenOps>(
     recrypt: &R,
     priv_key: &PrivateKey,
 ) -> Result<(Plaintext, AugmentationFactor), IronOxideErr> {
@@ -757,7 +757,6 @@ fn gen_plaintext_and_aug_with_retry<R: recrypt::api::CryptoOps + KeyGenOps>(
 pub(crate) mod test {
     use super::*;
     use galvanic_assert::{matchers::*, MatchResultBuilder, Matcher};
-    use recrypt::api::KeyGenOps;
     use std::fmt::Debug;
 
     /// String contains matcher to assert that the provided substring exists in the provided value
@@ -1193,7 +1192,7 @@ pub(crate) mod test {
             create_gmr(GroupId::try_from("notthisone")?, Some(false)),
             create_gmr(GroupId::try_from("northisone")?, None),
         ];
-        let init = check_groups_and_collect_rotation(gmr_vec, true, user_id.clone(), io);
+        let init = check_groups_and_collect_rotation(&gmr_vec, true, user_id.clone(), io);
         let rotation = match init {
             InitAndRotationCheck::NoRotationNeeded(_) => panic!("user and group need rotation"),
             InitAndRotationCheck::RotationNeeded(_, rotation) => rotation,

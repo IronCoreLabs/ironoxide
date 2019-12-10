@@ -28,7 +28,7 @@ pub fn gen_group_keys<R: CryptoOps + KeyGenOps>(
 }
 
 /// Decrypt the provided encrypted plaintext and return the symmetric key that is derived from it.
-pub fn decrypt_symmetric_key<CR: rand::CryptoRng + rand::RngCore>(
+pub fn decrypt_as_symmetric_key<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     encrypted_plaintext: EncryptedValue,
     user_device_private_key: &PrivateKey,
@@ -40,7 +40,7 @@ pub fn decrypt_symmetric_key<CR: rand::CryptoRng + rand::RngCore>(
 
 /// Decrypt the provided encrypted plaintext and return both the plaintext and the private key that
 /// is derived from it.
-pub fn decrypt_plaintext<CR: rand::CryptoRng + rand::RngCore>(
+pub fn decrypt_as_private_key<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     encrypted_plaintext: EncryptedValue,
     user_device_private_key: &PrivateKey,
