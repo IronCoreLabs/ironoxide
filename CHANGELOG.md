@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.1 (unreleased)
+- [[#91]](https://github.com/IronCoreLabs/ironoxide/pull/91)
+  - Adds simple sharing of tokio runtime across device authenticated SDK calls
+
 ## 0.14.0
 
 - [[#81](https://github.com/IronCoreLabs/ironoxide/pull/81)][[#80](https://github.com/IronCoreLabs/ironoxide/pull/80)][[#77](https://github.com/IronCoreLabs/ironoxide/pull/77)]
