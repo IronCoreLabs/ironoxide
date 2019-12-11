@@ -543,7 +543,7 @@ impl GroupUpdatePrivateKeyResult {
 }
 
 /// Maps the successful results of `transform::encrypt_to_with_key()` into a vector of GroupAdmins
-fn collect_request_admins(
+fn collect_group_admin_keys(
     admin_info: Vec<(WithKey<UserId>, EncryptedValue)>,
 ) -> Result<Vec<GroupAdmin>, IronOxideErr> {
     admin_info
@@ -623,7 +623,7 @@ pub async fn group_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
         device_private_key,
         admin_info,
     )?;
-    let request_admins = collect_request_admins(updated_group_admins)?;
+    let request_admins = collect_group_admin_keys(updated_group_admins)?;
 
     requests::group_update_private_key::update_private_key(
         auth,
@@ -768,7 +768,7 @@ pub async fn group_add_admins<CR: rand::CryptoRng + rand::RngCore>(
     requests::group_add_admin::group_add_admin_request(
         &auth,
         &group_id,
-        collect_request_admins(admin_keys_to_send)?,
+        collect_group_admin_keys(admin_keys_to_send)?,
         schnorr_sig,
     )
     .await
