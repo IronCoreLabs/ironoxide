@@ -2,13 +2,10 @@
 //! If it can be defined in API specific file, it should go there to keep this file's
 //! size to a minimum.
 
-use crate::{
-    crypto::transform,
-    internal::{
-        group_api::GroupId,
-        rest::{Authorization, IronCoreRequest, SignatureUrlString},
-        user_api::{DeviceId, UserId},
-    },
+use crate::internal::{
+    group_api::GroupId,
+    rest::{Authorization, IronCoreRequest, SignatureUrlString},
+    user_api::{DeviceId, UserId},
 };
 use chrono::{DateTime, Utc};
 use log::error;
@@ -139,6 +136,9 @@ quick_error! {
         }
         UserPrivateKeyRotationError(msg: String) {
             display("User private key rotation failed with '{}'", msg)
+        }
+        GroupPrivateKeyRotationError(msg: String) {
+            display("Group private key rotation failed with '{}'", msg)
         }
     }
 }
@@ -500,18 +500,20 @@ impl<'de> Deserialize<'de> for PrivateKey {
 
 impl PrivateKey {
     /// Augment this private key with another, producing a new PrivateKey
-    fn augment(&self, augmenting_key: &AugmentationFactor) -> Result<PrivateKey, IronOxideErr> {
+    fn augment<F: FnOnce(String) -> IronOxideErr>(
+        &self,
+        augmenting_key: &AugmentationFactor,
+        error_fn: F,
+    ) -> Result<PrivateKey, IronOxideErr> {
         use recrypt::Revealed;
         let zero: RecryptPrivateKey = RecryptPrivateKey::new([0u8; 32]);
-        if Revealed(augmenting_key.clone().into()) == Revealed(zero.clone()) {
-            Err(IronOxideErr::UserPrivateKeyRotationError(
-                "Augmenting key cannot be zero".into(),
-            ))
+        if Revealed(augmenting_key.clone().into()) == Revealed(zero) {
+            Err(error_fn("Augmenting key cannot be zero".into()))
         }
         // These clones can be removed once https://github.com/IronCoreLabs/recrypt-rs/issues/91 is fixed
         // result of the augmentation would be zero
         else if Revealed(augmenting_key.clone().into()) == Revealed(self.clone().0) {
-            Err(IronOxideErr::UserPrivateKeyRotationError(
+            Err(error_fn(
                 "PrivateKey augmentation failed with a zero value".into(),
             ))
         } else {
@@ -519,6 +521,22 @@ impl PrivateKey {
             let augmented_key = self.0.augment_minus(&augmenting_key.clone().into());
             Ok(augmented_key.into())
         }
+    }
+
+    /// A convenience function to pass a user rotation error to `augment()`
+    fn augment_user(
+        &self,
+        augmenting_key: &AugmentationFactor,
+    ) -> Result<PrivateKey, IronOxideErr> {
+        self.augment(augmenting_key, IronOxideErr::UserPrivateKeyRotationError)
+    }
+
+    /// A convenience function to pass a user rotation error to `augment()`
+    fn augment_group(
+        &self,
+        augmenting_key: &AugmentationFactor,
+    ) -> Result<PrivateKey, IronOxideErr> {
+        self.augment(augmenting_key, IronOxideErr::GroupPrivateKeyRotationError)
     }
 }
 
@@ -729,7 +747,7 @@ fn augment_private_key_with_retry<R: KeyGenOps>(
 ) -> Result<(PrivateKey, AugmentationFactor), IronOxideErr> {
     let aug_private_key = || {
         let aug_factor = AugmentationFactor::generate_new(recrypt);
-        priv_key.augment(&aug_factor).map(|p| (p, aug_factor))
+        priv_key.augment_user(&aug_factor).map(|p| (p, aug_factor))
     };
     // retry generation of augmentation factor one time. If this fails twice there's something wrong.
     aug_private_key().or_else(|_| aug_private_key())
@@ -739,14 +757,15 @@ fn augment_private_key_with_retry<R: KeyGenOps>(
 /// the result and the plaintext associated with the generated key.
 /// There is a very small chance that the generated private key could not be compatible with
 /// the given PrivateKey, so we retry once internally before giving the caller an error.
-fn gen_plaintext_and_aug_with_retry<R: CryptoOps + KeyGenOps>(
+fn gen_plaintext_and_aug_with_retry<R: CryptoOps>(
     recrypt: &R,
     priv_key: &PrivateKey,
 ) -> Result<(Plaintext, AugmentationFactor), IronOxideErr> {
     let aug_private_key = || -> Result<(Plaintext, AugmentationFactor), IronOxideErr> {
-        let (new_plaintext, new_group_private_key, _) = transform::gen_group_keys(recrypt)?;
+        let new_plaintext = recrypt.gen_plaintext();
+        let new_group_private_key = recrypt.derive_private_key(&new_plaintext);
         let new_key_aug = AugmentationFactor(new_group_private_key.into());
-        let aug_factor = priv_key.augment(&new_key_aug)?;
+        let aug_factor = priv_key.augment_group(&new_key_aug)?;
         Ok((new_plaintext, AugmentationFactor(aug_factor.into())))
     };
     // retry generation of private key one time. If this fails twice there's something wrong.
@@ -991,7 +1010,7 @@ pub(crate) mod test {
     fn private_key_augment_with_self_is_none() {
         let privk = gen_priv_key();
 
-        let result = privk.augment(&AugmentationFactor(privk.clone()));
+        let result = privk.augment_user(&AugmentationFactor(privk.clone()));
         assert_that!(&result, is_variant!(Err));
         assert_that!(
             &result.unwrap_err(),
@@ -1007,7 +1026,7 @@ pub(crate) mod test {
 
         let p3 = p1.clone().0.augment_minus(&p2.clone().0).into();
 
-        let aug_p = p1.augment(&AugmentationFactor(p2)).unwrap();
+        let aug_p = p1.augment_user(&AugmentationFactor(p2)).unwrap();
         assert_eq!(Revealed(aug_p.0), Revealed(p3))
     }
 
@@ -1015,7 +1034,7 @@ pub(crate) mod test {
     fn private_key_augmentation_aug_key_of_zero_is_err() {
         let priv_key_orig = gen_priv_key();
         let zero_aug_factor = AugmentationFactor(PrivateKey(RecryptPrivateKey::new([0u8; 32])));
-        let new_priv_key = priv_key_orig.augment(&zero_aug_factor);
+        let new_priv_key = priv_key_orig.augment_user(&zero_aug_factor);
         assert_that!(&new_priv_key, is_variant!(Err));
         assert_that!(
             &new_priv_key.unwrap_err(),
@@ -1050,43 +1069,45 @@ pub(crate) mod test {
             unimplemented!()
         }
     }
-    // impl CryptoOps for MockKeyGenOps {
-    //     fn derive_symmetric_key(
-    //         &self,
-    //         _: &recrypt::api::Plaintext,
-    //     ) -> recrypt::api::DerivedSymmetricKey {
-    //         unimplemented!()
-    //     }
-    //     fn gen_plaintext(&self) -> recrypt::api::Plaintext {
-    //         unimplemented!()
-    //     }
-    //     fn transform(
-    //         &self,
-    //         _: recrypt::api::EncryptedValue,
-    //         _: recrypt::api::TransformKey,
-    //         _: &recrypt::api::SigningKeypair,
-    //     ) -> std::result::Result<recrypt::api::EncryptedValue, RecryptErr> {
-    //         unimplemented!()
-    //     }
-    //     fn decrypt(
-    //         &self,
-    //         _: recrypt::api::EncryptedValue,
-    //         _: &recrypt::api::PrivateKey,
-    //     ) -> std::result::Result<recrypt::api::Plaintext, RecryptErr> {
-    //         unimplemented!()
-    //     }
-    //     fn encrypt(
-    //         &self,
-    //         _: &recrypt::api::Plaintext,
-    //         _: &recrypt::api::PublicKey,
-    //         _: &recrypt::api::SigningKeypair,
-    //     ) -> std::result::Result<recrypt::api::EncryptedValue, RecryptErr> {
-    //         unimplemented!()
-    //     }
-    //     fn derive_private_key(&self, _: &recrypt::api::Plaintext) -> recrypt::api::PrivateKey {
-    //         unimplemented!()
-    //     }
-    // }
+    mock_trait!(MockCryptoOps,
+        gen_plaintext() -> recrypt::api::Plaintext
+    );
+    impl CryptoOps for MockCryptoOps {
+        fn derive_symmetric_key(
+            &self,
+            _: &recrypt::api::Plaintext,
+        ) -> recrypt::api::DerivedSymmetricKey {
+            unimplemented!()
+        }
+        mock_method!(gen_plaintext(&self) -> recrypt::api::Plaintext);
+        fn transform(
+            &self,
+            _: recrypt::api::EncryptedValue,
+            _: recrypt::api::TransformKey,
+            _: &recrypt::api::SigningKeypair,
+        ) -> std::result::Result<recrypt::api::EncryptedValue, RecryptErr> {
+            unimplemented!()
+        }
+        fn decrypt(
+            &self,
+            _: recrypt::api::EncryptedValue,
+            _: &recrypt::api::PrivateKey,
+        ) -> std::result::Result<recrypt::api::Plaintext, RecryptErr> {
+            unimplemented!()
+        }
+        fn encrypt(
+            &self,
+            _: &recrypt::api::Plaintext,
+            _: &recrypt::api::PublicKey,
+            _: &recrypt::api::SigningKeypair,
+        ) -> std::result::Result<recrypt::api::EncryptedValue, RecryptErr> {
+            unimplemented!()
+        }
+        fn derive_private_key(&self, pt: &recrypt::api::Plaintext) -> recrypt::api::PrivateKey {
+            let recrypt = recrypt::api::Recrypt::new();
+            recrypt.derive_private_key(pt)
+        }
+    }
     #[test]
     fn augment_private_key_with_retry_retries_once() {
         let recrypt_mock = MockKeyGenOps::default();
@@ -1129,61 +1150,82 @@ pub(crate) mod test {
             is_variant!(IronOxideErr::UserPrivateKeyRotationError)
         );
     }
-    // #[test]
-    // fn gen_plaintext_and_diff_with_retry_retries_once() {
-    //     let recrypt_mock = MockKeyGenOps::default();
-    //     let good_re_private_key = RecryptPrivateKey::new([42u8; 32]); // good private key
-    //     recrypt_mock.random_private_key.return_values(vec![
-    //         RecryptPrivateKey::new([0u8; 32]), // bad private key, 0s
-    //         good_re_private_key.clone(),       // good private key. Used for aug factor
-    //     ]);
+    #[test]
+    fn gen_plaintext_and_diff_with_retry_retries_once() {
+        let recrypt_mock = MockCryptoOps::default();
+        // creating a real recrypt to make a valid plaintext
+        let recrypt = recrypt::api::Recrypt::new();
+        let bad_plaintext = recrypt.gen_plaintext();
+        let bad_private_key = recrypt.derive_private_key(&bad_plaintext);
+        let good_plaintext = recrypt.gen_plaintext();
+        recrypt_mock
+            .gen_plaintext
+            .return_values(vec![bad_plaintext, good_plaintext.clone()]);
 
-    //     let curr_priv_key = PrivateKey::from([100u8; 32]);
-    //     let expected_priv_key_bytes: [u8; 32] = [
-    //         58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58, 58,
-    //         58, 58, 58, 58, 58, 58, 58, 58, 58, 58,
-    //     ];
+        // since this will generate bad_plaintext, which bad_private_key is derived from,
+        // the augmentation will result in zero, causing the function to retry.
+        let result =
+            gen_plaintext_and_aug_with_retry(&recrypt_mock, &bad_private_key.into()).unwrap();
+        assert_eq!(
+            recrypt::Revealed(result.0),
+            recrypt::Revealed(good_plaintext)
+        );
+    }
 
-    //     let result = gen_plaintext_and_diff_with_retry(&recrypt_mock, &curr_priv_key).unwrap();
-    //     assert_eq!(
-    //         recrypt::Revealed((result.1.clone()).0),
-    //         recrypt::Revealed(RecryptPrivateKey::new(expected_priv_key_bytes))
-    //     );
-    //     // assert_eq!(
-    //     //     recrypt::Revealed(((result.1.clone()).0).0),
-    //     //     recrypt::Revealed(good_re_private_key)
-    //     // )
-    // }
+    #[test]
+    fn gen_plaintext_and_diff_with_retry_retries_only_once() {
+        let recrypt_mock = MockCryptoOps::default();
+        // creating a real recrypt to make a valid plaintext
+        let recrypt = recrypt::api::Recrypt::new();
+        let bad_plaintext = recrypt.gen_plaintext();
+        let bad_private_key = recrypt.derive_private_key(&bad_plaintext);
+        let good_plaintext = recrypt.gen_plaintext();
+        // Ideally this would also check that it retries/fails when the generated private key is zero,
+        // but I don't know the plaintext to return to force that to happen.
+        // Mocking `derive_private_key()` doesn't appear to be possible without Eq and Hash on Plaintext.
+        recrypt_mock.gen_plaintext.return_values(vec![
+            bad_plaintext.clone(),
+            bad_plaintext,
+            good_plaintext.clone(),
+        ]);
+
+        // since this will generate bad_plaintext, which bad_private_key is derived from,
+        // the augmentation will result in zero, causing the function to retry.
+        let result = gen_plaintext_and_aug_with_retry(&recrypt_mock, &bad_private_key.into());
+        assert_that!(
+            &result.unwrap_err(),
+            is_variant!(IronOxideErr::GroupPrivateKeyRotationError)
+        );
+    }
 
     #[test]
     fn init_and_rotation_user_and_groups() -> Result<(), IronOxideErr> {
         use crate::{
             check_groups_and_collect_rotation,
-            internal::{group_api::GroupMetaResult, user_api::UserResult},
+            internal::{
+                group_api::test::create_group_meta_result, user_api::test::create_user_result,
+            },
             InitAndRotationCheck, IronOxide,
         };
         let recrypt = recrypt::api::Recrypt::new();
         let (_, pub_key) = recrypt.generate_key_pair()?;
         let time = chrono::Utc::now();
-        let create_gmr = |id: GroupId, needs_rotation: Option<bool>| GroupMetaResult {
-            id,
-            name: None,
-            group_master_public_key: pub_key.into(),
-            is_admin: true,
-            is_member: true,
-            created: time,
-            updated: time,
-            needs_rotation,
+        let create_gmr = |id: GroupId, needs_rotation: Option<bool>| {
+            create_group_meta_result(
+                id,
+                None,
+                pub_key.into(),
+                true,
+                true,
+                time,
+                time,
+                needs_rotation,
+            )
         };
         let de_json = r#"{"deviceId":314,"accountId":"account_id","segmentId":22,"signingPrivateKey":"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQGKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXA==","devicePrivateKey":"bzb0Rlg0u7gx9wDuk1ppRI77OH/0ferXleenJ3Ag6Jg="}"#;
         let de: DeviceContext = serde_json::from_str(&de_json).unwrap();
         let user_id = UserId::try_from("account_id")?;
-        let user = UserResult {
-            account_id: user_id.clone(),
-            segment_id: 22,
-            user_public_key: pub_key.into(),
-            needs_rotation: true,
-        };
+        let user = create_user_result(user_id.clone(), 22, pub_key.into(), true);
         let io = IronOxide::create(&user, &de);
 
         let good_group_id = GroupId::try_from("group")?;

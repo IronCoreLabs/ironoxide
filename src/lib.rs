@@ -176,8 +176,8 @@ pub fn initialize_check_rotation(device_context: &DeviceContext) -> Result<InitA
         .block_on(initialize_check_rotation_async(device_context))
 }
 
-// Finds the groups that the caller is an admin of that need rotation and
-// forms an InitAndRotationCheck from the user/groups needing rotation.
+/// Finds the groups that the caller is an admin of that need rotation and
+/// forms an InitAndRotationCheck from the user/groups needing rotation.
 fn check_groups_and_collect_rotation(
     groups: &Vec<internal::group_api::GroupMetaResult>,
     user_needs_rotation: bool,

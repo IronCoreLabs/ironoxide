@@ -121,10 +121,10 @@ pub struct DeviceAdd {
 /// IDs and public key for existing user on verify result
 #[derive(Debug)]
 pub struct UserResult {
-    pub(crate) account_id: UserId,
-    pub(crate) segment_id: usize,
-    pub(crate) user_public_key: PublicKey,
-    pub(crate) needs_rotation: bool,
+    account_id: UserId,
+    segment_id: usize,
+    user_public_key: PublicKey,
+    needs_rotation: bool,
 }
 impl UserResult {
     pub fn user_public_key(&self) -> &PublicKey {
@@ -522,8 +522,22 @@ fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use super::*;
+
+    pub fn create_user_result(
+        account_id: UserId,
+        segment_id: usize,
+        user_public_key: PublicKey,
+        needs_rotation: bool,
+    ) -> UserResult {
+        UserResult {
+            account_id,
+            segment_id,
+            user_public_key,
+            needs_rotation,
+        }
+    }
 
     #[test]
     fn user_id_validate_good() {

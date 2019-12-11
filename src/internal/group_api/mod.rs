@@ -120,14 +120,14 @@ impl GroupListResult {
 /// Abbreviated group information.
 #[derive(Clone, Debug)]
 pub struct GroupMetaResult {
-    pub(crate) id: GroupId,
-    pub(crate) name: Option<GroupName>,
-    pub(crate) group_master_public_key: PublicKey,
-    pub(crate) is_admin: bool,
-    pub(crate) is_member: bool,
-    pub(crate) created: DateTime<Utc>,
-    pub(crate) updated: DateTime<Utc>,
-    pub(crate) needs_rotation: Option<bool>,
+    id: GroupId,
+    name: Option<GroupName>,
+    group_master_public_key: PublicKey,
+    is_admin: bool,
+    is_member: bool,
+    created: DateTime<Utc>,
+    updated: DateTime<Utc>,
+    needs_rotation: Option<bool>,
 }
 impl GroupMetaResult {
     /// A single document grant/revoke failure for a user or group.
@@ -645,7 +645,7 @@ pub async fn get_metadata(
     resp.try_into()
 }
 
-//Delete the provided group given its ID
+///Delete the provided group given its ID
 pub async fn group_delete(auth: &RequestAuth, group_id: &GroupId) -> Result<GroupId, IronOxideErr> {
     requests::group_delete::group_delete_request(auth, &group_id)
         .await
@@ -880,8 +880,30 @@ fn generate_transform_for_keys<CR: rand::CryptoRng + rand::RngCore>(
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use super::*;
+
+    pub fn create_group_meta_result(
+        id: GroupId,
+        name: Option<GroupName>,
+        group_master_public_key: PublicKey,
+        is_admin: bool,
+        is_member: bool,
+        created: DateTime<Utc>,
+        updated: DateTime<Utc>,
+        needs_rotation: Option<bool>,
+    ) -> GroupMetaResult {
+        GroupMetaResult {
+            id,
+            name,
+            group_master_public_key,
+            is_admin,
+            is_member,
+            created,
+            updated,
+            needs_rotation,
+        }
+    }
 
     #[test]
     fn group_id_validate_good() {
