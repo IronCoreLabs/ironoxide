@@ -1,8 +1,11 @@
 # Changelog
 
 ## 0.14.1 (unreleased)
-- [[#91]](https://github.com/IronCoreLabs/ironoxide/pull/91)
+
+- [[#91](https://github.com/IronCoreLabs/ironoxide/pull/91)]
   - Adds simple sharing of tokio runtime across device authenticated SDK calls
+- [[#90](https://github.com/IronCoreLabs/ironoxide/pull/90)]
+  - Adds method GroupOps::group_rotate_private_key
 
 ## 0.14.0
 

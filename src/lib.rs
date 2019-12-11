@@ -88,6 +88,7 @@ use rand_chacha::ChaChaCore;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
 use std::sync::Mutex;
 use tokio::runtime::current_thread::Runtime;
+use vec1::Vec1;
 
 /// Result of an Sdk operation
 pub type Result<T> = std::result::Result<T, IronOxideErr>;
@@ -121,6 +122,15 @@ impl InitAndRotationCheck {
             | InitAndRotationCheck::RotationNeeded(io, _) => io,
         }
     }
+
+    /// Convenience constructor to make an InitAndRotationCheck::RotationNeeded from an IronOxide
+    /// and an EitherOrBoth<UserId, Vec1<GroupId>> directly.
+    pub fn new_rotation_needed(
+        io: IronOxide,
+        rotations_needed: EitherOrBoth<UserId, Vec1<GroupId>>,
+    ) -> InitAndRotationCheck {
+        InitAndRotationCheck::RotationNeeded(io, PrivateKeyRotationCheckResult { rotations_needed })
+    }
 }
 
 /// number of bytes that can be read from `IronOxide.rng` before it is reseeded. 1 MB
@@ -128,7 +138,7 @@ const BYTES_BEFORE_RESEEDING: u64 = 1 * 1024 * 1024;
 
 /// Provides soft rotation capabilities for user and group keys
 pub struct PrivateKeyRotationCheckResult {
-    pub rotations_needed: EitherOrBoth<UserId, Vec<GroupId>>,
+    pub rotations_needed: EitherOrBoth<UserId, Vec1<GroupId>>,
 }
 
 impl PrivateKeyRotationCheckResult {
@@ -139,22 +149,23 @@ impl PrivateKeyRotationCheckResult {
         }
     }
 
-    //    pub fn group_rotation_needed() -> Option<Vec<GroupId>> {
-    //        unimplemented!()
-    //    }
+    pub fn group_rotation_needed(&self) -> Option<Vec1<GroupId>> {
+        match &self.rotations_needed {
+            EitherOrBoth::Right(groups) | EitherOrBoth::Both(_, groups) => Some(groups.clone()),
+            _ => None,
+        }
+    }
 
-    //    pub fn rotate_all(ironoxide: &IronOxide) -> (UserId, Vec<GroupId>) //TODO consider when group private key rotation is added
+    // pub fn rotate_all(ironoxide: &IronOxide) -> (UserId, Vec<GroupId>) //TODO consider when group private key rotation is added
 }
 
 /// Initialize the IronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
 /// keys are valid and exist for the provided account. If successful returns an instance of the IronOxide SDK
 pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
     let mut rt = Runtime::new().unwrap();
-    rt.block_on(crate::internal::user_api::user_get_current(
-        &device_context.auth(),
-    ))
-    .map(|current_user| IronOxide::create(&current_user, device_context))
-    .map_err(|_| IronOxideErr::InitializeError)
+    rt.block_on(internal::user_api::user_get_current(&device_context.auth()))
+        .map(|current_user| IronOxide::create(&current_user, device_context))
+        .map_err(|_| IronOxideErr::InitializeError)
 }
 /// Initialize the IronOxide SDK and check to see if the user that owns this `DeviceContext` is
 /// marked for private key rotation, or if any of the groups that the user is an admin of is marked
@@ -165,25 +176,50 @@ pub fn initialize_check_rotation(device_context: &DeviceContext) -> Result<InitA
         .block_on(initialize_check_rotation_async(device_context))
 }
 
+/// Finds the groups that the caller is an admin of that need rotation and
+/// forms an InitAndRotationCheck from the user/groups needing rotation.
+fn check_groups_and_collect_rotation(
+    groups: &Vec<internal::group_api::GroupMetaResult>,
+    user_needs_rotation: bool,
+    account_id: UserId,
+    ironoxide: IronOxide,
+) -> InitAndRotationCheck {
+    use EitherOrBoth::{Both, Left, Right};
+    let groups_needing_rotation = groups
+        .into_iter()
+        .filter(|meta_result| meta_result.needs_rotation() == Some(true))
+        .map(|meta_result| meta_result.id().to_owned())
+        .collect::<Vec<_>>();
+    // If this is a Some, there are groups needing rotation
+    let maybe_groups_needing_rotation = Vec1::try_from_vec(groups_needing_rotation).ok();
+    match (user_needs_rotation, maybe_groups_needing_rotation) {
+        (false, None) => InitAndRotationCheck::NoRotationNeeded(ironoxide),
+        (true, None) => InitAndRotationCheck::new_rotation_needed(ironoxide, Left(account_id)),
+        (false, Some(groups)) => {
+            InitAndRotationCheck::new_rotation_needed(ironoxide, Right(groups))
+        }
+        (true, Some(groups)) => {
+            InitAndRotationCheck::new_rotation_needed(ironoxide, Both(account_id, groups))
+        }
+    }
+}
+
 async fn initialize_check_rotation_async(
     device_context: &DeviceContext,
 ) -> Result<InitAndRotationCheck> {
-    internal::user_api::user_get_current(device_context.auth())
-        .await
-        .and_then(|curr_user| {
-            let ironoxide = IronOxide::create(&curr_user, &device_context);
+    let (curr_user, group_list_result) = futures::try_join!(
+        internal::user_api::user_get_current(device_context.auth()),
+        internal::group_api::list(device_context.auth(), None)
+    )?;
+    let ironoxide = IronOxide::create(&curr_user, &device_context);
+    let user_groups = group_list_result.result();
 
-            if curr_user.needs_rotation() {
-                Ok(InitAndRotationCheck::RotationNeeded(
-                    ironoxide,
-                    PrivateKeyRotationCheckResult {
-                        rotations_needed: EitherOrBoth::Left(curr_user.account_id().clone()),
-                    },
-                ))
-            } else {
-                Ok(InitAndRotationCheck::NoRotationNeeded(ironoxide))
-            }
-        })
+    Ok(check_groups_and_collect_rotation(
+        user_groups,
+        curr_user.needs_rotation(),
+        curr_user.account_id().to_owned(),
+        ironoxide,
+    ))
 }
 
 impl IronOxide {

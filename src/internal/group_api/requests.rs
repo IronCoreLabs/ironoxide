@@ -1,4 +1,6 @@
 use crate::internal::{
+    self,
+    auth_v2::AuthV2Builder,
     group_api::{
         GroupCreateResult, GroupEntity, GroupGetResult, GroupId, GroupMetaResult, GroupName, UserId,
     },
@@ -16,8 +18,6 @@ use std::{
     convert::{TryFrom, TryInto},
 };
 
-use crate::internal::auth_v2::AuthV2Builder;
-
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum Permission {
@@ -29,6 +29,7 @@ pub enum Permission {
 #[serde(rename_all = "camelCase")]
 pub struct GroupBasicApiResponse {
     pub(crate) id: GroupId,
+    pub(crate) current_key_id: u64,
     pub(crate) name: Option<GroupName>,
     pub(crate) permissions: HashSet<Permission>,
     pub(crate) status: u32,
@@ -59,14 +60,15 @@ impl TryFrom<GroupBasicApiResponse> for GroupMetaResult {
 #[serde(rename_all = "camelCase")]
 pub struct GroupGetApiResponse {
     pub(crate) id: GroupId,
+    pub(crate) current_key_id: u64,
     pub(crate) name: Option<GroupName>,
     pub(crate) permissions: HashSet<Permission>,
     pub(crate) status: u32,
     pub(crate) updated: DateTime<Utc>,
     pub(crate) created: DateTime<Utc>,
     pub(crate) owner: Option<UserId>,
-    pub(crate) admin_ids: Option<Vec<String>>,
-    pub(crate) member_ids: Option<Vec<String>>,
+    pub(crate) admin_ids: Option<Vec<UserId>>,
+    pub(crate) member_ids: Option<Vec<UserId>>,
     pub(crate) group_master_public_key: PublicKey,
     pub(crate) encrypted_private_key: Option<TransformedEncryptedValue>,
     pub(crate) needs_rotation: Option<bool>,
@@ -84,12 +86,8 @@ impl TryFrom<GroupGetApiResponse> for GroupGetResult {
             is_admin: resp.permissions.contains(&Permission::Admin),
             is_member: resp.permissions.contains(&Permission::Member),
             owner: resp.owner,
-            admin_list: resp
-                .admin_ids
-                .map(|admins| admins.into_iter().map(UserId).collect()),
-            member_list: resp
-                .member_ids
-                .map(|members| members.into_iter().map(UserId).collect()),
+            admin_list: resp.admin_ids,
+            member_list: resp.member_ids,
             created: resp.created,
             updated: resp.updated,
             needs_rotation: resp.needs_rotation,
@@ -106,8 +104,8 @@ pub struct GroupCreateApiResponse {
     pub(in crate::internal) updated: DateTime<Utc>,
     pub(in crate::internal) created: DateTime<Utc>,
     pub(in crate::internal) owner: UserId,
-    pub(in crate::internal) admin_ids: Vec<String>,
-    pub(in crate::internal) member_ids: Vec<String>,
+    pub(in crate::internal) admin_ids: Vec<UserId>,
+    pub(in crate::internal) member_ids: Vec<UserId>,
     pub(in crate::internal) group_master_public_key: PublicKey,
     pub(in crate::internal) needs_rotation: Option<bool>,
 }
@@ -123,8 +121,8 @@ impl TryFrom<GroupCreateApiResponse> for GroupCreateResult {
             is_admin: resp.permissions.contains(&Permission::Admin),
             is_member: resp.permissions.contains(&Permission::Member),
             owner: resp.owner,
-            admins: resp.admin_ids.into_iter().map(|id| UserId(id)).collect(),
-            members: resp.member_ids.into_iter().map(|id| UserId(id)).collect(),
+            admins: resp.admin_ids,
+            members: resp.member_ids,
             created: resp.created,
             updated: resp.updated,
             needs_rotation: resp.needs_rotation,
@@ -212,7 +210,6 @@ pub mod group_list {
 
 pub mod group_create {
     use super::*;
-    use crate::internal::{self, auth_v2::AuthV2Builder};
 
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -274,12 +271,65 @@ pub mod group_get {
     }
 }
 
+/// PUT /groups/{groupId}/keys/{groupKeyId}
+pub mod group_update_private_key {
+    use super::*;
+    use internal::{group_api::GroupUpdatePrivateKeyResult, rest::json::AugmentationFactor};
+
+    #[derive(Serialize, Debug)]
+    #[serde(rename_all = "camelCase")]
+    pub struct GroupUpdatePrivateKeyRequest {
+        admins: Vec<GroupAdmin>,
+        augmentation_factor: AugmentationFactor,
+    }
+
+    #[derive(Deserialize, PartialEq, Debug)]
+    #[serde(rename_all = "camelCase")]
+    pub struct GroupUpdatePrivateKeyResponse {
+        group_key_id: u64,
+        needs_rotation: bool,
+    }
+
+    impl From<GroupUpdatePrivateKeyResponse> for GroupUpdatePrivateKeyResult {
+        fn from(resp: GroupUpdatePrivateKeyResponse) -> Self {
+            // don't expose the current_key_id to the outside world until we need to
+            GroupUpdatePrivateKeyResult {
+                needs_rotation: resp.needs_rotation,
+            }
+        }
+    }
+
+    pub async fn update_private_key(
+        auth: &RequestAuth,
+        group_id: &GroupId,
+        group_key_id: u64,
+        admins: Vec<GroupAdmin>,
+        augmentation_factor: AugmentationFactor,
+    ) -> Result<GroupUpdatePrivateKeyResponse, IronOxideErr> {
+        auth.request
+            .put(
+                &format!(
+                    "groups/{}/keys/{}",
+                    rest::url_encode(group_id.id()),
+                    group_key_id
+                ),
+                &GroupUpdatePrivateKeyRequest {
+                    augmentation_factor,
+                    admins,
+                },
+                RequestErrorCode::GroupKeyUpdate,
+                AuthV2Builder::new(&auth, Utc::now()),
+            )
+            .await
+    }
+}
+
 pub mod group_delete {
     use super::*;
 
     #[derive(Deserialize)]
     pub struct GroupDeleteApiResponse {
-        pub(crate) id: String,
+        pub(crate) id: GroupId,
     }
 
     pub async fn group_delete_request(
@@ -298,7 +348,6 @@ pub mod group_delete {
 
 pub mod group_update {
     use super::*;
-    use crate::internal::auth_v2::AuthV2Builder;
 
     #[derive(Serialize, Debug, Clone, PartialEq)]
     struct GroupUpdateRequest<'a> {
@@ -323,7 +372,6 @@ pub mod group_update {
 
 pub mod group_add_member {
     use super::*;
-    use crate::internal::auth_v2::AuthV2Builder;
 
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -364,8 +412,6 @@ pub mod group_add_member {
 
 pub mod group_add_admin {
     use super::*;
-    use crate::internal::auth_v2::AuthV2Builder;
-    use std::convert::TryInto;
 
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -378,23 +424,9 @@ pub mod group_add_admin {
     pub async fn group_add_admin_request(
         auth: &RequestAuth,
         id: &GroupId,
-        users: Vec<(UserId, PublicKey, recrypt::api::EncryptedValue)>,
+        admins: Vec<GroupAdmin>,
         signature: SchnorrSignature,
     ) -> Result<GroupUserEditResponse, IronOxideErr> {
-        //The users could _technically_ contain a reencrypted value, if that happened the `try_into` would fail.
-        //This can't happen in a normal usecase.
-        let admins = users
-            .into_iter()
-            .map(|(user_id, user_master_public_key, encrypted_value)| {
-                encrypted_value.try_into().map(|encrypted_msg| GroupAdmin {
-                    user: User {
-                        user_id,
-                        user_master_public_key,
-                    },
-                    encrypted_msg,
-                })
-            })
-            .collect::<Result<Vec<GroupAdmin>, IronOxideErr>>()?;
         let encoded_id = rest::url_encode(&id.0).to_string();
         auth.request
             .post(
@@ -475,6 +507,7 @@ mod tests {
         let (_, pk) = recrypt.generate_key_pair().unwrap();
         let item = GroupBasicApiResponse {
             id: GroupId("my_id".to_string()),
+            current_key_id: 10,
             name: None,
             status: 1,
             group_master_public_key: pk.into(),

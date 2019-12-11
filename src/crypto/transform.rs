@@ -8,7 +8,7 @@ use recrypt::{
     prelude::*,
 };
 
-/// Generate a DEK and it's associated symmetric key for a new document
+/// Generate a DEK and its associated symmetric key for a new document
 pub fn generate_new_doc_key<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
 ) -> (Plaintext, DerivedSymmetricKey) {
@@ -18,26 +18,36 @@ pub fn generate_new_doc_key<CR: rand::CryptoRng + rand::RngCore>(
 }
 
 /// Generate a plaintext and a keypair necessary to create a new group
-pub fn gen_group_keys<CR: rand::CryptoRng + rand::RngCore>(
-    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+pub fn gen_group_keys<R: CryptoOps + KeyGenOps>(
+    recrypt: &R,
 ) -> Result<(Plaintext, PrivateKey, PublicKey), IronOxideErr> {
     let plaintext = recrypt.gen_plaintext();
     let priv_key = recrypt.derive_private_key(&plaintext);
     let pub_key = recrypt.compute_public_key(&priv_key)?;
-
     Ok((plaintext, priv_key.into(), pub_key.into()))
 }
 
-/// Decrypt the provided encrypted plaintext and return both the plaintext and the symmetric key that
-/// is derived from it.
-pub fn decrypt_plaintext<CR: rand::CryptoRng + rand::RngCore>(
+/// Decrypt the provided encrypted plaintext and return the symmetric key that is derived from it.
+pub fn decrypt_as_symmetric_key<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     encrypted_plaintext: EncryptedValue,
     user_device_private_key: &PrivateKey,
-) -> Result<(Plaintext, DerivedSymmetricKey), IronOxideErr> {
+) -> Result<DerivedSymmetricKey, IronOxideErr> {
     let plaintext = recrypt.decrypt(encrypted_plaintext, &user_device_private_key)?;
     let symmetric_key = recrypt.derive_symmetric_key(&plaintext);
-    Ok((plaintext, symmetric_key))
+    Ok(symmetric_key)
+}
+
+/// Decrypt the provided encrypted plaintext and return both the plaintext and the private key that
+/// is derived from it.
+pub fn decrypt_as_private_key<CR: rand::CryptoRng + rand::RngCore>(
+    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    encrypted_plaintext: EncryptedValue,
+    user_device_private_key: &PrivateKey,
+) -> Result<(Plaintext, PrivateKey), IronOxideErr> {
+    let plaintext = recrypt.decrypt(encrypted_plaintext, &user_device_private_key)?;
+    let private_key = recrypt.derive_private_key(&plaintext);
+    Ok((plaintext, private_key))
 }
 
 /// Encrypt the plaintext to all the public keys in the `with_keys` list. If the encryption succeeds, return the values in the right
