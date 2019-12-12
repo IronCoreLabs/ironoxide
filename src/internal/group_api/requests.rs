@@ -290,11 +290,12 @@ pub mod group_update_private_key {
         needs_rotation: bool,
     }
 
-    impl From<GroupUpdatePrivateKeyResponse> for GroupUpdatePrivateKeyResult {
-        fn from(resp: GroupUpdatePrivateKeyResponse) -> Self {
+    impl From<(GroupUpdatePrivateKeyResponse, GroupId)> for GroupUpdatePrivateKeyResult {
+        fn from(resp_and_id: (GroupUpdatePrivateKeyResponse, GroupId)) -> Self {
             // don't expose the current_key_id to the outside world until we need to
             GroupUpdatePrivateKeyResult {
-                needs_rotation: resp.needs_rotation,
+                id: resp_and_id.1,
+                needs_rotation: resp_and_id.0.needs_rotation,
             }
         }
     }

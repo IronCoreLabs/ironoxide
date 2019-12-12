@@ -99,7 +99,7 @@ fn sdk_init_with_private_key_rotation() -> Result<(), IronOxideErr> {
     let _: IronOxide = match init_result {
         InitAndRotationCheck::NoRotationNeeded(_ironoxide) => panic!("user should need rotation"),
         InitAndRotationCheck::RotationNeeded(io, rotation_check) => {
-            assert_eq!(rotation_check.user_rotation_needed(), Some(user_id));
+            assert_eq!(rotation_check.user_rotation_needed(), Some(&user_id));
             let rotation_result = io.user_rotate_private_key(common::USER_PASSWORD)?;
             assert_eq!(rotation_result.needs_rotation(), false);
             io
