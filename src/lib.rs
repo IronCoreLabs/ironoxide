@@ -156,6 +156,10 @@ impl PrivateKeyRotationCheckResult {
         }
     }
 
+    /// Rotate the private key of the calling user and all groups they are an administrator of where needs_rotation is true.
+    /// Note that this function has the potential to take much longer than other functions, as rotation will be done
+    /// individually on each user/group. If rotation is only needed for a specific group, it is strongly recommended
+    /// to call group_rotate_private_key() instead.
     pub fn rotate_all(
         &self,
         ironoxide: &IronOxide,
