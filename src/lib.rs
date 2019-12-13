@@ -168,31 +168,30 @@ impl PrivateKeyRotationCheckResult {
         Option<UserUpdatePrivateKeyResult>,
         Option<Vec<GroupUpdatePrivateKeyResult>>,
     )> {
+        use crate::internal::Password;
         use futures::future::OptionFuture;
-        let user_future = self.user_rotation_needed().and(Some(
+        let valid_password: Password = password.try_into()?;
+        let user_future = self.user_rotation_needed().map(|_| {
             crate::internal::user_api::user_rotate_private_key(
                 &ironoxide.recrypt,
-                password.try_into()?,
+                valid_password,
                 ironoxide.device().auth(),
-            ),
-        ));
-        let group_futures = match self.group_rotation_needed() {
-            Some(groups) => {
-                let group_futures = groups
-                    .into_iter()
-                    .map(|group_id| {
-                        crate::internal::group_api::group_rotate_private_key(
-                            &ironoxide.recrypt,
-                            ironoxide.device().auth(),
-                            &group_id,
-                            ironoxide.device().device_private_key(),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                Some(futures::future::join_all(group_futures))
-            }
-            None => None,
-        };
+            )
+        });
+        let group_futures = self.group_rotation_needed().map(|groups| {
+            let group_futures = groups
+                .into_iter()
+                .map(|group_id| {
+                    crate::internal::group_api::group_rotate_private_key(
+                        &ironoxide.recrypt,
+                        ironoxide.device().auth(),
+                        &group_id,
+                        ironoxide.device().device_private_key(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            futures::future::join_all(group_futures)
+        });
         let user_opt_future: OptionFuture<_> = user_future.into();
         let group_opt_future: OptionFuture<_> = group_futures.into();
         let (user_opt_result, group_opt_vec_result) = ironoxide
