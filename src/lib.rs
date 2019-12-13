@@ -197,8 +197,7 @@ impl PrivateKeyRotationCheckResult {
         let (user_opt_result, group_opt_vec_result) = ironoxide
             .runtime
             .block_on(futures::future::join(user_opt_future, group_opt_future));
-        let group_opt_result_vec =
-            group_opt_vec_result.map(|g| g.into_iter().collect::<Result<Vec<_>>>());
+        let group_opt_result_vec = group_opt_vec_result.map(|g| g.into_iter().collect());
         Ok((
             user_opt_result.transpose()?,
             group_opt_result_vec.transpose()?,
