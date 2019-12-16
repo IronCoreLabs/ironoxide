@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.15.0 (unreleased)
+## 0.15.0
 
 - [[#94](https://github.com/IronCoreLabs/ironoxide/pull/94)]
   - Adds rotate_all() to `PrivateKeyRotationCheckResult`
