@@ -159,7 +159,11 @@ impl PrivateKeyRotationCheckResult {
     /// Rotate the private key of the calling user and all groups they are an administrator of where needs_rotation is true.
     /// Note that this function has the potential to take much longer than other functions, as rotation will be done
     /// individually on each user/group. If rotation is only needed for a specific group, it is strongly recommended
-    /// to call group_rotate_private_key() instead.
+    /// to call [user_rotate_private_key()](user\/trait.UserOps.html#tymethod.user_rotate_private_key) or
+    /// [group_rotate_private_key()](group\/trait.GroupOps.html#tymethod.group_rotate_private_key) instead.
+    /// # Arguments
+    /// - `ironoxide` - IronOxide used to make authenticated requests for the calling user
+    /// - `password` - Password to unlock the current user's user master key
     pub fn rotate_all(
         &self,
         ironoxide: &IronOxide,
