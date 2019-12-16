@@ -1239,8 +1239,11 @@ pub(crate) mod test {
             InitAndRotationCheck::NoRotationNeeded(_) => panic!("user and group need rotation"),
             InitAndRotationCheck::RotationNeeded(_, rotation) => rotation,
         };
-        assert_eq!(rotation.group_rotation_needed(), Some(vec1![good_group_id]));
-        assert_eq!(rotation.user_rotation_needed(), Some(user_id));
+        assert_eq!(
+            rotation.group_rotation_needed(),
+            Some(&vec1![good_group_id])
+        );
+        assert_eq!(rotation.user_rotation_needed(), Some(&user_id));
         Ok(())
     }
 }

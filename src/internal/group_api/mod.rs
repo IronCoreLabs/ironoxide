@@ -532,10 +532,15 @@ pub async fn group_create<CR: rand::CryptoRng + rand::RngCore>(
 
 #[derive(Debug, Clone)]
 pub struct GroupUpdatePrivateKeyResult {
+    id: GroupId,
     needs_rotation: bool,
 }
 
 impl GroupUpdatePrivateKeyResult {
+    /// The id of the group that was rotated
+    pub fn id(&self) -> &GroupId {
+        &self.id
+    }
     /// True if this group's private key requires additional rotation
     pub fn needs_rotation(&self) -> bool {
         self.needs_rotation
@@ -633,7 +638,7 @@ pub async fn group_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
         aug_factor,
     )
     .await
-    .map(|resp| resp.into())
+    .map(|resp| (resp, group_id.to_owned()).into())
 }
 
 /// Get the metadata for a group given its ID

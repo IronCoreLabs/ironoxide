@@ -155,6 +155,66 @@ fn group_rotate_private_key_non_admin() -> Result<(), IronOxideErr> {
 }
 
 #[test]
+fn rotate_all() -> Result<(), IronOxideErr> {
+    use ironoxide::{user::UserCreateOpts, InitAndRotationCheck};
+    let account_id: UserId = create_id_all_classes("").try_into()?;
+    let jwt = gen_jwt(Some(account_id.id())).0;
+    IronOxide::user_create(&jwt, USER_PASSWORD, &UserCreateOpts::new(true))?;
+    let device = IronOxide::generate_new_device(
+        &gen_jwt(Some(account_id.id())).0,
+        USER_PASSWORD,
+        &Default::default(),
+    )?;
+    let creator_sdk = ironoxide::initialize(&device)?;
+    // making non-default groups so I can specify needs_rotation of true
+    let group_create1 = creator_sdk.group_create(&GroupCreateOpts::new(
+        None,
+        None,
+        true,
+        true,
+        None,
+        vec![],
+        vec![],
+        true,
+    ))?;
+    assert_eq!(group_create1.needs_rotation(), Some(true));
+    let group_create2 = creator_sdk.group_create(&GroupCreateOpts::new(
+        None,
+        None,
+        true,
+        true,
+        None,
+        vec![],
+        vec![],
+        true,
+    ))?;
+    assert_eq!(group_create2.needs_rotation(), Some(true));
+
+    let init_and_rotation_check = ironoxide::initialize_check_rotation(&device)?;
+    let (user_result, group_result) = match init_and_rotation_check {
+        InitAndRotationCheck::NoRotationNeeded(_) => {
+            panic!("both user and groups should need rotation!");
+        }
+        InitAndRotationCheck::RotationNeeded(io, rot) => rot.rotate_all(&io, USER_PASSWORD)?,
+    };
+    assert!(user_result.is_some());
+    assert!(group_result.is_some());
+
+    assert_eq!(group_result.unwrap().len(), 2);
+
+    let user_result = IronOxide::user_verify(&jwt)?;
+    assert!(!user_result.unwrap().needs_rotation());
+
+    let group1_result = creator_sdk.group_get_metadata(group_create1.id())?;
+    let group2_result = creator_sdk.group_get_metadata(group_create2.id())?;
+
+    assert!(!group1_result.needs_rotation().unwrap());
+    assert!(!group2_result.needs_rotation().unwrap());
+
+    Ok(())
+}
+
+#[test]
 fn group_get_metadata() -> Result<(), IronOxideErr> {
     let admin_sdk = initialize_sdk()?;
     let member_sdk = initialize_sdk()?;

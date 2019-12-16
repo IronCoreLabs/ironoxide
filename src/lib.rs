@@ -73,8 +73,8 @@ pub mod policy;
 pub mod prelude;
 
 use crate::internal::{
-    group_api::GroupId,
-    user_api::{UserId, UserResult},
+    group_api::{GroupId, GroupUpdatePrivateKeyResult},
+    user_api::{UserId, UserResult, UserUpdatePrivateKeyResult},
 };
 pub use crate::internal::{
     DeviceContext, DeviceSigningKeyPair, IronOxideErr, KeyPair, PrivateKey, PublicKey,
@@ -86,7 +86,7 @@ use rand::{
 };
 use rand_chacha::ChaChaCore;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
-use std::sync::Mutex;
+use std::{convert::TryInto, sync::Mutex};
 use tokio::runtime::current_thread::Runtime;
 use vec1::Vec1;
 
@@ -142,21 +142,71 @@ pub struct PrivateKeyRotationCheckResult {
 }
 
 impl PrivateKeyRotationCheckResult {
-    pub fn user_rotation_needed(&self) -> Option<UserId> {
+    pub fn user_rotation_needed(&self) -> Option<&UserId> {
         match &self.rotations_needed {
-            EitherOrBoth::Left(u) | EitherOrBoth::Both(u, _) => Some(u.clone()),
+            EitherOrBoth::Left(u) | EitherOrBoth::Both(u, _) => Some(u),
             _ => None,
         }
     }
 
-    pub fn group_rotation_needed(&self) -> Option<Vec1<GroupId>> {
+    pub fn group_rotation_needed(&self) -> Option<&Vec1<GroupId>> {
         match &self.rotations_needed {
-            EitherOrBoth::Right(groups) | EitherOrBoth::Both(_, groups) => Some(groups.clone()),
+            EitherOrBoth::Right(groups) | EitherOrBoth::Both(_, groups) => Some(groups),
             _ => None,
         }
     }
 
-    // pub fn rotate_all(ironoxide: &IronOxide) -> (UserId, Vec<GroupId>) //TODO consider when group private key rotation is added
+    /// Rotate the private key of the calling user and all groups they are an administrator of where needs_rotation is true.
+    /// Note that this function has the potential to take much longer than other functions, as rotation will be done
+    /// individually on each user/group. If rotation is only needed for a specific group, it is strongly recommended
+    /// to call [user_rotate_private_key()](user\/trait.UserOps.html#tymethod.user_rotate_private_key) or
+    /// [group_rotate_private_key()](group\/trait.GroupOps.html#tymethod.group_rotate_private_key) instead.
+    /// # Arguments
+    /// - `ironoxide` - IronOxide used to make authenticated requests for the calling user
+    /// - `password` - Password to unlock the current user's user master key
+    pub fn rotate_all(
+        &self,
+        ironoxide: &IronOxide,
+        password: &str,
+    ) -> Result<(
+        Option<UserUpdatePrivateKeyResult>,
+        Option<Vec<GroupUpdatePrivateKeyResult>>,
+    )> {
+        use crate::internal::Password;
+        use futures::future::OptionFuture;
+        let valid_password: Password = password.try_into()?;
+        let user_future = self.user_rotation_needed().map(|_| {
+            crate::internal::user_api::user_rotate_private_key(
+                &ironoxide.recrypt,
+                valid_password,
+                ironoxide.device().auth(),
+            )
+        });
+        let group_futures = self.group_rotation_needed().map(|groups| {
+            let group_futures = groups
+                .into_iter()
+                .map(|group_id| {
+                    crate::internal::group_api::group_rotate_private_key(
+                        &ironoxide.recrypt,
+                        ironoxide.device().auth(),
+                        &group_id,
+                        ironoxide.device().device_private_key(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            futures::future::join_all(group_futures)
+        });
+        let user_opt_future: OptionFuture<_> = user_future.into();
+        let group_opt_future: OptionFuture<_> = group_futures.into();
+        let (user_opt_result, group_opt_vec_result) = ironoxide
+            .runtime
+            .block_on(futures::future::join(user_opt_future, group_opt_future));
+        let group_opt_result_vec = group_opt_vec_result.map(|g| g.into_iter().collect());
+        Ok((
+            user_opt_result.transpose()?,
+            group_opt_result_vec.transpose()?,
+        ))
+    }
 }
 
 /// Initialize the IronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
