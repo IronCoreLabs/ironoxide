@@ -12,6 +12,7 @@ description = "A pure-Rust SDK for accessing IronCore's privacy platform"
 edition = "2018"
 
 [dependencies]
+async-trait = "0.1.21"
 base64 = "~0.10"
 base64-serde = "~0.3.1"
 bytes = "~0.4.12"

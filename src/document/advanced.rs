@@ -6,8 +6,8 @@ use crate::{
     internal, Result,
 };
 use itertools::EitherOrBoth;
-use tokio::runtime::current_thread::Runtime;
 
+#[async_trait]
 pub trait DocumentAdvancedOps {
     /// (Advanced) Encrypt the provided document bytes. Return the encrypted document encryption keys (EDEKs)
     /// instead of creating a document entry in the IronCore webservice.
@@ -23,7 +23,7 @@ pub trait DocumentAdvancedOps {
     ///       `name` - (Ignored) - Any name provided will be ignored
     ///       `grant_to_author` - Flag determining whether to encrypt to the calling user or not. If set to false at least one value must be present in the `grants` list.
     ///       `grants` - List of users/groups to grant access to this document once encrypted
-    fn document_encrypt_unmanaged(
+    async fn document_encrypt_unmanaged(
         &self,
         data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
@@ -38,21 +38,20 @@ pub trait DocumentAdvancedOps {
     /// # Arguments
     /// - `encrypted_data` - Encrypted document
     /// - `encrypted_deks` - Associated encrypted DEKs for the `encrypted_data`
-    fn document_decrypt_unmanaged(
+    async fn document_decrypt_unmanaged(
         &self,
         encrypted_data: &[u8],
         encrypted_deks: &[u8],
     ) -> Result<DocumentDecryptUnmanagedResult>;
 }
 
+#[async_trait]
 impl DocumentAdvancedOps for crate::IronOxide {
-    fn document_encrypt_unmanaged(
+    async fn document_encrypt_unmanaged(
         &self,
         data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptUnmanagedResult> {
-        let mut rt = Runtime::new().unwrap();
-
         let (explicit_users, explicit_groups, grant_to_author, policy_grants) =
             match &encrypt_opts.grants {
                 EitherOrBoth::Left(explicit_grants) => {
@@ -71,7 +70,7 @@ impl DocumentAdvancedOps for crate::IronOxide {
                 }
             };
 
-        rt.block_on(internal::document_api::encrypted_document_unmanaged(
+        internal::document_api::encrypted_document_unmanaged(
             self.device.auth(),
             &self.recrypt,
             &self.user_master_pub_key,
@@ -82,22 +81,22 @@ impl DocumentAdvancedOps for crate::IronOxide {
             &explicit_users,
             &explicit_groups,
             policy_grants,
-        ))
+        )
+        .await
     }
 
-    fn document_decrypt_unmanaged(
+    async fn document_decrypt_unmanaged(
         &self,
         encrypted_data: &[u8],
         encrypted_deks: &[u8],
     ) -> Result<DocumentDecryptUnmanagedResult> {
-        let mut rt = Runtime::new().unwrap();
-
-        rt.block_on(internal::document_api::decrypt_document_unmanaged(
+        internal::document_api::decrypt_document_unmanaged(
             self.device.auth(),
             &self.recrypt,
             self.device().device_private_key(),
             encrypted_data,
             encrypted_deks,
-        ))
+        )
+        .await
     }
 }

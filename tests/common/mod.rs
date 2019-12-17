@@ -1,3 +1,4 @@
+use futures::Future;
 use ironoxide::{
     prelude::*,
     user::{UserCreateOpts, UserResult},
@@ -5,6 +6,7 @@ use ironoxide::{
 };
 use lazy_static::*;
 use std::{convert::TryInto, default::Default};
+use tokio::runtime::Runtime;
 use uuid::Uuid;
 
 pub const USER_PASSWORD: &str = "foo";
@@ -120,6 +122,14 @@ pub fn initialize_sdk() -> Result<IronOxide, IronOxideErr> {
         &Default::default(),
     )?;
     ironoxide::initialize(&device)
+}
+
+pub fn run_async<F>(f: F) -> F::Output
+where
+    F: Future,
+{
+    let rt = Runtime::new().unwrap();
+    rt.block_on(f)
 }
 
 pub fn init_sdk_get_user() -> (UserId, IronOxide) {
