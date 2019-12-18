@@ -143,18 +143,19 @@ impl Default for GroupCreateOpts {
     }
 }
 
+#[async_trait]
 pub trait GroupOps {
     /// List all of the groups that the current user is either an admin or member of.
     ///
     /// # Returns
     /// `GroupListResult` List of (abbreviated) metadata about each group the user is a part of.
-    fn group_list(&self) -> Result<GroupListResult>;
+    async fn group_list(&self) -> Result<GroupListResult>;
 
     /// Create a group. The creating user will become a group admin and by default a group member.
     ///
     /// # Arguments
     /// `group_create_opts` - See `GroupCreateOpts`. Use the `Default` implementation for defaults.
-    fn group_create(&self, group_create_opts: &GroupCreateOpts) -> Result<GroupCreateResult>;
+    async fn group_create(&self, group_create_opts: &GroupCreateOpts) -> Result<GroupCreateResult>;
 
     /// Get the full metadata for a specific group given its ID.
     ///
@@ -163,7 +164,7 @@ pub trait GroupOps {
     ///
     /// # Returns
     /// `GroupMetaResult` with details about the requested group.
-    fn group_get_metadata(&self, id: &GroupId) -> Result<GroupGetResult>;
+    async fn group_get_metadata(&self, id: &GroupId) -> Result<GroupGetResult>;
 
     /// Delete the identified group. Group does not have to be empty of admins/members in order to
     /// delete the group. **Warning: Deletion of a group will cause all documents encrypted to that
@@ -174,7 +175,7 @@ pub trait GroupOps {
     ///
     /// # Returns
     /// Deleted group id or error
-    fn group_delete(&self, id: &GroupId) -> Result<GroupId>;
+    async fn group_delete(&self, id: &GroupId) -> Result<GroupId>;
 
     /// Update a group name to a new value or clear its value.
     ///
@@ -184,7 +185,11 @@ pub trait GroupOps {
     ///
     /// # Returns
     /// `Result<GroupMetaResult>` Metadata about the group that was updated.
-    fn group_update_name(&self, id: &GroupId, name: Option<&GroupName>) -> Result<GroupMetaResult>;
+    async fn group_update_name(
+        &self,
+        id: &GroupId,
+        name: Option<&GroupName>,
+    ) -> Result<GroupMetaResult>;
 
     /// Add the users as members of a group.
     ///
@@ -194,7 +199,11 @@ pub trait GroupOps {
     /// # Returns
     /// GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
     ///   the reason they were not.
-    fn group_add_members(&self, id: &GroupId, users: &[UserId]) -> Result<GroupAccessEditResult>;
+    async fn group_add_members(
+        &self,
+        id: &GroupId,
+        users: &[UserId],
+    ) -> Result<GroupAccessEditResult>;
 
     /// Remove a list of users as members from the group.
     ///
@@ -205,7 +214,7 @@ pub trait GroupOps {
     /// # Returns
     /// `Result<GroupAccessEditResult>` List of users that were removed. Also contains the users that failed to be removed
     ///    and the reason they were not.
-    fn group_remove_members(
+    async fn group_remove_members(
         &self,
         id: &GroupId,
         revoke_list: &[UserId],
@@ -219,7 +228,11 @@ pub trait GroupOps {
     /// # Returns
     /// GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
     ///   the reason they were not.
-    fn group_add_admins(&self, id: &GroupId, users: &[UserId]) -> Result<GroupAccessEditResult>;
+    async fn group_add_admins(
+        &self,
+        id: &GroupId,
+        users: &[UserId],
+    ) -> Result<GroupAccessEditResult>;
 
     /// Remove a list of users as admins from the group.
     ///
@@ -230,7 +243,7 @@ pub trait GroupOps {
     /// # Returns
     /// `Result<GroupAccessEditResult>` List of users that were removed. Also contains the users that failed to be removed
     ///    and the reason they were not.
-    fn group_remove_admins(
+    async fn group_remove_admins(
         &self,
         id: &GroupId,
         revoke_list: &[UserId],
@@ -246,16 +259,16 @@ pub trait GroupOps {
     ///
     /// # Returns
     /// An indication of whether the group's private key needs an additional rotation
-    fn group_rotate_private_key(&self, id: &GroupId) -> Result<GroupUpdatePrivateKeyResult>;
+    async fn group_rotate_private_key(&self, id: &GroupId) -> Result<GroupUpdatePrivateKeyResult>;
 }
 
+#[async_trait]
 impl GroupOps for crate::IronOxide {
-    fn group_list(&self) -> Result<GroupListResult> {
-        self.runtime
-            .block_on(group_api::list(self.device.auth(), None))
+    async fn group_list(&self) -> Result<GroupListResult> {
+        group_api::list(self.device.auth(), None).await
     }
 
-    fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupCreateResult> {
+    async fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupCreateResult> {
         let standard_opts = opts.clone().standardize(self.device.auth().account_id())?;
         let all_users = &standard_opts.all_users();
         let GroupCreateOptsStd {
@@ -267,7 +280,7 @@ impl GroupOps for crate::IronOxide {
             needs_rotation,
         } = standard_opts;
 
-        self.runtime.block_on(group_api::group_create(
+        group_api::group_create(
             &self.recrypt,
             self.device.auth(),
             id,
@@ -277,81 +290,92 @@ impl GroupOps for crate::IronOxide {
             members,
             all_users,
             needs_rotation,
-        ))
+        )
+        .await
     }
 
-    fn group_get_metadata(&self, id: &GroupId) -> Result<GroupGetResult> {
-        self.runtime
-            .block_on(group_api::get_metadata(self.device.auth(), id))
+    async fn group_get_metadata(&self, id: &GroupId) -> Result<GroupGetResult> {
+        group_api::get_metadata(self.device.auth(), id).await
     }
 
-    fn group_delete(&self, id: &GroupId) -> Result<GroupId> {
-        self.runtime
-            .block_on(group_api::group_delete(self.device.auth(), id))
+    async fn group_delete(&self, id: &GroupId) -> Result<GroupId> {
+        group_api::group_delete(self.device.auth(), id).await
     }
 
-    fn group_update_name(&self, id: &GroupId, name: Option<&GroupName>) -> Result<GroupMetaResult> {
-        self.runtime
-            .block_on(group_api::update_group_name(self.device.auth(), id, name))
+    async fn group_update_name(
+        &self,
+        id: &GroupId,
+        name: Option<&GroupName>,
+    ) -> Result<GroupMetaResult> {
+        group_api::update_group_name(self.device.auth(), id, name).await
     }
 
-    fn group_add_members(
+    async fn group_add_members(
         &self,
         id: &GroupId,
         grant_list: &[UserId],
     ) -> Result<GroupAccessEditResult> {
-        self.runtime.block_on(group_api::group_add_members(
+        group_api::group_add_members(
             &self.recrypt,
             self.device.auth(),
             self.device.device_private_key(),
             id,
             &grant_list.to_vec(),
-        ))
+        )
+        .await
     }
 
-    fn group_remove_members(
+    async fn group_remove_members(
         &self,
         id: &GroupId,
         revoke_list: &[UserId],
     ) -> Result<GroupAccessEditResult> {
-        self.runtime.block_on(group_api::group_remove_entity(
+        group_api::group_remove_entity(
             self.device.auth(),
             id,
             &revoke_list.to_vec(),
             group_api::GroupEntity::Member,
-        ))
+        )
+        .await
     }
 
-    fn group_add_admins(&self, id: &GroupId, users: &[UserId]) -> Result<GroupAccessEditResult> {
-        self.runtime.block_on(group_api::group_add_admins(
+    async fn group_add_admins(
+        &self,
+        id: &GroupId,
+        users: &[UserId],
+    ) -> Result<GroupAccessEditResult> {
+        group_api::group_add_admins(
             &self.recrypt,
             self.device.auth(),
             self.device.device_private_key(),
             id,
             &users.to_vec(),
-        ))
+        )
+        .await
     }
 
-    fn group_remove_admins(
+    async fn group_remove_admins(
         &self,
         id: &GroupId,
         revoke_list: &[UserId],
     ) -> Result<GroupAccessEditResult> {
-        self.runtime.block_on(group_api::group_remove_entity(
+        group_api::group_remove_entity(
             self.device.auth(),
             id,
             &revoke_list.to_vec(),
             group_api::GroupEntity::Admin,
-        ))
+        )
+        .await
     }
 
-    fn group_rotate_private_key(&self, id: &GroupId) -> Result<GroupUpdatePrivateKeyResult> {
-        self.runtime.block_on(group_api::group_rotate_private_key(
+    async fn group_rotate_private_key(&self, id: &GroupId) -> Result<GroupUpdatePrivateKeyResult> {
+        group_api::group_rotate_private_key(
             &self.recrypt,
             self.device().auth(),
             id,
             self.device().device_private_key(),
-        ))
+        )
+        .await
     }
 }
 

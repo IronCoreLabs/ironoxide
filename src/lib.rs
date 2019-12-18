@@ -88,7 +88,6 @@ use rand::{
 use rand_chacha::ChaChaCore;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
 use std::{convert::TryInto, sync::Mutex};
-use tokio::runtime::current_thread::Runtime;
 use vec1::Vec1;
 
 /// Result of an Sdk operation
@@ -103,7 +102,6 @@ pub struct IronOxide {
     pub(crate) user_master_pub_key: PublicKey,
     pub(crate) device: DeviceContext,
     pub(crate) rng: Mutex<ReseedingRng<ChaChaCore, EntropyRng>>,
-    pub(crate) runtime: tokio::runtime::Runtime,
 }
 
 /// Result of calling `initialize_check_rotation`
@@ -165,7 +163,7 @@ impl PrivateKeyRotationCheckResult {
     /// # Arguments
     /// - `ironoxide` - IronOxide used to make authenticated requests for the calling user
     /// - `password` - Password to unlock the current user's user master key
-    pub fn rotate_all(
+    pub async fn rotate_all(
         &self,
         ironoxide: &IronOxide,
         password: &str,
@@ -199,9 +197,8 @@ impl PrivateKeyRotationCheckResult {
         });
         let user_opt_future: OptionFuture<_> = user_future.into();
         let group_opt_future: OptionFuture<_> = group_futures.into();
-        let (user_opt_result, group_opt_vec_result) = ironoxide
-            .runtime
-            .block_on(futures::future::join(user_opt_future, group_opt_future));
+        let (user_opt_result, group_opt_vec_result) =
+            futures::future::join(user_opt_future, group_opt_future).await;
         let group_opt_result_vec = group_opt_vec_result.map(|g| g.into_iter().collect());
         Ok((
             user_opt_result.transpose()?,
@@ -212,19 +209,11 @@ impl PrivateKeyRotationCheckResult {
 
 /// Initialize the IronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
 /// keys are valid and exist for the provided account. If successful returns an instance of the IronOxide SDK
-pub fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
-    let mut rt = Runtime::new().unwrap();
-    rt.block_on(internal::user_api::user_get_current(&device_context.auth()))
+pub async fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
+    internal::user_api::user_get_current(&device_context.auth())
+        .await
         .map(|current_user| IronOxide::create(&current_user, device_context))
         .map_err(|_| IronOxideErr::InitializeError)
-}
-/// Initialize the IronOxide SDK and check to see if the user that owns this `DeviceContext` is
-/// marked for private key rotation, or if any of the groups that the user is an admin of is marked
-/// for private key rotation.
-pub fn initialize_check_rotation(device_context: &DeviceContext) -> Result<InitAndRotationCheck> {
-    Runtime::new()
-        .unwrap()
-        .block_on(initialize_check_rotation_async(device_context))
 }
 
 /// Finds the groups that the caller is an admin of that need rotation and
@@ -255,7 +244,10 @@ fn check_groups_and_collect_rotation(
     }
 }
 
-async fn initialize_check_rotation_async(
+/// Initialize the IronOxide SDK and check to see if the user that owns this `DeviceContext` is
+/// marked for private key rotation, or if any of the groups that the user is an admin of is marked
+/// for private key rotation.
+pub async fn initialize_check_rotation(
     device_context: &DeviceContext,
 ) -> Result<InitAndRotationCheck> {
     let (curr_user, group_list_result) = futures::try_join!(
@@ -283,11 +275,6 @@ impl IronOxide {
     fn create(curr_user: &UserResult, device_context: &DeviceContext) -> IronOxide {
         // create a tokio runtime with the default number of core threads (num of cores on a machine)
         // and an elevated number of blocking_threads as we expect heavy concurrency to be network-bound
-        let runtime = tokio::runtime::Builder::new()
-            .blocking_threads(250) // most all SDK methods will block on the network
-            .keep_alive(None)
-            .build()
-            .expect("tokio runtime failed to initialize");
         IronOxide {
             recrypt: Recrypt::new(),
             device: device_context.clone(),
@@ -297,7 +284,6 @@ impl IronOxide {
                 BYTES_BEFORE_RESEEDING,
                 EntropyRng::new(),
             )),
-            runtime,
         }
     }
 }

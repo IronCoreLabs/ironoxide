@@ -27,7 +27,6 @@ ring = { version= "~0.16", features = ["std"] }
 recrypt = "^0.9.2"
 url= "^2.1.0"
 reqwest = {version="0.10.0-alpha.2", features = ["json"]}
-tokio = "0.2.0-alpha.6"
 hex = "~0.3"
 itertools = "~0.8"
 futures = "~0.3.1"
@@ -59,6 +58,8 @@ galvanic-assert = "~0.8"
 uuid = { version = "~0.7.2", features = ["serde", "v4"] }
 double = "~0.2.4"
 criterion = "~0.3"
+tokio = "0.2.0-alpha.6"
+tokio-test = "0.2.0-alpha.6"
 
 [build-dependencies]
 protobuf-codegen-pure = "~2.8"

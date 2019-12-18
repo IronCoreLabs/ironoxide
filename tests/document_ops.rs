@@ -1,5 +1,5 @@
 mod common;
-use crate::common::{init_sdk_get_user, run_async};
+use crate::common::init_sdk_get_user;
 use common::{create_id_all_classes, create_second_user, initialize_sdk};
 use galvanic_assert::matchers::{collection::*, *};
 use ironoxide::{
@@ -10,7 +10,8 @@ use ironoxide::{
 };
 use itertools::EitherOrBoth;
 use std::convert::{TryFrom, TryInto};
-use tokio::runtime::Runtime;
+
+extern crate tokio_test;
 
 #[cfg(test)]
 #[macro_use]
@@ -19,23 +20,21 @@ extern crate galvanic_assert;
 #[macro_use]
 extern crate serde_json;
 
-#[test]
-fn doc_create_without_id() -> Result<(), IronOxideErr> {
-    let sdk = initialize_sdk()?;
+#[tokio::test]
+async fn doc_create_without_id() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
 
     let doc = [0u8; 64];
 
-    let doc_result = Runtime::new()
-        .unwrap()
-        .block_on(sdk.document_encrypt(&doc, &Default::default()))?;
+    let doc_result = sdk.document_encrypt(&doc, &Default::default()).await?;
 
     assert_eq!(doc_result.grants().len(), 1); // access always granted to creator
     assert_eq!(doc_result.access_errs().len(), 0);
     Ok(())
 }
 
-#[test]
-fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
+#[tokio::test]
+async fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
     // policy assumed for this test
     /*
     {
@@ -85,7 +84,7 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
       ]
     }
         */
-    let (curr_user, sdk) = init_sdk_get_user();
+    let (curr_user, sdk) = init_sdk_get_user().await;
 
     //create the data_recovery group used in the policy
     let data_rec_group_id: GroupId = format!("data_recovery_{}", curr_user.id()).try_into()?;
@@ -98,24 +97,27 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
         vec![],
         vec![],
         false,
-    ))?;
+    ))
+    .await?;
 
     let doc = [0u8; 64];
 
     // all of the policy grant fields are optional
-    let doc_result = run_async(sdk.document_encrypt(
-        &doc,
-        &DocumentEncryptOpts::with_policy_grants(
-            None,
-            Some("doc name".try_into()?),
-            PolicyGrant::new(
-                Some("PII".try_into()?),
-                Some("INTERNAL".try_into()?),
+    let doc_result = sdk
+        .document_encrypt(
+            &doc,
+            &DocumentEncryptOpts::with_policy_grants(
                 None,
-                None,
+                Some("doc name".try_into()?),
+                PolicyGrant::new(
+                    Some("PII".try_into()?),
+                    Some("INTERNAL".try_into()?),
+                    None,
+                    None,
+                ),
             ),
-        ),
-    ))?;
+        )
+        .await?;
 
     assert_eq!(doc_result.grants().len(), 2);
     assert_that!(
@@ -151,7 +153,7 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
     );
 
     // now use category, sensitivity, data_subject and substitution_user_id
-    let user2_result = create_second_user();
+    let user2_result = create_second_user().await;
     let user2 = user2_result.account_id();
     let group2_id: GroupId = format!("group_other_{}", user2.id()).try_into()?;
     sdk.group_create(&GroupCreateOpts::new(
@@ -163,21 +165,24 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
         vec![],
         vec![],
         false,
-    ))?;
+    ))
+    .await?;
 
-    let doc_result2 = run_async(sdk.document_encrypt(
-        &doc,
-        &DocumentEncryptOpts::with_policy_grants(
-            None,
-            Some("doc name2".try_into()?),
-            PolicyGrant::new(
-                Some("HEALTH".try_into()?),
-                Some("RESTRICTED".try_into()?),
-                Some("PATIENT".try_into()?),
-                Some(user2.clone()),
+    let doc_result2 = sdk
+        .document_encrypt(
+            &doc,
+            &DocumentEncryptOpts::with_policy_grants(
+                None,
+                Some("doc name2".try_into()?),
+                PolicyGrant::new(
+                    Some("HEALTH".try_into()?),
+                    Some("RESTRICTED".try_into()?),
+                    Some("PATIENT".try_into()?),
+                    Some(user2.clone()),
+                ),
             ),
-        ),
-    ))?;
+        )
+        .await?;
 
     assert_eq!(doc_result2.grants().len(), 3);
     assert_that!(
@@ -207,14 +212,16 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
     );
 
     //finally send an empty policy
-    let doc_result3 = run_async(sdk.document_encrypt(
-        &doc,
-        &DocumentEncryptOpts::with_policy_grants(
-            None,
-            Some("doc name2".try_into()?),
-            PolicyGrant::default(),
-        ),
-    ))?;
+    let doc_result3 = sdk
+        .document_encrypt(
+            &doc,
+            &DocumentEncryptOpts::with_policy_grants(
+                None,
+                Some("doc name2".try_into()?),
+                PolicyGrant::default(),
+            ),
+        )
+        .await?;
     assert_eq!(doc_result3.grants().len(), 1);
     Ok(())
 }
@@ -263,22 +270,23 @@ fn check_encrypt_with_explicit_self_grant(sdk: &IronOxide, doc_result: Box<dyn W
     )
 }
 
-#[test]
-fn doc_create_with_explicit_self_grant() -> Result<(), IronOxideErr> {
-    let sdk = initialize_sdk()?;
+#[tokio::test]
+async fn doc_create_with_explicit_self_grant() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
     let encrypt_opts = setup_encrypt_with_explicit_self_grant();
     let doc = [0u8; 64];
-    let doc_result = run_async(sdk.document_encrypt(&doc, &encrypt_opts))?;
+    let doc_result = sdk.document_encrypt(&doc, &encrypt_opts).await?;
+
     check_encrypt_with_explicit_self_grant(&sdk, Box::new(doc_result));
     Ok(())
 }
 
-#[test]
-fn doc_encrypt_unmanaged_with_explicit_self_grant() -> Result<(), IronOxideErr> {
-    let sdk = initialize_sdk()?;
+#[tokio::test]
+async fn doc_encrypt_unmanaged_with_explicit_self_grant() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
     let encrypt_opts = setup_encrypt_with_explicit_self_grant();
     let doc = [0u8; 64];
-    let doc_result = run_async(sdk.document_encrypt_unmanaged(&doc, &encrypt_opts))?;
+    let doc_result = sdk.document_encrypt_unmanaged(&doc, &encrypt_opts).await?;
 
     check_encrypt_with_explicit_self_grant(&sdk, Box::new(doc_result));
     Ok(())
@@ -331,7 +339,7 @@ fn check_encrypt_with_explicit_and_policy_grants(
     );
 }
 
-fn setup_encrypt_with_explicit_and_policy_grants(
+async fn setup_encrypt_with_explicit_and_policy_grants(
     sdk: &IronOxide,
     curr_user: &UserId,
     bad_group: &GroupId,
@@ -347,10 +355,11 @@ fn setup_encrypt_with_explicit_and_policy_grants(
         vec![],
         vec![],
         false,
-    ))?;
+    ))
+    .await?;
 
     // create an explicit group as well
-    let group2 = sdk.group_create(&Default::default())?;
+    let group2 = sdk.group_create(&Default::default()).await?;
     let ex_group_id = group2.id();
 
     Ok((
@@ -375,17 +384,17 @@ fn setup_encrypt_with_explicit_and_policy_grants(
     ))
 }
 // show how policy and explicit grants interact
-#[test]
-fn doc_create_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
-    let (curr_user, sdk) = init_sdk_get_user();
+#[tokio::test]
+async fn doc_create_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
+    let (curr_user, sdk) = init_sdk_get_user().await;
     // this group doesn't exist, so it should show up in the errors
     let bad_group: GroupId = create_id_all_classes("bad_group").try_into()?;
 
     let doc = [0u8; 64];
     let (opts, ex_group_id, data_rec_group_id) =
-        setup_encrypt_with_explicit_and_policy_grants(&sdk, &curr_user, &bad_group)?;
+        setup_encrypt_with_explicit_and_policy_grants(&sdk, &curr_user, &bad_group).await?;
 
-    let doc_result = run_async(sdk.document_encrypt(&doc, &opts))?;
+    let doc_result = sdk.document_encrypt(&doc, &opts).await?;
     check_encrypt_with_explicit_and_policy_grants(
         &curr_user,
         &ex_group_id,
@@ -396,17 +405,17 @@ fn doc_create_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
     Ok(())
 }
 
-#[test]
-fn doc_encrypt_unmanaged_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
-    let (curr_user, sdk) = init_sdk_get_user();
+#[tokio::test]
+async fn doc_encrypt_unmanaged_with_explicit_and_policy_grants() -> Result<(), IronOxideErr> {
+    let (curr_user, sdk) = init_sdk_get_user().await;
     // this group doesn't exist, so it should show up in the errors
     let bad_group: GroupId = create_id_all_classes("bad_group").try_into()?;
 
     let doc = [0u8; 64];
     let (opts, ex_group_id, data_rec_group_id) =
-        setup_encrypt_with_explicit_and_policy_grants(&sdk, &curr_user, &bad_group)?;
+        setup_encrypt_with_explicit_and_policy_grants(&sdk, &curr_user, &bad_group).await?;
 
-    let doc_result = run_async(sdk.document_encrypt_unmanaged(&doc, &opts))?;
+    let doc_result = sdk.document_encrypt_unmanaged(&doc, &opts).await?;
     check_encrypt_with_explicit_and_policy_grants(
         &curr_user,
         &ex_group_id,
@@ -416,46 +425,50 @@ fn doc_encrypt_unmanaged_with_explicit_and_policy_grants() -> Result<(), IronOxi
     );
     Ok(())
 }
-#[test]
-fn doc_create_duplicate_grants() -> Result<(), IronOxideErr> {
-    let (user, sdk) = init_sdk_get_user();
+#[tokio::test]
+async fn doc_create_duplicate_grants() -> Result<(), IronOxideErr> {
+    let (user, sdk) = init_sdk_get_user().await;
 
     let doc = [0u8; 64];
 
-    let doc_result = run_async(sdk.document_encrypt(
-        &doc,
-        &DocumentEncryptOpts::with_explicit_grants(
-            None,
-            Some("first name".try_into()?),
-            true,
-            vec![UserOrGroup::User { id: user }],
-        ),
-    ))?;
+    let doc_result = sdk
+        .document_encrypt(
+            &doc,
+            &DocumentEncryptOpts::with_explicit_grants(
+                None,
+                Some("first name".try_into()?),
+                true,
+                vec![UserOrGroup::User { id: user }],
+            ),
+        )
+        .await?;
 
     assert_that!(&doc_result.grants().len(), eq(1));
     Ok(())
 }
 
-#[test]
-fn doc_create_without_self_grant() -> Result<(), IronOxideErr> {
-    let sdk = initialize_sdk()?;
+#[tokio::test]
+async fn doc_create_without_self_grant() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
 
     let doc = [0u8; 64];
 
     // create a second user to grant access to the document
-    let second_user = create_second_user();
+    let second_user = create_second_user().await;
 
-    let doc_result = run_async(sdk.document_encrypt(
-        &doc,
-        &DocumentEncryptOpts::with_explicit_grants(
-            Some(create_id_all_classes("").try_into()?),
-            Some("first name".try_into()?),
-            false,
-            vec![UserOrGroup::User {
-                id: second_user.account_id().clone(),
-            }],
-        ),
-    ))?;
+    let doc_result = sdk
+        .document_encrypt(
+            &doc,
+            &DocumentEncryptOpts::with_explicit_grants(
+                Some(create_id_all_classes("").try_into()?),
+                Some("first name".try_into()?),
+                false,
+                vec![UserOrGroup::User {
+                    id: second_user.account_id().clone(),
+                }],
+            ),
+        )
+        .await?;
 
     // should be a user with access, but not the currently initd user
     assert_eq!(doc_result.grants().len(), 1);
@@ -475,22 +488,24 @@ fn doc_create_without_self_grant() -> Result<(), IronOxideErr> {
     Ok(())
 }
 
-#[test]
-fn doc_create_must_grant() -> Result<(), IronOxideErr> {
-    let sdk = initialize_sdk()?;
+#[tokio::test]
+async fn doc_create_must_grant() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
 
     let doc = [0u8; 64];
 
     // should fail because encrypting a document with no grants is nonsense
-    let doc_result = run_async(sdk.document_encrypt(
-        &doc,
-        &DocumentEncryptOpts::with_explicit_grants(
-            None,
-            Some("first name".try_into()?),
-            false,
-            vec![],
-        ),
-    ));
+    let doc_result = sdk
+        .document_encrypt(
+            &doc,
+            &DocumentEncryptOpts::with_explicit_grants(
+                None,
+                Some("first name".try_into()?),
+                false,
+                vec![],
+            ),
+        )
+        .await;
 
     // make sure there was a validation error, and that the problem was with the grant
     assert_eq!(
@@ -503,242 +518,291 @@ fn doc_create_must_grant() -> Result<(), IronOxideErr> {
     Ok(())
 }
 
-#[test]
-fn doc_create_and_adjust_name() -> Result<(), IronOxideErr> {
-    let sdk = initialize_sdk()?;
+#[tokio::test]
+async fn doc_create_and_adjust_name() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
 
     let doc = [0u8; 64];
 
-    let doc_result = run_async(sdk.document_encrypt(
-        &doc,
-        &DocumentEncryptOpts::with_explicit_grants(
-            Some(create_id_all_classes("").try_into()?),
-            Some("first name".try_into()?),
-            true,
-            vec![UserOrGroup::User {
-                id: UserId::try_from("bad-user").expect("should be good id"),
-            }],
-        ),
-    ))?;
+    let doc_result = sdk
+        .document_encrypt(
+            &doc,
+            &DocumentEncryptOpts::with_explicit_grants(
+                Some(create_id_all_classes("").try_into()?),
+                Some("first name".try_into()?),
+                true,
+                vec![UserOrGroup::User {
+                    id: UserId::try_from("bad-user").expect("should be good id"),
+                }],
+            ),
+        )
+        .await?;
 
     assert_eq!(doc_result.name().unwrap().name(), &"first name".to_string());
 
-    let first_update =
-        run_async(sdk.document_update_name(&doc_result.id(), Some(&"second name".try_into()?)))?;
+    let first_update = sdk
+        .document_update_name(&doc_result.id(), Some(&"second name".try_into()?))
+        .await?;
 
     assert_eq!(
         first_update.name().unwrap().name(),
         &"second name".to_string()
     );
 
-    let last_update = run_async(sdk.document_update_name(&doc_result.id(), None))?;
+    let last_update = sdk.document_update_name(&doc_result.id(), None).await?;
 
     assert!(last_update.name().is_none());
     Ok(())
 }
 
-#[test]
-fn doc_encrypt_decrypt_roundtrip() -> Result<(), IronOxideErr> {
-    let sdk = initialize_sdk()?;
+#[tokio::test]
+async fn doc_encrypt_decrypt_roundtrip() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
 
     let doc = [43u8; 64];
-    let encrypted_doc = run_async(sdk.document_encrypt(&doc, &Default::default()))?;
+    let encrypted_doc = sdk.document_encrypt(&doc, &Default::default()).await?;
 
-    run_async(sdk.document_get_metadata(&encrypted_doc.id()))?;
+    sdk.document_get_metadata(&encrypted_doc.id()).await?;
 
-    let decrypted = run_async(sdk.document_decrypt(&encrypted_doc.encrypted_data()))?;
+    let decrypted = sdk
+        .document_decrypt(&encrypted_doc.encrypted_data())
+        .await?;
 
     assert_eq!(doc.to_vec(), decrypted.decrypted_data());
     Ok(())
 }
 
-#[test]
-fn doc_decrypt_unmanaged_no_access() -> Result<(), IronOxideErr> {
+#[tokio::test]
+async fn doc_decrypt_unmanaged_no_access() -> Result<(), IronOxideErr> {
     use std::borrow::Borrow;
 
-    let sdk = initialize_sdk()?;
+    let sdk = initialize_sdk().await?;
 
-    let user2 = create_second_user();
+    let user2 = create_second_user().await;
 
     let doc = [43u8; 64];
-    let encrypted_doc = run_async(sdk.document_encrypt_unmanaged(
-        &doc,
-        &DocumentEncryptOpts::with_explicit_grants(
-            Some(create_id_all_classes("").try_into()?),
-            None,
-            false,
-            vec![user2.account_id().borrow().into()],
-        ),
-    ))?;
+    let encrypted_doc = sdk
+        .document_encrypt_unmanaged(
+            &doc,
+            &DocumentEncryptOpts::with_explicit_grants(
+                Some(create_id_all_classes("").try_into()?),
+                None,
+                false,
+                vec![user2.account_id().borrow().into()],
+            ),
+        )
+        .await?;
 
-    let decrypt_err = run_async(sdk.document_decrypt_unmanaged(
-        &encrypted_doc.encrypted_data(),
-        &encrypted_doc.encrypted_deks(),
-    ))
-    .unwrap_err();
+    let decrypt_err = sdk
+        .document_decrypt_unmanaged(
+            &encrypted_doc.encrypted_data(),
+            &encrypted_doc.encrypted_deks(),
+        )
+        .await
+        .unwrap_err();
 
     assert_that!(&decrypt_err, is_variant!(IronOxideErr::RequestServerErrors));
     Ok(())
 }
 
-#[test]
-fn decrypt_with_rotated_user_private_key() -> Result<(), IronOxideErr> {
-    let (_, init_result) = common::init_sdk_get_init_result(true);
+#[tokio::test]
+async fn decrypt_with_rotated_user_private_key() -> Result<(), IronOxideErr> {
+    let (_, init_result) = common::init_sdk_get_init_result(true).await;
 
     let sdk = init_result.discard_check();
 
-    let encrypted_doc = run_async(sdk.document_encrypt(
-        &[42u8, 43u8],
-        &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![]),
-    ))?;
-    let decrypt_result1 = run_async(sdk.document_decrypt(encrypted_doc.encrypted_data()))?;
-    sdk.user_rotate_private_key(common::USER_PASSWORD)?;
-    let decrypt_result2 = run_async(sdk.document_decrypt(encrypted_doc.encrypted_data()))?;
+    let encrypted_doc = sdk
+        .document_encrypt(
+            &[42u8, 43u8],
+            &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![]),
+        )
+        .await?;
+    let decrypt_result1 = sdk.document_decrypt(encrypted_doc.encrypted_data()).await?;
+    sdk.user_rotate_private_key(common::USER_PASSWORD).await?;
+    let decrypt_result2 = sdk.document_decrypt(encrypted_doc.encrypted_data()).await?;
 
     assert_eq!(&decrypt_result1, &decrypt_result2);
     Ok(())
 }
 
-#[test]
-fn doc_encrypt_decrypt_unmanaged_roundtrip() -> Result<(), IronOxideErr> {
-    let sdk = initialize_sdk()?;
+#[tokio::test]
+async fn doc_encrypt_decrypt_unmanaged_roundtrip() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
     let encrypt_opts = Default::default();
     let doc = [0u8; 42];
 
-    let encrypt_result = run_async(sdk.document_encrypt_unmanaged(&doc, &encrypt_opts))?;
-    let decrypt_result = run_async(sdk.document_decrypt_unmanaged(
-        &encrypt_result.encrypted_data(),
-        &encrypt_result.encrypted_deks(),
-    ))?;
+    let encrypt_result = sdk.document_encrypt_unmanaged(&doc, &encrypt_opts).await?;
+    let decrypt_result = sdk
+        .document_decrypt_unmanaged(
+            &encrypt_result.encrypted_data(),
+            &encrypt_result.encrypted_deks(),
+        )
+        .await?;
     assert_eq!(&doc[..], decrypt_result.decrypted_data());
     Ok(())
 }
 
-#[test]
-fn doc_encrypt_update_and_decrypt() -> Result<(), IronOxideErr> {
-    let sdk = initialize_sdk()?;
+#[tokio::test]
+async fn doc_encrypt_update_and_decrypt() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
     let doc1 = [20u8; 72];
 
-    let encrypted_doc = run_async(sdk.document_encrypt(&doc1, &Default::default()))?;
+    let encrypted_doc = sdk.document_encrypt(&doc1, &Default::default()).await?;
 
     let doc_id = &encrypted_doc.id();
 
     let doc2 = [10u8; 11];
 
-    let updated_encrypted_doc = run_async(sdk.document_update_bytes(doc_id, &doc2))?;
+    let updated_encrypted_doc = sdk.document_update_bytes(doc_id, &doc2).await?;
 
-    let decrypted = run_async(sdk.document_decrypt(&updated_encrypted_doc.encrypted_data()))?;
+    let decrypted = sdk
+        .document_decrypt(&updated_encrypted_doc.encrypted_data())
+        .await?;
 
     assert_eq!(doc2.to_vec(), decrypted.decrypted_data());
     Ok(())
 }
 
-#[test]
-fn doc_grant_access() -> Result<(), IronOxideErr> {
-    let sdk = initialize_sdk()?;
+#[tokio::test]
+async fn doc_grant_access() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
 
     let doc = [0u8; 64];
-    let doc_result = run_async(sdk.document_encrypt(&doc, &Default::default()))?;
+    let doc_result = sdk.document_encrypt(&doc, &Default::default()).await?;
     let doc_id = doc_result.id().clone();
 
     // create a second user to grant access to the document
-    let user = create_second_user();
+    let user = create_second_user().await;
 
     // group user is a member of
-    let group_result = sdk.group_create(&Default::default())?;
+    let group_result = sdk.group_create(&Default::default()).await?;
     let group_id = group_result.id().clone();
 
     // group user is not a member of
-    let group2_result = sdk.group_create(&GroupCreateOpts::new(
-        None,
-        None,
-        true,
-        false,
-        None,
-        vec![],
-        vec![],
-        false,
-    ))?;
+    let group2_result = sdk
+        .group_create(&GroupCreateOpts::new(
+            None,
+            None,
+            true,
+            false,
+            None,
+            vec![],
+            vec![],
+            false,
+        ))
+        .await?;
     let group2_id = group2_result.id().clone();
 
-    let grants = run_async(sdk.document_grant_access(
-        &doc_id,
-        &vec![
-            UserOrGroup::User {
-                id: user.account_id().clone(),
-            },
-            UserOrGroup::Group { id: group_id },
-            UserOrGroup::Group { id: group2_id },
-            UserOrGroup::User {
-                id: create_id_all_classes("bad-user-id").try_into()?,
-            },
-            UserOrGroup::Group {
-                id: create_id_all_classes("bad-group-id").try_into()?,
-            },
-        ],
-    ))?;
+    let grants = sdk
+        .document_grant_access(
+            &doc_id,
+            &vec![
+                UserOrGroup::User {
+                    id: user.account_id().clone(),
+                },
+                UserOrGroup::Group { id: group_id },
+                UserOrGroup::Group { id: group2_id },
+                UserOrGroup::User {
+                    id: create_id_all_classes("bad-user-id").try_into()?,
+                },
+                UserOrGroup::Group {
+                    id: create_id_all_classes("bad-group-id").try_into()?,
+                },
+            ],
+        )
+        .await?;
     assert_eq!(3, grants.succeeded().len());
     assert_eq!(2, grants.failed().len());
     Ok(())
 }
 
-#[test]
-fn doc_revoke_access() -> Result<(), IronOxideErr> {
-    let sdk = initialize_sdk()?;
+#[tokio::test]
+async fn doc_revoke_access() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
 
     let doc = [0u8; 64];
-    let doc_result = run_async(sdk.document_encrypt(
-        &doc,
-        &DocumentEncryptOpts::with_explicit_grants(
-            Some(create_id_all_classes("").try_into()?),
-            None,
-            true,
-            vec![],
-        ),
-    ))?;
+    let doc_result = sdk
+        .document_encrypt(
+            &doc,
+            &DocumentEncryptOpts::with_explicit_grants(
+                Some(create_id_all_classes("").try_into()?),
+                None,
+                true,
+                vec![],
+            ),
+        )
+        .await?;
     let doc_id = doc_result.id().clone();
 
     // create a second user to grant/revoke access to the document
-    let user = create_second_user();
+    let user = create_second_user().await;
 
-    let group_result = sdk.group_create(&Default::default())?;
+    let group_result = sdk.group_create(&Default::default()).await?;
     let group_id = group_result.id().clone();
 
-    let grants = run_async(sdk.document_grant_access(
-        &doc_id,
-        &vec![
-            UserOrGroup::User {
-                id: user.account_id().clone(),
-            },
-            UserOrGroup::Group {
-                id: group_id.clone(),
-            },
-        ],
-    ))?;
+    let grants = sdk
+        .document_grant_access(
+            &doc_id,
+            &vec![
+                UserOrGroup::User {
+                    id: user.account_id().clone(),
+                },
+                UserOrGroup::Group {
+                    id: group_id.clone(),
+                },
+            ],
+        )
+        .await?;
     assert_eq!(grants.succeeded().len(), 2);
 
-    let revokes = run_async(sdk.document_revoke_access(
-        &doc_id,
-        &vec![
-            UserOrGroup::User {
-                id: user.account_id().clone(),
-            },
-            UserOrGroup::Group {
-                id: group_id.clone(),
-            },
-            UserOrGroup::User {
-                id: "bad-user-id".try_into()?,
-            },
-            UserOrGroup::Group {
-                id: "bad-group-id".try_into()?,
-            },
-        ],
-    ))?;
+    let revokes = sdk
+        .document_revoke_access(
+            &doc_id,
+            &vec![
+                UserOrGroup::User {
+                    id: user.account_id().clone(),
+                },
+                UserOrGroup::Group {
+                    id: group_id.clone(),
+                },
+                UserOrGroup::User {
+                    id: "bad-user-id".try_into()?,
+                },
+                UserOrGroup::Group {
+                    id: "bad-group-id".try_into()?,
+                },
+            ],
+        )
+        .await?;
 
     assert_eq!(revokes.succeeded().len(), 2);
     assert_eq!(revokes.failed().len(), 2);
     Ok(())
 }
+
+//#[tokio::test]
+//async fn doc_encrypt_concurrent() -> Result<(), IronOxideErr> {
+//    let sdk = Arc::new(initialize_sdk()?);
+//    let doc = [43u8; 64];
+//    let _encrypted_doc = sdk.document_encrypt(&doc, &Default::default()).await?;
+//
+//    let mut threads = vec![];
+//    for _i in 0..10 {
+//        let sdk_ref = sdk.clone();
+//        threads.push(std::thread::spawn(move || {
+//            let _result = sdk_ref.document_encrypt(&doc, &Default::default()).unwrap();
+//        }));
+//    }
+//
+//    let mut joined_count = 0;
+//    for t in threads {
+//        t.join().expect("couldn't join");
+//        joined_count += 1;
+//    }
+//
+//    assert_eq!(joined_count, 10);
+//    Ok(())
+//}
 
 trait WithGrantsAndErrs {
     fn grants(&self) -> Vec<UserOrGroup>;

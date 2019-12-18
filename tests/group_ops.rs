@@ -1,5 +1,5 @@
 use crate::common::{create_second_user, gen_jwt, USER_PASSWORD};
-use common::{create_id_all_classes, init_sdk_get_user, initialize_sdk};
+use common::{create_id_all_classes, init_sdk_get_user, initialize_sdk, run_async};
 use ironoxide::{document::DocumentEncryptOpts, group::*, prelude::*};
 use std::convert::TryInto;
 use uuid::Uuid;
@@ -16,7 +16,7 @@ extern crate galvanic_assert;
 fn group_create_no_member() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk()?;
 
-    let group_result = sdk.group_create(&GroupCreateOpts::new(
+    let group_result = run_async(sdk.group_create(&GroupCreateOpts::new(
         Some(create_id_all_classes("").try_into()?),
         Some("test group name".try_into()?),
         true,
@@ -25,7 +25,7 @@ fn group_create_no_member() -> Result<(), IronOxideErr> {
         vec![],
         vec![],
         true,
-    ))?;
+    )))?;
 
     assert_eq!(group_result.owner(), sdk.device().account_id());
     assert_eq!(group_result.needs_rotation(), Some(true));
@@ -36,7 +36,7 @@ fn group_create_no_member() -> Result<(), IronOxideErr> {
 fn group_create_with_defaults() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk()?;
 
-    let result = sdk.group_create(&Default::default());
+    let result = run_async(sdk.group_create(&Default::default()));
     let group_result = result?;
     assert_eq!(group_result.needs_rotation(), Some(false));
     assert!(group_result.is_member());
@@ -60,7 +60,7 @@ fn group_init_and_rotation_check() -> Result<(), IronOxideErr> {
         &Default::default(),
     )?;
     let sdk = ironoxide::initialize(&device)?;
-    sdk.group_create(&GroupCreateOpts::new(
+    run_async(sdk.group_create(&GroupCreateOpts::new(
         None,
         None,
         true,
@@ -69,7 +69,7 @@ fn group_init_and_rotation_check() -> Result<(), IronOxideErr> {
         vec![],
         vec![],
         true,
-    ))?;
+    )))?;
     let init_and_rotation_check = ironoxide::initialize_check_rotation(&device)?;
     match init_and_rotation_check {
         InitAndRotationCheck::RotationNeeded(_, rotations_needed) => {
@@ -87,7 +87,7 @@ fn group_rotate_private_key() -> Result<(), IronOxideErr> {
     let (member, member_sdk) = init_sdk_get_user();
 
     // making non-default group so I can specify needs_rotation of true
-    let group_create = creator_sdk.group_create(&GroupCreateOpts::new(
+    let group_create = run_async(creator_sdk.group_create(&GroupCreateOpts::new(
         None,
         None,
         true,
@@ -96,12 +96,12 @@ fn group_rotate_private_key() -> Result<(), IronOxideErr> {
         vec![],
         vec![],
         true,
-    ))?;
+    )))?;
     assert_eq!(group_create.needs_rotation(), Some(true));
 
     let bytes = vec![42u8, 43u8];
 
-    let encrypt_result = creator_sdk.document_encrypt(
+    let encrypt_result = run_async(creator_sdk.document_encrypt(
         &bytes,
         &DocumentEncryptOpts::with_explicit_grants(
             None,
@@ -109,19 +109,19 @@ fn group_rotate_private_key() -> Result<(), IronOxideErr> {
             false,
             vec![group_create.id().into()],
         ),
-    )?;
+    ))?;
     let encrypted_data = encrypt_result.encrypted_data();
 
-    let group_rotate = creator_sdk.group_rotate_private_key(group_create.id())?;
+    let group_rotate = run_async(creator_sdk.group_rotate_private_key(group_create.id()))?;
     assert_eq!(group_rotate.needs_rotation(), false);
 
-    creator_sdk.group_add_members(group_create.id(), &vec![member])?;
+    run_async(creator_sdk.group_add_members(group_create.id(), &vec![member]))?;
 
-    let creator_decrypt_result = creator_sdk.document_decrypt(encrypted_data)?;
+    let creator_decrypt_result = run_async(creator_sdk.document_decrypt(encrypted_data))?;
     let creator_decrypted_data = creator_decrypt_result.decrypted_data().to_vec();
     assert_eq!(creator_decrypted_data, bytes);
 
-    let member_decrypt_result = member_sdk.document_decrypt(encrypted_data)?;
+    let member_decrypt_result = run_async(member_sdk.document_decrypt(encrypted_data))?;
     let member_decrypted_data = member_decrypt_result.decrypted_data().to_vec();
     assert_eq!(member_decrypted_data, bytes);
 
@@ -134,7 +134,7 @@ fn group_rotate_private_key_non_admin() -> Result<(), IronOxideErr> {
     let member_sdk = initialize_sdk()?;
 
     // making non-default group so I can specify needs_rotation of true
-    let group_create = creator_sdk.group_create(&GroupCreateOpts::new(
+    let group_create = run_async(creator_sdk.group_create(&GroupCreateOpts::new(
         None,
         None,
         true,
@@ -143,9 +143,9 @@ fn group_rotate_private_key_non_admin() -> Result<(), IronOxideErr> {
         vec![],
         vec![],
         true,
-    ))?;
+    )))?;
 
-    let group_rotate = member_sdk.group_rotate_private_key(group_create.id());
+    let group_rotate = run_async(member_sdk.group_rotate_private_key(group_create.id()));
     assert_that!(
         &group_rotate.unwrap_err(),
         is_variant!(IronOxideErr::NotGroupAdmin)
