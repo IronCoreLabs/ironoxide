@@ -216,8 +216,6 @@ impl DocumentOps for crate::IronOxide {
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptResult> {
         let encrypt_opts = encrypt_opts.clone();
-        let maybe_doc_id = encrypt_opts.id.clone();
-        let maybe_doc_name = encrypt_opts.name.clone();
 
         let (explicit_users, explicit_groups, grant_to_author, policy_grants) =
             match encrypt_opts.grants {
@@ -243,8 +241,8 @@ impl DocumentOps for crate::IronOxide {
             &self.user_master_pub_key,
             &self.rng,
             document_data,
-            maybe_doc_id,
-            maybe_doc_name,
+            encrypt_opts.id,
+            encrypt_opts.name,
             grant_to_author,
             &explicit_users,
             &explicit_groups,
