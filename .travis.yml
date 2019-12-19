@@ -7,7 +7,7 @@ cache:
 before_cache:
   - rm -rf /home/travis/.cargo/registry
 rust:
-  - 1.40.0
+  - beta
 branches:
   only:
     - master
