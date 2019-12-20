@@ -153,12 +153,10 @@ pub fn init_sdk_get_init_result(user_needs_rotation: bool) -> (UserId, InitAndRo
 
     let users_account_id = device.account_id().id();
     let users_segment_id = device.segment_id();
-    let users_device_id = *device.device_id().id();
     let users_device_private_key_bytes = &device.device_private_key().as_bytes()[..];
     let users_signing_keys_bytes = &device.signing_private_key().as_bytes()[..];
 
     let device_init = DeviceContext::new(
-        users_device_id.try_into().unwrap(),
         users_account_id.try_into().unwrap(),
         users_segment_id,
         users_device_private_key_bytes.try_into().unwrap(),

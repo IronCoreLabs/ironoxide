@@ -363,11 +363,9 @@ pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
     );
 
     // call device_add
-    let response =
-        requests::device_add::user_device_add(&jwt, &device_add, &device_name, &request).await?;
+    requests::device_add::user_device_add(&jwt, &device_add, &device_name, &request).await?;
     // on successful response, assemble a DeviceContext for the caller
     Ok(DeviceContext::new(
-        response.device_id,
         account_id,
         segment_id,
         device_add.device_keys.private_key,
