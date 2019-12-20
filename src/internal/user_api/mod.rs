@@ -1,6 +1,6 @@
 use crate::{
     crypto::aes::{self, EncryptedMasterKey},
-    internal::{rest::IronCoreRequest, *},
+    internal::{rest::IronCoreRequest, user_api::requests::device_add::DeviceAddResponse, *},
 };
 use chrono::{DateTime, Utc};
 use itertools::{Either, Itertools};
@@ -328,7 +328,7 @@ pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
     device_name: Option<DeviceName>,
     signing_ts: &DateTime<Utc>,
     request: &IronCoreRequest,
-) -> Result<DeviceContext, IronOxideErr> {
+) -> Result<DeviceAddResult, IronOxideErr> {
     // verify that this user exists
     let requests::user_verify::UserVerifyResponse {
         user_private_key,
@@ -363,13 +363,23 @@ pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
     );
 
     // call device_add
-    requests::device_add::user_device_add(&jwt, &device_add, &device_name, &request).await?;
+    let DeviceAddResponse {
+        device_id,
+        name,
+        created,
+        updated,
+        ..
+    } = requests::device_add::user_device_add(&jwt, &device_add, &device_name, &request).await?;
     // on successful response, assemble a DeviceContext for the caller
-    Ok(DeviceContext::new(
+    Ok(DeviceAddResult::new(
         account_id,
         segment_id,
         device_add.device_keys.private_key,
         device_add.signing_keys,
+        device_id,
+        name,
+        created,
+        updated,
     ))
 }
 

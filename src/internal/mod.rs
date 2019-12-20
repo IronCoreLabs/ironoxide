@@ -5,7 +5,7 @@
 use crate::internal::{
     group_api::GroupId,
     rest::{Authorization, IronCoreRequest, SignatureUrlString},
-    user_api::UserId,
+    user_api::{DeviceId, DeviceName, UserId},
 };
 use chrono::{DateTime, Utc};
 use log::error;
@@ -342,6 +342,88 @@ impl DeviceContext {
 
     pub fn device_private_key(&self) -> &PrivateKey {
         &self.device_private_key
+    }
+}
+
+impl From<DeviceAddResult> for DeviceContext {
+    fn from(dar: DeviceAddResult) -> Self {
+        DeviceContext::new(
+            dar.account_id().to_owned(),
+            dar.segment_id(),
+            dar.device_private_key().to_owned(),
+            dar.signing_private_key().to_owned(),
+        )
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeviceAddResult {
+    ///The user's given id, which uniquely identifies them inside the segment.
+    account_id: UserId,
+    ///The segment_id for the above user.
+    segment_id: usize,
+    device_private_key: PrivateKey,
+    ///The signing key which was generated for the device. “expanded private key” (both pub/priv)
+    signing_private_key: DeviceSigningKeyPair,
+    device_id: DeviceId,
+    name: Option<DeviceName>,
+    created: DateTime<Utc>,
+    updated: DateTime<Utc>,
+}
+
+impl DeviceAddResult {
+    fn new(
+        account_id: UserId,
+        segment_id: usize,
+        device_private_key: PrivateKey,
+        signing_private_key: DeviceSigningKeyPair,
+        device_id: DeviceId,
+        name: Option<DeviceName>,
+        created: DateTime<Utc>,
+        updated: DateTime<Utc>,
+    ) -> DeviceAddResult {
+        DeviceAddResult {
+            account_id,
+            segment_id,
+            device_private_key,
+            signing_private_key,
+            device_id,
+            name,
+            created,
+            updated,
+        }
+    }
+
+    pub fn account_id(&self) -> &UserId {
+        &self.account_id
+    }
+
+    pub fn segment_id(&self) -> usize {
+        self.segment_id
+    }
+
+    pub fn signing_private_key(&self) -> &DeviceSigningKeyPair {
+        &self.signing_private_key
+    }
+
+    pub fn device_private_key(&self) -> &PrivateKey {
+        &self.device_private_key
+    }
+
+    pub fn device_id(&self) -> &DeviceId {
+        &self.device_id
+    }
+
+    pub fn name(&self) -> Option<&DeviceName> {
+        self.name.as_ref()
+    }
+
+    pub fn created(&self) -> &DateTime<Utc> {
+        &self.created
+    }
+
+    pub fn updated(&self) -> &DateTime<Utc> {
+        &self.updated
     }
 }
 

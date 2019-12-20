@@ -309,6 +309,7 @@ pub mod device_add {
         user_api::{requests::PublicKey, DeviceAdd, DeviceId},
         Jwt,
     };
+    use chrono::DateTime;
 
     use super::*;
 
@@ -335,6 +336,9 @@ pub mod device_add {
         #[serde(rename = "id")]
         pub device_id: DeviceId,
         pub device_public_key: PublicKey,
+        pub name: Option<DeviceName>,
+        pub created: DateTime<Utc>,
+        pub updated: DateTime<Utc>,
     }
 
     pub async fn user_device_add(

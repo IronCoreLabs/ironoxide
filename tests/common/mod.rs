@@ -119,7 +119,7 @@ pub fn initialize_sdk() -> Result<IronOxide, IronOxideErr> {
         USER_PASSWORD,
         &Default::default(),
     )?;
-    ironoxide::initialize(&device)
+    ironoxide::initialize(&device.into())
 }
 
 pub fn init_sdk_get_user() -> (UserId, IronOxide) {
