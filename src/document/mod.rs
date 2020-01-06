@@ -198,12 +198,13 @@ pub trait DocumentOps {
 impl DocumentOps for crate::IronOxide {
     fn document_list(&self) -> Result<DocumentListResult> {
         self.runtime
-            .block_on(document_api::document_list(self.device.auth()))
+            .enter(|| futures::executor::block_on(document_api::document_list(self.device.auth())))
     }
 
     fn document_get_metadata(&self, id: &DocumentId) -> Result<DocumentMetadataResult> {
-        self.runtime
-            .block_on(document_api::document_get_metadata(self.device.auth(), id))
+        self.runtime.enter(|| {
+            futures::executor::block_on(document_api::document_get_metadata(self.device.auth(), id))
+        })
     }
 
     fn document_get_id_from_bytes(&self, encrypted_document: &[u8]) -> Result<DocumentId> {
@@ -235,19 +236,23 @@ impl DocumentOps for crate::IronOxide {
                 }
             };
 
-        self.runtime.block_on(document_api::encrypt_document(
-            self.device.auth(),
-            &self.recrypt,
-            &self.user_master_pub_key,
-            &self.rng,
-            document_data,
-            encrypt_opts.id,
-            encrypt_opts.name,
-            grant_to_author,
-            &explicit_users,
-            &explicit_groups,
-            policy_grants.as_ref(),
-        ))
+        let id = encrypt_opts.id;
+        let name = encrypt_opts.name;
+        self.runtime.enter(|| {
+            futures::executor::block_on(document_api::encrypt_document(
+                self.device.auth(),
+                &self.recrypt,
+                &self.user_master_pub_key,
+                &self.rng,
+                document_data,
+                id,
+                name,
+                grant_to_author,
+                &explicit_users,
+                &explicit_groups,
+                policy_grants.as_ref(),
+            ))
+        })
     }
 
     fn document_update_bytes(
@@ -255,23 +260,27 @@ impl DocumentOps for crate::IronOxide {
         id: &DocumentId,
         new_document_data: &[u8],
     ) -> Result<DocumentEncryptResult> {
-        self.runtime.block_on(document_api::document_update_bytes(
-            self.device.auth(),
-            &self.recrypt,
-            self.device.device_private_key(),
-            &self.rng,
-            id,
-            &new_document_data,
-        ))
+        self.runtime.enter(|| {
+            futures::executor::block_on(document_api::document_update_bytes(
+                self.device.auth(),
+                &self.recrypt,
+                self.device.device_private_key(),
+                &self.rng,
+                id,
+                &new_document_data,
+            ))
+        })
     }
 
     fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult> {
-        self.runtime.block_on(document_api::decrypt_document(
-            self.device.auth(),
-            &self.recrypt,
-            self.device.device_private_key(),
-            encrypted_document,
-        ))
+        self.runtime.enter(|| {
+            futures::executor::block_on(document_api::decrypt_document(
+                self.device.auth(),
+                &self.recrypt,
+                self.device.device_private_key(),
+                encrypted_document,
+            ))
+        })
     }
 
     fn document_update_name(
@@ -279,11 +288,13 @@ impl DocumentOps for crate::IronOxide {
         id: &DocumentId,
         name: Option<&DocumentName>,
     ) -> Result<DocumentMetadataResult> {
-        self.runtime.block_on(document_api::update_document_name(
-            self.device.auth(),
-            id,
-            name,
-        ))
+        self.runtime.enter(|| {
+            futures::executor::block_on(document_api::update_document_name(
+                self.device.auth(),
+                id,
+                name,
+            ))
+        })
     }
 
     fn document_grant_access(
@@ -293,15 +304,17 @@ impl DocumentOps for crate::IronOxide {
     ) -> Result<DocumentAccessResult> {
         let (users, groups) = partition_user_or_group(grant_list);
 
-        self.runtime.block_on(document_api::document_grant_access(
-            self.device.auth(),
-            &self.recrypt,
-            id,
-            &self.user_master_pub_key,
-            &self.device.device_private_key(),
-            &users,
-            &groups,
-        ))
+        self.runtime.enter(|| {
+            futures::executor::block_on(document_api::document_grant_access(
+                self.device.auth(),
+                &self.recrypt,
+                id,
+                &self.user_master_pub_key,
+                &self.device.device_private_key(),
+                &users,
+                &groups,
+            ))
+        })
     }
 
     fn document_revoke_access(
@@ -309,11 +322,13 @@ impl DocumentOps for crate::IronOxide {
         id: &DocumentId,
         revoke_list: &Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult> {
-        self.runtime.block_on(document_api::document_revoke_access(
-            self.device.auth(),
-            id,
-            revoke_list,
-        ))
+        self.runtime.enter(|| {
+            futures::executor::block_on(document_api::document_revoke_access(
+                self.device.auth(),
+                id,
+                revoke_list,
+            ))
+        })
     }
 }
 
