@@ -6,7 +6,7 @@ use crate::{
     internal, Result,
 };
 use itertools::EitherOrBoth;
-use tokio::runtime::current_thread::Runtime;
+use tokio::runtime::Runtime;
 
 pub trait DocumentAdvancedOps {
     /// (Advanced) Encrypt the provided document bytes. Return the encrypted document encryption keys (EDEKs)

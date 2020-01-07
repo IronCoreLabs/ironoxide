@@ -768,12 +768,12 @@ impl TryFrom<&EncryptedDek> for EncryptedDekP {
             } => {
                 let mut proto_edek_data = EncryptedDekDataP::default();
 
-                proto_edek_data.set_encryptedBytes(encrypted_message.bytes()[..].into());
+                proto_edek_data.set_encryptedBytes(encrypted_message.bytes().to_vec().into());
                 proto_edek_data
                     .set_ephemeralPublicKey(PublicKey::from(ephemeral_public_key).into());
-                proto_edek_data.set_signature(signature.bytes()[..].into());
-                proto_edek_data.set_authHash(auth_hash.bytes()[..].into());
-                proto_edek_data.set_publicSigningKey(public_signing_key.bytes()[..].into());
+                proto_edek_data.set_signature(signature.bytes().to_vec().into());
+                proto_edek_data.set_authHash(auth_hash.bytes().to_vec().into());
+                proto_edek_data.set_publicSigningKey(public_signing_key.bytes().to_vec().into());
 
                 Ok(proto_edek_data)
             }

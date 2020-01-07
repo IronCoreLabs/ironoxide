@@ -87,7 +87,7 @@ use rand::{
 use rand_chacha::ChaChaCore;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
 use std::{convert::TryInto, sync::Mutex};
-use tokio::runtime::current_thread::Runtime;
+use tokio::runtime::Runtime;
 use vec1::Vec1;
 
 /// Result of an Sdk operation
@@ -198,9 +198,9 @@ impl PrivateKeyRotationCheckResult {
         });
         let user_opt_future: OptionFuture<_> = user_future.into();
         let group_opt_future: OptionFuture<_> = group_futures.into();
-        let (user_opt_result, group_opt_vec_result) = ironoxide
-            .runtime
-            .block_on(futures::future::join(user_opt_future, group_opt_future));
+        let (user_opt_result, group_opt_vec_result) = ironoxide.runtime.enter(|| {
+            futures::executor::block_on(futures::future::join(user_opt_future, group_opt_future))
+        });
         let group_opt_result_vec = group_opt_vec_result.map(|g| g.into_iter().collect());
         Ok((
             user_opt_result.transpose()?,
@@ -283,8 +283,9 @@ impl IronOxide {
         // create a tokio runtime with the default number of core threads (num of cores on a machine)
         // and an elevated number of blocking_threads as we expect heavy concurrency to be network-bound
         let runtime = tokio::runtime::Builder::new()
-            .blocking_threads(250) // most all SDK methods will block on the network
-            .keep_alive(None)
+            .threaded_scheduler() // use multi-threaded scheduler
+            .enable_all() // enable both I/O and time drivers
+            .max_threads(250) // core_threads default to number of cores, blocking threads are max - core
             .build()
             .expect("tokio runtime failed to initialize");
         IronOxide {

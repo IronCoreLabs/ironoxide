@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.17.0 (Unreleased)
+
+- [[#101](https://github.com/IronCoreLabs/ironoxide/pull/101)]
+  - Dependecy upgrades
+
 ## 0.16.0
 
 - [[#98](https://github.com/IronCoreLabs/ironoxide/pull/98)]
