@@ -5,7 +5,7 @@
 use crate::internal::{
     group_api::GroupId,
     rest::{Authorization, IronCoreRequest, SignatureUrlString},
-    user_api::{DeviceId, UserId},
+    user_api::UserId,
 };
 use chrono::{DateTime, Utc};
 use log::error;
@@ -251,7 +251,6 @@ pub mod auth_v2 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RequestAuth {
-    device_id: DeviceId,
     ///The users given id, which uniquely identifies them inside the segment.
     account_id: UserId,
     ///The segment_id for the above user.
@@ -305,11 +304,10 @@ pub struct DeviceContext {
 }
 
 impl DeviceContext {
-    /// Create a new DeviceContext to get an SDK instance for the provided context. Takes an accounts UserID,
+    /// Create a new DeviceContext to get an SDK instance for the provided context. Takes an account's UserID,
     /// segment id, private device keys, and signing keys. An instance of this structure is returned directly
     /// from the `IronOxide.generate_new_device()` method.
     pub fn new(
-        device_id: DeviceId,
         account_id: UserId,
         segment_id: usize,
         device_private_key: PrivateKey,
@@ -317,7 +315,6 @@ impl DeviceContext {
     ) -> DeviceContext {
         DeviceContext {
             auth: RequestAuth {
-                device_id,
                 account_id,
                 segment_id,
                 signing_private_key,
@@ -341,10 +338,6 @@ impl DeviceContext {
 
     pub fn signing_private_key(&self) -> &DeviceSigningKeyPair {
         &self.auth.signing_private_key
-    }
-
-    pub fn device_id(&self) -> &DeviceId {
-        &self.auth.device_id
     }
 
     pub fn device_private_key(&self) -> &PrivateKey {
@@ -828,21 +821,19 @@ pub(crate) mod test {
         ])
         .unwrap();
         let context = DeviceContext::new(
-            314.try_into()?,
             "account_id".try_into()?,
             22,
             priv_key.into(),
             DeviceSigningKeyPair::from(dev_keys),
         );
         let json = serde_json::to_string(&context).unwrap();
-        let expect_json = r#"{"deviceId":314,"accountId":"account_id","segmentId":22,"signingPrivateKey":"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQGKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXA==","devicePrivateKey":"bzb0Rlg0u7gx9wDuk1ppRI77OH/0ferXleenJ3Ag6Jg="}"#;
+        let expect_json = r#"{"accountId":"account_id","segmentId":22,"signingPrivateKey":"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQGKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXA==","devicePrivateKey":"bzb0Rlg0u7gx9wDuk1ppRI77OH/0ferXleenJ3Ag6Jg="}"#;
 
         assert_eq!(json, expect_json);
 
         let de: DeviceContext = serde_json::from_str(&json).unwrap();
 
         assert_eq!(context.account_id(), de.account_id());
-        assert_eq!(context.device_id(), de.device_id());
         assert_eq!(
             context.auth.signing_private_key.as_bytes().to_vec(),
             de.auth.signing_private_key.as_bytes().to_vec()

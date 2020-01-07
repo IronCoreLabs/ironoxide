@@ -45,27 +45,24 @@ lazy_static! {
         (filename, path)
     };
     static ref CONFIG: Config = {
-        use std::{error::Error, fs::File, io::Read};
+        use std::{fs::File, io::Read};
         let mut file = File::open(IRONCORE_CONFIG_PATH.1.clone()).unwrap_or_else(|err| {
             panic!(
                 "Failed to open config file ({}) with error '{}'",
-                IRONCORE_CONFIG_PATH.0,
-                err.description()
+                IRONCORE_CONFIG_PATH.0, err
             )
         });
         let mut json_config = String::new();
         file.read_to_string(&mut json_config).unwrap_or_else(|err| {
             panic!(
                 "Failed to read config file ({}) with error '{}'",
-                IRONCORE_CONFIG_PATH.0,
-                err.description()
+                IRONCORE_CONFIG_PATH.0, err
             )
         });
         serde_json::from_str(&json_config).unwrap_or_else(|err| {
             panic!(
                 "Failed to deserialize config file ({}) with error '{}'",
-                IRONCORE_CONFIG_PATH.0,
-                err.description()
+                IRONCORE_CONFIG_PATH.0, err
             )
         })
     };
@@ -158,12 +155,10 @@ pub async fn init_sdk_get_init_result(user_needs_rotation: bool) -> (UserId, Ini
 
     let users_account_id = device.account_id().id();
     let users_segment_id = device.segment_id();
-    let users_device_id = *device.device_id().id();
     let users_device_private_key_bytes = &device.device_private_key().as_bytes()[..];
     let users_signing_keys_bytes = &device.signing_private_key().as_bytes()[..];
 
     let device_init = DeviceContext::new(
-        users_device_id.try_into().unwrap(),
         users_account_id.try_into().unwrap(),
         users_segment_id,
         users_device_private_key_bytes.try_into().unwrap(),
