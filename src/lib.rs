@@ -283,9 +283,9 @@ impl IronOxide {
         // create a tokio runtime with the default number of core threads (num of cores on a machine)
         // and an elevated number of blocking_threads as we expect heavy concurrency to be network-bound
         let runtime = tokio::runtime::Builder::new()
-            .threaded_scheduler()
-            .enable_all()
-            .max_threads(250) // most all SDK methods will block on the network
+            .threaded_scheduler() // use multi-threaded scheduler
+            .enable_all() // enable both I/O and time drivers
+            .max_threads(250) // core_threads default to number of cores, blocking threads are max - core
             .build()
             .expect("tokio runtime failed to initialize");
         IronOxide {
