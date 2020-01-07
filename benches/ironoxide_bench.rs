@@ -78,46 +78,46 @@ fn criterion_benchmark(c: &mut Criterion) {
         enc_deks_unmanaged,
         group_enc_data,
         group_enc_deks,
-    ) = rt.block_on(f);
+    ) = rt.enter(|| futures::executor::block_on(f));
 
     c.bench_function("document get metadata", |b| {
-        b.iter(|| rt.block_on(io.document_get_metadata(black_box(enc_result.id()))))
+        b.iter(|| rt.enter(|| futures::executor::block_on(io.document_get_metadata(black_box(enc_result.id())))))
     });
 
     c.bench_function("document encrypt [self]", |b| {
-        b.iter(|| rt.block_on(io.document_encrypt(black_box(&data), &Default::default())))
+        b.iter(|| rt.enter(|| futures::executor::block_on(io.document_encrypt(black_box(&data), &Default::default()))))
     });
 
     c.bench_function("document encrypt (unmanaged) [self]", |b| {
-        b.iter(|| rt.block_on(io.document_encrypt_unmanaged(black_box(&data), &Default::default())))
+        b.iter(|| rt.enter(|| futures::executor::block_on(io.document_encrypt_unmanaged(black_box(&data), &Default::default()))))
     });
 
     c.bench_function("document decrypt [user]", |b| {
-        b.iter(|| rt.block_on(io.document_decrypt(black_box(&enc_data))))
+        b.iter(|| rt.enter(|| futures::executor::block_on(io.document_decrypt(black_box(&enc_data)))))
     });
 
     c.bench_function("document decrypt (unmanaged) [group]", |b| {
         b.iter(|| {
-            rt.block_on(
+            rt.enter(|| futures::executor::block_on(
                 io.document_decrypt_unmanaged(
                     black_box(&group_enc_data),
                     black_box(&group_enc_deks),
                 ),
-            )
+            ))
         })
     });
 
     c.bench_function("document decrypt (unmanaged) [user]", |b| {
         b.iter(|| {
-            rt.block_on(io.document_decrypt_unmanaged(
+            rt.enter(|| futures::executor::block_on(io.document_decrypt_unmanaged(
                 black_box(&enc_data_unmanaged),
                 black_box(&enc_deks_unmanaged),
-            ))
+            )))
         })
     });
 
     c.bench_function("group create", |b| {
-        b.iter(|| rt.block_on(io.group_create(black_box(&Default::default()))))
+        b.iter(|| rt.enter(|| futures::executor::block_on(io.group_create(black_box(&Default::default())))))
     });
 }
 
