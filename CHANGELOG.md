@@ -3,7 +3,9 @@
 ## 0.17.0 (Unreleased)
 
 - [[#101](https://github.com/IronCoreLabs/ironoxide/pull/101)]
-  - Dependecy upgrades
+  - Dependency upgrades
+- [[#97](https://github.com/IronCoreLabs/ironoxide/pull/97)]
+  - Make the default API async
 
 ## 0.16.0
 

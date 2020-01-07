@@ -12,6 +12,7 @@ description = "A pure-Rust SDK for accessing IronCore's privacy platform"
 edition = "2018"
 
 [dependencies]
+async-trait = "0.1.21"
 base64 = "~0.10"
 base64-serde = "~0.3.1"
 bytes = "~0.5"
@@ -26,7 +27,6 @@ ring = { version= "~0.16", features = ["std"] }
 recrypt = "~0.9.2"
 url= "~2.1.0"
 reqwest = {version="~0.10.0", features = ["json"]}
-tokio = {version="~0.2.6", features = ["rt-threaded"]}
 hex = "~0.3"
 itertools = "~0.8"
 futures = "~0.3.1"
@@ -57,6 +57,8 @@ galvanic-assert = "~0.8"
 uuid = { version = "~0.7.2", features = ["serde", "v4"] }
 double = "~0.2.4"
 criterion = "~0.3"
+tokio = {version = "~0.2.0", features = ["full"]}
+tokio-test = "0.2.0"
 
 [build-dependencies]
 protobuf-codegen-pure = "~2.10"

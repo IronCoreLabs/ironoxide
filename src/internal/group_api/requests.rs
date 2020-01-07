@@ -199,7 +199,7 @@ pub mod group_list {
         let group_ids: Vec<&str> = groups.iter().map(|group| group.id()).collect();
         auth.request
             .get_with_query_params(
-                &format!("groups"),
+                "groups",
                 &vec![("id".into(), rest::url_encode(&group_ids.join(",")))],
                 RequestErrorCode::GroupList,
                 AuthV2Builder::new(&auth, Utc::now()),
