@@ -380,7 +380,7 @@ impl GroupOps for crate::IronOxide {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::{
         group::GroupCreateOpts,
         internal::{user_api::UserId, IronOxideErr},

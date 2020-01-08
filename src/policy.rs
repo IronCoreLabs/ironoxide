@@ -182,9 +182,9 @@ fn validate_simple_policy_field_value(field_id: &str, field_type: &str) -> Resul
     }
 }
 #[cfg(test)]
-pub(crate) mod test {
+mod tests {
     use super::*;
-    use crate::internal::test::contains;
+    use crate::internal::tests::contains;
     use galvanic_assert::matchers::eq;
     use std::convert::TryInto;
 

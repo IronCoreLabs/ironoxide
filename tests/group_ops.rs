@@ -1,16 +1,17 @@
-use crate::common::{create_second_user, gen_jwt, USER_PASSWORD};
-use common::{create_id_all_classes, init_sdk_get_user, initialize_sdk};
-use ironoxide::{document::DocumentEncryptOpts, group::*, prelude::*};
-use std::convert::TryInto;
-use uuid::Uuid;
-
 mod common;
 
-#[macro_use]
-extern crate serde_json;
-
-#[macro_use]
-extern crate galvanic_assert;
+use common::{
+    create_id_all_classes, create_second_user, gen_jwt, init_sdk_get_user, initialize_sdk,
+    USER_PASSWORD,
+};
+use galvanic_assert::{assert_that, is_variant};
+use ironoxide::{
+    document::DocumentEncryptOpts,
+    group::{GroupCreateOpts, GroupId, GroupOps},
+    prelude::*,
+};
+use std::convert::TryInto;
+use uuid::Uuid;
 
 #[tokio::test]
 async fn group_create_no_member() -> Result<(), IronOxideErr> {
@@ -215,7 +216,7 @@ async fn rotate_all() -> Result<(), IronOxideErr> {
         InitAndRotationCheck::NoRotationNeeded(_) => {
             panic!("both user and groups should need rotation!");
         }
-        InitAndRotationCheck::RotationNeeded(io, rot) => rot.rotate_all(&io, USER_PASSWORD).await?,
+        InitAndRotationCheck::RotationNeeded(io, rot) => io.rotate_all(rot, USER_PASSWORD).await?,
     };
     assert!(user_result.is_some());
     assert!(group_result.is_some());

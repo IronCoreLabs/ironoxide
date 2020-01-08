@@ -1,6 +1,6 @@
 mod common;
-use crate::common::initialize_sdk;
-use common::{create_id_all_classes, gen_jwt};
+
+use common::{create_id_all_classes, gen_jwt, initialize_sdk};
 use ironoxide::{
     document::DocumentEncryptOpts,
     prelude::*,
@@ -8,9 +8,6 @@ use ironoxide::{
 };
 use std::{convert::TryInto, default::Default};
 use uuid::Uuid;
-
-#[macro_use]
-extern crate serde_json;
 
 #[tokio::test]
 async fn user_verify_non_existing_user() -> Result<(), IronOxideErr> {

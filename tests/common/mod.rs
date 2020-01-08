@@ -75,10 +75,10 @@ pub fn gen_jwt(account_id: Option<&str>) -> (String, String) {
         .duration_since(UNIX_EPOCH)
         .expect("Time before epoch? Something's wrong.")
         .as_secs();
-    let jwt_header = json!({});
+    let jwt_header = serde_json::json!({});
     let default_account_id = Uuid::new_v4().to_string();
     let sub = account_id.unwrap_or(&default_account_id);
-    let jwt_payload = json!({
+    let jwt_payload = serde_json::json!({
         "pid" : CONFIG.project_id,
         "sid" : CONFIG.segment_id,
         "kid" : CONFIG.identity_assertion_key_id,
@@ -104,6 +104,7 @@ pub fn gen_jwt(account_id: Option<&str>) -> (String, String) {
 /// The intent is that this will be used in most of the tests, as those extra
 /// verifications are not the goal of most tests. It also returns a result to give
 /// nice error handling with `?` in the tests.
+#[allow(dead_code)]
 pub async fn initialize_sdk() -> Result<IronOxide, IronOxideErr> {
     let account_id: UserId = create_id_all_classes("").try_into()?;
     IronOxide::user_create(
@@ -121,12 +122,16 @@ pub async fn initialize_sdk() -> Result<IronOxide, IronOxideErr> {
     ironoxide::initialize(&device).await
 }
 
+#[allow(dead_code)]
 pub async fn init_sdk_get_user() -> (UserId, IronOxide) {
     let (u, init_check) = init_sdk_get_init_result(false).await;
     (u, init_check.discard_check())
 }
 
-pub async fn init_sdk_get_init_result(user_needs_rotation: bool) -> (UserId, InitAndRotationCheck) {
+#[allow(dead_code)]
+pub async fn init_sdk_get_init_result(
+    user_needs_rotation: bool,
+) -> (UserId, InitAndRotationCheck<IronOxide>) {
     let account_id: UserId = create_id_all_classes("").try_into().unwrap();
     IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
@@ -172,8 +177,6 @@ pub async fn init_sdk_get_init_result(user_needs_rotation: bool) -> (UserId, Ini
     )
 }
 
-// this warns that it's unused because it's only used in other files,
-// so this is suppressed to avoid false positive.
 #[allow(dead_code)]
 pub async fn create_second_user() -> UserResult {
     let (jwt, _) = gen_jwt(Some(&create_id_all_classes("")));
