@@ -250,7 +250,7 @@ impl IronOxide {
     /// - `password` - Password to unlock the current user's user master key
     pub async fn rotate_all(
         &self,
-        rotations: PrivateKeyRotationCheckResult,
+        rotations: &PrivateKeyRotationCheckResult,
         password: &str,
     ) -> Result<(
         Option<UserUpdatePrivateKeyResult>,

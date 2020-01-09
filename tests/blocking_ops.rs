@@ -44,7 +44,7 @@ mod integration_tests {
             InitAndRotationCheck::NoRotationNeeded(_) => {
                 panic!("both user and groups should need rotation!");
             }
-            InitAndRotationCheck::RotationNeeded(io, rot) => io.rotate_all(rot, USER_PASSWORD)?,
+            InitAndRotationCheck::RotationNeeded(io, rot) => io.rotate_all(&rot, USER_PASSWORD)?,
         };
         assert!(user_result.is_some());
         assert!(group_result.is_some());
