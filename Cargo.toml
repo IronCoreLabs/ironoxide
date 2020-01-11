@@ -38,6 +38,8 @@ log = "~0.4"
 protobuf = {version = "~2.10", features = ["with-bytes"]}
 vec1 = "~1.4.0"
 tokio = {version = "~0.2.0", optional = true}
+ironoxide_macros = {version = "~0.1", path="./ironoxide_macros"}
+syn = "1.0"
 
 [dev-dependencies]
 frank_jwt = "~3.1.2"

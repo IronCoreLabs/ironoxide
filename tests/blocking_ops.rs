@@ -16,7 +16,7 @@ mod integration_tests {
     // Tests a UserOp (user_create/generate_new_device), a GroupOp (group_create),
     // and ironoxide::blocking functions (initialize/initialize_check_rotation)
     #[test]
-    fn rotate_all() -> Result<(), IronOxideErr> {
+    fn blocking_rotate_all() -> Result<(), IronOxideErr> {
         let account_id: UserId = create_id_all_classes("").try_into()?;
         let jwt = gen_jwt(Some(account_id.id())).0;
         BlockingIronOxide::user_create(&jwt, USER_PASSWORD, &UserCreateOpts::new(true))?;
@@ -60,7 +60,7 @@ mod integration_tests {
 
     // Tests a DocumentOp (document_encrypt) and a DocumentAdvancedOp (document_encrypt_unmanaged)
     #[test]
-    fn document_encrypt() -> Result<(), IronOxideErr> {
+    fn blocking_document_encrypt() -> Result<(), IronOxideErr> {
         let account_id: UserId = create_id_all_classes("").try_into()?;
         BlockingIronOxide::user_create(
             &gen_jwt(Some(account_id.id())).0,

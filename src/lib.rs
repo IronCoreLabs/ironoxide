@@ -53,6 +53,7 @@ extern crate percent_encoding;
 
 mod crypto;
 mod internal;
+mod macros;
 
 // include generated proto code as a proto module
 // mod proto
@@ -226,8 +227,6 @@ impl IronOxide {
 
     /// Create an IronOxide instance. Depends on the system having enough entropy to seed a RNG.
     fn create(curr_user: &UserResult, device_context: &DeviceContext) -> IronOxide {
-        // create a tokio runtime with the default number of core threads (num of cores on a machine)
-        // and an elevated number of blocking_threads as we expect heavy concurrency to be network-bound
         IronOxide {
             recrypt: Recrypt::new(),
             device: device_context.clone(),

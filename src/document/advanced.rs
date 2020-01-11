@@ -5,45 +5,10 @@ use crate::{
     document::{partition_user_or_group, DocumentEncryptOpts},
     internal, Result,
 };
+use ironoxide_macros::add_async;
 use itertools::EitherOrBoth;
 
-#[async_trait]
-pub trait DocumentAdvancedOps {
-    /// (Advanced) Encrypt the provided document bytes. Return the encrypted document encryption keys (EDEKs)
-    /// instead of creating a document entry in the IronCore webservice.
-    ///
-    /// The webservice is still needed for looking up public keys and evaluating policies, but no
-    /// document is created and the edeks are not stored. An additional burden is put on the caller
-    /// in that the encrypted data AND the edeks need to be provided for decryption.
-    ///
-    /// # Arguments
-    /// - `document_data` - Bytes of the document to encrypt
-    /// - `encrypt_opts` - Optional document encrypt parameters. Includes
-    ///       `id` - Unique ID to use for the document. Document ID will be stored unencrypted and must be unique per segment.
-    ///       `name` - (Ignored) - Any name provided will be ignored
-    ///       `grant_to_author` - Flag determining whether to encrypt to the calling user or not. If set to false at least one value must be present in the `grants` list.
-    ///       `grants` - List of users/groups to grant access to this document once encrypted
-    async fn document_encrypt_unmanaged(
-        &self,
-        data: &[u8],
-        encrypt_opts: &DocumentEncryptOpts,
-    ) -> Result<DocumentEncryptUnmanagedResult>;
-
-    /// (Advanced) Decrypt a document not managed by the ironcore service. Both the encrypted
-    /// data and the encrypted deks need to be provided.
-    ///
-    /// The webservice is still needed to transform a chosen encrypted dek so it can be decrypted
-    /// by the caller's private key.
-    ///
-    /// # Arguments
-    /// - `encrypted_data` - Encrypted document
-    /// - `encrypted_deks` - Associated encrypted DEKs for the `encrypted_data`
-    async fn document_decrypt_unmanaged(
-        &self,
-        encrypted_data: &[u8],
-        encrypted_deks: &[u8],
-    ) -> Result<DocumentDecryptUnmanagedResult>;
-}
+crate::document_advanced_ops!(add_async(async));
 
 #[async_trait]
 impl DocumentAdvancedOps for crate::IronOxide {
