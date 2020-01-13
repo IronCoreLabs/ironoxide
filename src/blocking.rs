@@ -1,4 +1,3 @@
-//!
 //! A blocking version of the SDK.
 //!
 //! These synchronous functions will block the current thread to execute instead
@@ -7,7 +6,6 @@
 //!
 //! # Optional
 //! This requires the optional `blocking` feature to be enabled.
-use crate::Result;
 use crate::{
     document::{
         advanced::DocumentAdvancedOps as AsyncDocumentAdvancedOps, DocumentEncryptOpts,
@@ -28,7 +26,7 @@ use crate::{
             DeviceId, UserCreateResult, UserDeviceListResult, UserId, UserResult,
             UserUpdatePrivateKeyResult,
         },
-        DeviceContext, PublicKey,
+        DeviceContext, IronOxideErr, PublicKey,
     },
     user::{DeviceCreateOpts, UserCreateOpts, UserOps as AsyncUserOps},
     InitAndRotationCheck::{self, NoRotationNeeded, RotationNeeded},
@@ -37,6 +35,9 @@ use crate::{
 use futures::executor::block_on;
 use ironoxide_macros::add_async;
 use std::collections::HashMap;
+
+/// Result of an Sdk operation
+pub type Result<T> = std::result::Result<T, IronOxideErr>;
 
 /// Struct that is used to make authenticated requests to the IronCore API. Instantiated with the details
 /// of an account's various ids, device, and signing keys. Once instantiated all operations will be

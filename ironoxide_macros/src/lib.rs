@@ -1,6 +1,9 @@
 extern crate proc_macro;
 use proc_macro::TokenStream;
-use syn::{parse, parse::Parser, token::Async, Attribute, Item, ItemTrait, TraitItem};
+use syn::parse::Parser;
+extern crate syn;
+
+use syn::{parse, token::Async, Attribute, Item, ItemTrait, Signature, TraitItem, TraitItemMethod};
 
 #[proc_macro_attribute]
 pub fn add_async(attr: TokenStream, input: TokenStream) -> TokenStream {
@@ -17,12 +20,33 @@ pub fn add_async(attr: TokenStream, input: TokenStream) -> TokenStream {
                 .items
                 .into_iter()
                 .map(|trait_item| match trait_item {
-                    TraitItem::Method(mut method) => {
+                    TraitItem::Method(TraitItemMethod {
+                        attrs,
+                        sig,
+                        default,
+                        semi_token,
+                    }) => {
                         let new_async = Async {
                             span: proc_macro2::Span::call_site(),
                         };
-                        method.sig.asyncness = Some(new_async);
-                        TraitItem::Method(method)
+                        TraitItem::Method(TraitItemMethod {
+                            attrs,
+                            sig: Signature {
+                                constness: sig.constness,
+                                asyncness: Some(new_async),
+                                unsafety: sig.unsafety,
+                                abi: sig.abi,
+                                fn_token: sig.fn_token,
+                                ident: sig.ident,
+                                generics: sig.generics,
+                                paren_token: sig.paren_token,
+                                inputs: sig.inputs,
+                                variadic: sig.variadic,
+                                output: sig.output,
+                            },
+                            default,
+                            semi_token,
+                        })
                     }
                     _ => panic!(),
                 })
