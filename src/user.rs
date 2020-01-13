@@ -203,7 +203,7 @@ impl UserOps for IronOxide {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use galvanic_assert::matchers::*;
 

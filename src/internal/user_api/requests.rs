@@ -85,7 +85,7 @@ pub mod user_verify {
     }
 
     #[cfg(test)]
-    mod test {
+    mod tests {
         use super::*;
         use crate::internal;
         use galvanic_assert::matchers::*;

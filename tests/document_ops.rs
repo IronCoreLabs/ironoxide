@@ -1,7 +1,10 @@
 mod common;
-use crate::common::init_sdk_get_user;
-use common::{create_id_all_classes, create_second_user, initialize_sdk};
-use galvanic_assert::matchers::{collection::*, *};
+
+use common::{create_id_all_classes, create_second_user, init_sdk_get_user, initialize_sdk};
+use galvanic_assert::{
+    assert_that, is_variant,
+    matchers::{collection::contains_in_any_order, eq},
+};
 use ironoxide::{
     document::{advanced::*, *},
     group::GroupCreateOpts,
@@ -10,15 +13,6 @@ use ironoxide::{
 };
 use itertools::EitherOrBoth;
 use std::convert::{TryFrom, TryInto};
-
-extern crate tokio_test;
-
-#[cfg(test)]
-#[macro_use]
-extern crate galvanic_assert;
-
-#[macro_use]
-extern crate serde_json;
 
 #[tokio::test]
 async fn doc_create_without_id() -> Result<(), IronOxideErr> {

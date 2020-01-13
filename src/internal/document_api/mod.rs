@@ -1241,7 +1241,7 @@ fn process_policy(
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::test::contains;
+    use crate::internal::tests::contains;
     use base64::decode;
     use galvanic_assert::matchers::{collection::*, *};
 

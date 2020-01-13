@@ -885,7 +885,7 @@ fn generate_transform_for_keys<CR: rand::CryptoRng + rand::RngCore>(
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use super::*;
 
     pub fn create_group_meta_result(
