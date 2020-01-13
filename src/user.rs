@@ -11,7 +11,7 @@ use crate::{
 };
 use recrypt::api::Recrypt;
 use std::{collections::HashMap, convert::TryInto};
-use tokio::runtime::current_thread::Runtime;
+use tokio::runtime::Runtime;
 
 /// Optional parameters for creating a new device instance.
 #[derive(Debug, PartialEq, Clone)]
@@ -183,8 +183,9 @@ impl UserOps for IronOxide {
     }
 
     fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId> {
-        self.runtime
-            .block_on(user_api::device_delete(self.device.auth(), device_id))
+        self.runtime.enter(|| {
+            futures::executor::block_on(user_api::device_delete(self.device.auth(), device_id))
+        })
     }
 
     fn user_verify(jwt: &str) -> Result<Option<UserResult>> {
@@ -193,16 +194,22 @@ impl UserOps for IronOxide {
     }
 
     fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {
-        self.runtime
-            .block_on(user_api::user_key_list(self.device.auth(), &users.to_vec()))
+        self.runtime.enter(|| {
+            futures::executor::block_on(user_api::user_key_list(
+                self.device.auth(),
+                &users.to_vec(),
+            ))
+        })
     }
 
     fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult> {
-        self.runtime.block_on(user_api::user_rotate_private_key(
-            &self.recrypt,
-            password.try_into()?,
-            self.device().auth(),
-        ))
+        self.runtime.enter(|| {
+            futures::executor::block_on(user_api::user_rotate_private_key(
+                &self.recrypt,
+                password.try_into()?,
+                self.device().auth(),
+            ))
+        })
     }
 }
 

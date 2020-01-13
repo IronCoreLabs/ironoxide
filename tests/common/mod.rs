@@ -45,27 +45,24 @@ lazy_static! {
         (filename, path)
     };
     static ref CONFIG: Config = {
-        use std::{error::Error, fs::File, io::Read};
+        use std::{fs::File, io::Read};
         let mut file = File::open(IRONCORE_CONFIG_PATH.1.clone()).unwrap_or_else(|err| {
             panic!(
                 "Failed to open config file ({}) with error '{}'",
-                IRONCORE_CONFIG_PATH.0,
-                err.description()
+                IRONCORE_CONFIG_PATH.0, err
             )
         });
         let mut json_config = String::new();
         file.read_to_string(&mut json_config).unwrap_or_else(|err| {
             panic!(
                 "Failed to read config file ({}) with error '{}'",
-                IRONCORE_CONFIG_PATH.0,
-                err.description()
+                IRONCORE_CONFIG_PATH.0, err
             )
         });
         serde_json::from_str(&json_config).unwrap_or_else(|err| {
             panic!(
                 "Failed to deserialize config file ({}) with error '{}'",
-                IRONCORE_CONFIG_PATH.0,
-                err.description()
+                IRONCORE_CONFIG_PATH.0, err
             )
         })
     };
