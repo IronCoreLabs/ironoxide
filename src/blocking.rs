@@ -133,7 +133,6 @@ impl BlockingIronOxide {
         self.runtime
             .enter(|| block_on(self.ironoxide.document_revoke_access(id, revoke_list)))
     }
-
     /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_encrypt_unmanaged()](trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged)
     pub fn document_encrypt_unmanaged(
         &self,
