@@ -198,7 +198,7 @@ fn check_groups_and_collect_rotation<T>(
 }
 
 /// Initialize the IronOxide SDK and check to see if the user that owns this `DeviceContext` is
-/// marked for private key rotation, or if any of the groups that the user is an admin of is marked
+/// marked for private key rotation, or if any of the groups that the user is an admin of are marked
 /// for private key rotation.
 pub async fn initialize_check_rotation(
     device_context: &DeviceContext,

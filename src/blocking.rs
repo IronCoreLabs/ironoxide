@@ -48,14 +48,7 @@ impl BlockingIronOxide {
         &self.ironoxide.device
     }
 
-    /// Rotate the private key of the calling user and all groups they are an administrator of where needs_rotation is true.
-    /// Note that this function has the potential to take much longer than other functions, as rotation will be done
-    /// individually on each user/group. If rotation is only needed for a specific group, it is strongly recommended
-    /// to call [user_rotate_private_key()](user\/trait.UserOps.html#tymethod.user_rotate_private_key) or
-    /// [group_rotate_private_key()](group\/trait.GroupOps.html#tymethod.group_rotate_private_key) instead.
-    /// # Arguments
-    /// - `rotations` - PrivateKeyRotationCheckResult that holds all users and groups to be rotated
-    /// - `password` - Password to unlock the current user's user master key
+    /// See [ironoxide::IronOxide::rotate_all()](../struct.IronOxide.html#method.rotate_all)
     pub fn rotate_all(
         &self,
         rotations: &PrivateKeyRotationCheckResult,
@@ -290,8 +283,8 @@ fn create_runtime() -> tokio::runtime::Runtime {
         .expect("tokio runtime failed to initialize")
 }
 
-/// Initialize the IronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
-/// keys are valid and exist for the provided account. If successful, returns an instance of the IronOxide SDK
+/// Initialize the BlockingIronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
+/// keys are valid and exist for the provided account. If successful, returns instance of the BlockingIronOxide SDK.
 pub fn initialize(device_context: &DeviceContext) -> Result<BlockingIronOxide> {
     let rt = create_runtime();
     let maybe_io = rt.enter(|| block_on(crate::initialize(device_context)));
@@ -301,8 +294,8 @@ pub fn initialize(device_context: &DeviceContext) -> Result<BlockingIronOxide> {
     })
 }
 
-/// Initialize the IronOxide SDK and check to see if the user that owns this `DeviceContext` is
-/// marked for private key rotation, or if any of the groups that the user is an admin of is marked
+/// Initialize the BlockingIronOxide SDK and check to see if the user that owns this `DeviceContext` is
+/// marked for private key rotation, or if any of the groups that the user is an admin of are marked
 /// for private key rotation.
 pub fn initialize_check_rotation(
     device_context: &DeviceContext,
