@@ -9,7 +9,6 @@ use crate::{
     },
     DeviceContext, IronOxide, Result,
 };
-use ironoxide_macros::add_async;
 use recrypt::api::Recrypt;
 use std::{collections::HashMap, convert::TryInto};
 
@@ -57,7 +56,91 @@ impl Default for UserCreateOpts {
     }
 }
 
-crate::user_ops!(add_async(async));
+#[async_trait]
+pub trait UserOps {
+    /// Sync a new user within the IronCore system.
+    ///
+    /// # Arguments
+    /// - `jwt` - Valid IronCore or Auth0 JWT
+    /// - `password` - Password used to encrypt and escrow the user's private master key
+    /// - `user_create_opts` - see [`UserCreateOpts`](struct.UserCreateOpts.html)
+    /// # Returns
+    /// Newly generated `UserCreateResult` or Err. For most use cases, this public key can
+    /// be discarded as IronCore escrows your user's keys. The escrowed keys are unlocked
+    /// by the provided password.
+    async fn user_create(
+        jwt: &str,
+        password: &str,
+        user_create_opts: &UserCreateOpts,
+    ) -> Result<UserCreateResult>;
+
+    /// Get all the devices for the current user
+    ///
+    /// # Returns
+    /// All devices for the current user, sorted by the device id.
+    async fn user_list_devices(&self) -> Result<UserDeviceListResult>;
+
+    /// Generates a new device for the user specified in the signed JWT.
+    ///
+    /// This will result in a new transform key (from the user's master private key to the new device's public key)
+    /// being generated and stored with the IronCore Service.
+    ///
+    /// # Arguments
+    /// - `jwt`                   - Valid IronCore JWT
+    /// - `password`              - Password used to encrypt and escrow the user's private key
+    /// - `device_create_options` - Optional device create arguments, like device name
+    ///
+    /// # Returns
+    /// Details about the newly created device.
+    async fn generate_new_device(
+        jwt: &str,
+        password: &str,
+        device_create_options: &DeviceCreateOpts,
+    ) -> Result<DeviceContext>;
+
+    /// Delete a user device.
+    ///
+    /// If deleting the currently signed in device (None for `device_id`), the sdk will need to be
+    /// reinitialized with `IronOxide.initialize()` before further use.
+    ///
+    /// # Arguments
+    /// - `device_id` - ID of the device to delete. Get from `user_list_devices`. If None, deletes the currently SDK contexts device which
+    ///                 once deleted will cause this SDK instance to no longer function.
+    ///
+    /// # Returns
+    /// Id of deleted device or IronOxideErr
+    async fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId>;
+
+    /// Verify a user given a JWT for their user record.
+    ///
+    /// # Arguments
+    /// - `jwt` - Valid IronCore JWT
+    ///
+    /// # Returns
+    /// Option of whether the user's account record exists in the IronCore system or not. Err if the request couldn't be made.
+    async fn user_verify(jwt: &str) -> Result<Option<UserResult>>;
+
+    /// Get a list of user public keys given their IDs. Allows discovery of which user IDs have keys in the
+    /// IronCore system to determine of they can be added to groups or have documents shared with them.
+    ///
+    /// # Arguments
+    /// - users - List of user IDs to check
+    ///
+    /// # Returns
+    /// Map from user ID to users public key. Only users who have public keys will be returned in the map.
+    async fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>>;
+
+    /// Rotate the current user's private key, but leave the public key the same.
+    /// There's no black magic here! This is accomplished via multi-party computation with the
+    /// IronCore webservice.
+    ///
+    /// # Arguments
+    /// `password` - Password to unlock the current user's user master key
+    ///
+    /// # Returns
+    /// The (encrypted) updated private key and associated metadata
+    async fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult>;
+}
 
 #[async_trait]
 impl UserOps for IronOxide {

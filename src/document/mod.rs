@@ -12,7 +12,6 @@ use crate::{
     policy::*,
     Result,
 };
-use ironoxide_macros::add_async;
 use itertools::{Either, EitherOrBoth, Itertools};
 
 /// Advanced document operations
@@ -89,7 +88,113 @@ impl Default for DocumentEncryptOpts {
     }
 }
 
-crate::document_ops!(add_async(async));
+#[async_trait]
+pub trait DocumentOps {
+    /// List all of the documents that the current user is able to decrypt.
+    ///
+    /// # Returns
+    /// `DocumentListResult` struct with vec of metadata about each document the user can decrypt.
+    async fn document_list(&self) -> Result<DocumentListResult>;
+
+    /// Get the metadata for a specific document given its ID.
+    ///
+    /// # Arguments
+    /// - `id` - Unique ID of the document to retrieve
+    ///
+    /// # Returns
+    /// `DocumentMetadataResult` with details about the requested document.
+    async fn document_get_metadata(&self, id: &DocumentId) -> Result<DocumentMetadataResult>;
+
+    /// Attempt to parse the document ID out of an encrypted document.
+    ///
+    /// # Arguments
+    /// - `encrypted_document` - Encrypted document bytes
+    ///
+    /// # Returns
+    /// `Result<DocumentId>` Fails if provided encrypted document has no header, otherwise returns extracted ID.
+    fn document_get_id_from_bytes(&self, encrypted_document: &[u8]) -> Result<DocumentId>;
+
+    /// Encrypt the provided document bytes.
+    ///
+    /// # Arguments
+    /// - `document_data` - Bytes of the document to encrypt
+    /// - `encrypt_opts` - Optional document encrypt parameters. Includes
+    ///       `id` - Unique ID to use for the document. Document ID will be stored unencrypted and must be unique per segment.
+    ///       `name` - Non-unique name to use in the document. Document name will **not** be encrypted.
+    ///       `grant_to_author` - Flag determining whether to encrypt to the calling user or not. If set to false at least one value must be present in the `grant` list.
+    ///       `grants` - List of users/groups to grant access to this document once encrypted
+    async fn document_encrypt(
+        &self,
+        document_data: &[u8],
+        encrypt_opts: &DocumentEncryptOpts,
+    ) -> Result<DocumentEncryptResult>;
+
+    /// Update the encrypted content of an existing document. Persists any existing access to other users and groups.
+    ///
+    /// # Arguments
+    /// - `id` - ID of document to update.
+    /// - `new_document_data` - Updated document content to encrypt.
+    async fn document_update_bytes(
+        &self,
+        id: &DocumentId,
+        new_document_data: &[u8],
+    ) -> Result<DocumentEncryptResult>;
+
+    /// Decrypts the provided encrypted document and returns details about the document as well as its decrypted bytes.
+    ///
+    /// # Arguments
+    /// - `encrypted_document` - Bytes of encrypted document. Should be the same bytes returned from `document_encrypt`.
+    ///
+    /// # Returns
+    /// `Result<DocumentDecryptResult>` Includes metadata about the provided document as well as the decrypted document bytes.
+    async fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult>;
+
+    /// Update a document name to a new value or clear its value.
+    ///
+    /// # Arguments
+    /// - `id` - ID of the document to update
+    /// - `name` - New name for the document. Provide a Some to update to a new name and a None to clear the name field.
+    ///
+    /// # Returns
+    /// `Result<DocumentMetadataResult>` Metadata about the document that was updated.
+    async fn document_update_name(
+        &self,
+        id: &DocumentId,
+        name: Option<&DocumentName>,
+    ) -> Result<DocumentMetadataResult>;
+
+    /// Grant access to a document. Recipients of document access can be either users or groups.
+    ///
+    /// # Arguments
+    /// `document_id` - id of the document whose access is is being modified
+    /// `grant_list` - list of grants. Elements represent either a user or a group.
+    ///
+    /// # Returns
+    /// Outer result indicates that the request failed either on the client or that the server rejected
+    /// the whole request. If the outer result is `Ok` then each individual grant to a user/group
+    /// either succeeded or failed.
+    async fn document_grant_access(
+        &self,
+        document_id: &DocumentId,
+        grant_list: &Vec<UserOrGroup>,
+    ) -> Result<DocumentAccessResult>;
+
+    /// Revoke access from a document. Revocation of document access can be either users or groups.
+    ///
+    /// # Arguments
+    /// `document_id` - id of the document whose access is is being modified
+    /// `revoke_list` - List of revokes. Elements represent either a user or a group.
+    ///
+    /// # Returns
+    /// Outer result indicates that the request failed either on the client or that the server rejected
+    /// the whole request. If the outer result is `Ok` then each individual revoke from a user/group
+    /// either succeeded or failed.
+    async fn document_revoke_access(
+        &self,
+        document_id: &DocumentId,
+        revoke_list: &Vec<UserOrGroup>,
+    ) -> Result<DocumentAccessResult>;
+}
 
 #[async_trait]
 impl DocumentOps for crate::IronOxide {
@@ -101,7 +206,7 @@ impl DocumentOps for crate::IronOxide {
         document_api::document_get_metadata(self.device.auth(), id).await
     }
 
-    async fn document_get_id_from_bytes(&self, encrypted_document: &[u8]) -> Result<DocumentId> {
+    fn document_get_id_from_bytes(&self, encrypted_document: &[u8]) -> Result<DocumentId> {
         document_api::get_id_from_bytes(encrypted_document)
     }
 

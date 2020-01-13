@@ -6,7 +6,6 @@ use crate::{
     internal::{group_api, group_api::GroupCreateOptsStd, user_api::UserId, IronOxideErr},
     Result,
 };
-use ironoxide_macros::add_async;
 use vec1::Vec1;
 
 #[derive(Clone)]
@@ -144,7 +143,124 @@ impl Default for GroupCreateOpts {
     }
 }
 
-crate::group_ops!(add_async(async));
+#[async_trait]
+pub trait GroupOps {
+    /// List all of the groups that the current user is either an admin or member of.
+    ///
+    /// # Returns
+    /// `GroupListResult` List of (abbreviated) metadata about each group the user is a part of.
+    async fn group_list(&self) -> Result<GroupListResult>;
+
+    /// Create a group. The creating user will become a group admin and by default a group member.
+    ///
+    /// # Arguments
+    /// `group_create_opts` - See `GroupCreateOpts`. Use the `Default` implementation for defaults.
+    async fn group_create(&self, group_create_opts: &GroupCreateOpts) -> Result<GroupCreateResult>;
+
+    /// Get the full metadata for a specific group given its ID.
+    ///
+    /// # Arguments
+    /// - `id` - Unique ID of the group to retrieve
+    ///
+    /// # Returns
+    /// `GroupMetaResult` with details about the requested group.
+    async fn group_get_metadata(&self, id: &GroupId) -> Result<GroupGetResult>;
+
+    /// Delete the identified group. Group does not have to be empty of admins/members in order to
+    /// delete the group. **Warning: Deletion of a group will cause all documents encrypted to that
+    /// group to no longer be decryptable. Caution should be used when deleting groups.**
+    ///
+    /// # Arguments
+    /// `id` - Unique id of group
+    ///
+    /// # Returns
+    /// Deleted group id or error
+    async fn group_delete(&self, id: &GroupId) -> Result<GroupId>;
+
+    /// Update a group name to a new value or clear its value.
+    ///
+    /// # Arguments
+    /// - `id` - ID of the group to update
+    /// - `name` - New name for the group. Provide a Some to update to a new name and a None to clear the name field.
+    ///
+    /// # Returns
+    /// `Result<GroupMetaResult>` Metadata about the group that was updated.
+    async fn group_update_name(
+        &self,
+        id: &GroupId,
+        name: Option<&GroupName>,
+    ) -> Result<GroupMetaResult>;
+
+    /// Add the users as members of a group.
+    ///
+    /// # Arguments
+    /// - `id` - ID of the group to add members to
+    /// - `users` - The list of users thet will be added to the group as members.
+    /// # Returns
+    /// GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
+    ///   the reason they were not.
+    async fn group_add_members(
+        &self,
+        id: &GroupId,
+        users: &[UserId],
+    ) -> Result<GroupAccessEditResult>;
+
+    /// Remove a list of users as members from the group.
+    ///
+    /// # Arguments
+    /// - `id` - ID of the group to remove members from
+    /// - `revoke_list` - List of user IDs to remove as members
+    ///
+    /// # Returns
+    /// `Result<GroupAccessEditResult>` List of users that were removed. Also contains the users that failed to be removed
+    ///    and the reason they were not.
+    async fn group_remove_members(
+        &self,
+        id: &GroupId,
+        revoke_list: &[UserId],
+    ) -> Result<GroupAccessEditResult>;
+
+    /// Add the users as admins of a group.
+    ///
+    /// # Arguments
+    /// - `id` - ID of the group to add admins to
+    /// - `users` - The list of users that will be added to the group as admins.
+    /// # Returns
+    /// GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
+    ///   the reason they were not.
+    async fn group_add_admins(
+        &self,
+        id: &GroupId,
+        users: &[UserId],
+    ) -> Result<GroupAccessEditResult>;
+
+    /// Remove a list of users as admins from the group.
+    ///
+    /// # Arguments
+    /// - `id` - ID of the group
+    /// - `revoke_list` - List of user IDs to remove as admins
+    ///
+    /// # Returns
+    /// `Result<GroupAccessEditResult>` List of users that were removed. Also contains the users that failed to be removed
+    ///    and the reason they were not.
+    async fn group_remove_admins(
+        &self,
+        id: &GroupId,
+        revoke_list: &[UserId],
+    ) -> Result<GroupAccessEditResult>;
+
+    /// Rotate the provided group's private key, but leave the public key the same.
+    /// There's no black magic here! This is accomplished via multi-party computation with the
+    /// IronCore webservice.
+    /// Note: You must be an admin of the group in order to rotate its private key.
+    ///
+    /// # Arguments
+    /// `id` - ID of the group you wish to rotate the private key of
+    ///
+    /// # Returns
+    /// An indication of whether the group's private key needs an additional rotation
+    async fn group_rotate_private_key(&self, id: &GroupId) -> Result<GroupUpdatePrivateKeyResult>;
+}
 
 #[async_trait]
 impl GroupOps for crate::IronOxide {
