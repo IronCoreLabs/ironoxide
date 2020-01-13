@@ -6,7 +6,7 @@ mod common;
 mod integration_tests {
     use crate::common::{create_id_all_classes, gen_jwt, USER_PASSWORD};
     use ironoxide::{
-        blocking::{BlockingIronOxide, DocumentAdvancedOps, DocumentOps, GroupOps, UserOps},
+        blocking::BlockingIronOxide,
         group::GroupCreateOpts,
         user::{UserCreateOpts, UserId},
         InitAndRotationCheck, IronOxideErr,
