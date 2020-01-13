@@ -372,28 +372,6 @@ pub struct DeviceAddResult {
 }
 
 impl DeviceAddResult {
-    fn new(
-        account_id: UserId,
-        segment_id: usize,
-        device_private_key: PrivateKey,
-        signing_private_key: DeviceSigningKeyPair,
-        device_id: DeviceId,
-        name: Option<DeviceName>,
-        created: DateTime<Utc>,
-        updated: DateTime<Utc>,
-    ) -> DeviceAddResult {
-        DeviceAddResult {
-            account_id,
-            segment_id,
-            device_private_key,
-            signing_private_key,
-            device_id,
-            name,
-            created,
-            updated,
-        }
-    }
-
     pub fn account_id(&self) -> &UserId {
         &self.account_id
     }

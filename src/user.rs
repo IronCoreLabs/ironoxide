@@ -7,7 +7,7 @@ use crate::{
         user_api::{self, DeviceId, DeviceName},
         DeviceAddResult, PublicKey, OUR_REQUEST,
     },
-    DeviceContext, IronOxide, Result,
+    IronOxide, Result,
 };
 use recrypt::api::Recrypt;
 use std::{collections::HashMap, convert::TryInto};

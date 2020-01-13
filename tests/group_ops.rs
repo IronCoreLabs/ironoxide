@@ -115,6 +115,9 @@ fn group_rotate_private_key() -> Result<(), IronOxideErr> {
     let group_rotate = creator_sdk.group_rotate_private_key(group_create.id())?;
     assert_eq!(group_rotate.needs_rotation(), false);
 
+    //let updated_group = creator_sdk.group_get_metadata(group_create.id())?;
+    //assert!(updated_group.last_updated() > updated_group.created());
+
     creator_sdk.group_add_members(group_create.id(), &vec![member])?;
 
     let creator_decrypt_result = creator_sdk.document_decrypt(encrypted_data)?;
@@ -294,6 +297,7 @@ fn group_update_name() -> Result<(), IronOxideErr> {
         updated_group.name(),
         Some(&"new name".try_into().expect("this name is valid"))
     );
+    assert!(updated_group.last_updated() > updated_group.created());
 
     let cleared_name = sdk.group_update_name(updated_group.id(), None)?;
 
