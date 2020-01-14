@@ -251,7 +251,7 @@ pub mod auth_v2 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RequestAuth {
-    ///The users given id, which uniquely identifies them inside the segment.
+    ///The user's given id, which uniquely identifies them inside the segment.
     account_id: UserId,
     ///The segment_id for the above user.
     segment_id: usize,
@@ -299,13 +299,13 @@ impl RequestAuth {
 pub struct DeviceContext {
     #[serde(flatten)]
     auth: RequestAuth,
-    ///The private key which was generated for a particular device for the user. Not the user's master private key.
+    /// The private key which was generated for a particular device for the user. Not the user's master private key.
     device_private_key: PrivateKey,
 }
 
 impl DeviceContext {
     /// Create a new DeviceContext to get an SDK instance for the provided context. Takes an account's UserID,
-    /// segment id, private device keys, and signing keys. An instance of this structure is returned directly
+    /// segment id, private device keys, and signing keys. An instance of this structure can be created
     /// from the `IronOxide.generate_new_device()` method.
     pub fn new(
         account_id: UserId,
@@ -358,16 +358,21 @@ impl From<DeviceAddResult> for DeviceContext {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceAddResult {
-    ///The user's given id, which uniquely identifies them inside the segment.
+    /// The user's given id, which uniquely identifies them inside the segment.
     account_id: UserId,
-    ///The segment_id for the above user.
+    /// The user's segment id
     segment_id: usize,
+    /// The private key which was generated for a particular device for the user. Not the user's master private key.
     device_private_key: PrivateKey,
-    ///The signing key which was generated for the device. “expanded private key” (both pub/priv)
+    /// The signing key which was generated for the device. “expanded private key” (both pub/priv)
     signing_private_key: DeviceSigningKeyPair,
+    /// The id of the device that was added
     device_id: DeviceId,
+    /// The name of the device that was added
     name: Option<DeviceName>,
+    /// The date and time that the device was created
     created: DateTime<Utc>,
+    /// The date and time that the device was last updated
     updated: DateTime<Utc>,
 }
 
