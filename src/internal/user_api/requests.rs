@@ -14,7 +14,7 @@ use crate::{
         IronOxideErr, Jwt, RequestAuth, RequestErrorCode,
     },
 };
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use std::convert::TryFrom;
 
 use crate::internal::auth_v2::AuthV2Builder;
@@ -309,7 +309,6 @@ pub mod device_add {
         user_api::{requests::PublicKey, DeviceAdd, DeviceId},
         Jwt,
     };
-    use chrono::DateTime;
 
     use super::*;
 

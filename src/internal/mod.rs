@@ -306,7 +306,7 @@ pub struct DeviceContext {
 impl DeviceContext {
     /// Create a new DeviceContext to get an SDK instance for the provided context. Takes an account's UserID,
     /// segment id, private device keys, and signing keys. An instance of this structure can be created
-    /// from the `IronOxide.generate_new_device()` method.
+    /// from the result of the `IronOxide.generate_new_device()` method.
     pub fn new(
         account_id: UserId,
         segment_id: usize,
@@ -348,10 +348,10 @@ impl DeviceContext {
 impl From<DeviceAddResult> for DeviceContext {
     fn from(dar: DeviceAddResult) -> Self {
         DeviceContext::new(
-            dar.account_id().to_owned(),
-            dar.segment_id(),
-            dar.device_private_key().to_owned(),
-            dar.signing_private_key().to_owned(),
+            dar.account_id,
+            dar.segment_id,
+            dar.device_private_key,
+            dar.signing_private_key,
         )
     }
 }
