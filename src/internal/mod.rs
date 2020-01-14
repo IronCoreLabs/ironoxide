@@ -356,7 +356,8 @@ impl From<DeviceAddResult> for DeviceContext {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+// Note: Equality is not provided to protect the security of the device private key.
+#[derive(Debug, Clone)]
 pub struct DeviceAddResult {
     /// The user's given id, which uniquely identifies them inside the segment.
     account_id: UserId,
