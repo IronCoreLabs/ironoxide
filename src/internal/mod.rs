@@ -374,7 +374,7 @@ pub struct DeviceAddResult {
     /// The date and time that the device was created
     created: DateTime<Utc>,
     /// The date and time that the device was last updated
-    updated: DateTime<Utc>,
+    last_updated: DateTime<Utc>,
 }
 
 impl DeviceAddResult {
@@ -406,8 +406,8 @@ impl DeviceAddResult {
         &self.created
     }
 
-    pub fn updated(&self) -> &DateTime<Utc> {
-        &self.updated
+    pub fn last_updated(&self) -> &DateTime<Utc> {
+        &self.last_updated
     }
 }
 

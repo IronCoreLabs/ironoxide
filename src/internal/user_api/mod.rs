@@ -372,7 +372,7 @@ pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
         device_id: device_add_response.device_id,
         name: device_add_response.name,
         created: device_add_response.created,
-        updated: device_add_response.updated,
+        last_updated: device_add_response.updated,
     })
 }
 

@@ -130,7 +130,7 @@ fn user_add_device_after_rotation() -> Result<(), IronOxideErr> {
         &Default::default(),
     )?;
 
-    assert_eq!(new_device.created(), new_device.updated());
+    assert_eq!(new_device.created(), new_device.last_updated());
     assert_eq!(new_device.name(), None);
 
     //reinitialize the sdk with the new device and decrypt some data
