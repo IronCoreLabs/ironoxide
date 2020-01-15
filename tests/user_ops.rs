@@ -59,12 +59,13 @@ fn user_create_good_with_devices() -> Result<(), IronOxideErr> {
         "foo",
         &Default::default(),
     )?;
-    let device = IronOxide::generate_new_device(
+    let device: DeviceContext = IronOxide::generate_new_device(
         &gen_jwt(Some(account_id.id())).0,
         "foo",
         &DeviceCreateOpts::new(Some("myDevice".try_into()?)),
-    )?;
-    let sdk = ironoxide::initialize(&device.into())?;
+    )?
+    .into();
+    let sdk = ironoxide::initialize(&device)?;
     let device_list = sdk.user_list_devices()?;
 
     assert_eq!(1, device_list.result().len());
