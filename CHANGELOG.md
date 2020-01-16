@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.17.0 (Unreleased)
+## 0.17.0
 
 - [[#107](https://github.com/IronCoreLabs/ironoxide/pull/107)]
   - Change `generate_new_device()` to return a `DeviceAddResult`
