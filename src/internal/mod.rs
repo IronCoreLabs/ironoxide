@@ -5,7 +5,7 @@
 use crate::internal::{
     group_api::GroupId,
     rest::{Authorization, IronCoreRequest, SignatureUrlString},
-    user_api::UserId,
+    user_api::{DeviceId, DeviceName, UserId},
 };
 use chrono::{DateTime, Utc};
 use log::error;
@@ -251,7 +251,7 @@ pub mod auth_v2 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RequestAuth {
-    ///The users given id, which uniquely identifies them inside the segment.
+    ///The user's given id, which uniquely identifies them inside the segment.
     account_id: UserId,
     ///The segment_id for the above user.
     segment_id: usize,
@@ -299,14 +299,14 @@ impl RequestAuth {
 pub struct DeviceContext {
     #[serde(flatten)]
     auth: RequestAuth,
-    ///The private key which was generated for a particular device for the user. Not the user's master private key.
+    /// The private key which was generated for a particular device for the user. Not the user's master private key.
     device_private_key: PrivateKey,
 }
 
 impl DeviceContext {
     /// Create a new DeviceContext to get an SDK instance for the provided context. Takes an account's UserID,
-    /// segment id, private device keys, and signing keys. An instance of this structure is returned directly
-    /// from the `IronOxide.generate_new_device()` method.
+    /// segment id, private device keys, and signing keys. An instance of this structure can be created
+    /// from the result of the `IronOxide.generate_new_device()` method.
     pub fn new(
         account_id: UserId,
         segment_id: usize,
@@ -342,6 +342,72 @@ impl DeviceContext {
 
     pub fn device_private_key(&self) -> &PrivateKey {
         &self.device_private_key
+    }
+}
+
+impl From<DeviceAddResult> for DeviceContext {
+    fn from(dar: DeviceAddResult) -> Self {
+        DeviceContext::new(
+            dar.account_id,
+            dar.segment_id,
+            dar.device_private_key,
+            dar.signing_private_key,
+        )
+    }
+}
+
+// Note: Equality is not provided to protect the security of the device private key.
+#[derive(Debug, Clone)]
+pub struct DeviceAddResult {
+    /// The user's given id, which uniquely identifies them inside the segment.
+    account_id: UserId,
+    /// The user's segment id
+    segment_id: usize,
+    /// The private key which was generated for a particular device for the user. Not the user's master private key.
+    device_private_key: PrivateKey,
+    /// The signing key which was generated for the device. “expanded private key” (both pub/priv)
+    signing_private_key: DeviceSigningKeyPair,
+    /// The id of the device that was added
+    device_id: DeviceId,
+    /// The name of the device that was added
+    name: Option<DeviceName>,
+    /// The date and time that the device was created
+    created: DateTime<Utc>,
+    /// The date and time that the device was last updated
+    last_updated: DateTime<Utc>,
+}
+
+impl DeviceAddResult {
+    pub fn account_id(&self) -> &UserId {
+        &self.account_id
+    }
+
+    pub fn segment_id(&self) -> usize {
+        self.segment_id
+    }
+
+    pub fn signing_private_key(&self) -> &DeviceSigningKeyPair {
+        &self.signing_private_key
+    }
+
+    pub fn device_private_key(&self) -> &PrivateKey {
+        &self.device_private_key
+    }
+
+    pub fn device_id(&self) -> &DeviceId {
+        &self.device_id
+    }
+
+    pub fn name(&self) -> Option<&DeviceName> {
+        self.name.as_ref()
+    }
+
+    pub fn created(&self) -> &DateTime<Utc> {
+        &self.created
+    }
+
+    pub fn last_updated(&self) -> &DateTime<Utc> {
+        &self.last_updated
     }
 }
 
