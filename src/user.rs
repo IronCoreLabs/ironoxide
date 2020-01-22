@@ -5,9 +5,9 @@ pub use crate::internal::user_api::{
 use crate::{
     internal::{
         user_api::{self, DeviceId, DeviceName},
-        PublicKey, OUR_REQUEST,
+        DeviceAddResult, PublicKey, OUR_REQUEST,
     },
-    DeviceContext, IronOxide, Result,
+    IronOxide, Result,
 };
 use recrypt::api::Recrypt;
 use std::{collections::HashMap, convert::TryInto};
@@ -96,7 +96,7 @@ pub trait UserOps {
         jwt: &str,
         password: &str,
         device_create_options: &DeviceCreateOpts,
-    ) -> Result<DeviceContext>;
+    ) -> Result<DeviceAddResult>;
 
     /// Delete a user device.
     ///
@@ -167,7 +167,7 @@ impl UserOps for IronOxide {
         jwt: &str,
         password: &str,
         device_create_options: &DeviceCreateOpts,
-    ) -> Result<DeviceContext> {
+    ) -> Result<DeviceAddResult> {
         let recrypt = Recrypt::new();
         let mut rt = Runtime::new().unwrap();
         let device_create_options = device_create_options.clone();
