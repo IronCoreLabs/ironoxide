@@ -306,26 +306,17 @@ mod tests {
     // Even very small documents of 0 and 1 bytes should roundtrip between AesEncryptedValue and bytes
     #[test]
     fn test_roundtrip_aesencryptedvalue_zero_one_bytes() -> Result<(), IronOxideErr> {
-        // a single byte
-        let plaintext = [0u8; 1];
-        let mut key = [0u8; 32];
-        let rng = Mutex::new(rand::thread_rng());
-        take_lock(&rng).deref_mut().fill_bytes(&mut key);
-
-        // we encrypt so that a reasonable IV and GCM_TAG are included
-        let res = encrypt(&rng, &plaintext.to_vec(), key)?;
-
-        // these bytes include the IV, encrypted data, and auth tag
-        let encrypted_bytes: &[u8] = &res.bytes();
-        let round_tripped_aes_encrypted_value: AesEncryptedValue = encrypted_bytes.try_into()?;
+        // a single byte + padding for IV and auth tag
+        let encrypted_bytes = [0u8; 1 + AES_IV_LEN + AES_GCM_TAG_LEN];
+        let round_tripped_aes_encrypted_value: AesEncryptedValue =
+            encrypted_bytes.as_ref().try_into()?;
 
         assert_eq!(round_tripped_aes_encrypted_value.bytes(), encrypted_bytes);
 
-        // same test with 0 bytes
-        let plaintext = [0u8; 0];
-        let res = encrypt(&rng, &plaintext.to_vec(), key)?;
-        let encrypted_bytes: &[u8] = &res.bytes();
-        let round_tripped_aes_encrypted_value: AesEncryptedValue = encrypted_bytes.try_into()?;
+        // same test with 0 bytes of encrypted data
+        let encrypted_bytes = [0u8; 0 + AES_IV_LEN + AES_GCM_TAG_LEN];
+        let round_tripped_aes_encrypted_value: AesEncryptedValue =
+            encrypted_bytes.as_ref().try_into()?;
         assert_eq!(round_tripped_aes_encrypted_value.bytes(), encrypted_bytes);
         Ok(())
     }

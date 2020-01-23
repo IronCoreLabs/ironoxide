@@ -957,18 +957,17 @@ pub async fn decrypt_document<CR: rand::CryptoRng + rand::RngCore>(
         &device_private_key.recrypt_key(),
     )?;
 
-    aes::decrypt(&mut enc_doc, *sym_key.bytes())
-        .map_err(|e| {
-            println!("map_err: {}", &e);
-            e.into()
-        })
-        .map(move |decrypted_doc| DocumentDecryptResult {
-            id: doc_meta.0.id,
-            name: doc_meta.0.name,
-            created: doc_meta.0.created,
-            updated: doc_meta.0.updated,
-            decrypted_data: decrypted_doc.to_vec(),
-        })
+    Ok(
+        aes::decrypt(&mut enc_doc, *sym_key.bytes()).map(move |decrypted_doc| {
+            DocumentDecryptResult {
+                id: doc_meta.0.id,
+                name: doc_meta.0.name,
+                created: doc_meta.0.created,
+                updated: doc_meta.0.updated,
+                decrypted_data: decrypted_doc.to_vec(),
+            }
+        })?,
+    )
 }
 
 /// Decrypt the unmanaged document. The caller must provide both the encrypted data as well as the
