@@ -98,8 +98,8 @@ impl TryFrom<&[u8]> for AesEncryptedValue {
     type Error = IronOxideErr;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
-        //AES encrypted values should be as long as the IV, GCM auth tag, and at least 1 encrypted byte
-        if bytes.len() <= (AES_IV_LEN + AES_GCM_TAG_LEN + 1) {
+        // AES encrypted values should be as long as the IV, GCM auth tag
+        if bytes.len() < (AES_IV_LEN + AES_GCM_TAG_LEN) {
             Err(IronOxideErr::AesEncryptedDocSizeError)
         } else {
             let mut iv: [u8; AES_IV_LEN] = [0u8; AES_IV_LEN];
@@ -246,6 +246,7 @@ pub fn decrypt(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::convert::TryInto;
     use std::sync::Arc;
 
     #[test]
@@ -300,6 +301,33 @@ mod tests {
         let decrypted_plaintext = decrypt(&mut encrypted_result, key).unwrap();
 
         assert_eq!(*decrypted_plaintext, plaintext[..]);
+    }
+
+    // Even very small documents of 0 and 1 bytes should roundtrip between AesEncryptedValue and bytes
+    #[test]
+    fn test_roundtrip_aesencryptedvalue_zero_one_bytes() -> Result<(), IronOxideErr> {
+        // a single byte
+        let plaintext = [0u8; 1];
+        let mut key = [0u8; 32];
+        let rng = Mutex::new(rand::thread_rng());
+        take_lock(&rng).deref_mut().fill_bytes(&mut key);
+
+        // we encrypt so that a reasonable IV and GCM_TAG are included
+        let res = encrypt(&rng, &plaintext.to_vec(), key)?;
+
+        // these bytes include the IV, encrypted data, and auth tag
+        let encrypted_bytes: &[u8] = &res.bytes();
+        let round_tripped_aes_encrypted_value: AesEncryptedValue = encrypted_bytes.try_into()?;
+
+        assert_eq!(round_tripped_aes_encrypted_value.bytes(), encrypted_bytes);
+
+        // same test with 0 bytes
+        let plaintext = [0u8; 0];
+        let res = encrypt(&rng, &plaintext.to_vec(), key)?;
+        let encrypted_bytes: &[u8] = &res.bytes();
+        let round_tripped_aes_encrypted_value: AesEncryptedValue = encrypted_bytes.try_into()?;
+        assert_eq!(round_tripped_aes_encrypted_value.bytes(), encrypted_bytes);
+        Ok(())
     }
 
     #[test]

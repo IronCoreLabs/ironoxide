@@ -958,7 +958,10 @@ pub async fn decrypt_document<CR: rand::CryptoRng + rand::RngCore>(
     )?;
 
     aes::decrypt(&mut enc_doc, *sym_key.bytes())
-        .map_err(|e| e.into())
+        .map_err(|e| {
+            println!("map_err: {}", &e);
+            e.into()
+        })
         .map(move |decrypted_doc| DocumentDecryptResult {
             id: doc_meta.0.id,
             name: doc_meta.0.name,
