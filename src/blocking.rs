@@ -23,7 +23,14 @@ pub use crate::internal::{
         UserResult, UserUpdatePrivateKeyResult,
     },
 };
-use crate::{document::{advanced::DocumentAdvancedOps, DocumentEncryptOpts, DocumentOps}, group::{GroupCreateOpts, GroupOps}, user::{DeviceCreateOpts, UserCreateOpts, UserOps}, DeviceContext, InitAndRotationCheck::{self, NoRotationNeeded, RotationNeeded}, IronOxide, PrivateKeyRotationCheckResult, PublicKey, Result, DeviceAddResult};
+use crate::{
+    document::{advanced::DocumentAdvancedOps, DocumentEncryptOpts, DocumentOps},
+    group::{GroupCreateOpts, GroupOps},
+    user::{DeviceCreateOpts, UserCreateOpts, UserOps},
+    DeviceAddResult, DeviceContext,
+    InitAndRotationCheck::{self, NoRotationNeeded, RotationNeeded},
+    IronOxide, PrivateKeyRotationCheckResult, PublicKey, Result,
+};
 use futures::executor::block_on;
 use std::collections::HashMap;
 
