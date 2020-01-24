@@ -24,7 +24,7 @@ mod integration_tests {
             &gen_jwt(Some(account_id.id())).0,
             USER_PASSWORD,
             &Default::default(),
-        )?;
+        )?.into();
         let creator_sdk = ironoxide::blocking::initialize(&device)?;
         // making non-default groups so I can specify needs_rotation of true
         let group_create = creator_sdk.group_create(&GroupCreateOpts::new(
@@ -71,7 +71,7 @@ mod integration_tests {
             &gen_jwt(Some(account_id.id())).0,
             USER_PASSWORD,
             &Default::default(),
-        )?;
+        )?.into();
         let sdk = ironoxide::blocking::initialize(&device)?;
         let doc = [0u8; 64];
         let doc_result = sdk.document_encrypt(&doc, &Default::default())?;

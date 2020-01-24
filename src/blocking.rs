@@ -23,14 +23,7 @@ pub use crate::internal::{
         UserResult, UserUpdatePrivateKeyResult,
     },
 };
-use crate::{
-    document::{advanced::DocumentAdvancedOps, DocumentEncryptOpts, DocumentOps},
-    group::{GroupCreateOpts, GroupOps},
-    user::{DeviceCreateOpts, UserCreateOpts, UserOps},
-    DeviceContext,
-    InitAndRotationCheck::{self, NoRotationNeeded, RotationNeeded},
-    IronOxide, PrivateKeyRotationCheckResult, PublicKey, Result,
-};
+use crate::{document::{advanced::DocumentAdvancedOps, DocumentEncryptOpts, DocumentOps}, group::{GroupCreateOpts, GroupOps}, user::{DeviceCreateOpts, UserCreateOpts, UserOps}, DeviceContext, InitAndRotationCheck::{self, NoRotationNeeded, RotationNeeded}, IronOxide, PrivateKeyRotationCheckResult, PublicKey, Result, DeviceAddResult};
 use futures::executor::block_on;
 use std::collections::HashMap;
 
@@ -240,7 +233,7 @@ impl BlockingIronOxide {
         jwt: &str,
         password: &str,
         device_create_options: &DeviceCreateOpts,
-    ) -> Result<DeviceContext> {
+    ) -> Result<DeviceAddResult> {
         let rt = create_runtime();
         rt.enter(|| {
             block_on(IronOxide::generate_new_device(

@@ -55,7 +55,6 @@ mod crypto;
 mod internal;
 
 // include generated proto code as a proto module
-// mod proto
 include!(concat!(env!("OUT_DIR"), "/transform.rs"));
 
 /// SDK document operations
