@@ -58,12 +58,13 @@ async fn group_init_and_rotation_check() -> Result<(), IronOxideErr> {
         &Default::default(),
     )
     .await?;
-    let device = IronOxide::generate_new_device(
+    let device: DeviceContext = IronOxide::generate_new_device(
         &gen_jwt(Some(user.id())).0,
         USER_PASSWORD,
         &Default::default(),
     )
-    .await?;
+    .await?
+    .into();
     let sdk = ironoxide::initialize(&device).await?;
     sdk.group_create(&GroupCreateOpts::new(
         None,
@@ -176,12 +177,13 @@ async fn rotate_all() -> Result<(), IronOxideErr> {
     let account_id: UserId = create_id_all_classes("").try_into()?;
     let jwt = gen_jwt(Some(account_id.id())).0;
     IronOxide::user_create(&jwt, USER_PASSWORD, &UserCreateOpts::new(true)).await?;
-    let device = IronOxide::generate_new_device(
+    let device: DeviceContext = IronOxide::generate_new_device(
         &gen_jwt(Some(account_id.id())).0,
         USER_PASSWORD,
         &Default::default(),
     )
-    .await?;
+    .await?
+    .into();
     let creator_sdk = ironoxide::initialize(&device).await?;
     // making non-default groups so I can specify needs_rotation of true
     let group_create1 = creator_sdk
@@ -321,6 +323,7 @@ async fn group_update_name() -> Result<(), IronOxideErr> {
         updated_group.name(),
         Some(&"new name".try_into().expect("this name is valid"))
     );
+    assert!(updated_group.last_updated() > updated_group.created());
 
     let cleared_name = sdk.group_update_name(updated_group.id(), None).await?;
 

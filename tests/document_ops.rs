@@ -15,6 +15,17 @@ use itertools::EitherOrBoth;
 use std::convert::{TryFrom, TryInto};
 
 #[tokio::test]
+async fn doc_roundtrip_empty_data() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
+    let doc = [0u8; 0];
+
+    let doc_result = sdk.document_encrypt(&doc, &Default::default()).await?;
+    let decrypted_result = sdk.document_decrypt(doc_result.encrypted_data()).await?;
+
+    Ok(assert_eq!(&doc, decrypted_result.decrypted_data()))
+}
+
+#[tokio::test]
 async fn doc_create_without_id() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
 

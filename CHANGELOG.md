@@ -1,7 +1,14 @@
 # Changelog
 
-## 0.17.0 (Unreleased)
+## Unreleased
 
+- [[#108](https://github.com/IronCoreLabs/ironoxide/pull/107)]
+  - Fixes bug to allow decryption of 0 and 1 byte documents
+
+## 0.17.0
+
+- [[#107](https://github.com/IronCoreLabs/ironoxide/pull/107)]
+  - Change `generate_new_device()` to return a `DeviceAddResult`
 - [[#101](https://github.com/IronCoreLabs/ironoxide/pull/101)]
   - Dependency upgrades
 - [[#97](https://github.com/IronCoreLabs/ironoxide/pull/97)]

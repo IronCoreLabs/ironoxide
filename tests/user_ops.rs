@@ -59,12 +59,13 @@ async fn user_create_good_with_devices() -> Result<(), IronOxideErr> {
         &Default::default(),
     )
     .await?;
-    let device = IronOxide::generate_new_device(
+    let device: DeviceContext = IronOxide::generate_new_device(
         &gen_jwt(Some(account_id.id())).0,
         "foo",
         &DeviceCreateOpts::new(Some("myDevice".try_into()?)),
     )
-    .await?;
+    .await?
+    .into();
     let sdk = ironoxide::initialize(&device).await?;
     let device_list = sdk.user_list_devices().await?;
 
@@ -134,8 +135,11 @@ async fn user_add_device_after_rotation() -> Result<(), IronOxideErr> {
     )
     .await?;
 
+    assert_eq!(new_device.created(), new_device.last_updated());
+    assert_eq!(new_device.name(), None);
+
     //reinitialize the sdk with the new device and decrypt some data
-    let new_sdk = ironoxide::initialize(&new_device).await?;
+    let new_sdk = ironoxide::initialize(&new_device.into()).await?;
     let decrypt_result = new_sdk.document_decrypt(&encrypted_data).await?;
     let decrypted_data = decrypt_result.decrypted_data();
 

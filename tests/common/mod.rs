@@ -119,7 +119,7 @@ pub async fn initialize_sdk() -> Result<IronOxide, IronOxideErr> {
         &Default::default(),
     )
     .await?;
-    ironoxide::initialize(&device).await
+    ironoxide::initialize(&device.into()).await
 }
 
 #[allow(dead_code)]

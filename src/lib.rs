@@ -82,7 +82,8 @@ use crate::internal::{
     user_api::{UserId, UserResult, UserUpdatePrivateKeyResult},
 };
 pub use crate::internal::{
-    DeviceContext, DeviceSigningKeyPair, IronOxideErr, KeyPair, PrivateKey, PublicKey,
+    DeviceAddResult, DeviceContext, DeviceSigningKeyPair, IronOxideErr, KeyPair, PrivateKey,
+    PublicKey,
 };
 use itertools::EitherOrBoth;
 use rand::{

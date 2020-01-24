@@ -328,7 +328,7 @@ pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
     device_name: Option<DeviceName>,
     signing_ts: &DateTime<Utc>,
     request: &IronCoreRequest,
-) -> Result<DeviceContext, IronOxideErr> {
+) -> Result<DeviceAddResult, IronOxideErr> {
     // verify that this user exists
     let requests::user_verify::UserVerifyResponse {
         user_private_key,
@@ -342,7 +342,7 @@ pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
             "Device cannot be added to a user that doesn't exist".to_string(),
         ))?;
     // unpack the verified user and create a DeviceAdd
-    let (device_add, account_id, segment_id) = (
+    let (device_add, account_id) = (
         {
             let user_public_key: RecryptPublicKey =
                 PublicKey::try_from(user_master_public_key)?.into();
@@ -355,22 +355,25 @@ pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
                 KeyPair::new(user_public_key, RecryptPrivateKey::new(user_private_key));
 
             // generate info needed to add a device
-            let device_add = generate_device_add(recrypt, &jwt, &user_keypair, &signing_ts)?;
-            device_add
+            generate_device_add(recrypt, &jwt, &user_keypair, &signing_ts)?
         },
         account_id.try_into()?,
-        segment_id,
     );
 
     // call device_add
-    requests::device_add::user_device_add(&jwt, &device_add, &device_name, &request).await?;
+    let device_add_response =
+        requests::device_add::user_device_add(&jwt, &device_add, &device_name, &request).await?;
     // on successful response, assemble a DeviceContext for the caller
-    Ok(DeviceContext::new(
+    Ok(DeviceAddResult {
         account_id,
         segment_id,
-        device_add.device_keys.private_key,
-        device_add.signing_keys,
-    ))
+        device_private_key: device_add.device_keys.private_key,
+        signing_private_key: device_add.signing_keys,
+        device_id: device_add_response.device_id,
+        name: device_add_response.name,
+        created: device_add_response.created,
+        last_updated: device_add_response.updated,
+    })
 }
 
 pub async fn device_list(auth: &RequestAuth) -> Result<UserDeviceListResult, IronOxideErr> {
