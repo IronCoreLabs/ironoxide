@@ -16,9 +16,10 @@ use crate::{
         EncryptedDek as EncryptedDekP, EncryptedDekData as EncryptedDekDataP,
         EncryptedDeks as EncryptedDeksP,
     },
-    DeviceSigningKeyPair,
+    DeviceSigningKeyPair, IronOxide, PolicyCache,
 };
 use chrono::{DateTime, Utc};
+use dashmap::DashMap;
 use futures::try_join;
 use hex::encode;
 use itertools::{Either, Itertools};
@@ -530,6 +531,7 @@ pub async fn encrypt_document<
     user_grants: &Vec<UserId>,
     group_grants: &Vec<GroupId>,
     policy_grant: Option<&PolicyGrant>,
+    policy_cache: &PolicyCache,
 ) -> Result<DocumentEncryptResult, IronOxideErr> {
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
     let doc_id = document_id.unwrap_or(DocumentId::goo_id(rng));
@@ -547,6 +549,7 @@ pub async fn encrypt_document<
             } else {
                 None
             },
+            policy_cache
         )
     )?;
     let r = recrypt_document(
@@ -589,21 +592,39 @@ async fn resolve_keys_for_grants(
     group_grants: &Vec<GroupId>,
     policy_grant: Option<&PolicyGrant>,
     maybe_user_master_pub_key: Option<&UserMasterPublicKey>,
+    policy_cache: &PolicyCache,
 ) -> Result<(Vec<WithKey<UserOrGroup>>, Vec<DocAccessEditErr>), IronOxideErr> {
     let get_user_keys_f = internal::user_api::get_user_keys(auth, user_grants);
     let get_group_keys_f = internal::group_api::get_group_keys(auth, group_grants);
 
     let maybe_policy_grants_f =
-        policy_grant.map(|p| requests::policy_get::policy_get_request(auth, p));
+        policy_grant.map(|p| (p, requests::policy_get::policy_get_request(auth, p)));
 
     let policy_grants_f = async {
-        if let Some(pf) = maybe_policy_grants_f {
-            pf.await
+        if let Some((p, pf)) = maybe_policy_grants_f {
+            // if there's a value in the cache, use it
+            if let Some(cached_policy) = policy_cache.get(p) {
+                println!("cache HIT for policy {:?}", &p);
+                Ok((vec![], cached_policy.clone()))
+            } else {
+                println!("cache MISS for policy {:?}", &p);
+                // otherwise query the webservice and cache the result if there are no errors
+                match pf.await {
+                    Ok(policy_resp) => {
+                        let (errs, public_keys) = process_policy(&policy_resp);
+
+                        if errs.is_empty() {
+                            policy_cache.insert(p.clone(), public_keys.clone());
+                            println!("Cached policy for {:?} --> {:?}", &p, &public_keys)
+                        }
+                        Ok((errs, public_keys))
+                    }
+                    Err(e) => Err(e),
+                }
+            }
         } else {
-            Ok(PolicyResponse {
-                users_and_groups: vec![],
-                invalid_users_and_groups: vec![],
-            })
+            // No policies were included
+            Ok((vec![], vec![]))
         }
     };
     let (users, groups, policy_result) =
@@ -612,7 +633,7 @@ async fn resolve_keys_for_grants(
     let (user_errs, users_with_key) = process_users(users);
     let explicit_grants = [users_with_key, groups_with_key].concat();
 
-    let (policy_errs, applied_policy_grants) = process_policy(&policy_result);
+    let (policy_errs, applied_policy_grants) = policy_result;
     let maybe_self_grant = {
         if let Some(user_master_pub_key) = maybe_user_master_pub_key {
             vec![WithKey::new(
@@ -630,6 +651,14 @@ async fn resolve_keys_for_grants(
         { [maybe_self_grant, explicit_grants, applied_policy_grants].concat() },
         [group_errs, user_errs, policy_errs].concat(),
     ))
+}
+
+async fn get_policy(
+    auth: &RequestAuth,
+    grant: &PolicyGrant,
+    policy_cache: &PolicyCache,
+) -> Result<(Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>), IronOxideErr> {
+    async { unimplemented!() }.await
 }
 
 /// Encrypts a document but does not create the document in the IronCore system.
@@ -651,6 +680,7 @@ where
     R1: rand::CryptoRng + rand::RngCore,
     R2: rand::CryptoRng + rand::RngCore,
 {
+    let policy_cache = dashmap::DashMap::new();
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
     let doc_id = document_id.unwrap_or(DocumentId::goo_id(rng));
     let pt_bytes = plaintext.to_vec();
@@ -667,6 +697,7 @@ where
             } else {
                 None
             },
+            &policy_cache
         )
     )?;
     let r = recrypt_document(

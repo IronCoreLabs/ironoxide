@@ -216,6 +216,7 @@ impl DocumentOps for crate::IronOxide {
         document_data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptResult> {
+        let start = std::time::SystemTime::now();
         let encrypt_opts = encrypt_opts.clone();
 
         let (explicit_users, explicit_groups, grant_to_author, policy_grants) =
@@ -238,7 +239,7 @@ impl DocumentOps for crate::IronOxide {
 
         let id = encrypt_opts.id;
         let name = encrypt_opts.name;
-        self.runtime.enter(|| {
+        let x = self.runtime.enter(|| {
             futures::executor::block_on(document_api::encrypt_document(
                 self.device.auth(),
                 &self.recrypt,
@@ -251,8 +252,12 @@ impl DocumentOps for crate::IronOxide {
                 &explicit_users,
                 &explicit_groups,
                 policy_grants.as_ref(),
+                &self.policy_eval_cache,
             ))
-        })
+        });
+        let end = std::time::SystemTime::now();
+        println!("encrypt duration {:?}", end.duration_since(start).unwrap());
+        x
     }
 
     fn document_update_bytes(

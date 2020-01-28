@@ -216,6 +216,16 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
         ),
     )?;
     assert_eq!(doc_result3.grants().len(), 1);
+
+    sdk.document_encrypt(
+        &doc,
+        &DocumentEncryptOpts::with_policy_grants(
+            None,
+            Some("doc name2".try_into()?),
+            PolicyGrant::default(),
+        ),
+    )?;
+
     Ok(())
 }
 

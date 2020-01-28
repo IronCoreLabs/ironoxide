@@ -72,14 +72,18 @@ pub mod policy;
 /// Convenience re-export of essential IronOxide types
 pub mod prelude;
 
+use crate::internal::document_api::UserOrGroup;
 use crate::internal::{
     group_api::{GroupId, GroupUpdatePrivateKeyResult},
     user_api::{UserId, UserResult, UserUpdatePrivateKeyResult},
+    WithKey,
 };
 pub use crate::internal::{
     DeviceAddResult, DeviceContext, DeviceSigningKeyPair, IronOxideErr, KeyPair, PrivateKey,
     PublicKey,
 };
+use crate::policy::PolicyGrant;
+use dashmap::DashMap;
 use itertools::EitherOrBoth;
 use rand::{
     rngs::{adapter::ReseedingRng, EntropyRng},
@@ -93,6 +97,24 @@ use vec1::Vec1;
 
 /// Result of an Sdk operation
 pub type Result<T> = std::result::Result<T, IronOxideErr>;
+type PolicyCache = DashMap<PolicyGrant, Vec<WithKey<UserOrGroup>>>;
+
+pub mod config {
+    struct IronOxideConfig {
+        public_key_caching: PublicKeyCaching,
+        policy_caching: PolicyCaching,
+    }
+
+    struct PublicKeyCaching {
+        max_entries: u32,
+        entry_expiry_duration: std::time::Duration,
+    }
+
+    struct PolicyCaching {
+        max_entries: u32,
+        entry_expiry_duration: std::time::Duration,
+    }
+}
 
 /// Struct that is used to make authenticated requests to the IronCore API. Instantiated with the details
 /// of an account's various ids, device, and signing keys. Once instantiated all operations will be
@@ -104,6 +126,8 @@ pub struct IronOxide {
     pub(crate) device: DeviceContext,
     pub(crate) rng: Mutex<ReseedingRng<ChaChaCore, EntropyRng>>,
     pub(crate) runtime: tokio::runtime::Runtime,
+    pub(crate) pub_key_cache: DashMap<UserOrGroup, WithKey<UserOrGroup>>,
+    pub(crate) policy_eval_cache: PolicyCache,
 }
 
 /// Result of calling `initialize_check_rotation`
@@ -299,6 +323,9 @@ impl IronOxide {
                 EntropyRng::new(),
             )),
             runtime,
+
+            pub_key_cache: DashMap::new(),
+            policy_eval_cache: DashMap::new(),
         }
     }
 }
