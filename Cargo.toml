@@ -58,6 +58,7 @@ galvanic-assert = "~0.8"
 uuid = { version = "~0.7.2", features = ["serde", "v4"] }
 double = "~0.2.4"
 criterion = "~0.3"
+tokio = {version = "~0.2.0", features = ["macros"]}
 
 [build-dependencies]
 protobuf-codegen-pure = "~2.10"

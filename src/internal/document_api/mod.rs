@@ -20,7 +20,7 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
-use futures::try_join;
+use futures::{try_join, Future};
 use hex::encode;
 use itertools::{Either, Itertools};
 use protobuf::{Message, RepeatedField};
@@ -602,26 +602,7 @@ async fn resolve_keys_for_grants(
 
     let policy_grants_f = async {
         if let Some((p, pf)) = maybe_policy_grants_f {
-            // if there's a value in the cache, use it
-            if let Some(cached_policy) = policy_cache.get(p) {
-                println!("cache HIT for policy {:?}", &p);
-                Ok((vec![], cached_policy.clone()))
-            } else {
-                println!("cache MISS for policy {:?}", &p);
-                // otherwise query the webservice and cache the result if there are no errors
-                match pf.await {
-                    Ok(policy_resp) => {
-                        let (errs, public_keys) = process_policy(&policy_resp);
-
-                        if errs.is_empty() {
-                            policy_cache.insert(p.clone(), public_keys.clone());
-                            println!("Cached policy for {:?} --> {:?}", &p, &public_keys)
-                        }
-                        Ok((errs, public_keys))
-                    }
-                    Err(e) => Err(e),
-                }
-            }
+            get_cached_policy_or(&p, &policy_cache, pf).await
         } else {
             // No policies were included
             Ok((vec![], vec![]))
@@ -653,12 +634,35 @@ async fn resolve_keys_for_grants(
     ))
 }
 
-async fn get_policy(
-    auth: &RequestAuth,
+/// Get a cached policy or run the given Future to get the evaluated policy from the webservice
+async fn get_cached_policy_or<F>(
     grant: &PolicyGrant,
     policy_cache: &PolicyCache,
-) -> Result<(Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>), IronOxideErr> {
-    async { unimplemented!() }.await
+    get_policy_f: F,
+) -> Result<(Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>), IronOxideErr>
+where
+    F: Future<Output = Result<PolicyResponse, IronOxideErr>>,
+{
+    // if there's a value in the cache, use it
+    if let Some(cached_policy) = policy_cache.get(grant) {
+        println!("cache HIT for policy {:?}", &grant);
+        Ok((vec![], cached_policy.clone()))
+    } else {
+        println!("cache MISS for policy {:?}", &grant);
+        // otherwise query the webservice and cache the result if there are no errors
+        match get_policy_f.await {
+            Ok(policy_resp) => {
+                let (errs, public_keys) = process_policy(&policy_resp);
+
+                if errs.is_empty() {
+                    policy_cache.insert(grant.clone(), public_keys.clone());
+                    println!("Cached policy for {:?} --> {:?}", &grant, &public_keys)
+                }
+                Ok((errs, public_keys))
+            }
+            Err(e) => Err(e),
+        }
+    }
 }
 
 /// Encrypts a document but does not create the document in the IronCore system.
@@ -1277,7 +1281,59 @@ mod tests {
     use galvanic_assert::matchers::{collection::*, *};
 
     use super::*;
+    use futures::future::err;
     use std::borrow::Borrow;
+
+    #[tokio::test]
+    async fn get_policy_or() -> Result<(), IronOxideErr> {
+        let policy_json = r#"{
+              "usersAndGroups": [
+                {
+                  "type": "group",
+                  "id": "data_recovery_abcABC012_.$#|@/:;=+'-f1e11a54-8aa9-4641-aaf3-fb92079499f0",
+                  "masterPublicKey": {
+                    "x": "GE5XQYcRDRhBcyDpNwlu79x6tshNi111ym1IfxOTIxk=",
+                    "y": "amgLgcCEYIPQ4oxinLoAvsO3VG7XTFdRfkG/3tooaZE="
+                  }
+                }
+              ],
+              "invalidUsersAndGroups": []
+            }"#;
+
+        let policy_grant = PolicyGrant::default();
+        let policy_cache = DashMap::new();
+        let policy_resp: PolicyResponse =
+            serde_json::from_str(policy_json).expect("json should parse");
+
+        // as a baseline, show that the get_policy_f runs if there is a cache miss
+        let err_result = get_cached_policy_or(&policy_grant, &policy_cache, async {
+            Err(IronOxideErr::InitializeError)
+        })
+        .await;
+
+        assert!(err_result.is_err());
+
+        // now try again, but with a valid get_policy_f that will both return the policy evaluation and cache it
+        let policy = get_cached_policy_or(&policy_grant, &policy_cache, async {
+            Ok(policy_resp.clone())
+        })
+        .await
+        .expect("good policy");
+
+        // we've now cached a policy and it's the same as the one that was returned
+        assert_eq!(1, policy_cache.len());
+        assert_eq!(policy.1, policy_cache.get(&policy_grant).unwrap().clone());
+
+        // let's get the policy again, but if the policy future executes (cache miss) error
+        let policy = get_cached_policy_or(&policy_grant, &policy_cache, async {
+            Err(IronOxideErr::InitializeError)
+        })
+        .await
+        .expect("good policy");
+        assert_eq!(1, policy_cache.len());
+
+        Ok(())
+    }
 
     #[test]
     fn document_id_validate_good() {
