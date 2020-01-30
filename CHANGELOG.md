@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.18 (Unreleased)
+
+- [[#111](https://github.com/IronCoreLabs/ironoxide/pull/111)]
+  - Adds simple policy caching
+
 ## 0.17.0
 
 - [[#107](https://github.com/IronCoreLabs/ironoxide/pull/107)]
