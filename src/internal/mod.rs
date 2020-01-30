@@ -1283,7 +1283,7 @@ pub(crate) mod test {
         let de: DeviceContext = serde_json::from_str(&de_json).unwrap();
         let user_id = UserId::try_from("account_id")?;
         let user = create_user_result(user_id.clone(), 22, pub_key.into(), true);
-        let io = IronOxide::create(&user, &de);
+        let io = IronOxide::create(&user, &de, &Default::default());
 
         let good_group_id = GroupId::try_from("group")?;
         let gmr_vec = vec![

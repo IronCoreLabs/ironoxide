@@ -116,7 +116,8 @@ pub fn initialize_sdk() -> Result<IronOxide, IronOxideErr> {
         USER_PASSWORD,
         &Default::default(),
     )?;
-    ironoxide::initialize(&device.into())
+
+    ironoxide::initialize(&device.into(), &Default::default())
 }
 
 pub fn init_sdk_get_user() -> (UserId, IronOxide) {
@@ -161,7 +162,7 @@ pub fn init_sdk_get_init_result(user_needs_rotation: bool) -> (UserId, InitAndRo
     );
     (
         account_id,
-        ironoxide::initialize_check_rotation(&device_init).unwrap(),
+        ironoxide::initialize_check_rotation(&device_init, &Default::default()).unwrap(),
     )
 }
 

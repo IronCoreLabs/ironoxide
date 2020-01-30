@@ -1,3 +1,4 @@
+use crate::config::{IronOxideConfig, PolicyCachingConfig};
 use crate::{
     crypto::{
         aes::{self, AesEncryptedValue},
@@ -16,10 +17,9 @@ use crate::{
         EncryptedDek as EncryptedDekP, EncryptedDekData as EncryptedDekDataP,
         EncryptedDeks as EncryptedDeksP,
     },
-    DeviceSigningKeyPair, IronOxide, PolicyCache,
+    DeviceSigningKeyPair, PolicyCache,
 };
 use chrono::{DateTime, Utc};
-use dashmap::DashMap;
 use futures::{try_join, Future};
 use hex::encode;
 use itertools::{Either, Itertools};
@@ -521,6 +521,7 @@ pub async fn encrypt_document<
     R2: rand::CryptoRng + rand::RngCore,
 >(
     auth: &RequestAuth,
+    config: &IronOxideConfig,
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
     user_master_pub_key: &PublicKey,
     rng: &Mutex<R2>,
@@ -541,6 +542,7 @@ pub async fn encrypt_document<
         aes::encrypt_async(rng, &pt_bytes, *doc_sym_key.bytes()),
         resolve_keys_for_grants(
             auth,
+            config,
             user_grants,
             group_grants,
             policy_grant,
@@ -588,6 +590,7 @@ type UserMasterPublicKey = PublicKey;
 /// (Right) errors for any invalid users/groups that were passed
 async fn resolve_keys_for_grants(
     auth: &RequestAuth,
+    config: &IronOxideConfig,
     user_grants: &Vec<UserId>,
     group_grants: &Vec<GroupId>,
     policy_grant: Option<&PolicyGrant>,
@@ -602,7 +605,7 @@ async fn resolve_keys_for_grants(
 
     let policy_grants_f = async {
         if let Some((p, policy_eval_f)) = maybe_policy_grants_f {
-            get_cached_policy_or(&p, &policy_cache, policy_eval_f).await
+            get_cached_policy_or(&config.policy_caching, &p, &policy_cache, policy_eval_f).await
         } else {
             // No policies were included
             Ok((vec![], vec![]))
@@ -637,6 +640,7 @@ async fn resolve_keys_for_grants(
 /// Get a cached policy or run the given Future to get the evaluated policy from the webservice.
 /// Policies that evaluate cleanly with no invalid users or groups are cached for future use.
 async fn get_cached_policy_or<F>(
+    config: &PolicyCachingConfig,
     grant: &PolicyGrant,
     policy_cache: &PolicyCache,
     get_policy_f: F,
@@ -653,6 +657,10 @@ where
             Ok(policy_resp) => {
                 let (errs, public_keys) = process_policy(&policy_resp);
                 if errs.is_empty() {
+                    //if the cache has grown too large, clear it prior to adding new entries
+                    if policy_cache.len() >= config.max_entries {
+                        policy_cache.clear()
+                    }
                     policy_cache.insert(grant.clone(), public_keys.clone());
                 }
                 Ok((errs, public_keys))
@@ -682,6 +690,8 @@ where
     R2: rand::CryptoRng + rand::RngCore,
 {
     let policy_cache = dashmap::DashMap::new();
+    let config = IronOxideConfig::default();
+
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
     let doc_id = document_id.unwrap_or(DocumentId::goo_id(rng));
     let pt_bytes = plaintext.to_vec();
@@ -690,6 +700,7 @@ where
         aes::encrypt_async(rng, &pt_bytes, *doc_sym_key.bytes()),
         resolve_keys_for_grants(
             auth,
+            &config,
             user_grants,
             group_grants,
             policy_grant,
@@ -1278,32 +1289,21 @@ mod tests {
     use galvanic_assert::matchers::{collection::*, *};
 
     use super::*;
-    use futures::future::err;
+    use dashmap::DashMap;
     use std::borrow::Borrow;
 
     #[tokio::test]
     async fn get_policy_or() -> Result<(), IronOxideErr> {
-        let policy_json = r#"{
-              "usersAndGroups": [
-                {
-                  "type": "group",
-                  "id": "data_recovery_abcABC012_.$#|@/:;=+'-f1e11a54-8aa9-4641-aaf3-fb92079499f0",
-                  "masterPublicKey": {
-                    "x": "GE5XQYcRDRhBcyDpNwlu79x6tshNi111ym1IfxOTIxk=",
-                    "y": "amgLgcCEYIPQ4oxinLoAvsO3VG7XTFdRfkG/3tooaZE="
-                  }
-                }
-              ],
-              "invalidUsersAndGroups": []
-            }"#;
+        let policy_json = r#"{ "usersAndGroups": [ { "type": "group", "id": "data_recovery_abcABC012_.$#|@/:;=+'-f1e11a54-8aa9-4641-aaf3-fb92079499f0", "masterPublicKey": { "x": "GE5XQYcRDRhBcyDpNwlu79x6tshNi111ym1IfxOTIxk=", "y": "amgLgcCEYIPQ4oxinLoAvsO3VG7XTFdRfkG/3tooaZE=" } } ], "invalidUsersAndGroups": [] }"#;
 
         let policy_grant = PolicyGrant::default();
         let policy_cache = DashMap::new();
+        let config = PolicyCachingConfig::default();
         let policy_resp: PolicyResponse =
             serde_json::from_str(policy_json).expect("json should parse");
 
         // as a baseline, show that the get_policy_f runs if there is a cache miss
-        let err_result = get_cached_policy_or(&policy_grant, &policy_cache, async {
+        let err_result = get_cached_policy_or(&config, &policy_grant, &policy_cache, async {
             Err(IronOxideErr::InitializeError)
         })
         .await;
@@ -1311,22 +1311,62 @@ mod tests {
         assert!(err_result.is_err());
 
         // now try again, but with a valid get_policy_f that will both return the policy evaluation and cache it
-        let policy = get_cached_policy_or(&policy_grant, &policy_cache, async {
+        let policy = get_cached_policy_or(&config, &policy_grant, &policy_cache, async {
             Ok(policy_resp.clone())
         })
-        .await
-        .expect("good policy");
+        .await?;
 
         // we've now cached a policy and it's the same as the one that was returned
         assert_eq!(1, policy_cache.len());
         assert_eq!(policy.1, policy_cache.get(&policy_grant).unwrap().clone());
 
         // let's get the policy again, but if the policy future executes (cache miss) error
-        let policy = get_cached_policy_or(&policy_grant, &policy_cache, async {
+        get_cached_policy_or(&config, &policy_grant, &policy_cache, async {
             Err(IronOxideErr::InitializeError)
         })
-        .await
-        .expect("good policy");
+        .await?;
+        assert_eq!(1, policy_cache.len());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn policy_cache_max_size_honored() -> Result<(), IronOxideErr> {
+        let policy_json = r#"{ "usersAndGroups": [ { "type": "group", "id": "data_recovery_abcABC012_.$#|@/:;=+'-f1e11a54-8aa9-4641-aaf3-fb92079499f0", "masterPublicKey": { "x": "GE5XQYcRDRhBcyDpNwlu79x6tshNi111ym1IfxOTIxk=", "y": "amgLgcCEYIPQ4oxinLoAvsO3VG7XTFdRfkG/3tooaZE=" } } ], "invalidUsersAndGroups": [] }"#;
+        let policy_grant = PolicyGrant::default();
+        let policy_cache = DashMap::new();
+        let config = PolicyCachingConfig::new(3);
+        let policy_resp: PolicyResponse =
+            serde_json::from_str(policy_json).expect("json should parse");
+
+        // now try again, but with a valid get_policy_f that will both return the policy evaluation and cache it
+        get_cached_policy_or(&config, &policy_grant, &policy_cache, async {
+            Ok(policy_resp.clone())
+        })
+        .await?;
+        assert_eq!(1, policy_cache.len());
+
+        let policy_grant2 = PolicyGrant::new(Some("foo".try_into()?), None, None, None);
+        get_cached_policy_or(&config, &policy_grant2, &policy_cache, async {
+            Ok(policy_resp.clone())
+        })
+        .await?;
+        assert_eq!(2, policy_cache.len());
+
+        let policy_grant3 = PolicyGrant::new(Some("bar".try_into()?), None, None, None);
+        get_cached_policy_or(&config, &policy_grant3, &policy_cache, async {
+            Ok(policy_resp.clone())
+        })
+        .await?;
+        assert_eq!(3, policy_cache.len());
+
+        let policy_grant4 = PolicyGrant::new(Some("baz".try_into()?), None, None, None);
+        get_cached_policy_or(&config, &policy_grant4, &policy_cache, async {
+            Ok(policy_resp.clone())
+        })
+        .await?;
+
+        // we should be over the configured max_entries, so the cache should reset prior to storing the value
         assert_eq!(1, policy_cache.len());
 
         Ok(())

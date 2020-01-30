@@ -241,6 +241,7 @@ impl DocumentOps for crate::IronOxide {
         self.runtime.enter(|| {
             futures::executor::block_on(document_api::encrypt_document(
                 self.device.auth(),
+                &self.config,
                 &self.recrypt,
                 &self.user_master_pub_key,
                 &self.rng,
