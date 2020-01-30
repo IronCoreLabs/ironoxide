@@ -601,8 +601,8 @@ async fn resolve_keys_for_grants(
         policy_grant.map(|p| (p, requests::policy_get::policy_get_request(auth, p)));
 
     let policy_grants_f = async {
-        if let Some((p, pf)) = maybe_policy_grants_f {
-            get_cached_policy_or(&p, &policy_cache, pf).await
+        if let Some((p, policy_eval_f)) = maybe_policy_grants_f {
+            get_cached_policy_or(&p, &policy_cache, policy_eval_f).await
         } else {
             // No policies were included
             Ok((vec![], vec![]))
@@ -634,7 +634,8 @@ async fn resolve_keys_for_grants(
     ))
 }
 
-/// Get a cached policy or run the given Future to get the evaluated policy from the webservice
+/// Get a cached policy or run the given Future to get the evaluated policy from the webservice.
+/// Policies that evaluate cleanly with no invalid users or groups are cached for future use.
 async fn get_cached_policy_or<F>(
     grant: &PolicyGrant,
     policy_cache: &PolicyCache,
@@ -645,18 +646,14 @@ where
 {
     // if there's a value in the cache, use it
     if let Some(cached_policy) = policy_cache.get(grant) {
-        println!("cache HIT for policy {:?}", &grant);
         Ok((vec![], cached_policy.clone()))
     } else {
-        println!("cache MISS for policy {:?}", &grant);
         // otherwise query the webservice and cache the result if there are no errors
         match get_policy_f.await {
             Ok(policy_resp) => {
                 let (errs, public_keys) = process_policy(&policy_resp);
-
                 if errs.is_empty() {
                     policy_cache.insert(grant.clone(), public_keys.clone());
-                    println!("Cached policy for {:?} --> {:?}", &grant, &public_keys)
                 }
                 Ok((errs, public_keys))
             }

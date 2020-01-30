@@ -303,6 +303,15 @@ impl IronOxide {
         &self.device
     }
 
+    /// Clears all entries from the policy cache.
+    /// # Returns
+    /// Number of entries cleared from the cache
+    pub fn clear_policy_cache(&self) -> usize {
+        let size = self.policy_eval_cache.len();
+        self.policy_eval_cache.clear();
+        size
+    }
+
     /// Create an IronOxide instance. Depends on the system having enough entropy to seed a RNG.
     fn create(curr_user: &UserResult, device_context: &DeviceContext) -> IronOxide {
         // create a tokio runtime with the default number of core threads (num of cores on a machine)
