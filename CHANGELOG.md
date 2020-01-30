@@ -4,6 +4,8 @@
 
 - [[#111](https://github.com/IronCoreLabs/ironoxide/pull/111)]
   - Adds simple policy caching
+- [[#108](https://github.com/IronCoreLabs/ironoxide/pull/107)]
+  - Fixes bug to allow decryption of 0 and 1 byte documents
 
 ## 0.17.0
 
