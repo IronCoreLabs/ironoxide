@@ -217,7 +217,7 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
         },])
     );
 
-    //finally send an empty policy
+    //finally send an empty policy. This will evaluate cleanly and will thus be cached.
     let doc_result3 = sdk.document_encrypt(
         &doc,
         &DocumentEncryptOpts::with_policy_grants(
@@ -227,6 +227,8 @@ fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
         ),
     )?;
     assert_eq!(doc_result3.grants().len(), 1);
+    assert_eq!(sdk.clear_policy_cache(), 1);
+
     Ok(())
 }
 

@@ -1,4 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use ironoxide::config::IronOxideConfig;
 use ironoxide::{
     document::{advanced::DocumentAdvancedOps, DocumentEncryptOpts},
     prelude::*,
@@ -10,7 +11,7 @@ fn setup_dev() -> IronOxide {
     let device_string = std::fs::read_to_string("benches/data/dev1-device1.json")
         .expect("device missing. Did you decrypt the .iron file?");
     let d: DeviceContext = serde_json::from_str(&device_string).expect("DeviceContext invalid");
-    ironoxide::initialize(&d).expect("ironoxide init failed")
+    ironoxide::initialize(&d, &IronOxideConfig::default()).expect("ironoxide init failed")
 }
 
 fn criterion_benchmark(c: &mut Criterion) {

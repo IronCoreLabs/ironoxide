@@ -1,6 +1,6 @@
 [package]
 name = "ironoxide"
-version = "0.17.0"
+version = "0.18.0"
 authors = ["IronCore Labs <info@ironcorelabs.com>"]
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -37,6 +37,7 @@ percent-encoding="~1.0"
 log = "~0.4"
 protobuf = {version = "~2.10", features = ["with-bytes"]}
 vec1 = "~1.4.0"
+dashmap = "3.4.0"
 
 [profile.dev]
 opt-level = 2
@@ -57,6 +58,7 @@ galvanic-assert = "~0.8"
 uuid = { version = "~0.7.2", features = ["serde", "v4"] }
 double = "~0.2.4"
 criterion = "~0.3"
+tokio = {version = "~0.2.0", features = ["macros"]}
 
 [build-dependencies]
 protobuf-codegen-pure = "~2.10"

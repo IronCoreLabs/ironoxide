@@ -1,3 +1,4 @@
+use crate::config::{IronOxideConfig, PolicyCachingConfig};
 use crate::{
     crypto::{
         aes::{self, AesEncryptedValue},
@@ -16,10 +17,10 @@ use crate::{
         EncryptedDek as EncryptedDekP, EncryptedDekData as EncryptedDekDataP,
         EncryptedDeks as EncryptedDeksP,
     },
-    DeviceSigningKeyPair,
+    DeviceSigningKeyPair, PolicyCache,
 };
 use chrono::{DateTime, Utc};
-use futures::try_join;
+use futures::{try_join, Future};
 use hex::encode;
 use itertools::{Either, Itertools};
 use protobuf::{Message, RepeatedField};
@@ -520,6 +521,7 @@ pub async fn encrypt_document<
     R2: rand::CryptoRng + rand::RngCore,
 >(
     auth: &RequestAuth,
+    config: &IronOxideConfig,
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
     user_master_pub_key: &PublicKey,
     rng: &Mutex<R2>,
@@ -530,6 +532,7 @@ pub async fn encrypt_document<
     user_grants: &Vec<UserId>,
     group_grants: &Vec<GroupId>,
     policy_grant: Option<&PolicyGrant>,
+    policy_cache: &PolicyCache,
 ) -> Result<DocumentEncryptResult, IronOxideErr> {
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
     let doc_id = document_id.unwrap_or(DocumentId::goo_id(rng));
@@ -539,6 +542,7 @@ pub async fn encrypt_document<
         aes::encrypt_async(rng, &pt_bytes, *doc_sym_key.bytes()),
         resolve_keys_for_grants(
             auth,
+            config,
             user_grants,
             group_grants,
             policy_grant,
@@ -547,6 +551,7 @@ pub async fn encrypt_document<
             } else {
                 None
             },
+            policy_cache
         )
     )?;
     let r = recrypt_document(
@@ -585,25 +590,25 @@ type UserMasterPublicKey = PublicKey;
 /// (Right) errors for any invalid users/groups that were passed
 async fn resolve_keys_for_grants(
     auth: &RequestAuth,
+    config: &IronOxideConfig,
     user_grants: &Vec<UserId>,
     group_grants: &Vec<GroupId>,
     policy_grant: Option<&PolicyGrant>,
     maybe_user_master_pub_key: Option<&UserMasterPublicKey>,
+    policy_cache: &PolicyCache,
 ) -> Result<(Vec<WithKey<UserOrGroup>>, Vec<DocAccessEditErr>), IronOxideErr> {
     let get_user_keys_f = internal::user_api::get_user_keys(auth, user_grants);
     let get_group_keys_f = internal::group_api::get_group_keys(auth, group_grants);
 
     let maybe_policy_grants_f =
-        policy_grant.map(|p| requests::policy_get::policy_get_request(auth, p));
+        policy_grant.map(|p| (p, requests::policy_get::policy_get_request(auth, p)));
 
     let policy_grants_f = async {
-        if let Some(pf) = maybe_policy_grants_f {
-            pf.await
+        if let Some((p, policy_eval_f)) = maybe_policy_grants_f {
+            get_cached_policy_or(&config.policy_caching, &p, &policy_cache, policy_eval_f).await
         } else {
-            Ok(PolicyResponse {
-                users_and_groups: vec![],
-                invalid_users_and_groups: vec![],
-            })
+            // No policies were included
+            Ok((vec![], vec![]))
         }
     };
     let (users, groups, policy_result) =
@@ -612,7 +617,7 @@ async fn resolve_keys_for_grants(
     let (user_errs, users_with_key) = process_users(users);
     let explicit_grants = [users_with_key, groups_with_key].concat();
 
-    let (policy_errs, applied_policy_grants) = process_policy(&policy_result);
+    let (policy_errs, applied_policy_grants) = policy_result;
     let maybe_self_grant = {
         if let Some(user_master_pub_key) = maybe_user_master_pub_key {
             vec![WithKey::new(
@@ -630,6 +635,36 @@ async fn resolve_keys_for_grants(
         { [maybe_self_grant, explicit_grants, applied_policy_grants].concat() },
         [group_errs, user_errs, policy_errs].concat(),
     ))
+}
+
+/// Get a cached policy or run the given Future to get the evaluated policy from the webservice.
+/// Policies that evaluate cleanly with no invalid users or groups are cached for future use.
+async fn get_cached_policy_or<F>(
+    config: &PolicyCachingConfig,
+    grant: &PolicyGrant,
+    policy_cache: &PolicyCache,
+    get_policy_f: F,
+) -> Result<(Vec<DocAccessEditErr>, Vec<WithKey<UserOrGroup>>), IronOxideErr>
+where
+    F: Future<Output = Result<PolicyResponse, IronOxideErr>>,
+{
+    // if there's a value in the cache, use it
+    if let Some(cached_policy) = policy_cache.get(grant) {
+        Ok((vec![], cached_policy.clone()))
+    } else {
+        // otherwise query the webservice and cache the result if there are no errors
+        get_policy_f.await.map(|policy_resp| {
+            let (errs, public_keys) = process_policy(&policy_resp);
+            if errs.is_empty() {
+                //if the cache has grown too large, clear it prior to adding new entries
+                if policy_cache.len() >= config.max_entries {
+                    policy_cache.clear()
+                }
+                policy_cache.insert(grant.clone(), public_keys.clone());
+            }
+            (errs, public_keys)
+        })
+    }
 }
 
 /// Encrypts a document but does not create the document in the IronCore system.
@@ -651,6 +686,9 @@ where
     R1: rand::CryptoRng + rand::RngCore,
     R2: rand::CryptoRng + rand::RngCore,
 {
+    let policy_cache = dashmap::DashMap::new();
+    let config = IronOxideConfig::default();
+
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
     let doc_id = document_id.unwrap_or(DocumentId::goo_id(rng));
     let pt_bytes = plaintext.to_vec();
@@ -659,6 +697,7 @@ where
         aes::encrypt_async(rng, &pt_bytes, *doc_sym_key.bytes()),
         resolve_keys_for_grants(
             auth,
+            &config,
             user_grants,
             group_grants,
             policy_grant,
@@ -667,6 +706,7 @@ where
             } else {
                 None
             },
+            &policy_cache
         )
     )?;
     let r = recrypt_document(
@@ -1248,8 +1288,106 @@ mod tests {
     use galvanic_assert::matchers::{collection::*, *};
 
     use super::*;
+    use dashmap::DashMap;
     use std::borrow::Borrow;
 
+    #[tokio::test]
+    async fn get_policy_or() -> Result<(), IronOxideErr> {
+        let policy_json = r#"{ "usersAndGroups": [ { "type": "group", "id": "data_recovery_abcABC012_.$#|@/:;=+'-f1e11a54-8aa9-4641-aaf3-fb92079499f0", "masterPublicKey": { "x": "GE5XQYcRDRhBcyDpNwlu79x6tshNi111ym1IfxOTIxk=", "y": "amgLgcCEYIPQ4oxinLoAvsO3VG7XTFdRfkG/3tooaZE=" } } ], "invalidUsersAndGroups": [] }"#;
+
+        let policy_grant = PolicyGrant::default();
+        let policy_cache = DashMap::new();
+        let config = PolicyCachingConfig::default();
+        let policy_resp: PolicyResponse =
+            serde_json::from_str(policy_json).expect("json should parse");
+
+        // as a baseline, show that the get_policy_f runs if there is a cache miss
+        let err_result = get_cached_policy_or(&config, &policy_grant, &policy_cache, async {
+            Err(IronOxideErr::InitializeError)
+        })
+        .await;
+
+        assert!(err_result.is_err());
+
+        // now try again, but with a valid get_policy_f that will both return the policy evaluation and cache it
+        let policy = get_cached_policy_or(&config, &policy_grant, &policy_cache, async {
+            Ok(policy_resp.clone())
+        })
+        .await?;
+
+        // we've now cached a policy and it's the same as the one that was returned
+        assert_eq!(1, policy_cache.len());
+        assert_eq!(policy.1, policy_cache.get(&policy_grant).unwrap().clone());
+
+        // let's get the policy again, but if the policy future executes (cache miss) error
+        get_cached_policy_or(&config, &policy_grant, &policy_cache, async {
+            Err(IronOxideErr::InitializeError)
+        })
+        .await?;
+        assert_eq!(1, policy_cache.len());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn policy_cache_max_size_honored() -> Result<(), IronOxideErr> {
+        let policy_json = r#"{ "usersAndGroups": [ { "type": "group", "id": "data_recovery_abcABC012_.$#|@/:;=+'-f1e11a54-8aa9-4641-aaf3-fb92079499f0", "masterPublicKey": { "x": "GE5XQYcRDRhBcyDpNwlu79x6tshNi111ym1IfxOTIxk=", "y": "amgLgcCEYIPQ4oxinLoAvsO3VG7XTFdRfkG/3tooaZE=" } } ], "invalidUsersAndGroups": [] }"#;
+        let policy_grant = PolicyGrant::default();
+        let policy_cache = DashMap::new();
+        let config = PolicyCachingConfig::new(3);
+        let policy_resp: PolicyResponse =
+            serde_json::from_str(policy_json).expect("json should parse");
+
+        get_cached_policy_or(&config, &policy_grant, &policy_cache, async {
+            Ok(policy_resp.clone())
+        })
+        .await?;
+        assert_eq!(1, policy_cache.len());
+
+        let policy_grant2 = PolicyGrant::new(Some("foo".try_into()?), None, None, None);
+        get_cached_policy_or(&config, &policy_grant2, &policy_cache, async {
+            Ok(policy_resp.clone())
+        })
+        .await?;
+        assert_eq!(2, policy_cache.len());
+
+        let policy_grant3 = PolicyGrant::new(Some("bar".try_into()?), None, None, None);
+        get_cached_policy_or(&config, &policy_grant3, &policy_cache, async {
+            Ok(policy_resp.clone())
+        })
+        .await?;
+        assert_eq!(3, policy_cache.len());
+
+        let policy_grant4 = PolicyGrant::new(Some("baz".try_into()?), None, None, None);
+        get_cached_policy_or(&config, &policy_grant4, &policy_cache, async {
+            Ok(policy_resp.clone())
+        })
+        .await?;
+
+        // we should be over the configured max_entries, so the cache should reset prior to storing the value
+        assert_eq!(1, policy_cache.len());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn policy_cache_unclean_entries_not_cached() -> Result<(), IronOxideErr> {
+        // policy with 1 "good" group and one "bad" one
+        let policy_json = r#"{ "usersAndGroups": [ { "type": "group", "id": "data_recovery_abcABC012_.$#|@/:;=+'-f1e11a54-8aa9-4641-aaf3-fb92079499f0", "masterPublicKey": { "x": "GE5XQYcRDRhBcyDpNwlu79x6tshNi111ym1IfxOTIxk=", "y": "amgLgcCEYIPQ4oxinLoAvsO3VG7XTFdRfkG/3tooaZE=" } } ], "invalidUsersAndGroups": [{ "type": "group", "id": "group-that-does-not-exist" }] }"#;
+        let policy_grant = PolicyGrant::default();
+        let policy_cache = DashMap::new();
+        let config = PolicyCachingConfig::default();
+        let policy_resp: PolicyResponse =
+            serde_json::from_str(policy_json).expect("json should parse");
+
+        get_cached_policy_or(&config, &policy_grant, &policy_cache, async {
+            Ok(policy_resp.clone())
+        })
+        .await?;
+        assert_eq!(0, policy_cache.len());
+
+        Ok(())
+    }
     #[test]
     fn document_id_validate_good() {
         let doc_id1 = "an_actual_good_doc_id$";
