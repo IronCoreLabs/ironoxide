@@ -287,7 +287,7 @@ fn create_runtime() -> tokio::runtime::Runtime {
 /// keys are valid and exist for the provided account. If successful, returns instance of the BlockingIronOxide SDK.
 pub fn initialize(device_context: &DeviceContext) -> Result<BlockingIronOxide> {
     let rt = create_runtime();
-    let maybe_io = rt.enter(|| block_on(crate::initialize(device_context)));
+    let maybe_io = rt.enter(|| block_on(crate::initialize(device_context, &Default::default())));
     maybe_io.map(|io| BlockingIronOxide {
         ironoxide: io,
         runtime: rt,
@@ -301,7 +301,12 @@ pub fn initialize_check_rotation(
     device_context: &DeviceContext,
 ) -> Result<InitAndRotationCheck<BlockingIronOxide>> {
     let rt = create_runtime();
-    let maybe_init = rt.enter(|| block_on(crate::initialize_check_rotation(device_context)));
+    let maybe_init = rt.enter(|| {
+        block_on(crate::initialize_check_rotation(
+            device_context,
+            &Default::default(),
+        ))
+    });
     maybe_init.map(|init| match init {
         NoRotationNeeded(io) => NoRotationNeeded(BlockingIronOxide {
             ironoxide: io,

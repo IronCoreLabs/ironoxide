@@ -76,14 +76,19 @@ pub mod policy;
 /// Convenience re-export of essential IronOxide types
 pub mod prelude;
 
+use crate::config::IronOxideConfig;
+use crate::internal::document_api::UserOrGroup;
 use crate::internal::{
     group_api::{GroupId, GroupUpdatePrivateKeyResult},
     user_api::{UserId, UserResult, UserUpdatePrivateKeyResult},
+    WithKey,
 };
 pub use crate::internal::{
     DeviceAddResult, DeviceContext, DeviceSigningKeyPair, IronOxideErr, KeyPair, PrivateKey,
     PublicKey,
 };
+use crate::policy::PolicyGrant;
+use dashmap::DashMap;
 use itertools::EitherOrBoth;
 use rand::{
     rngs::{adapter::ReseedingRng, EntropyRng},
@@ -96,16 +101,71 @@ use vec1::Vec1;
 
 /// Result of an Sdk operation
 pub type Result<T> = std::result::Result<T, IronOxideErr>;
+type PolicyCache = DashMap<PolicyGrant, Vec<WithKey<UserOrGroup>>>;
+
+/// IronOxide SDK configuration
+pub mod config {
+
+    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    pub struct IronOxideConfig {
+        pub(crate) policy_caching: PolicyCachingConfig,
+    }
+
+    impl IronOxideConfig {
+        pub fn new(policy_caching: PolicyCachingConfig) -> IronOxideConfig {
+            IronOxideConfig { policy_caching }
+        }
+    }
+
+    /// Policy evaluation caching config. Lifetime of the cache is the lifetime of the `IronOxide` struct.
+    ///
+    /// Since policies are evaluated by the webservice, caching the result can greatly speed
+    /// up encrypting a document with a [PolicyGrant](../policy/struct.PolicyGrant.html). There is no expiration of the cache, so
+    /// if you want to clear it at runtime, call [IronOxide::clear_policy_cache()](../struct.IronOxide.html#method.clear_policy_cache).
+    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    pub struct PolicyCachingConfig {
+        pub(crate) max_entries: usize,
+    }
+
+    impl PolicyCachingConfig {
+        /// # Arguments
+        /// `max_entries` - maximum number of policy evaluations that will be cached by the SDK.
+        /// If the maximum number is exceeded, the cache will be cleared prior to storing the next entry.
+        pub fn new(max_entries: usize) -> PolicyCachingConfig {
+            PolicyCachingConfig { max_entries }
+        }
+
+        pub fn max_entries(&self) -> usize {
+            self.max_entries
+        }
+    }
+
+    impl Default for IronOxideConfig {
+        fn default() -> Self {
+            IronOxideConfig {
+                policy_caching: PolicyCachingConfig::default(),
+            }
+        }
+    }
+
+    impl Default for PolicyCachingConfig {
+        fn default() -> Self {
+            PolicyCachingConfig { max_entries: 128 }
+        }
+    }
+}
 
 /// Struct that is used to make authenticated requests to the IronCore API. Instantiated with the details
 /// of an account's various ids, device, and signing keys. Once instantiated all operations will be
 /// performed in the context of the account provided.
 pub struct IronOxide {
+    pub(crate) config: IronOxideConfig,
     pub(crate) recrypt: Recrypt<Sha256, Ed25519, RandomBytes<recrypt::api::DefaultRng>>,
     /// Master public key for the user identified by `account_id`
     pub(crate) user_master_pub_key: PublicKey,
     pub(crate) device: DeviceContext,
     pub(crate) rng: Mutex<ReseedingRng<ChaChaCore, EntropyRng>>,
+    pub(crate) policy_eval_cache: PolicyCache,
 }
 
 /// Result of calling `initialize_check_rotation`
@@ -162,10 +222,13 @@ impl PrivateKeyRotationCheckResult {
 
 /// Initialize the IronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
 /// keys are valid and exist for the provided account. If successful returns an instance of the IronOxide SDK
-pub async fn initialize(device_context: &DeviceContext) -> Result<IronOxide> {
+pub async fn initialize(
+    device_context: &DeviceContext,
+    config: &IronOxideConfig,
+) -> Result<IronOxide> {
     internal::user_api::user_get_current(&device_context.auth())
         .await
-        .map(|current_user| IronOxide::create(&current_user, device_context))
+        .map(|current_user| IronOxide::create(&current_user, device_context, config))
         .map_err(|_| IronOxideErr::InitializeError)
 }
 
@@ -202,12 +265,13 @@ fn check_groups_and_collect_rotation<T>(
 /// for private key rotation.
 pub async fn initialize_check_rotation(
     device_context: &DeviceContext,
+    config: &IronOxideConfig,
 ) -> Result<InitAndRotationCheck<IronOxide>> {
     let (curr_user, group_list_result) = futures::try_join!(
         internal::user_api::user_get_current(device_context.auth()),
         internal::group_api::list(device_context.auth(), None)
     )?;
-    let ironoxide = IronOxide::create(&curr_user, &device_context);
+    let ironoxide = IronOxide::create(&curr_user, device_context, config);
     let user_groups = group_list_result.result();
 
     Ok(check_groups_and_collect_rotation(
@@ -224,11 +288,25 @@ impl IronOxide {
         &self.device
     }
 
+    /// Clears all entries from the policy cache.
+    /// # Returns
+    /// Number of entries cleared from the cache
+    pub fn clear_policy_cache(&self) -> usize {
+        let size = self.policy_eval_cache.len();
+        self.policy_eval_cache.clear();
+        size
+    }
+
     /// Create an IronOxide instance. Depends on the system having enough entropy to seed a RNG.
-    fn create(curr_user: &UserResult, device_context: &DeviceContext) -> IronOxide {
+    fn create(
+        curr_user: &UserResult,
+        device_context: &DeviceContext,
+        config: &IronOxideConfig,
+    ) -> IronOxide {
         // create a tokio runtime with the default number of core threads (num of cores on a machine)
         // and an elevated number of blocking_threads as we expect heavy concurrency to be network-bound
         IronOxide {
+            config: config.clone(),
             recrypt: Recrypt::new(),
             device: device_context.clone(),
             user_master_pub_key: curr_user.user_public_key().to_owned(),
@@ -237,6 +315,7 @@ impl IronOxide {
                 BYTES_BEFORE_RESEEDING,
                 EntropyRng::new(),
             )),
+            policy_eval_cache: DashMap::new(),
         }
     }
 

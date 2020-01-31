@@ -1,10 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.18 (Unreleased)
 
 - [[#112](https://github.com/IronCoreLabs/ironoxide/pull/112)]
   - Make the default API async
   - Add feature flag `blocking` to enable the sync API
+- [[#111](https://github.com/IronCoreLabs/ironoxide/pull/111)]
+  - Adds simple policy caching
 - [[#108](https://github.com/IronCoreLabs/ironoxide/pull/108)]
   - Fix bug to allow decryption of 0 and 1 byte documents
 

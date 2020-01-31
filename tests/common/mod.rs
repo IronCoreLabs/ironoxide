@@ -119,7 +119,7 @@ pub async fn initialize_sdk() -> Result<IronOxide, IronOxideErr> {
         &Default::default(),
     )
     .await?;
-    ironoxide::initialize(&device.into()).await
+    ironoxide::initialize(&device.into(), &Default::default()).await
 }
 
 #[allow(dead_code)]
@@ -171,7 +171,7 @@ pub async fn init_sdk_get_init_result(
     );
     (
         account_id,
-        ironoxide::initialize_check_rotation(&device_init)
+        ironoxide::initialize_check_rotation(&device_init, &Default::default())
             .await
             .unwrap(),
     )

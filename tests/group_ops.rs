@@ -65,7 +65,7 @@ async fn group_init_and_rotation_check() -> Result<(), IronOxideErr> {
     )
     .await?
     .into();
-    let sdk = ironoxide::initialize(&device).await?;
+    let sdk = ironoxide::initialize(&device, &Default::default()).await?;
     sdk.group_create(&GroupCreateOpts::new(
         None,
         None,
@@ -77,7 +77,8 @@ async fn group_init_and_rotation_check() -> Result<(), IronOxideErr> {
         true,
     ))
     .await?;
-    let init_and_rotation_check = ironoxide::initialize_check_rotation(&device).await?;
+    let init_and_rotation_check =
+        ironoxide::initialize_check_rotation(&device, &Default::default()).await?;
     match init_and_rotation_check {
         InitAndRotationCheck::RotationNeeded(_, rotations_needed) => {
             assert!(rotations_needed.group_rotation_needed().is_some());
@@ -184,7 +185,7 @@ async fn rotate_all() -> Result<(), IronOxideErr> {
     )
     .await?
     .into();
-    let creator_sdk = ironoxide::initialize(&device).await?;
+    let creator_sdk = ironoxide::initialize(&device, &Default::default()).await?;
     // making non-default groups so I can specify needs_rotation of true
     let group_create1 = creator_sdk
         .group_create(&GroupCreateOpts::new(
@@ -213,7 +214,8 @@ async fn rotate_all() -> Result<(), IronOxideErr> {
         .await?;
     assert_eq!(group_create2.needs_rotation(), Some(true));
 
-    let init_and_rotation_check = ironoxide::initialize_check_rotation(&device).await?;
+    let init_and_rotation_check =
+        ironoxide::initialize_check_rotation(&device, &Default::default()).await?;
     let (user_result, group_result) = match init_and_rotation_check {
         InitAndRotationCheck::NoRotationNeeded(_) => {
             panic!("both user and groups should need rotation!");

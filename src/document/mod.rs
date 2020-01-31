@@ -237,6 +237,7 @@ impl DocumentOps for crate::IronOxide {
 
         document_api::encrypt_document(
             self.device.auth(),
+            &self.config,
             &self.recrypt,
             &self.user_master_pub_key,
             &self.rng,
@@ -247,6 +248,7 @@ impl DocumentOps for crate::IronOxide {
             &explicit_users,
             &explicit_groups,
             policy_grants.as_ref(),
+            &self.policy_eval_cache,
         )
         .await
     }

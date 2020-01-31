@@ -1,5 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use futures::executor::block_on;
+use ironoxide::config::IronOxideConfig;
 use ironoxide::{
     document::{advanced::DocumentAdvancedOps, DocumentEncryptOpts},
     prelude::*,
@@ -12,7 +13,7 @@ async fn setup_dev() -> IronOxide {
     let device_string = std::fs::read_to_string("benches/data/dev1-device1.json")
         .expect("device missing. Did you decrypt the .iron file?");
     let d: DeviceContext = serde_json::from_str(&device_string).expect("DeviceContext invalid");
-    ironoxide::initialize(&d)
+    ironoxide::initialize(&d, &IronOxideConfig::default())
         .await
         .expect("ironoxide init failed. Are you using IRONCORE_ENV=dev ?")
 }
