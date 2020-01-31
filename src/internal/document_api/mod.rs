@@ -653,20 +653,17 @@ where
         Ok((vec![], cached_policy.clone()))
     } else {
         // otherwise query the webservice and cache the result if there are no errors
-        match get_policy_f.await {
-            Ok(policy_resp) => {
-                let (errs, public_keys) = process_policy(&policy_resp);
-                if errs.is_empty() {
-                    //if the cache has grown too large, clear it prior to adding new entries
-                    if policy_cache.len() >= config.max_entries {
-                        policy_cache.clear()
-                    }
-                    policy_cache.insert(grant.clone(), public_keys.clone());
+        get_policy_f.await.map(|policy_resp| {
+            let (errs, public_keys) = process_policy(&policy_resp);
+            if errs.is_empty() {
+                //if the cache has grown too large, clear it prior to adding new entries
+                if policy_cache.len() >= config.max_entries {
+                    policy_cache.clear()
                 }
-                Ok((errs, public_keys))
+                policy_cache.insert(grant.clone(), public_keys.clone());
             }
-            Err(e) => Err(e),
-        }
+            (errs, public_keys)
+        })
     }
 }
 
