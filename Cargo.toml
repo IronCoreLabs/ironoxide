@@ -37,7 +37,7 @@ percent-encoding="~1.0"
 log = "~0.4"
 protobuf = {version = "~2.10", features = ["with-bytes"]}
 vec1 = "~1.4.0"
-dashmap = "~3.2.2"
+dashmap = "3.4.0"
 
 [profile.dev]
 opt-level = 2
