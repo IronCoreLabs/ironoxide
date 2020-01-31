@@ -1338,7 +1338,6 @@ mod tests {
         let policy_resp: PolicyResponse =
             serde_json::from_str(policy_json).expect("json should parse");
 
-        // now try again, but with a valid get_policy_f that will both return the policy evaluation and cache it
         get_cached_policy_or(&config, &policy_grant, &policy_cache, async {
             Ok(policy_resp.clone())
         })
@@ -1371,6 +1370,24 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn policy_cache_unclean_entries_not_cached() -> Result<(), IronOxideErr> {
+        // policy with 1 "good" group and one "bad" one
+        let policy_json = r#"{ "usersAndGroups": [ { "type": "group", "id": "data_recovery_abcABC012_.$#|@/:;=+'-f1e11a54-8aa9-4641-aaf3-fb92079499f0", "masterPublicKey": { "x": "GE5XQYcRDRhBcyDpNwlu79x6tshNi111ym1IfxOTIxk=", "y": "amgLgcCEYIPQ4oxinLoAvsO3VG7XTFdRfkG/3tooaZE=" } } ], "invalidUsersAndGroups": [{ "type": "group", "id": "group-that-does-not-exist" }] }"#;
+        let policy_grant = PolicyGrant::default();
+        let policy_cache = DashMap::new();
+        let config = PolicyCachingConfig::default();
+        let policy_resp: PolicyResponse =
+            serde_json::from_str(policy_json).expect("json should parse");
+
+        get_cached_policy_or(&config, &policy_grant, &policy_cache, async {
+            Ok(policy_resp.clone())
+        })
+        .await?;
+        assert_eq!(0, policy_cache.len());
+
+        Ok(())
+    }
     #[test]
     fn document_id_validate_good() {
         let doc_id1 = "an_actual_good_doc_id$";
