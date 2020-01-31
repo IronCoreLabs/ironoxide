@@ -2,11 +2,11 @@
 
 ## Unreleased
 
-- [[#108](https://github.com/IronCoreLabs/ironoxide/pull/108)]
-  - Fix bug to allow decryption of 0 and 1 byte documents
-- [[#97](https://github.com/IronCoreLabs/ironoxide/pull/97)]
+- [[#112](https://github.com/IronCoreLabs/ironoxide/pull/112)]
   - Make the default API async
   - Add feature flag `blocking` to enable the sync API
+- [[#108](https://github.com/IronCoreLabs/ironoxide/pull/108)]
+  - Fix bug to allow decryption of 0 and 1 byte documents
 
 ## 0.17.0
 
