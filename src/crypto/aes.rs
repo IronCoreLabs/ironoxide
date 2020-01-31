@@ -246,8 +246,7 @@ pub fn decrypt(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::convert::TryInto;
-    use std::sync::Arc;
+    use std::{convert::TryInto, sync::Arc};
 
     #[test]
     fn test_encrypt_user_master_key() {
