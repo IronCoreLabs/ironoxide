@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- [[#108](https://github.com/IronCoreLabs/ironoxide/pull/107)]
+- [[#108](https://github.com/IronCoreLabs/ironoxide/pull/108)]
   - Fixes bug to allow decryption of 0 and 1 byte documents
 
 ## 0.17.0

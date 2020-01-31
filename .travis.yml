@@ -11,7 +11,6 @@ rust:
 branches:
   only:
     - master
-    - sync-async-api
 before_install:
   # key for integration tests
   - openssl aes-256-cbc -K $encrypted_d5683c11b5e1_key -iv $encrypted_d5683c11b5e1_iv -in tests/testkeys/iak-dev.pem.enc -out tests/testkeys/iak-dev.pem -d
