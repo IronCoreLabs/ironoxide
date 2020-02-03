@@ -1030,7 +1030,7 @@ pub mod json {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::internal::test::{contains, length};
+    use crate::internal::tests::{contains, length};
     use chrono::TimeZone;
     use galvanic_assert::matchers::{variant::*, *};
     use recrypt::api::{Ed25519Signature, PublicSigningKey};

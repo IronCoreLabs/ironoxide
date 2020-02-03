@@ -46,7 +46,8 @@ extern crate galvanic_assert;
 #[cfg(test)]
 #[macro_use]
 extern crate double;
-
+#[macro_use]
+extern crate async_trait;
 #[macro_use]
 extern crate percent_encoding;
 
@@ -54,7 +55,6 @@ mod crypto;
 mod internal;
 
 // include generated proto code as a proto module
-// mod proto
 include!(concat!(env!("OUT_DIR"), "/transform.rs"));
 
 /// SDK document operations
@@ -65,6 +65,10 @@ pub mod group;
 
 /// SDK user operations
 pub mod user;
+
+/// Blocking SDK operations
+#[cfg(feature = "blocking")]
+pub mod blocking;
 
 /// Policy types
 pub mod policy;
@@ -93,7 +97,6 @@ use rand::{
 use rand_chacha::ChaChaCore;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
 use std::{convert::TryInto, sync::Mutex};
-use tokio::runtime::Runtime;
 use vec1::Vec1;
 
 /// Result of an Sdk operation
@@ -162,22 +165,21 @@ pub struct IronOxide {
     pub(crate) user_master_pub_key: PublicKey,
     pub(crate) device: DeviceContext,
     pub(crate) rng: Mutex<ReseedingRng<ChaChaCore, EntropyRng>>,
-    pub(crate) runtime: tokio::runtime::Runtime,
     pub(crate) policy_eval_cache: PolicyCache,
 }
 
 /// Result of calling `initialize_check_rotation`
-pub enum InitAndRotationCheck {
+pub enum InitAndRotationCheck<T> {
     /// Initialization succeeded, and no requests for private key rotations were present
-    NoRotationNeeded(IronOxide),
+    NoRotationNeeded(T),
     /// Initialization succeeded, but some keys should be rotated
-    RotationNeeded(IronOxide, PrivateKeyRotationCheckResult),
+    RotationNeeded(T, PrivateKeyRotationCheckResult),
 }
 
-impl InitAndRotationCheck {
+impl<T> InitAndRotationCheck<T> {
     /// Caller asked to check rotation on initialize, but doesn't want to handle the result.
     /// Consider using [initialize](fn.initialize.html) instead.
-    pub fn discard_check(self) -> IronOxide {
+    pub fn discard_check(self) -> T {
         match self {
             InitAndRotationCheck::NoRotationNeeded(io)
             | InitAndRotationCheck::RotationNeeded(io, _) => io,
@@ -187,9 +189,9 @@ impl InitAndRotationCheck {
     /// Convenience constructor to make an InitAndRotationCheck::RotationNeeded from an IronOxide
     /// and an EitherOrBoth<UserId, Vec1<GroupId>> directly.
     pub fn new_rotation_needed(
-        io: IronOxide,
+        io: T,
         rotations_needed: EitherOrBoth<UserId, Vec1<GroupId>>,
-    ) -> InitAndRotationCheck {
+    ) -> InitAndRotationCheck<T> {
         InitAndRotationCheck::RotationNeeded(io, PrivateKeyRotationCheckResult { rotations_needed })
     }
 }
@@ -216,88 +218,28 @@ impl PrivateKeyRotationCheckResult {
             _ => None,
         }
     }
-
-    /// Rotate the private key of the calling user and all groups they are an administrator of where needs_rotation is true.
-    /// Note that this function has the potential to take much longer than other functions, as rotation will be done
-    /// individually on each user/group. If rotation is only needed for a specific group, it is strongly recommended
-    /// to call [user_rotate_private_key()](user\/trait.UserOps.html#tymethod.user_rotate_private_key) or
-    /// [group_rotate_private_key()](group\/trait.GroupOps.html#tymethod.group_rotate_private_key) instead.
-    /// # Arguments
-    /// - `ironoxide` - IronOxide used to make authenticated requests for the calling user
-    /// - `password` - Password to unlock the current user's user master key
-    pub fn rotate_all(
-        &self,
-        ironoxide: &IronOxide,
-        password: &str,
-    ) -> Result<(
-        Option<UserUpdatePrivateKeyResult>,
-        Option<Vec<GroupUpdatePrivateKeyResult>>,
-    )> {
-        use crate::internal::Password;
-        use futures::future::OptionFuture;
-        let valid_password: Password = password.try_into()?;
-        let user_future = self.user_rotation_needed().map(|_| {
-            crate::internal::user_api::user_rotate_private_key(
-                &ironoxide.recrypt,
-                valid_password,
-                ironoxide.device().auth(),
-            )
-        });
-        let group_futures = self.group_rotation_needed().map(|groups| {
-            let group_futures = groups
-                .into_iter()
-                .map(|group_id| {
-                    crate::internal::group_api::group_rotate_private_key(
-                        &ironoxide.recrypt,
-                        ironoxide.device().auth(),
-                        &group_id,
-                        ironoxide.device().device_private_key(),
-                    )
-                })
-                .collect::<Vec<_>>();
-            futures::future::join_all(group_futures)
-        });
-        let user_opt_future: OptionFuture<_> = user_future.into();
-        let group_opt_future: OptionFuture<_> = group_futures.into();
-        let (user_opt_result, group_opt_vec_result) = ironoxide.runtime.enter(|| {
-            futures::executor::block_on(futures::future::join(user_opt_future, group_opt_future))
-        });
-        let group_opt_result_vec = group_opt_vec_result.map(|g| g.into_iter().collect());
-        Ok((
-            user_opt_result.transpose()?,
-            group_opt_result_vec.transpose()?,
-        ))
-    }
 }
 
 /// Initialize the IronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
 /// keys are valid and exist for the provided account. If successful returns an instance of the IronOxide SDK
-pub fn initialize(device_context: &DeviceContext, config: &IronOxideConfig) -> Result<IronOxide> {
-    let mut rt = Runtime::new().unwrap();
-    rt.block_on(internal::user_api::user_get_current(&device_context.auth()))
-        .map(|current_user| IronOxide::create(&current_user, device_context, config))
-        .map_err(|_| IronOxideErr::InitializeError)
-}
-/// Initialize the IronOxide SDK and check to see if the user that owns this `DeviceContext` is
-/// marked for private key rotation, or if any of the groups that the user is an admin of is marked
-/// for private key rotation.
-pub fn initialize_check_rotation(
+pub async fn initialize(
     device_context: &DeviceContext,
     config: &IronOxideConfig,
-) -> Result<InitAndRotationCheck> {
-    Runtime::new()
-        .unwrap()
-        .block_on(initialize_check_rotation_async(device_context, config))
+) -> Result<IronOxide> {
+    internal::user_api::user_get_current(&device_context.auth())
+        .await
+        .map(|current_user| IronOxide::create(&current_user, device_context, config))
+        .map_err(|_| IronOxideErr::InitializeError)
 }
 
 /// Finds the groups that the caller is an admin of that need rotation and
 /// forms an InitAndRotationCheck from the user/groups needing rotation.
-fn check_groups_and_collect_rotation(
+fn check_groups_and_collect_rotation<T>(
     groups: &Vec<internal::group_api::GroupMetaResult>,
     user_needs_rotation: bool,
     account_id: UserId,
-    ironoxide: IronOxide,
-) -> InitAndRotationCheck {
+    ironoxide: T,
+) -> InitAndRotationCheck<T> {
     use EitherOrBoth::{Both, Left, Right};
     let groups_needing_rotation = groups
         .into_iter()
@@ -318,10 +260,13 @@ fn check_groups_and_collect_rotation(
     }
 }
 
-async fn initialize_check_rotation_async(
+/// Initialize the IronOxide SDK and check to see if the user that owns this `DeviceContext` is
+/// marked for private key rotation, or if any of the groups that the user is an admin of are marked
+/// for private key rotation.
+pub async fn initialize_check_rotation(
     device_context: &DeviceContext,
     config: &IronOxideConfig,
-) -> Result<InitAndRotationCheck> {
+) -> Result<InitAndRotationCheck<IronOxide>> {
     let (curr_user, group_list_result) = futures::try_join!(
         internal::user_api::user_get_current(device_context.auth()),
         internal::group_api::list(device_context.auth(), None)
@@ -360,12 +305,6 @@ impl IronOxide {
     ) -> IronOxide {
         // create a tokio runtime with the default number of core threads (num of cores on a machine)
         // and an elevated number of blocking_threads as we expect heavy concurrency to be network-bound
-        let runtime = tokio::runtime::Builder::new()
-            .threaded_scheduler() // use multi-threaded scheduler
-            .enable_all() // enable both I/O and time drivers
-            .max_threads(250) // core_threads default to number of cores, blocking threads are max - core
-            .build()
-            .expect("tokio runtime failed to initialize");
         IronOxide {
             config: config.clone(),
             recrypt: Recrypt::new(),
@@ -376,16 +315,56 @@ impl IronOxide {
                 BYTES_BEFORE_RESEEDING,
                 EntropyRng::new(),
             )),
-            runtime,
-
             policy_eval_cache: DashMap::new(),
         }
     }
-}
 
-/// A way to turn IronSdkErr into Strings for the Java binding
-impl From<IronOxideErr> for String {
-    fn from(err: IronOxideErr) -> Self {
-        format!("{}", err)
+    /// Rotate the private key of the calling user and all groups they are an administrator of where needs_rotation is true.
+    /// Note that this function has the potential to take much longer than other functions, as rotation will be done
+    /// individually on each user/group. If rotation is only needed for a specific group, it is strongly recommended
+    /// to call [user_rotate_private_key()](user\/trait.UserOps.html#tymethod.user_rotate_private_key) or
+    /// [group_rotate_private_key()](group\/trait.GroupOps.html#tymethod.group_rotate_private_key) instead.
+    /// # Arguments
+    /// - `rotations` - PrivateKeyRotationCheckResult that holds all users and groups to be rotated
+    /// - `password` - Password to unlock the current user's user master key
+    pub async fn rotate_all(
+        &self,
+        rotations: &PrivateKeyRotationCheckResult,
+        password: &str,
+    ) -> Result<(
+        Option<UserUpdatePrivateKeyResult>,
+        Option<Vec<GroupUpdatePrivateKeyResult>>,
+    )> {
+        let valid_password: internal::Password = password.try_into()?;
+        let user_future = rotations.user_rotation_needed().map(|_| {
+            internal::user_api::user_rotate_private_key(
+                &self.recrypt,
+                valid_password,
+                self.device().auth(),
+            )
+        });
+        let group_futures = rotations.group_rotation_needed().map(|groups| {
+            let group_futures = groups
+                .into_iter()
+                .map(|group_id| {
+                    internal::group_api::group_rotate_private_key(
+                        &self.recrypt,
+                        self.device().auth(),
+                        &group_id,
+                        self.device().device_private_key(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            futures::future::join_all(group_futures)
+        });
+        let user_opt_future: futures::future::OptionFuture<_> = user_future.into();
+        let group_opt_future: futures::future::OptionFuture<_> = group_futures.into();
+        let (user_opt_result, group_opt_vec_result) =
+            futures::future::join(user_opt_future, group_opt_future).await;
+        let group_opt_result_vec = group_opt_vec_result.map(|g| g.into_iter().collect());
+        Ok((
+            user_opt_result.transpose()?,
+            group_opt_result_vec.transpose()?,
+        ))
     }
 }

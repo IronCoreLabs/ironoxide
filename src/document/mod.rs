@@ -88,12 +88,13 @@ impl Default for DocumentEncryptOpts {
     }
 }
 
+#[async_trait]
 pub trait DocumentOps {
     /// List all of the documents that the current user is able to decrypt.
     ///
     /// # Returns
     /// `DocumentListResult` struct with vec of metadata about each document the user can decrypt.
-    fn document_list(&self) -> Result<DocumentListResult>;
+    async fn document_list(&self) -> Result<DocumentListResult>;
 
     /// Get the metadata for a specific document given its ID.
     ///
@@ -102,7 +103,7 @@ pub trait DocumentOps {
     ///
     /// # Returns
     /// `DocumentMetadataResult` with details about the requested document.
-    fn document_get_metadata(&self, id: &DocumentId) -> Result<DocumentMetadataResult>;
+    async fn document_get_metadata(&self, id: &DocumentId) -> Result<DocumentMetadataResult>;
 
     /// Attempt to parse the document ID out of an encrypted document.
     ///
@@ -122,7 +123,7 @@ pub trait DocumentOps {
     ///       `name` - Non-unique name to use in the document. Document name will **not** be encrypted.
     ///       `grant_to_author` - Flag determining whether to encrypt to the calling user or not. If set to false at least one value must be present in the `grant` list.
     ///       `grants` - List of users/groups to grant access to this document once encrypted
-    fn document_encrypt(
+    async fn document_encrypt(
         &self,
         document_data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
@@ -133,7 +134,7 @@ pub trait DocumentOps {
     /// # Arguments
     /// - `id` - ID of document to update.
     /// - `new_document_data` - Updated document content to encrypt.
-    fn document_update_bytes(
+    async fn document_update_bytes(
         &self,
         id: &DocumentId,
         new_document_data: &[u8],
@@ -146,7 +147,7 @@ pub trait DocumentOps {
     ///
     /// # Returns
     /// `Result<DocumentDecryptResult>` Includes metadata about the provided document as well as the decrypted document bytes.
-    fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult>;
+    async fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult>;
 
     /// Update a document name to a new value or clear its value.
     ///
@@ -156,7 +157,7 @@ pub trait DocumentOps {
     ///
     /// # Returns
     /// `Result<DocumentMetadataResult>` Metadata about the document that was updated.
-    fn document_update_name(
+    async fn document_update_name(
         &self,
         id: &DocumentId,
         name: Option<&DocumentName>,
@@ -172,7 +173,7 @@ pub trait DocumentOps {
     /// Outer result indicates that the request failed either on the client or that the server rejected
     /// the whole request. If the outer result is `Ok` then each individual grant to a user/group
     /// either succeeded or failed.
-    fn document_grant_access(
+    async fn document_grant_access(
         &self,
         document_id: &DocumentId,
         grant_list: &Vec<UserOrGroup>,
@@ -188,30 +189,28 @@ pub trait DocumentOps {
     /// Outer result indicates that the request failed either on the client or that the server rejected
     /// the whole request. If the outer result is `Ok` then each individual revoke from a user/group
     /// either succeeded or failed.
-    fn document_revoke_access(
+    async fn document_revoke_access(
         &self,
         document_id: &DocumentId,
         revoke_list: &Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult>;
 }
 
+#[async_trait]
 impl DocumentOps for crate::IronOxide {
-    fn document_list(&self) -> Result<DocumentListResult> {
-        self.runtime
-            .enter(|| futures::executor::block_on(document_api::document_list(self.device.auth())))
+    async fn document_list(&self) -> Result<DocumentListResult> {
+        document_api::document_list(self.device.auth()).await
     }
 
-    fn document_get_metadata(&self, id: &DocumentId) -> Result<DocumentMetadataResult> {
-        self.runtime.enter(|| {
-            futures::executor::block_on(document_api::document_get_metadata(self.device.auth(), id))
-        })
+    async fn document_get_metadata(&self, id: &DocumentId) -> Result<DocumentMetadataResult> {
+        document_api::document_get_metadata(self.device.auth(), id).await
     }
 
     fn document_get_id_from_bytes(&self, encrypted_document: &[u8]) -> Result<DocumentId> {
         document_api::get_id_from_bytes(encrypted_document)
     }
 
-    fn document_encrypt(
+    async fn document_encrypt(
         &self,
         document_data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
@@ -236,101 +235,83 @@ impl DocumentOps for crate::IronOxide {
                 }
             };
 
-        let id = encrypt_opts.id;
-        let name = encrypt_opts.name;
-        self.runtime.enter(|| {
-            futures::executor::block_on(document_api::encrypt_document(
-                self.device.auth(),
-                &self.config,
-                &self.recrypt,
-                &self.user_master_pub_key,
-                &self.rng,
-                document_data,
-                id,
-                name,
-                grant_to_author,
-                &explicit_users,
-                &explicit_groups,
-                policy_grants.as_ref(),
-                &self.policy_eval_cache,
-            ))
-        })
+        document_api::encrypt_document(
+            self.device.auth(),
+            &self.config,
+            &self.recrypt,
+            &self.user_master_pub_key,
+            &self.rng,
+            document_data,
+            encrypt_opts.id,
+            encrypt_opts.name,
+            grant_to_author,
+            &explicit_users,
+            &explicit_groups,
+            policy_grants.as_ref(),
+            &self.policy_eval_cache,
+        )
+        .await
     }
 
-    fn document_update_bytes(
+    async fn document_update_bytes(
         &self,
         id: &DocumentId,
         new_document_data: &[u8],
     ) -> Result<DocumentEncryptResult> {
-        self.runtime.enter(|| {
-            futures::executor::block_on(document_api::document_update_bytes(
-                self.device.auth(),
-                &self.recrypt,
-                self.device.device_private_key(),
-                &self.rng,
-                id,
-                &new_document_data,
-            ))
-        })
+        document_api::document_update_bytes(
+            self.device.auth(),
+            &self.recrypt,
+            self.device.device_private_key(),
+            &self.rng,
+            id,
+            &new_document_data,
+        )
+        .await
     }
 
-    fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult> {
-        self.runtime.enter(|| {
-            futures::executor::block_on(document_api::decrypt_document(
-                self.device.auth(),
-                &self.recrypt,
-                self.device.device_private_key(),
-                encrypted_document,
-            ))
-        })
+    async fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult> {
+        document_api::decrypt_document(
+            self.device.auth(),
+            &self.recrypt,
+            self.device.device_private_key(),
+            encrypted_document,
+        )
+        .await
     }
 
-    fn document_update_name(
+    async fn document_update_name(
         &self,
         id: &DocumentId,
         name: Option<&DocumentName>,
     ) -> Result<DocumentMetadataResult> {
-        self.runtime.enter(|| {
-            futures::executor::block_on(document_api::update_document_name(
-                self.device.auth(),
-                id,
-                name,
-            ))
-        })
+        document_api::update_document_name(self.device.auth(), id, name).await
     }
 
-    fn document_grant_access(
+    async fn document_grant_access(
         &self,
         id: &DocumentId,
         grant_list: &Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult> {
         let (users, groups) = partition_user_or_group(grant_list);
 
-        self.runtime.enter(|| {
-            futures::executor::block_on(document_api::document_grant_access(
-                self.device.auth(),
-                &self.recrypt,
-                id,
-                &self.user_master_pub_key,
-                &self.device.device_private_key(),
-                &users,
-                &groups,
-            ))
-        })
+        document_api::document_grant_access(
+            self.device.auth(),
+            &self.recrypt,
+            id,
+            &self.user_master_pub_key,
+            &self.device.device_private_key(),
+            &users,
+            &groups,
+        )
+        .await
     }
 
-    fn document_revoke_access(
+    async fn document_revoke_access(
         &self,
         id: &DocumentId,
         revoke_list: &Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult> {
-        self.runtime.enter(|| {
-            futures::executor::block_on(document_api::document_revoke_access(
-                self.device.auth(),
-                id,
-                revoke_list,
-            ))
-        })
+        document_api::document_revoke_access(self.device.auth(), id, revoke_list).await
     }
 }
 

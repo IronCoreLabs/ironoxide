@@ -75,10 +75,10 @@ pub fn gen_jwt(account_id: Option<&str>) -> (String, String) {
         .duration_since(UNIX_EPOCH)
         .expect("Time before epoch? Something's wrong.")
         .as_secs();
-    let jwt_header = json!({});
+    let jwt_header = serde_json::json!({});
     let default_account_id = Uuid::new_v4().to_string();
     let sub = account_id.unwrap_or(&default_account_id);
-    let jwt_payload = json!({
+    let jwt_payload = serde_json::json!({
         "pid" : CONFIG.project_id,
         "sid" : CONFIG.segment_id,
         "kid" : CONFIG.identity_assertion_key_id,
@@ -98,43 +98,51 @@ pub fn gen_jwt(account_id: Option<&str>) -> (String, String) {
     (jwt, sub.to_string())
 }
 
-// This function is similar to init_sdk_get_user, but is more streamlined
-// by not discarding InitAndRotationCheck, not calling user_verify for each
-// user_create, and not manually unwrapping/re-wrapping the DeviceContext.
-// The intent is that this will be used in most of the tests, as those extra
-// verifications are not the goal of most tests. It also returns a result to give
-// nice error handling with `?` in the tests.
-pub fn initialize_sdk() -> Result<IronOxide, IronOxideErr> {
+/// This function is similar to init_sdk_get_user, but is more streamlined
+/// by not discarding InitAndRotationCheck, not calling user_verify for each
+/// user_create, and not manually unwrapping/re-wrapping the DeviceContext.
+/// The intent is that this will be used in most of the tests, as those extra
+/// verifications are not the goal of most tests. It also returns a result to give
+/// nice error handling with `?` in the tests.
+#[allow(dead_code)]
+pub async fn initialize_sdk() -> Result<IronOxide, IronOxideErr> {
     let account_id: UserId = create_id_all_classes("").try_into()?;
     IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
         USER_PASSWORD,
         &UserCreateOpts::new(false),
-    )?;
+    )
+    .await?;
     let device = IronOxide::generate_new_device(
         &gen_jwt(Some(account_id.id())).0,
         USER_PASSWORD,
         &Default::default(),
-    )?;
-
-    ironoxide::initialize(&device.into(), &Default::default())
+    )
+    .await?;
+    ironoxide::initialize(&device.into(), &Default::default()).await
 }
 
-pub fn init_sdk_get_user() -> (UserId, IronOxide) {
-    let (u, init_check) = init_sdk_get_init_result(false);
+#[allow(dead_code)]
+pub async fn init_sdk_get_user() -> (UserId, IronOxide) {
+    let (u, init_check) = init_sdk_get_init_result(false).await;
     (u, init_check.discard_check())
 }
 
-pub fn init_sdk_get_init_result(user_needs_rotation: bool) -> (UserId, InitAndRotationCheck) {
+#[allow(dead_code)]
+pub async fn init_sdk_get_init_result(
+    user_needs_rotation: bool,
+) -> (UserId, InitAndRotationCheck<IronOxide>) {
     let account_id: UserId = create_id_all_classes("").try_into().unwrap();
     IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
         USER_PASSWORD,
         &UserCreateOpts::new(user_needs_rotation),
     )
+    .await
     .unwrap();
 
     let verify_resp = IronOxide::user_verify(&gen_jwt(Some(account_id.id())).0)
+        .await
         .unwrap()
         .unwrap();
     assert_eq!(&account_id, verify_resp.account_id());
@@ -144,6 +152,7 @@ pub fn init_sdk_get_init_result(user_needs_rotation: bool) -> (UserId, InitAndRo
         USER_PASSWORD,
         &Default::default(),
     )
+    .await
     .unwrap();
 
     //Manually unwrap all of these types and rewrap them just to prove that we can construct the DeviceContext
@@ -162,19 +171,19 @@ pub fn init_sdk_get_init_result(user_needs_rotation: bool) -> (UserId, InitAndRo
     );
     (
         account_id,
-        ironoxide::initialize_check_rotation(&device_init, &Default::default()).unwrap(),
+        ironoxide::initialize_check_rotation(&device_init, &Default::default())
+            .await
+            .unwrap(),
     )
 }
 
-// this warns that it's unused because it's only used in other files,
-// so this is suppressed to avoid false positive.
 #[allow(dead_code)]
-pub fn create_second_user() -> UserResult {
+pub async fn create_second_user() -> UserResult {
     let (jwt, _) = gen_jwt(Some(&create_id_all_classes("")));
-    let create_result = IronOxide::user_create(&jwt, USER_PASSWORD, &Default::default());
+    let create_result = IronOxide::user_create(&jwt, USER_PASSWORD, &Default::default()).await;
     assert!(create_result.is_ok());
 
-    let verify_result = IronOxide::user_verify(&jwt);
+    let verify_result = IronOxide::user_verify(&jwt).await;
     assert!(verify_result.is_ok());
     verify_result.unwrap().unwrap()
 }

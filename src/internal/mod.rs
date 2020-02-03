@@ -143,6 +143,13 @@ quick_error! {
     }
 }
 
+/// A way to turn IronSdkErr into Strings for the Java binding
+impl From<IronOxideErr> for String {
+    fn from(err: IronOxideErr) -> Self {
+        format!("{}", err)
+    }
+}
+
 impl From<RecryptErr> for IronOxideErr {
     fn from(recrypt_err: RecryptErr) -> Self {
         match recrypt_err {
@@ -832,7 +839,7 @@ fn gen_plaintext_and_aug_with_retry<R: CryptoOps>(
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use super::*;
     use galvanic_assert::{matchers::*, MatchResultBuilder, Matcher};
     use std::fmt::Debug;
@@ -1260,7 +1267,7 @@ pub(crate) mod test {
         use crate::{
             check_groups_and_collect_rotation,
             internal::{
-                group_api::test::create_group_meta_result, user_api::test::create_user_result,
+                group_api::tests::create_group_meta_result, user_api::tests::create_user_result,
             },
             InitAndRotationCheck, IronOxide,
         };

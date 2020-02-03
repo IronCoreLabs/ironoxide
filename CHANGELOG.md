@@ -2,17 +2,20 @@
 
 ## 0.18 (Unreleased)
 
+- [[#112](https://github.com/IronCoreLabs/ironoxide/pull/112)]
+  - Make the default API async
+  - Add feature flag `blocking` to enable the sync API
 - [[#111](https://github.com/IronCoreLabs/ironoxide/pull/111)]
   - Adds simple policy caching
-- [[#108](https://github.com/IronCoreLabs/ironoxide/pull/107)]
-  - Fixes bug to allow decryption of 0 and 1 byte documents
+- [[#108](https://github.com/IronCoreLabs/ironoxide/pull/108)]
+  - Fix bug to allow decryption of 0 and 1 byte documents
 
 ## 0.17.0
 
 - [[#107](https://github.com/IronCoreLabs/ironoxide/pull/107)]
   - Change `generate_new_device()` to return a `DeviceAddResult`
 - [[#101](https://github.com/IronCoreLabs/ironoxide/pull/101)]
-  - Dependecy upgrades
+  - Dependency upgrades
 
 ## 0.16.0
 

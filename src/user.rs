@@ -11,7 +11,6 @@ use crate::{
 };
 use recrypt::api::Recrypt;
 use std::{collections::HashMap, convert::TryInto};
-use tokio::runtime::Runtime;
 
 /// Optional parameters for creating a new device instance.
 #[derive(Debug, PartialEq, Clone)]
@@ -57,6 +56,7 @@ impl Default for UserCreateOpts {
     }
 }
 
+#[async_trait]
 pub trait UserOps {
     /// Sync a new user within the IronCore system.
     ///
@@ -68,7 +68,7 @@ pub trait UserOps {
     /// Newly generated `UserCreateResult` or Err. For most use cases, this public key can
     /// be discarded as IronCore escrows your user's keys. The escrowed keys are unlocked
     /// by the provided password.
-    fn user_create(
+    async fn user_create(
         jwt: &str,
         password: &str,
         user_create_opts: &UserCreateOpts,
@@ -78,7 +78,7 @@ pub trait UserOps {
     ///
     /// # Returns
     /// All devices for the current user, sorted by the device id.
-    fn user_list_devices(&self) -> Result<UserDeviceListResult>;
+    async fn user_list_devices(&self) -> Result<UserDeviceListResult>;
 
     /// Generates a new device for the user specified in the signed JWT.
     ///
@@ -92,7 +92,7 @@ pub trait UserOps {
     ///
     /// # Returns
     /// Details about the newly created device.
-    fn generate_new_device(
+    async fn generate_new_device(
         jwt: &str,
         password: &str,
         device_create_options: &DeviceCreateOpts,
@@ -109,7 +109,7 @@ pub trait UserOps {
     ///
     /// # Returns
     /// Id of deleted device or IronOxideErr
-    fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId>;
+    async fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId>;
 
     /// Verify a user given a JWT for their user record.
     ///
@@ -118,7 +118,7 @@ pub trait UserOps {
     ///
     /// # Returns
     /// Option of whether the user's account record exists in the IronCore system or not. Err if the request couldn't be made.
-    fn user_verify(jwt: &str) -> Result<Option<UserResult>>;
+    async fn user_verify(jwt: &str) -> Result<Option<UserResult>>;
 
     /// Get a list of user public keys given their IDs. Allows discovery of which user IDs have keys in the
     /// IronCore system to determine of they can be added to groups or have documents shared with them.
@@ -128,7 +128,7 @@ pub trait UserOps {
     ///
     /// # Returns
     /// Map from user ID to users public key. Only users who have public keys will be returned in the map.
-    fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>>;
+    async fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>>;
 
     /// Rotate the current user's private key, but leave the public key the same.
     /// There's no black magic here! This is accomplished via multi-party computation with the
@@ -139,82 +139,71 @@ pub trait UserOps {
     ///
     /// # Returns
     /// The (encrypted) updated private key and associated metadata
-    fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult>;
+    async fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult>;
 }
+
+#[async_trait]
 impl UserOps for IronOxide {
-    fn user_create(
+    async fn user_create(
         jwt: &str,
         password: &str,
         user_create_opts: &UserCreateOpts,
     ) -> Result<UserCreateResult> {
         let recrypt = Recrypt::new();
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(user_api::user_create(
+        user_api::user_create(
             &recrypt,
             jwt.try_into()?,
             password.try_into()?,
             user_create_opts.needs_rotation,
             *OUR_REQUEST,
-        ))
+        )
+        .await
     }
 
-    fn user_list_devices(&self) -> Result<UserDeviceListResult> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(user_api::device_list(self.device.auth()))
+    async fn user_list_devices(&self) -> Result<UserDeviceListResult> {
+        user_api::device_list(self.device.auth()).await
     }
 
-    fn generate_new_device(
+    async fn generate_new_device(
         jwt: &str,
         password: &str,
         device_create_options: &DeviceCreateOpts,
     ) -> Result<DeviceAddResult> {
         let recrypt = Recrypt::new();
-        let mut rt = Runtime::new().unwrap();
+
         let device_create_options = device_create_options.clone();
 
-        rt.block_on(user_api::generate_device_key(
+        user_api::generate_device_key(
             &recrypt,
             &jwt.try_into()?,
             password.try_into()?,
             device_create_options.device_name,
             &std::time::SystemTime::now().into(),
             &OUR_REQUEST,
-        ))
+        )
+        .await
     }
 
-    fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId> {
-        self.runtime.enter(|| {
-            futures::executor::block_on(user_api::device_delete(self.device.auth(), device_id))
-        })
+    async fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId> {
+        user_api::device_delete(self.device.auth(), device_id).await
     }
 
-    fn user_verify(jwt: &str) -> Result<Option<UserResult>> {
-        let mut rt = Runtime::new().unwrap();
-        rt.block_on(user_api::user_verify(jwt.try_into()?, *OUR_REQUEST))
+    async fn user_verify(jwt: &str) -> Result<Option<UserResult>> {
+        user_api::user_verify(jwt.try_into()?, *OUR_REQUEST).await
     }
 
-    fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {
-        self.runtime.enter(|| {
-            futures::executor::block_on(user_api::user_key_list(
-                self.device.auth(),
-                &users.to_vec(),
-            ))
-        })
+    async fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {
+        user_api::user_key_list(self.device.auth(), &users.to_vec()).await
     }
 
-    fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult> {
-        self.runtime.enter(|| {
-            futures::executor::block_on(user_api::user_rotate_private_key(
-                &self.recrypt,
-                password.try_into()?,
-                self.device().auth(),
-            ))
-        })
+    async fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult> {
+        user_api::user_rotate_private_key(&self.recrypt, password.try_into()?, self.device().auth())
+            .await
     }
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use galvanic_assert::matchers::*;
 

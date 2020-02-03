@@ -523,7 +523,7 @@ fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use super::*;
 
     pub fn create_user_result(
