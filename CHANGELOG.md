@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.18 (Unreleased)
+## 0.18 
 
 - [[#112](https://github.com/IronCoreLabs/ironoxide/pull/112)]
   - Make the default API async
