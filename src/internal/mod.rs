@@ -17,6 +17,8 @@ use recrypt::api::{
 };
 use regex::Regex;
 use reqwest::Method;
+use serde::export::fmt::Error;
+use serde::export::Formatter;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     convert::{TryFrom, TryInto},
@@ -70,6 +72,20 @@ pub enum RequestErrorCode {
     DocumentRevokeAccess,
     EdekTransform,
     PolicyGet,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
+pub enum SDKOperation {
+    DocumentEncrypt,
+}
+
+impl std::fmt::Display for SDKOperation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        let name = match self {
+            SDKOperation::DocumentEncrypt => "document_encrypt",
+        };
+        f.write_str(name)
+    }
 }
 
 quick_error! {
@@ -139,6 +155,9 @@ quick_error! {
         }
         GroupPrivateKeyRotationError(msg: String) {
             display("Group private key rotation failed with '{}'", msg)
+        }
+        OperationTimedOut(operation: SDKOperation, duration: std::time::Duration) {
+            display("Operation {} timed out after {}ms", operation, duration.as_millis())
         }
     }
 }

@@ -3,6 +3,7 @@ pub use crate::internal::document_api::{
     DocumentEncryptResult, DocumentListMeta, DocumentListResult, DocumentMetadataResult,
     UserOrGroup, VisibleGroup, VisibleUser,
 };
+use crate::internal::{IronOxideErr, SDKOperation};
 use crate::{
     internal::{
         document_api::{self, DocumentId, DocumentName},
@@ -12,7 +13,9 @@ use crate::{
     policy::*,
     Result,
 };
+use futures::prelude::*;
 use itertools::{Either, EitherOrBoth, Itertools};
+use std::time::Duration;
 
 /// Advanced document operations
 pub mod advanced;
@@ -234,23 +237,27 @@ impl DocumentOps for crate::IronOxide {
                     )
                 }
             };
-
-        document_api::encrypt_document(
-            self.device.auth(),
-            &self.config,
-            &self.recrypt,
-            &self.user_master_pub_key,
-            &self.rng,
-            document_data,
-            encrypt_opts.id,
-            encrypt_opts.name,
-            grant_to_author,
-            &explicit_users,
-            &explicit_groups,
-            policy_grants.as_ref(),
-            &self.policy_eval_cache,
+        let duration = Duration::from_millis(900);
+        tokio::time::timeout(
+            duration,
+            document_api::encrypt_document(
+                self.device.auth(),
+                &self.config,
+                &self.recrypt,
+                &self.user_master_pub_key,
+                &self.rng,
+                document_data,
+                encrypt_opts.id,
+                encrypt_opts.name,
+                grant_to_author,
+                &explicit_users,
+                &explicit_groups,
+                policy_grants.as_ref(),
+                &self.policy_eval_cache,
+            ),
         )
-        .await
+        .map_err(|_| IronOxideErr::OperationTimedOut(SDKOperation::DocumentEncrypt, duration))
+        .await?
     }
 
     async fn document_update_bytes(
