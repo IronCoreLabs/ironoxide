@@ -105,16 +105,15 @@ type PolicyCache = DashMap<PolicyGrant, Vec<WithKey<UserOrGroup>>>;
 
 /// IronOxide SDK configuration
 pub mod config {
+    use tokio::time::Duration;
 
+    /// Top-level configuration object for IronOxide.
     #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub struct IronOxideConfig {
-        pub(crate) policy_caching: PolicyCachingConfig,
-    }
-
-    impl IronOxideConfig {
-        pub fn new(policy_caching: PolicyCachingConfig) -> IronOxideConfig {
-            IronOxideConfig { policy_caching }
-        }
+        /// See [PolicyCachingConfig](struct.PolicyCachingConfig.html)
+        pub policy_caching: PolicyCachingConfig,
+        /// Timeout for all SDK methods. Will return IronOxideErr::OperationTimedOut on timeout.
+        pub sdk_operation_timeout: Duration,
     }
 
     /// Policy evaluation caching config. Lifetime of the cache is the lifetime of the `IronOxide` struct.
@@ -124,26 +123,16 @@ pub mod config {
     /// if you want to clear it at runtime, call [IronOxide::clear_policy_cache()](../struct.IronOxide.html#method.clear_policy_cache).
     #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub struct PolicyCachingConfig {
-        pub(crate) max_entries: usize,
-    }
-
-    impl PolicyCachingConfig {
-        /// # Arguments
-        /// `max_entries` - maximum number of policy evaluations that will be cached by the SDK.
-        /// If the maximum number is exceeded, the cache will be cleared prior to storing the next entry.
-        pub fn new(max_entries: usize) -> PolicyCachingConfig {
-            PolicyCachingConfig { max_entries }
-        }
-
-        pub fn max_entries(&self) -> usize {
-            self.max_entries
-        }
+        /// maximum number of policy evaluations that will be cached by the SDK.
+        /// If the maximum number is exceeded, the cache will be cleared prior to storing the next entry
+        pub max_entries: usize,
     }
 
     impl Default for IronOxideConfig {
         fn default() -> Self {
             IronOxideConfig {
                 policy_caching: PolicyCachingConfig::default(),
+                sdk_operation_timeout: Duration::from_secs(30),
             }
         }
     }

@@ -15,7 +15,6 @@ use crate::{
 };
 use futures::prelude::*;
 use itertools::{Either, EitherOrBoth, Itertools};
-use std::time::Duration;
 
 /// Advanced document operations
 pub mod advanced;
@@ -237,9 +236,9 @@ impl DocumentOps for crate::IronOxide {
                     )
                 }
             };
-        let duration = Duration::from_millis(900);
+
         tokio::time::timeout(
-            duration,
+            self.config.sdk_operation_timeout,
             document_api::encrypt_document(
                 self.device.auth(),
                 &self.config,
@@ -256,7 +255,12 @@ impl DocumentOps for crate::IronOxide {
                 &self.policy_eval_cache,
             ),
         )
-        .map_err(|_| IronOxideErr::OperationTimedOut(SDKOperation::DocumentEncrypt, duration))
+        .map_err(|_| {
+            IronOxideErr::OperationTimedOut(
+                SDKOperation::DocumentEncrypt,
+                self.config.sdk_operation_timeout,
+            )
+        })
         .await?
     }
 

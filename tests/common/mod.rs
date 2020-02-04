@@ -1,3 +1,4 @@
+use ironoxide::config::IronOxideConfig;
 use ironoxide::{
     prelude::*,
     user::{UserCreateOpts, UserResult},
@@ -5,6 +6,7 @@ use ironoxide::{
 };
 use lazy_static::*;
 use std::{convert::TryInto, default::Default};
+use tokio::time::Duration;
 use uuid::Uuid;
 
 pub const USER_PASSWORD: &str = "foo";
@@ -169,9 +171,13 @@ pub async fn init_sdk_get_init_result(
         users_device_private_key_bytes.try_into().unwrap(),
         users_signing_keys_bytes.try_into().unwrap(),
     );
+    let config = IronOxideConfig {
+        sdk_operation_timeout: Duration::from_secs(3),
+        ..Default::default()
+    };
     (
         account_id,
-        ironoxide::initialize_check_rotation(&device_init, &Default::default())
+        ironoxide::initialize_check_rotation(&device_init, &config)
             .await
             .unwrap(),
     )
