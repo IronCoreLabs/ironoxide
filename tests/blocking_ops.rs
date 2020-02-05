@@ -5,14 +5,17 @@ mod common;
 #[cfg(feature = "blocking")]
 mod integration_tests {
     use crate::common::{create_id_all_classes, gen_jwt, USER_PASSWORD};
+    use galvanic_assert::matchers::*;
+    use galvanic_assert::*;
+    use ironoxide::config::IronOxideConfig;
     use ironoxide::{
         blocking::BlockingIronOxide,
         group::GroupCreateOpts,
         user::{UserCreateOpts, UserId},
-        InitAndRotationCheck, IronOxideErr,
+        InitAndRotationCheck, IronOxideErr, SDKOperation,
     };
     use std::convert::TryInto;
-
+    use std::time::Duration;
     // Tests a UserOp (user_create/generate_new_device), a GroupOp (group_create),
     // and ironoxide::blocking functions (initialize/initialize_check_rotation)
     #[test]
@@ -26,7 +29,7 @@ mod integration_tests {
             &Default::default(),
         )?
         .into();
-        let creator_sdk = ironoxide::blocking::initialize(&device)?;
+        let creator_sdk = ironoxide::blocking::initialize(&device, &Default::default())?;
         // making non-default groups so I can specify needs_rotation of true
         let group_create = creator_sdk.group_create(&GroupCreateOpts::new(
             None,
@@ -40,7 +43,8 @@ mod integration_tests {
         ))?;
         assert_eq!(group_create.needs_rotation(), Some(true));
 
-        let init_and_rotation_check = ironoxide::blocking::initialize_check_rotation(&device)?;
+        let init_and_rotation_check =
+            ironoxide::blocking::initialize_check_rotation(&device, &Default::default())?;
         let (user_result, group_result) = match init_and_rotation_check {
             InitAndRotationCheck::NoRotationNeeded(_) => {
                 panic!("both user and groups should need rotation!");
@@ -74,7 +78,7 @@ mod integration_tests {
             &Default::default(),
         )?
         .into();
-        let sdk = ironoxide::blocking::initialize(&device)?;
+        let sdk = ironoxide::blocking::initialize(&device, &Default::default())?;
         let doc = [0u8; 64];
         let doc_result = sdk.document_encrypt(&doc, &Default::default())?;
         assert_eq!(doc_result.grants().len(), 1);
@@ -83,6 +87,45 @@ mod integration_tests {
         let doc_unmanaged_result = sdk.document_encrypt_unmanaged(&doc, &Default::default())?;
         assert_eq!(doc_unmanaged_result.grants().len(), 1);
         assert_eq!(doc_unmanaged_result.access_errs().len(), 0);
+
+        Ok(())
+    }
+
+    // Show that SDK operations timeout correctly using BlockingIronOxide
+    #[test]
+    fn document_encrypt_with_timeout() -> Result<(), IronOxideErr> {
+        let account_id: UserId = create_id_all_classes("").try_into()?;
+        BlockingIronOxide::user_create(
+            &gen_jwt(Some(account_id.id())).0,
+            USER_PASSWORD,
+            &UserCreateOpts::new(false),
+        )?;
+        let device = BlockingIronOxide::generate_new_device(
+            &gen_jwt(Some(account_id.id())).0,
+            USER_PASSWORD,
+            &Default::default(),
+        )?
+        .into();
+
+        // set a timeout that is unreasonably small
+        let duration = Duration::from_millis(50);
+        let config = IronOxideConfig {
+            sdk_operation_timeout: duration,
+            ..Default::default()
+        };
+
+        let sdk = ironoxide::blocking::initialize(&device, &config)?;
+        let doc = [0u8; 64];
+        let result = sdk.document_encrypt(&doc, &Default::default());
+        let err_result = result.unwrap_err();
+        assert_that!(&err_result, is_variant!(IronOxideErr::OperationTimedOut));
+        assert_that!(
+            &err_result,
+            has_structure!(IronOxideErr::OperationTimedOut {
+                operation: eq(SDKOperation::DocumentEncrypt),
+                duration: eq(*duration)
+            })
+        );
 
         Ok(())
     }

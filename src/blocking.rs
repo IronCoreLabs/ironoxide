@@ -7,6 +7,7 @@
 //!
 //! # Optional
 //! This requires the optional `blocking` feature to be enabled.
+use crate::config::IronOxideConfig;
 pub use crate::internal::{
     document_api::{
         AssociationType, DocAccessEditErr, DocumentAccessResult, DocumentDecryptResult,
@@ -285,9 +286,12 @@ fn create_runtime() -> tokio::runtime::Runtime {
 
 /// Initialize the BlockingIronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
 /// keys are valid and exist for the provided account. If successful, returns instance of the BlockingIronOxide SDK.
-pub fn initialize(device_context: &DeviceContext) -> Result<BlockingIronOxide> {
+pub fn initialize(
+    device_context: &DeviceContext,
+    config: &IronOxideConfig,
+) -> Result<BlockingIronOxide> {
     let rt = create_runtime();
-    let maybe_io = rt.enter(|| block_on(crate::initialize(device_context, &Default::default())));
+    let maybe_io = rt.enter(|| block_on(crate::initialize(device_context, config)));
     maybe_io.map(|io| BlockingIronOxide {
         ironoxide: io,
         runtime: rt,
@@ -299,14 +303,11 @@ pub fn initialize(device_context: &DeviceContext) -> Result<BlockingIronOxide> {
 /// for private key rotation.
 pub fn initialize_check_rotation(
     device_context: &DeviceContext,
+    config: &IronOxideConfig,
 ) -> Result<InitAndRotationCheck<BlockingIronOxide>> {
     let rt = create_runtime();
-    let maybe_init = rt.enter(|| {
-        block_on(crate::initialize_check_rotation(
-            device_context,
-            &Default::default(),
-        ))
-    });
+    let maybe_init =
+        rt.enter(|| block_on(crate::initialize_check_rotation(device_context, config)));
     maybe_init.map(|init| match init {
         NoRotationNeeded(io) => NoRotationNeeded(BlockingIronOxide {
             ironoxide: io,

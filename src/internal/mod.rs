@@ -156,7 +156,7 @@ quick_error! {
         GroupPrivateKeyRotationError(msg: String) {
             display("Group private key rotation failed with '{}'", msg)
         }
-        OperationTimedOut(operation: SDKOperation, duration: std::time::Duration) {
+        OperationTimedOut{operation: SDKOperation, duration: std::time::Duration} {
             display("Operation {} timed out after {}ms", operation, duration.as_millis())
         }
     }

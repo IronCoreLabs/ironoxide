@@ -255,11 +255,9 @@ impl DocumentOps for crate::IronOxide {
                 &self.policy_eval_cache,
             ),
         )
-        .map_err(|_| {
-            IronOxideErr::OperationTimedOut(
-                SDKOperation::DocumentEncrypt,
-                self.config.sdk_operation_timeout,
-            )
+        .map_err(|_| IronOxideErr::OperationTimedOut {
+            operation: SDKOperation::DocumentEncrypt,
+            duration: self.config.sdk_operation_timeout,
         })
         .await?
     }

@@ -85,7 +85,7 @@ use crate::internal::{
 };
 pub use crate::internal::{
     DeviceAddResult, DeviceContext, DeviceSigningKeyPair, IronOxideErr, KeyPair, PrivateKey,
-    PublicKey,
+    PublicKey, SDKOperation,
 };
 use crate::policy::PolicyGrant;
 use dashmap::DashMap;
@@ -105,7 +105,7 @@ type PolicyCache = DashMap<PolicyGrant, Vec<WithKey<UserOrGroup>>>;
 
 /// IronOxide SDK configuration
 pub mod config {
-    use tokio::time::Duration;
+    use std::time::Duration;
 
     /// Top-level configuration object for IronOxide.
     #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -1334,7 +1334,7 @@ mod tests {
         let policy_json = r#"{ "usersAndGroups": [ { "type": "group", "id": "data_recovery_abcABC012_.$#|@/:;=+'-f1e11a54-8aa9-4641-aaf3-fb92079499f0", "masterPublicKey": { "x": "GE5XQYcRDRhBcyDpNwlu79x6tshNi111ym1IfxOTIxk=", "y": "amgLgcCEYIPQ4oxinLoAvsO3VG7XTFdRfkG/3tooaZE=" } } ], "invalidUsersAndGroups": [] }"#;
         let policy_grant = PolicyGrant::default();
         let policy_cache = DashMap::new();
-        let config = PolicyCachingConfig::new(3);
+        let config = PolicyCachingConfig { max_entries: 3 };
         let policy_resp: PolicyResponse =
             serde_json::from_str(policy_json).expect("json should parse");
 
