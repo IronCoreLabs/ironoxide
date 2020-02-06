@@ -83,7 +83,6 @@ pub enum SDKOperation {
     RotateAll,
     DocumentList,
     DocumentGetMetadata,
-    DocumentGetIdFromBytes,
     DocumentEncrypt,
     DocumentUpdateBytes,
     DocumentDecrypt,
