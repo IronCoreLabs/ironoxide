@@ -1,9 +1,10 @@
 pub use crate::internal::document_api::{
     DocumentDecryptUnmanagedResult, DocumentEncryptUnmanagedResult,
 };
+use crate::internal::run_maybe_timed_sdk_op;
 use crate::{
     document::{partition_user_or_group, DocumentEncryptOpts},
-    internal, Result,
+    internal, Result, SDKOperation,
 };
 use itertools::EitherOrBoth;
 
@@ -70,19 +71,23 @@ impl DocumentAdvancedOps for crate::IronOxide {
                 }
             };
 
-        internal::document_api::encrypted_document_unmanaged(
-            self.device.auth(),
-            &self.recrypt,
-            &self.user_master_pub_key,
-            &self.rng,
-            data,
-            encrypt_opts.id.clone(),
-            grant_to_author,
-            &explicit_users,
-            &explicit_groups,
-            policy_grants,
+        run_maybe_timed_sdk_op(
+            internal::document_api::encrypted_document_unmanaged(
+                self.device.auth(),
+                &self.recrypt,
+                &self.user_master_pub_key,
+                &self.rng,
+                data,
+                encrypt_opts.id.clone(),
+                grant_to_author,
+                &explicit_users,
+                &explicit_groups,
+                policy_grants,
+            ),
+            self.config.sdk_operation_timeout,
+            SDKOperation::DocumentEncryptUnmanaged,
         )
-        .await
+        .await?
     }
 
     async fn document_decrypt_unmanaged(
@@ -90,13 +95,17 @@ impl DocumentAdvancedOps for crate::IronOxide {
         encrypted_data: &[u8],
         encrypted_deks: &[u8],
     ) -> Result<DocumentDecryptUnmanagedResult> {
-        internal::document_api::decrypt_document_unmanaged(
-            self.device.auth(),
-            &self.recrypt,
-            self.device().device_private_key(),
-            encrypted_data,
-            encrypted_deks,
+        run_maybe_timed_sdk_op(
+            internal::document_api::decrypt_document_unmanaged(
+                self.device.auth(),
+                &self.recrypt,
+                self.device().device_private_key(),
+                encrypted_data,
+                encrypted_deks,
+            ),
+            self.config.sdk_operation_timeout,
+            SDKOperation::DocumentDecryptUnmanaged,
         )
-        .await
+        .await?
     }
 }
