@@ -1,15 +1,17 @@
 mod common;
 
+use crate::common::init_sdk_with_config;
 use common::{create_id_all_classes, create_second_user, init_sdk_get_user, initialize_sdk};
 use galvanic_assert::{
-    assert_that, is_variant,
     matchers::{collection::contains_in_any_order, eq},
+    *,
 };
+use ironoxide::config::IronOxideConfig;
 use ironoxide::{
     document::{advanced::*, *},
     group::GroupCreateOpts,
     prelude::*,
-    IronOxide,
+    IronOxide, SDKOperation,
 };
 use itertools::EitherOrBoth;
 use std::convert::{TryFrom, TryInto};
@@ -784,6 +786,27 @@ async fn doc_revoke_access() -> Result<(), IronOxideErr> {
 
     assert_eq!(revokes.succeeded().len(), 2);
     assert_eq!(revokes.failed().len(), 2);
+    Ok(())
+}
+
+#[tokio::test]
+async fn sdk_init_with_timeout() -> Result<(), IronOxideErr> {
+    let result = init_sdk_with_config(&IronOxideConfig {
+        sdk_operation_timeout: Some(std::time::Duration::from_millis(10)),
+        ..Default::default()
+    })
+    .await;
+
+    assert!(result.is_err());
+    let err_result = result.unwrap_err();
+    assert_that!(&err_result, is_variant!(IronOxideErr::OperationTimedOut));
+    assert_that!(
+        &err_result,
+        has_structure!(IronOxideErr::OperationTimedOut {
+            operation: eq(SDKOperation::InitializeSdk),
+            duration: eq(std::time::Duration::from_millis(10))
+        })
+    );
     Ok(())
 }
 

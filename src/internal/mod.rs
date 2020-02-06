@@ -920,6 +920,7 @@ pub(crate) mod tests {
     use super::*;
     use galvanic_assert::{matchers::*, MatchResultBuilder, Matcher};
     use std::fmt::Debug;
+    use tokio::time::Duration;
 
     /// String contains matcher to assert that the provided substring exists in the provided value
     pub fn contains<'a>(expected: &'a str) -> Box<dyn Matcher<String> + 'a> {
@@ -1385,6 +1386,98 @@ pub(crate) mod tests {
             Some(&vec1![good_group_id])
         );
         assert_eq!(rotation.user_rotation_needed(), Some(&user_id));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_maybe_timed_sdk_op_no_timeout() -> Result<(), IronOxideErr> {
+        async fn get_42() -> u8 {
+            tokio::time::delay_for(Duration::from_millis(100)).await;
+            42
+        }
+        let forty_two = get_42();
+        let result =
+            run_maybe_timed_sdk_op(forty_two, None, SDKOperation::DocumentRevokeAccess).await?;
+        assert_eq!(result, 42);
+
+        let forty_two = get_42();
+        let result = run_maybe_timed_sdk_op(
+            forty_two,
+            Some(Duration::from_secs(1)),
+            SDKOperation::DocumentRevokeAccess,
+        )
+        .await?;
+        assert_eq!(result, 42);
+
+        async fn get_err() -> Result<(), IronOxideErr> {
+            tokio::time::delay_for(Duration::from_millis(100)).await;
+            Err(IronOxideErr::MissingTransformBlocks)
+        }
+
+        let err_f = get_err();
+        let result =
+            run_maybe_timed_sdk_op(err_f, None, SDKOperation::DocumentRevokeAccess).await?;
+        assert!(result.is_err());
+        assert_that!(
+            &result.unwrap_err(),
+            is_variant!(IronOxideErr::MissingTransformBlocks)
+        );
+
+        let err_f = get_err();
+        let result = run_maybe_timed_sdk_op(
+            err_f,
+            Some(Duration::from_secs(1)),
+            SDKOperation::DocumentRevokeAccess,
+        )
+        .await?;
+        assert!(result.is_err());
+        assert_that!(
+            &result.unwrap_err(),
+            is_variant!(IronOxideErr::MissingTransformBlocks)
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_maybe_timed_sdk_op_with_timeout() -> Result<(), IronOxideErr> {
+        async fn get_42() -> u8 {
+            // allow other futures to run, like the timer
+            // without this the future will run to completion, regardless of the timer
+            tokio::time::delay_for(Duration::from_millis(100)).await;
+            42
+        }
+
+        let forty_two = get_42();
+        let result = run_maybe_timed_sdk_op(
+            forty_two,
+            Some(Duration::from_nanos(1)),
+            SDKOperation::DocumentRevokeAccess,
+        )
+        .await;
+        assert!(result.is_err());
+        assert_that!(
+            &result.unwrap_err(),
+            is_variant!(IronOxideErr::OperationTimedOut)
+        );
+
+        async fn get_err() -> Result<u8, IronOxideErr> {
+            tokio::time::delay_for(Duration::from_millis(100)).await;
+            Err(IronOxideErr::MissingTransformBlocks)
+        }
+
+        let err_f = get_err();
+        let result = run_maybe_timed_sdk_op(
+            err_f,
+            Some(Duration::from_millis(1)),
+            SDKOperation::DocumentRevokeAccess,
+        )
+        .await;
+        assert!(result.is_err());
+        assert_that!(
+            &result.unwrap_err(),
+            is_variant!(IronOxideErr::OperationTimedOut)
+        );
         Ok(())
     }
 }

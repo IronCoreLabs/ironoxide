@@ -108,6 +108,10 @@ pub fn gen_jwt(account_id: Option<&str>) -> (String, String) {
 /// nice error handling with `?` in the tests.
 #[allow(dead_code)]
 pub async fn initialize_sdk() -> Result<IronOxide, IronOxideErr> {
+    init_sdk_with_config(&Default::default()).await
+}
+
+pub async fn init_sdk_with_config(config: &IronOxideConfig) -> Result<IronOxide, IronOxideErr> {
     let account_id: UserId = create_id_all_classes("").try_into()?;
     IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
@@ -121,7 +125,7 @@ pub async fn initialize_sdk() -> Result<IronOxide, IronOxideErr> {
         &Default::default(),
     )
     .await?;
-    ironoxide::initialize(&device.into(), &Default::default()).await
+    ironoxide::initialize(&device.into(), config).await
 }
 
 #[allow(dead_code)]
