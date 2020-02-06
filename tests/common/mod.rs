@@ -117,12 +117,14 @@ pub async fn init_sdk_with_config(config: &IronOxideConfig) -> Result<IronOxide,
         &gen_jwt(Some(account_id.id())).0,
         USER_PASSWORD,
         &UserCreateOpts::new(false),
+        None,
     )
     .await?;
     let device = IronOxide::generate_new_device(
         &gen_jwt(Some(account_id.id())).0,
         USER_PASSWORD,
         &Default::default(),
+        None,
     )
     .await?;
     ironoxide::initialize(&device.into(), config).await
@@ -143,11 +145,12 @@ pub async fn init_sdk_get_init_result(
         &gen_jwt(Some(account_id.id())).0,
         USER_PASSWORD,
         &UserCreateOpts::new(user_needs_rotation),
+        None,
     )
     .await
     .unwrap();
 
-    let verify_resp = IronOxide::user_verify(&gen_jwt(Some(account_id.id())).0)
+    let verify_resp = IronOxide::user_verify(&gen_jwt(Some(account_id.id())).0, None)
         .await
         .unwrap()
         .unwrap();
@@ -157,6 +160,7 @@ pub async fn init_sdk_get_init_result(
         &gen_jwt(Some(account_id.id())).0,
         USER_PASSWORD,
         &Default::default(),
+        None,
     )
     .await
     .unwrap();
@@ -190,10 +194,11 @@ pub async fn init_sdk_get_init_result(
 #[allow(dead_code)]
 pub async fn create_second_user() -> UserResult {
     let (jwt, _) = gen_jwt(Some(&create_id_all_classes("")));
-    let create_result = IronOxide::user_create(&jwt, USER_PASSWORD, &Default::default()).await;
+    let create_result =
+        IronOxide::user_create(&jwt, USER_PASSWORD, &Default::default(), None).await;
     assert!(create_result.is_ok());
 
-    let verify_result = IronOxide::user_verify(&jwt).await;
+    let verify_result = IronOxide::user_verify(&jwt, None).await;
     assert!(verify_result.is_ok());
     verify_result.unwrap().unwrap()
 }

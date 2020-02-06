@@ -27,6 +27,7 @@ mod integration_tests {
             &gen_jwt(Some(account_id.id())).0,
             USER_PASSWORD,
             &Default::default(),
+            None,
         )?
         .into();
         let creator_sdk = ironoxide::blocking::initialize(&device, &Default::default())?;
@@ -55,7 +56,7 @@ mod integration_tests {
         assert!(group_result.is_some());
         assert_eq!(group_result.unwrap().len(), 1);
 
-        let user_result = BlockingIronOxide::user_verify(&jwt)?;
+        let user_result = BlockingIronOxide::user_verify(&jwt, None)?;
         assert!(!user_result.unwrap().needs_rotation());
         let group_get_result = creator_sdk.group_get_metadata(group_create.id())?;
         assert!(!group_get_result.needs_rotation().unwrap());
@@ -76,6 +77,7 @@ mod integration_tests {
             &gen_jwt(Some(account_id.id())).0,
             USER_PASSWORD,
             &Default::default(),
+            None,
         )?
         .into();
         let sdk = ironoxide::blocking::initialize(&device, &Default::default())?;
@@ -104,6 +106,7 @@ mod integration_tests {
             &gen_jwt(Some(account_id.id())).0,
             USER_PASSWORD,
             &Default::default(),
+            None,
         )?
         .into();
 

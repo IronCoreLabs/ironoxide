@@ -1,3 +1,4 @@
+use crate::internal::run_maybe_timed_sdk_op;
 pub use crate::internal::user_api::{
     EncryptedPrivateKey, UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserResult,
     UserUpdatePrivateKeyResult,
@@ -7,7 +8,7 @@ use crate::{
         user_api::{self, DeviceId, DeviceName},
         DeviceAddResult, PublicKey, OUR_REQUEST,
     },
-    IronOxide, Result,
+    IronOxide, Result, SDKOperation,
 };
 use recrypt::api::Recrypt;
 use std::{collections::HashMap, convert::TryInto};
@@ -64,6 +65,7 @@ pub trait UserOps {
     /// - `jwt` - Valid IronCore or Auth0 JWT
     /// - `password` - Password used to encrypt and escrow the user's private master key
     /// - `user_create_opts` - see [`UserCreateOpts`](struct.UserCreateOpts.html)
+    /// - `timeout` - timeout for this operation or None for no timeout. Timed out operations return IronOxideErr::OperationTimedOut
     /// # Returns
     /// Newly generated `UserCreateResult` or Err. For most use cases, this public key can
     /// be discarded as IronCore escrows your user's keys. The escrowed keys are unlocked
@@ -72,6 +74,7 @@ pub trait UserOps {
         jwt: &str,
         password: &str,
         user_create_opts: &UserCreateOpts,
+        timeout: Option<std::time::Duration>,
     ) -> Result<UserCreateResult>;
 
     /// Get all the devices for the current user
@@ -89,6 +92,7 @@ pub trait UserOps {
     /// - `jwt`                   - Valid IronCore JWT
     /// - `password`              - Password used to encrypt and escrow the user's private key
     /// - `device_create_options` - Optional device create arguments, like device name
+    /// - `timeout` - timeout for this operation or None for no timeout. Timed out operations return IronOxideErr::OperationTimedOut
     ///
     /// # Returns
     /// Details about the newly created device.
@@ -96,6 +100,7 @@ pub trait UserOps {
         jwt: &str,
         password: &str,
         device_create_options: &DeviceCreateOpts,
+        timeout: Option<std::time::Duration>,
     ) -> Result<DeviceAddResult>;
 
     /// Delete a user device.
@@ -115,10 +120,14 @@ pub trait UserOps {
     ///
     /// # Arguments
     /// - `jwt` - Valid IronCore JWT
+    /// - `timeout` - timeout for this operation or None for no timeout. Timed out operations return IronOxideErr::OperationTimedOut
     ///
     /// # Returns
     /// Option of whether the user's account record exists in the IronCore system or not. Err if the request couldn't be made.
-    async fn user_verify(jwt: &str) -> Result<Option<UserResult>>;
+    async fn user_verify(
+        jwt: &str,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<Option<UserResult>>;
 
     /// Get a list of user public keys given their IDs. Allows discovery of which user IDs have keys in the
     /// IronCore system to determine of they can be added to groups or have documents shared with them.
@@ -148,57 +157,98 @@ impl UserOps for IronOxide {
         jwt: &str,
         password: &str,
         user_create_opts: &UserCreateOpts,
+        timeout: Option<std::time::Duration>,
     ) -> Result<UserCreateResult> {
         let recrypt = Recrypt::new();
-        user_api::user_create(
-            &recrypt,
-            jwt.try_into()?,
-            password.try_into()?,
-            user_create_opts.needs_rotation,
-            *OUR_REQUEST,
+        run_maybe_timed_sdk_op(
+            user_api::user_create(
+                &recrypt,
+                jwt.try_into()?,
+                password.try_into()?,
+                user_create_opts.needs_rotation,
+                *OUR_REQUEST,
+            ),
+            timeout,
+            SDKOperation::UserCreate,
         )
-        .await
+        .await?
     }
 
     async fn user_list_devices(&self) -> Result<UserDeviceListResult> {
-        user_api::device_list(self.device.auth()).await
+        run_maybe_timed_sdk_op(
+            user_api::device_list(self.device.auth()),
+            self.config.sdk_operation_timeout,
+            SDKOperation::UserListDevices,
+        )
+        .await?
     }
 
     async fn generate_new_device(
         jwt: &str,
         password: &str,
         device_create_options: &DeviceCreateOpts,
+        timeout: Option<std::time::Duration>,
     ) -> Result<DeviceAddResult> {
         let recrypt = Recrypt::new();
 
         let device_create_options = device_create_options.clone();
 
-        user_api::generate_device_key(
-            &recrypt,
-            &jwt.try_into()?,
-            password.try_into()?,
-            device_create_options.device_name,
-            &std::time::SystemTime::now().into(),
-            &OUR_REQUEST,
+        run_maybe_timed_sdk_op(
+            user_api::generate_device_key(
+                &recrypt,
+                &jwt.try_into()?,
+                password.try_into()?,
+                device_create_options.device_name,
+                &std::time::SystemTime::now().into(),
+                &OUR_REQUEST,
+            ),
+            timeout,
+            SDKOperation::GenerateNewDevice,
         )
-        .await
+        .await?
     }
 
     async fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId> {
-        user_api::device_delete(self.device.auth(), device_id).await
+        run_maybe_timed_sdk_op(
+            user_api::device_delete(self.device.auth(), device_id),
+            self.config.sdk_operation_timeout,
+            SDKOperation::UserDeleteDevice,
+        )
+        .await?
     }
 
-    async fn user_verify(jwt: &str) -> Result<Option<UserResult>> {
-        user_api::user_verify(jwt.try_into()?, *OUR_REQUEST).await
+    async fn user_verify(
+        jwt: &str,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<Option<UserResult>> {
+        run_maybe_timed_sdk_op(
+            user_api::user_verify(jwt.try_into()?, *OUR_REQUEST),
+            timeout,
+            SDKOperation::UserVerify,
+        )
+        .await?
     }
 
     async fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {
-        user_api::user_key_list(self.device.auth(), &users.to_vec()).await
+        run_maybe_timed_sdk_op(
+            user_api::user_key_list(self.device.auth(), &users.to_vec()),
+            self.config.sdk_operation_timeout,
+            SDKOperation::UserGetPublicKey,
+        )
+        .await?
     }
 
     async fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult> {
-        user_api::user_rotate_private_key(&self.recrypt, password.try_into()?, self.device().auth())
-            .await
+        run_maybe_timed_sdk_op(
+            user_api::user_rotate_private_key(
+                &self.recrypt,
+                password.try_into()?,
+                self.device().auth(),
+            ),
+            self.config.sdk_operation_timeout,
+            SDKOperation::UserRotatePrivateKey,
+        )
+        .await?
     }
 }
 

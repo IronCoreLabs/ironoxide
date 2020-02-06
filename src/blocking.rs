@@ -230,7 +230,14 @@ impl BlockingIronOxide {
         user_create_opts: &UserCreateOpts,
     ) -> Result<UserCreateResult> {
         let rt = create_runtime();
-        rt.enter(|| block_on(IronOxide::user_create(jwt, password, user_create_opts)))
+        rt.enter(|| {
+            block_on(IronOxide::user_create(
+                jwt,
+                password,
+                user_create_opts,
+                None,
+            ))
+        })
     }
     /// See [ironoxide::user::UserOps::user_list_devices()](trait.UserOps.html#tymethod.user_list_devices)
     pub fn user_list_devices(&self) -> Result<UserDeviceListResult> {
@@ -242,6 +249,7 @@ impl BlockingIronOxide {
         jwt: &str,
         password: &str,
         device_create_options: &DeviceCreateOpts,
+        timeout: Option<std::time::Duration>,
     ) -> Result<DeviceAddResult> {
         let rt = create_runtime();
         rt.enter(|| {
@@ -249,6 +257,7 @@ impl BlockingIronOxide {
                 jwt,
                 password,
                 device_create_options,
+                timeout,
             ))
         })
     }
@@ -258,9 +267,12 @@ impl BlockingIronOxide {
             .enter(|| block_on(self.ironoxide.user_delete_device(device_id)))
     }
     /// See [ironoxide::user::UserOps::user_verify()](trait.UserOps.html#tymethod.user_verify)
-    pub fn user_verify(jwt: &str) -> Result<Option<UserResult>> {
+    pub fn user_verify(
+        jwt: &str,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<Option<UserResult>> {
         let rt = create_runtime();
-        rt.enter(|| block_on(IronOxide::user_verify(jwt)))
+        rt.enter(|| block_on(IronOxide::user_verify(jwt, timeout)))
     }
     /// See [ironoxide::user::UserOps::user_get_public_key()](trait.UserOps.html#tymethod.user_get_public_key)
     pub fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {
