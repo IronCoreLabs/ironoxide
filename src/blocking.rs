@@ -35,6 +35,7 @@ use crate::{
 use futures::executor::block_on;
 use std::collections::HashMap;
 
+#[derive(Debug)]
 /// Struct that is used to make authenticated requests to the IronCore API. Instantiated with the details
 /// of an account's various ids, device, and signing keys. Once instantiated all operations will be
 /// performed in the context of the account provided. Identical to IronOxide but also contains a Runtime.

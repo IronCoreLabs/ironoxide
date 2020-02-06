@@ -93,7 +93,7 @@ mod integration_tests {
 
     // Show that SDK operations timeout correctly using BlockingIronOxide
     #[test]
-    fn document_encrypt_with_timeout() -> Result<(), IronOxideErr> {
+    fn initialize_with_timeout() -> Result<(), IronOxideErr> {
         let account_id: UserId = create_id_all_classes("").try_into()?;
         BlockingIronOxide::user_create(
             &gen_jwt(Some(account_id.id())).0,
@@ -108,21 +108,20 @@ mod integration_tests {
         .into();
 
         // set a timeout that is unreasonably small
-        let duration = Duration::from_millis(50);
+        let duration = Duration::from_millis(5);
         let config = IronOxideConfig {
-            sdk_operation_timeout: duration,
+            sdk_operation_timeout: Some(duration),
             ..Default::default()
         };
 
-        let sdk = ironoxide::blocking::initialize(&device, &config)?;
-        let doc = [0u8; 64];
-        let result = sdk.document_encrypt(&doc, &Default::default());
-        let err_result = result.unwrap_err();
+        let result = ironoxide::blocking::initialize(&device, &config);
+        let err_result = result.unwrap_err(); //TODO Can't do this because ironoxide doesn't provide Debug. open issues recrypt about Debug impls
+
         assert_that!(&err_result, is_variant!(IronOxideErr::OperationTimedOut));
         assert_that!(
             &err_result,
             has_structure!(IronOxideErr::OperationTimedOut {
-                operation: eq(SDKOperation::DocumentEncrypt),
+                operation: eq(SDKOperation::InitializeSdk),
                 duration: eq(*duration)
             })
         );

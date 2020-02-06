@@ -172,7 +172,7 @@ pub async fn init_sdk_get_init_result(
         users_signing_keys_bytes.try_into().unwrap(),
     );
     let config = IronOxideConfig {
-        sdk_operation_timeout: Duration::from_secs(3),
+        sdk_operation_timeout: Some(Duration::from_secs(3)),
         ..Default::default()
     };
     (

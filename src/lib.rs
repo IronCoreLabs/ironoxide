@@ -89,6 +89,7 @@ pub use crate::internal::{
 };
 use crate::policy::PolicyGrant;
 use dashmap::DashMap;
+use futures::future::TryFutureExt;
 use itertools::EitherOrBoth;
 use rand::{
     rngs::{adapter::ReseedingRng, EntropyRng},
@@ -96,6 +97,8 @@ use rand::{
 };
 use rand_chacha::ChaChaCore;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
+use serde::export::fmt::{Debug, Error};
+use serde::export::Formatter;
 use std::{convert::TryInto, sync::Mutex};
 use vec1::Vec1;
 
@@ -113,7 +116,7 @@ pub mod config {
         /// See [PolicyCachingConfig](struct.PolicyCachingConfig.html)
         pub policy_caching: PolicyCachingConfig,
         /// Timeout for all SDK methods. Will return IronOxideErr::OperationTimedOut on timeout.
-        pub sdk_operation_timeout: Duration,
+        pub sdk_operation_timeout: Option<Duration>,
     }
 
     /// Policy evaluation caching config. Lifetime of the cache is the lifetime of the `IronOxide` struct.
@@ -132,7 +135,7 @@ pub mod config {
         fn default() -> Self {
             IronOxideConfig {
                 policy_caching: PolicyCachingConfig::default(),
-                sdk_operation_timeout: Duration::from_secs(30),
+                sdk_operation_timeout: Some(Duration::from_secs(30)),
             }
         }
     }
@@ -155,6 +158,12 @@ pub struct IronOxide {
     pub(crate) device: DeviceContext,
     pub(crate) rng: Mutex<ReseedingRng<ChaChaCore, EntropyRng>>,
     pub(crate) policy_eval_cache: PolicyCache,
+}
+
+impl Debug for IronOxide {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::result::Result<(), Error> {
+        unimplemented!()
+    }
 }
 
 /// Result of calling `initialize_check_rotation`
@@ -215,10 +224,14 @@ pub async fn initialize(
     device_context: &DeviceContext,
     config: &IronOxideConfig,
 ) -> Result<IronOxide> {
-    internal::user_api::user_get_current(&device_context.auth())
-        .await
-        .map(|current_user| IronOxide::create(&current_user, device_context, config))
-        .map_err(|_| IronOxideErr::InitializeError)
+    internal::run_maybe_timed_sdk_op(
+        internal::user_api::user_get_current(&device_context.auth()),
+        config.sdk_operation_timeout,
+        SDKOperation::InitializeSdk,
+    )
+    .await?
+    .map(|current_user| IronOxide::create(&current_user, device_context, config))
+    .map_err(|_| IronOxideErr::InitializeError)
 }
 
 /// Finds the groups that the caller is an admin of that need rotation and
@@ -292,8 +305,6 @@ impl IronOxide {
         device_context: &DeviceContext,
         config: &IronOxideConfig,
     ) -> IronOxide {
-        // create a tokio runtime with the default number of core threads (num of cores on a machine)
-        // and an elevated number of blocking_threads as we expect heavy concurrency to be network-bound
         IronOxide {
             config: config.clone(),
             recrypt: Recrypt::new(),

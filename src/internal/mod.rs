@@ -8,6 +8,7 @@ use crate::internal::{
     user_api::{DeviceId, DeviceName, UserId},
 };
 use chrono::{DateTime, Utc};
+use futures::Future;
 use log::error;
 use protobuf::{self, ProtobufError};
 use recrypt::api::{
@@ -25,6 +26,7 @@ use std::{
     result::Result,
     sync::{Mutex, MutexGuard},
 };
+use tokio::time::Elapsed;
 
 pub mod document_api;
 pub mod group_api;
@@ -76,13 +78,44 @@ pub enum RequestErrorCode {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub enum SDKOperation {
+    InitializeSdk,
+    InitializeSdkCheckRotation,
+    RotateAll,
+    DocumentList,
+    DocumentGetMetadata,
+    DocumentGetIdFromBytes,
     DocumentEncrypt,
+    DocumentUpdateBytes,
+    DocumentDecrypt,
+    DocumentUpdateName,
+    DocumentGrantAccess,
+    DocumentRevokeAccess,
+    DocumentEncryptUnmanaged,
+    DocumentDecryptUnmanaged,
+    UserCreate,
+    UserListDevices,
+    GenerateNewDevice,
+    UserDeleteDevice,
+    UserVerify,
+    UserGetPublicKey,
+    UserRotatePrivateKey,
+    GroupList,
+    GroupCreate,
+    GroupGetMetadata,
+    GroupDelete,
+    GroupUpdateName,
+    GroupAddMembers,
+    GroupRemoveMembers,
+    GroupAddAdmins,
+    GroupRemoveAdmins,
+    GroupRotatePrivateKey,
 }
 
 impl std::fmt::Display for SDKOperation {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         let name = match self {
             SDKOperation::DocumentEncrypt => "document_encrypt",
+            _ => panic!(""),
         };
         f.write_str(name)
     }
@@ -855,6 +888,32 @@ fn gen_plaintext_and_aug_with_retry<R: CryptoOps>(
     };
     // retry generation of private key one time. If this fails twice there's something wrong.
     aug_private_key().or_else(|_| aug_private_key())
+}
+
+pub async fn run_maybe_timed_sdk_op<F>(
+    f: F,
+    timeout: Option<std::time::Duration>,
+    op: SDKOperation,
+) -> Result<F::Output, IronOxideErr>
+where
+    F: Future,
+{
+    use futures::future::TryFutureExt;
+    let result = match timeout {
+        Some(d) => {
+            tokio::time::timeout(d, f)
+                .map_err(|_: Elapsed| IronOxideErr::OperationTimedOut {
+                    operation: op,
+                    duration: d,
+                })
+                .await? // ? here returns the OperationTimedOut error
+        }
+
+        // no timeout, just run the Future and return
+        None => f.await,
+    };
+
+    Ok(result)
 }
 
 #[cfg(test)]

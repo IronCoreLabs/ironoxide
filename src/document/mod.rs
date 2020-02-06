@@ -3,7 +3,7 @@ pub use crate::internal::document_api::{
     DocumentEncryptResult, DocumentListMeta, DocumentListResult, DocumentMetadataResult,
     UserOrGroup, VisibleGroup, VisibleUser,
 };
-use crate::internal::{IronOxideErr, SDKOperation};
+use crate::internal::{run_maybe_timed_sdk_op, SDKOperation};
 use crate::{
     internal::{
         document_api::{self, DocumentId, DocumentName},
@@ -13,7 +13,6 @@ use crate::{
     policy::*,
     Result,
 };
-use futures::prelude::*;
 use itertools::{Either, EitherOrBoth, Itertools};
 
 /// Advanced document operations
@@ -236,29 +235,27 @@ impl DocumentOps for crate::IronOxide {
                     )
                 }
             };
+        let f = document_api::encrypt_document(
+            self.device.auth(),
+            &self.config,
+            &self.recrypt,
+            &self.user_master_pub_key,
+            &self.rng,
+            document_data,
+            encrypt_opts.id,
+            encrypt_opts.name,
+            grant_to_author,
+            &explicit_users,
+            &explicit_groups,
+            policy_grants.as_ref(),
+            &self.policy_eval_cache,
+        );
 
-        tokio::time::timeout(
+        run_maybe_timed_sdk_op(
+            f,
             self.config.sdk_operation_timeout,
-            document_api::encrypt_document(
-                self.device.auth(),
-                &self.config,
-                &self.recrypt,
-                &self.user_master_pub_key,
-                &self.rng,
-                document_data,
-                encrypt_opts.id,
-                encrypt_opts.name,
-                grant_to_author,
-                &explicit_users,
-                &explicit_groups,
-                policy_grants.as_ref(),
-                &self.policy_eval_cache,
-            ),
+            SDKOperation::DocumentEncrypt,
         )
-        .map_err(|_| IronOxideErr::OperationTimedOut {
-            operation: SDKOperation::DocumentEncrypt,
-            duration: self.config.sdk_operation_timeout,
-        })
         .await?
     }
 
