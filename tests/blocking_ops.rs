@@ -120,7 +120,7 @@ mod integration_tests {
         };
 
         let result = ironoxide::blocking::initialize(&device, &config);
-        let err_result = result.unwrap_err(); //TODO Can't do this because ironoxide doesn't provide Debug. open issues recrypt about Debug impls
+        let err_result = result.unwrap_err();
 
         assert_that!(&err_result, is_variant!(IronOxideErr::OperationTimedOut));
         assert_that!(
@@ -162,7 +162,7 @@ mod integration_tests {
         {
             let result = bio.rotate_all(&to_rotate, USER_PASSWORD, Some(Duration::from_millis(10)));
 
-            let err_result = result.unwrap_err(); //TODO Can't do this because ironoxide doesn't provide Debug. open issues recrypt about Debug impls
+            let err_result = result.unwrap_err();
 
             assert_that!(&err_result, is_variant!(IronOxideErr::OperationTimedOut));
             assert_that!(
