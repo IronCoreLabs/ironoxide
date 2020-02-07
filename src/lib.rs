@@ -97,8 +97,7 @@ use rand::{
 };
 use rand_chacha::ChaChaCore;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
-use serde::export::fmt::{Debug, Error};
-use serde::export::Formatter;
+use std::fmt;
 use std::{convert::TryInto, sync::Mutex};
 use vec1::Vec1;
 
@@ -160,9 +159,25 @@ pub struct IronOxide {
     pub(crate) policy_eval_cache: PolicyCache,
 }
 
-impl Debug for IronOxide {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::result::Result<(), Error> {
-        unimplemented!()
+impl fmt::Debug for IronOxide {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            IronOxide {
+                config: ref __self_0_0,
+                recrypt: _,
+                user_master_pub_key: ref __self_0_2,
+                device: ref __self_0_3,
+                rng: _,
+                policy_eval_cache: ref __self_0_5,
+            } => {
+                let mut debug_trait_builder = f.debug_struct("IronOxide");
+                let _ = debug_trait_builder.field("config", &&(*__self_0_0));
+                let _ = debug_trait_builder.field("user_master_pub_key", &&(*__self_0_2));
+                let _ = debug_trait_builder.field("device", &&(*__self_0_3));
+                let _ = debug_trait_builder.field("policy_eval_cache", &&(*__self_0_5));
+                debug_trait_builder.finish()
+            }
+        }
     }
 }
 
