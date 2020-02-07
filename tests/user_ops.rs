@@ -10,7 +10,7 @@ use ironoxide::{
     document::DocumentEncryptOpts,
     prelude::*,
     user::{DeviceCreateOpts, UserCreateOpts},
-    SDKOperation,
+    SdkOperation,
 };
 use std::{convert::TryInto, default::Default};
 use uuid::Uuid;
@@ -188,7 +188,7 @@ async fn generate_device_with_timeout() -> Result<(), IronOxideErr> {
     assert_that!(
         &err_result,
         has_structure!(IronOxideErr::OperationTimedOut {
-            operation: eq(SDKOperation::GenerateNewDevice),
+            operation: eq(SdkOperation::GenerateNewDevice),
             duration: eq(std::time::Duration::from_millis(1))
         })
     );

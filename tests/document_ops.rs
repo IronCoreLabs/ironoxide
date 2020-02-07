@@ -11,7 +11,7 @@ use ironoxide::{
     document::{advanced::*, *},
     group::GroupCreateOpts,
     prelude::*,
-    IronOxide, SDKOperation,
+    IronOxide, SdkOperation,
 };
 use itertools::EitherOrBoth;
 use std::convert::{TryFrom, TryInto};
@@ -803,7 +803,7 @@ async fn sdk_init_with_timeout() -> Result<(), IronOxideErr> {
     assert_that!(
         &err_result,
         has_structure!(IronOxideErr::OperationTimedOut {
-            operation: eq(SDKOperation::InitializeSdk),
+            operation: eq(SdkOperation::InitializeSdk),
             duration: eq(std::time::Duration::from_millis(10))
         })
     );

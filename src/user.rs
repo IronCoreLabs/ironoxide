@@ -8,7 +8,7 @@ use crate::{
         user_api::{self, DeviceId, DeviceName},
         DeviceAddResult, PublicKey, OUR_REQUEST,
     },
-    IronOxide, Result, SDKOperation,
+    IronOxide, Result, SdkOperation,
 };
 use recrypt::api::Recrypt;
 use std::{collections::HashMap, convert::TryInto};
@@ -169,7 +169,7 @@ impl UserOps for IronOxide {
                 *OUR_REQUEST,
             ),
             timeout,
-            SDKOperation::UserCreate,
+            SdkOperation::UserCreate,
         )
         .await?
     }
@@ -178,7 +178,7 @@ impl UserOps for IronOxide {
         run_maybe_timed_sdk_op(
             user_api::device_list(self.device.auth()),
             self.config.sdk_operation_timeout,
-            SDKOperation::UserListDevices,
+            SdkOperation::UserListDevices,
         )
         .await?
     }
@@ -203,7 +203,7 @@ impl UserOps for IronOxide {
                 &OUR_REQUEST,
             ),
             timeout,
-            SDKOperation::GenerateNewDevice,
+            SdkOperation::GenerateNewDevice,
         )
         .await?
     }
@@ -212,7 +212,7 @@ impl UserOps for IronOxide {
         run_maybe_timed_sdk_op(
             user_api::device_delete(self.device.auth(), device_id),
             self.config.sdk_operation_timeout,
-            SDKOperation::UserDeleteDevice,
+            SdkOperation::UserDeleteDevice,
         )
         .await?
     }
@@ -224,7 +224,7 @@ impl UserOps for IronOxide {
         run_maybe_timed_sdk_op(
             user_api::user_verify(jwt.try_into()?, *OUR_REQUEST),
             timeout,
-            SDKOperation::UserVerify,
+            SdkOperation::UserVerify,
         )
         .await?
     }
@@ -233,7 +233,7 @@ impl UserOps for IronOxide {
         run_maybe_timed_sdk_op(
             user_api::user_key_list(self.device.auth(), &users.to_vec()),
             self.config.sdk_operation_timeout,
-            SDKOperation::UserGetPublicKey,
+            SdkOperation::UserGetPublicKey,
         )
         .await?
     }
@@ -246,7 +246,7 @@ impl UserOps for IronOxide {
                 self.device().auth(),
             ),
             self.config.sdk_operation_timeout,
-            SDKOperation::UserRotatePrivateKey,
+            SdkOperation::UserRotatePrivateKey,
         )
         .await?
     }

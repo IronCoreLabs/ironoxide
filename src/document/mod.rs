@@ -3,7 +3,7 @@ pub use crate::internal::document_api::{
     DocumentEncryptResult, DocumentListMeta, DocumentListResult, DocumentMetadataResult,
     UserOrGroup, VisibleGroup, VisibleUser,
 };
-use crate::internal::{run_maybe_timed_sdk_op, SDKOperation};
+use crate::internal::{run_maybe_timed_sdk_op, SdkOperation};
 use crate::{
     internal::{
         document_api::{self, DocumentId, DocumentName},
@@ -203,7 +203,7 @@ impl DocumentOps for crate::IronOxide {
         run_maybe_timed_sdk_op(
             document_api::document_list(self.device.auth()),
             self.config.sdk_operation_timeout,
-            SDKOperation::DocumentList,
+            SdkOperation::DocumentList,
         )
         .await?
     }
@@ -212,7 +212,7 @@ impl DocumentOps for crate::IronOxide {
         run_maybe_timed_sdk_op(
             document_api::document_get_metadata(self.device.auth(), id),
             self.config.sdk_operation_timeout,
-            SDKOperation::DocumentGetMetadata,
+            SdkOperation::DocumentGetMetadata,
         )
         .await?
     }
@@ -262,7 +262,7 @@ impl DocumentOps for crate::IronOxide {
                 &self.policy_eval_cache,
             ),
             self.config.sdk_operation_timeout,
-            SDKOperation::DocumentEncrypt,
+            SdkOperation::DocumentEncrypt,
         )
         .await?
     }
@@ -282,7 +282,7 @@ impl DocumentOps for crate::IronOxide {
                 &new_document_data,
             ),
             self.config.sdk_operation_timeout,
-            SDKOperation::DocumentUpdateBytes,
+            SdkOperation::DocumentUpdateBytes,
         )
         .await?
     }
@@ -296,7 +296,7 @@ impl DocumentOps for crate::IronOxide {
                 encrypted_document,
             ),
             self.config.sdk_operation_timeout,
-            SDKOperation::DocumentDecrypt,
+            SdkOperation::DocumentDecrypt,
         )
         .await?
     }
@@ -309,7 +309,7 @@ impl DocumentOps for crate::IronOxide {
         run_maybe_timed_sdk_op(
             document_api::update_document_name(self.device.auth(), id, name),
             self.config.sdk_operation_timeout,
-            SDKOperation::DocumentUpdateName,
+            SdkOperation::DocumentUpdateName,
         )
         .await?
     }
@@ -332,7 +332,7 @@ impl DocumentOps for crate::IronOxide {
                 &groups,
             ),
             self.config.sdk_operation_timeout,
-            SDKOperation::DocumentGrantAccess,
+            SdkOperation::DocumentGrantAccess,
         )
         .await?
     }
@@ -345,7 +345,7 @@ impl DocumentOps for crate::IronOxide {
         run_maybe_timed_sdk_op(
             document_api::document_revoke_access(self.device.auth(), id, revoke_list),
             self.config.sdk_operation_timeout,
-            SDKOperation::DocumentRevokeAccess,
+            SdkOperation::DocumentRevokeAccess,
         )
         .await?
     }

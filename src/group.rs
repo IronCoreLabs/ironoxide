@@ -5,7 +5,7 @@ pub use crate::internal::group_api::{
 use crate::internal::run_maybe_timed_sdk_op;
 use crate::{
     internal::{group_api, group_api::GroupCreateOptsStd, user_api::UserId, IronOxideErr},
-    Result, SDKOperation,
+    Result, SdkOperation,
 };
 use vec1::Vec1;
 
@@ -269,7 +269,7 @@ impl GroupOps for crate::IronOxide {
         run_maybe_timed_sdk_op(
             group_api::list(self.device.auth(), None),
             self.config.sdk_operation_timeout,
-            SDKOperation::GroupList,
+            SdkOperation::GroupList,
         )
         .await?
     }
@@ -299,7 +299,7 @@ impl GroupOps for crate::IronOxide {
                 needs_rotation,
             ),
             self.config.sdk_operation_timeout,
-            SDKOperation::GroupCreate,
+            SdkOperation::GroupCreate,
         )
         .await?
     }
@@ -308,7 +308,7 @@ impl GroupOps for crate::IronOxide {
         run_maybe_timed_sdk_op(
             group_api::get_metadata(self.device.auth(), id),
             self.config.sdk_operation_timeout,
-            SDKOperation::GroupGetMetadata,
+            SdkOperation::GroupGetMetadata,
         )
         .await?
     }
@@ -317,7 +317,7 @@ impl GroupOps for crate::IronOxide {
         run_maybe_timed_sdk_op(
             group_api::group_delete(self.device.auth(), id),
             self.config.sdk_operation_timeout,
-            SDKOperation::GroupDelete,
+            SdkOperation::GroupDelete,
         )
         .await?
     }
@@ -330,7 +330,7 @@ impl GroupOps for crate::IronOxide {
         run_maybe_timed_sdk_op(
             group_api::update_group_name(self.device.auth(), id, name),
             self.config.sdk_operation_timeout,
-            SDKOperation::GroupUpdateName,
+            SdkOperation::GroupUpdateName,
         )
         .await?
     }
@@ -349,7 +349,7 @@ impl GroupOps for crate::IronOxide {
                 &grant_list.to_vec(),
             ),
             self.config.sdk_operation_timeout,
-            SDKOperation::GroupAddMembers,
+            SdkOperation::GroupAddMembers,
         )
         .await?
     }
@@ -367,7 +367,7 @@ impl GroupOps for crate::IronOxide {
                 group_api::GroupEntity::Member,
             ),
             self.config.sdk_operation_timeout,
-            SDKOperation::GroupRemoveMembers,
+            SdkOperation::GroupRemoveMembers,
         )
         .await?
     }
@@ -386,7 +386,7 @@ impl GroupOps for crate::IronOxide {
                 &users.to_vec(),
             ),
             self.config.sdk_operation_timeout,
-            SDKOperation::GroupAddAdmins,
+            SdkOperation::GroupAddAdmins,
         )
         .await?
     }
@@ -404,7 +404,7 @@ impl GroupOps for crate::IronOxide {
                 group_api::GroupEntity::Admin,
             ),
             self.config.sdk_operation_timeout,
-            SDKOperation::GroupRemoveAdmins,
+            SdkOperation::GroupRemoveAdmins,
         )
         .await?
     }
@@ -418,7 +418,7 @@ impl GroupOps for crate::IronOxide {
                 self.device().device_private_key(),
             ),
             self.config.sdk_operation_timeout,
-            SDKOperation::GroupRotatePrivateKey,
+            SdkOperation::GroupRotatePrivateKey,
         )
         .await?
     }

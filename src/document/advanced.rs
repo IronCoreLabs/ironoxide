@@ -4,7 +4,7 @@ pub use crate::internal::document_api::{
 use crate::internal::run_maybe_timed_sdk_op;
 use crate::{
     document::{partition_user_or_group, DocumentEncryptOpts},
-    internal, Result, SDKOperation,
+    internal, Result, SdkOperation,
 };
 use itertools::EitherOrBoth;
 
@@ -85,7 +85,7 @@ impl DocumentAdvancedOps for crate::IronOxide {
                 policy_grants,
             ),
             self.config.sdk_operation_timeout,
-            SDKOperation::DocumentEncryptUnmanaged,
+            SdkOperation::DocumentEncryptUnmanaged,
         )
         .await?
     }
@@ -104,7 +104,7 @@ impl DocumentAdvancedOps for crate::IronOxide {
                 encrypted_deks,
             ),
             self.config.sdk_operation_timeout,
-            SDKOperation::DocumentDecryptUnmanaged,
+            SdkOperation::DocumentDecryptUnmanaged,
         )
         .await?
     }

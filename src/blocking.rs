@@ -55,12 +55,13 @@ impl BlockingIronOxide {
         &self,
         rotations: &PrivateKeyRotationCheckResult,
         password: &str,
+        timeout: Option<std::time::Duration>,
     ) -> Result<(
         Option<UserUpdatePrivateKeyResult>,
         Option<Vec<GroupUpdatePrivateKeyResult>>,
     )> {
         self.runtime
-            .enter(|| block_on(self.ironoxide.rotate_all(rotations, password)))
+            .enter(|| block_on(self.ironoxide.rotate_all(rotations, password, timeout)))
     }
 
     /// See [ironoxide::document::DocumentOps::document_list()](trait.DocumentOps.html#tymethod.document_list)

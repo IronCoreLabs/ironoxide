@@ -223,7 +223,9 @@ async fn rotate_all() -> Result<(), IronOxideErr> {
         InitAndRotationCheck::NoRotationNeeded(_) => {
             panic!("both user and groups should need rotation!");
         }
-        InitAndRotationCheck::RotationNeeded(io, rot) => io.rotate_all(&rot, USER_PASSWORD).await?,
+        InitAndRotationCheck::RotationNeeded(io, rot) => {
+            io.rotate_all(&rot, USER_PASSWORD, None).await?
+        }
     };
     assert!(user_result.is_some());
     assert!(group_result.is_some());

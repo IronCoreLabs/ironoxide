@@ -80,12 +80,13 @@ use crate::config::IronOxideConfig;
 use crate::internal::document_api::UserOrGroup;
 use crate::internal::{
     group_api::{GroupId, GroupUpdatePrivateKeyResult},
+    run_maybe_timed_sdk_op,
     user_api::{UserId, UserResult, UserUpdatePrivateKeyResult},
     WithKey,
 };
 pub use crate::internal::{
     DeviceAddResult, DeviceContext, DeviceSigningKeyPair, IronOxideErr, KeyPair, PrivateKey,
-    PublicKey, SDKOperation,
+    PublicKey, SdkOperation,
 };
 use crate::policy::PolicyGrant;
 use dashmap::DashMap;
@@ -226,7 +227,7 @@ pub async fn initialize(
     internal::run_maybe_timed_sdk_op(
         internal::user_api::user_get_current(&device_context.auth()),
         config.sdk_operation_timeout,
-        SDKOperation::InitializeSdk,
+        SdkOperation::InitializeSdk,
     )
     .await?
     .map(|current_user| IronOxide::create(&current_user, device_context, config))
@@ -268,10 +269,16 @@ pub async fn initialize_check_rotation(
     device_context: &DeviceContext,
     config: &IronOxideConfig,
 ) -> Result<InitAndRotationCheck<IronOxide>> {
-    let (curr_user, group_list_result) = futures::try_join!(
-        internal::user_api::user_get_current(device_context.auth()),
-        internal::group_api::list(device_context.auth(), None)
-    )?;
+    let (curr_user, group_list_result) = run_maybe_timed_sdk_op(
+        futures::future::try_join(
+            internal::user_api::user_get_current(device_context.auth()),
+            internal::group_api::list(device_context.auth(), None),
+        ),
+        config.sdk_operation_timeout,
+        SdkOperation::InitializeSdkCheckRotation,
+    )
+    .await??;
+
     let ironoxide = IronOxide::create(&curr_user, device_context, config);
     let user_groups = group_list_result.result();
 
@@ -326,10 +333,13 @@ impl IronOxide {
     /// # Arguments
     /// - `rotations` - PrivateKeyRotationCheckResult that holds all users and groups to be rotated
     /// - `password` - Password to unlock the current user's user master key
+    /// - `timeout` - timeout for rotate_all. This is a separate timeout from the SDK-wide timeout as it is
+    /// expected that this operation might take significantly longer than other operations.
     pub async fn rotate_all(
         &self,
         rotations: &PrivateKeyRotationCheckResult,
         password: &str,
+        timeout: Option<std::time::Duration>,
     ) -> Result<(
         Option<UserUpdatePrivateKeyResult>,
         Option<Vec<GroupUpdatePrivateKeyResult>>,
@@ -358,8 +368,12 @@ impl IronOxide {
         });
         let user_opt_future: futures::future::OptionFuture<_> = user_future.into();
         let group_opt_future: futures::future::OptionFuture<_> = group_futures.into();
-        let (user_opt_result, group_opt_vec_result) =
-            futures::future::join(user_opt_future, group_opt_future).await;
+        let (user_opt_result, group_opt_vec_result) = run_maybe_timed_sdk_op(
+            futures::future::join(user_opt_future, group_opt_future),
+            timeout,
+            SdkOperation::RotateAll,
+        )
+        .await?;
         let group_opt_result_vec = group_opt_vec_result.map(|g| g.into_iter().collect());
         Ok((
             user_opt_result.transpose()?,

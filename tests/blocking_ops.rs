@@ -12,7 +12,7 @@ mod integration_tests {
         blocking::BlockingIronOxide,
         group::GroupCreateOpts,
         user::{UserCreateOpts, UserId},
-        InitAndRotationCheck, IronOxideErr, SDKOperation,
+        InitAndRotationCheck, IronOxideErr, SdkOperation,
     };
     use std::convert::TryInto;
     use std::time::Duration;
@@ -50,7 +50,9 @@ mod integration_tests {
             InitAndRotationCheck::NoRotationNeeded(_) => {
                 panic!("both user and groups should need rotation!");
             }
-            InitAndRotationCheck::RotationNeeded(io, rot) => io.rotate_all(&rot, USER_PASSWORD)?,
+            InitAndRotationCheck::RotationNeeded(io, rot) => {
+                io.rotate_all(&rot, USER_PASSWORD, None)?
+            }
         };
         assert!(user_result.is_some());
         assert!(group_result.is_some());
@@ -124,11 +126,56 @@ mod integration_tests {
         assert_that!(
             &err_result,
             has_structure!(IronOxideErr::OperationTimedOut {
-                operation: eq(SDKOperation::InitializeSdk),
+                operation: eq(SdkOperation::InitializeSdk),
                 duration: eq(*duration)
             })
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn rotate_all_with_timeout() -> Result<(), IronOxideErr> {
+        let account_id: UserId = create_id_all_classes("").try_into()?;
+        BlockingIronOxide::user_create(
+            &gen_jwt(Some(account_id.id())).0,
+            USER_PASSWORD,
+            &UserCreateOpts::new(true),
+        )?;
+        let device = BlockingIronOxide::generate_new_device(
+            &gen_jwt(Some(account_id.id())).0,
+            USER_PASSWORD,
+            &Default::default(),
+            None,
+        )?
+        .into();
+
+        // set a timeout that is unreasonably small
+        let duration = Duration::from_millis(5);
+        let config = IronOxideConfig {
+            sdk_operation_timeout: Some(duration),
+            ..Default::default()
+        };
+
+        if let InitAndRotationCheck::RotationNeeded(bio, to_rotate) =
+            ironoxide::blocking::initialize_check_rotation(&device, &Default::default())?
+        {
+            let result = bio.rotate_all(&to_rotate, USER_PASSWORD, Some(Duration::from_millis(10)));
+
+            let err_result = result.unwrap_err(); //TODO Can't do this because ironoxide doesn't provide Debug. open issues recrypt about Debug impls
+
+            assert_that!(&err_result, is_variant!(IronOxideErr::OperationTimedOut));
+            assert_that!(
+                &err_result,
+                has_structure!(IronOxideErr::OperationTimedOut {
+                    operation: eq(SdkOperation::RotateAll),
+                    duration: eq(*duration)
+                })
+            );
+            Ok(())
+        } else {
+            // error type here is bogus, but will cause the test to fail
+            Err(IronOxideErr::InitializeError)
+        }
     }
 }

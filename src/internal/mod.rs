@@ -76,8 +76,9 @@ pub enum RequestErrorCode {
     PolicyGet,
 }
 
+/// Public SDK operations
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
-pub enum SDKOperation {
+pub enum SdkOperation {
     InitializeSdk,
     InitializeSdkCheckRotation,
     RotateAll,
@@ -110,10 +111,10 @@ pub enum SDKOperation {
     GroupRotatePrivateKey,
 }
 
-impl std::fmt::Display for SDKOperation {
+impl std::fmt::Display for SdkOperation {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         let name = match self {
-            SDKOperation::DocumentEncrypt => "document_encrypt",
+            SdkOperation::DocumentEncrypt => "document_encrypt",
             _ => panic!(""),
         };
         f.write_str(name)
@@ -188,7 +189,7 @@ quick_error! {
         GroupPrivateKeyRotationError(msg: String) {
             display("Group private key rotation failed with '{}'", msg)
         }
-        OperationTimedOut{operation: SDKOperation, duration: std::time::Duration} {
+        OperationTimedOut{operation: SdkOperation, duration: std::time::Duration} {
             display("Operation {} timed out after {}ms", operation, duration.as_millis())
         }
     }
@@ -892,7 +893,7 @@ fn gen_plaintext_and_aug_with_retry<R: CryptoOps>(
 pub async fn run_maybe_timed_sdk_op<F>(
     f: F,
     timeout: Option<std::time::Duration>,
-    op: SDKOperation,
+    op: SdkOperation,
 ) -> Result<F::Output, IronOxideErr>
 where
     F: Future,
@@ -1397,14 +1398,14 @@ pub(crate) mod tests {
         }
         let forty_two = get_42();
         let result =
-            run_maybe_timed_sdk_op(forty_two, None, SDKOperation::DocumentRevokeAccess).await?;
+            run_maybe_timed_sdk_op(forty_two, None, SdkOperation::DocumentRevokeAccess).await?;
         assert_eq!(result, 42);
 
         let forty_two = get_42();
         let result = run_maybe_timed_sdk_op(
             forty_two,
             Some(Duration::from_secs(1)),
-            SDKOperation::DocumentRevokeAccess,
+            SdkOperation::DocumentRevokeAccess,
         )
         .await?;
         assert_eq!(result, 42);
@@ -1416,7 +1417,7 @@ pub(crate) mod tests {
 
         let err_f = get_err();
         let result =
-            run_maybe_timed_sdk_op(err_f, None, SDKOperation::DocumentRevokeAccess).await?;
+            run_maybe_timed_sdk_op(err_f, None, SdkOperation::DocumentRevokeAccess).await?;
         assert!(result.is_err());
         assert_that!(
             &result.unwrap_err(),
@@ -1427,7 +1428,7 @@ pub(crate) mod tests {
         let result = run_maybe_timed_sdk_op(
             err_f,
             Some(Duration::from_secs(1)),
-            SDKOperation::DocumentRevokeAccess,
+            SdkOperation::DocumentRevokeAccess,
         )
         .await?;
         assert!(result.is_err());
@@ -1452,7 +1453,7 @@ pub(crate) mod tests {
         let result = run_maybe_timed_sdk_op(
             forty_two,
             Some(Duration::from_nanos(1)),
-            SDKOperation::DocumentRevokeAccess,
+            SdkOperation::DocumentRevokeAccess,
         )
         .await;
         assert!(result.is_err());
@@ -1470,7 +1471,7 @@ pub(crate) mod tests {
         let result = run_maybe_timed_sdk_op(
             err_f,
             Some(Duration::from_millis(1)),
-            SDKOperation::DocumentRevokeAccess,
+            SdkOperation::DocumentRevokeAccess,
         )
         .await;
         assert!(result.is_err());
