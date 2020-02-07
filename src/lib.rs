@@ -159,25 +159,15 @@ pub struct IronOxide {
     pub(crate) policy_eval_cache: PolicyCache,
 }
 
+/// Manual implementation of Debug without the `recrypt` or `rng` fields
 impl fmt::Debug for IronOxide {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            IronOxide {
-                config: ref __self_0_0,
-                recrypt: _,
-                user_master_pub_key: ref __self_0_2,
-                device: ref __self_0_3,
-                rng: _,
-                policy_eval_cache: ref __self_0_5,
-            } => {
-                let mut debug_trait_builder = f.debug_struct("IronOxide");
-                let _ = debug_trait_builder.field("config", &&(*__self_0_0));
-                let _ = debug_trait_builder.field("user_master_pub_key", &&(*__self_0_2));
-                let _ = debug_trait_builder.field("device", &&(*__self_0_3));
-                let _ = debug_trait_builder.field("policy_eval_cache", &&(*__self_0_5));
-                debug_trait_builder.finish()
-            }
-        }
+        f.debug_struct("IronOxide")
+            .field("config", &self.config)
+            .field("user_master_pub_key", &self.user_master_pub_key)
+            .field("device", &self.device)
+            .field("policy_eval_cache", &self.policy_eval_cache)
+            .finish()
     }
 }
 
