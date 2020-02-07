@@ -1,10 +1,11 @@
 pub use crate::internal::document_api::{
     DocumentDecryptUnmanagedResult, DocumentEncryptUnmanagedResult,
 };
-use crate::internal::run_maybe_timed_sdk_op;
 use crate::{
     document::{partition_user_or_group, DocumentEncryptOpts},
-    internal, Result, SdkOperation,
+    internal,
+    internal::run_maybe_timed_sdk_op,
+    Result, SdkOperation,
 };
 use itertools::EitherOrBoth;
 

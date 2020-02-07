@@ -7,7 +7,6 @@
 //!
 //! # Optional
 //! This requires the optional `blocking` feature to be enabled.
-use crate::config::IronOxideConfig;
 pub use crate::internal::{
     document_api::{
         AssociationType, DocAccessEditErr, DocumentAccessResult, DocumentDecryptResult,
@@ -25,6 +24,7 @@ pub use crate::internal::{
     },
 };
 use crate::{
+    config::IronOxideConfig,
     document::{advanced::DocumentAdvancedOps, DocumentEncryptOpts, DocumentOps},
     group::{GroupCreateOpts, GroupOps},
     user::{DeviceCreateOpts, UserCreateOpts, UserOps},

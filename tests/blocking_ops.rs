@@ -5,17 +5,15 @@ mod common;
 #[cfg(feature = "blocking")]
 mod integration_tests {
     use crate::common::{create_id_all_classes, gen_jwt, USER_PASSWORD};
-    use galvanic_assert::matchers::*;
-    use galvanic_assert::*;
-    use ironoxide::config::IronOxideConfig;
+    use galvanic_assert::{matchers::*, *};
     use ironoxide::{
         blocking::BlockingIronOxide,
+        config::IronOxideConfig,
         group::GroupCreateOpts,
         user::{UserCreateOpts, UserId},
         InitAndRotationCheck, IronOxideErr, SdkOperation,
     };
-    use std::convert::TryInto;
-    use std::time::Duration;
+    use std::{convert::TryInto, time::Duration};
     // Tests a UserOp (user_create/generate_new_device), a GroupOp (group_create),
     // and ironoxide::blocking functions (initialize/initialize_check_rotation)
     #[test]
@@ -151,16 +149,12 @@ mod integration_tests {
         .into();
 
         // set a timeout that is unreasonably small
-        let duration = Duration::from_millis(5);
-        let config = IronOxideConfig {
-            sdk_operation_timeout: Some(duration),
-            ..Default::default()
-        };
+        let duration = Some(Duration::from_millis(5));
 
         if let InitAndRotationCheck::RotationNeeded(bio, to_rotate) =
             ironoxide::blocking::initialize_check_rotation(&device, &Default::default())?
         {
-            let result = bio.rotate_all(&to_rotate, USER_PASSWORD, Some(Duration::from_millis(10)));
+            let result = bio.rotate_all(&to_rotate, USER_PASSWORD, duration);
 
             let err_result = result.unwrap_err();
 
@@ -174,8 +168,7 @@ mod integration_tests {
             );
             Ok(())
         } else {
-            // error type here is bogus, but will cause the test to fail
-            Err(IronOxideErr::InitializeError)
+            panic!("rotation should be required")
         }
     }
 }

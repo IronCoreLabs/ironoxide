@@ -1,10 +1,10 @@
-use crate::internal::run_maybe_timed_sdk_op;
 pub use crate::internal::user_api::{
     EncryptedPrivateKey, UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserResult,
     UserUpdatePrivateKeyResult,
 };
 use crate::{
     internal::{
+        run_maybe_timed_sdk_op,
         user_api::{self, DeviceId, DeviceName},
         DeviceAddResult, PublicKey, OUR_REQUEST,
     },

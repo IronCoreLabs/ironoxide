@@ -76,19 +76,21 @@ pub mod policy;
 /// Convenience re-export of essential IronOxide types
 pub mod prelude;
 
-use crate::config::IronOxideConfig;
-use crate::internal::document_api::UserOrGroup;
-use crate::internal::{
-    group_api::{GroupId, GroupUpdatePrivateKeyResult},
-    run_maybe_timed_sdk_op,
-    user_api::{UserId, UserResult, UserUpdatePrivateKeyResult},
-    WithKey,
-};
 pub use crate::internal::{
     DeviceAddResult, DeviceContext, DeviceSigningKeyPair, IronOxideErr, KeyPair, PrivateKey,
     PublicKey, SdkOperation,
 };
-use crate::policy::PolicyGrant;
+use crate::{
+    config::IronOxideConfig,
+    internal::{
+        document_api::UserOrGroup,
+        group_api::{GroupId, GroupUpdatePrivateKeyResult},
+        run_maybe_timed_sdk_op,
+        user_api::{UserId, UserResult, UserUpdatePrivateKeyResult},
+        WithKey,
+    },
+    policy::PolicyGrant,
+};
 use dashmap::DashMap;
 use itertools::EitherOrBoth;
 use rand::{
@@ -97,8 +99,7 @@ use rand::{
 };
 use rand_chacha::ChaChaCore;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
-use std::fmt;
-use std::{convert::TryInto, sync::Mutex};
+use std::{convert::TryInto, fmt, sync::Mutex};
 use vec1::Vec1;
 
 /// Result of an Sdk operation

@@ -3,12 +3,13 @@ pub use crate::internal::document_api::{
     DocumentEncryptResult, DocumentListMeta, DocumentListResult, DocumentMetadataResult,
     UserOrGroup, VisibleGroup, VisibleUser,
 };
-use crate::internal::{run_maybe_timed_sdk_op, SdkOperation};
 use crate::{
     internal::{
         document_api::{self, DocumentId, DocumentName},
         group_api::GroupId,
+        run_maybe_timed_sdk_op,
         user_api::UserId,
+        SdkOperation,
     },
     policy::*,
     Result,

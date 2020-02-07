@@ -18,11 +18,10 @@ use recrypt::api::{
 };
 use regex::Regex;
 use reqwest::Method;
-use serde::export::fmt::Error;
-use serde::export::Formatter;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     convert::{TryFrom, TryInto},
+    fmt::{Error, Formatter},
     result::Result,
     sync::{Mutex, MutexGuard},
 };
@@ -923,14 +922,11 @@ fn gen_plaintext_and_aug_with_retry<R: CryptoOps>(
 /// If a timeout limit is reached, the result will be an IronOxideErr::OperationTimedOut.
 /// If no timeout is specified, or if the operation finishes before the timeout, the
 /// result is the result of the sdk operation.
-pub async fn run_maybe_timed_sdk_op<F>(
+pub async fn run_maybe_timed_sdk_op<F: Future>(
     f: F,
     timeout: Option<std::time::Duration>,
     op: SdkOperation,
-) -> Result<F::Output, IronOxideErr>
-where
-    F: Future,
-{
+) -> Result<F::Output, IronOxideErr> {
     use futures::future::TryFutureExt;
     let result = match timeout {
         Some(d) => {
@@ -939,7 +935,7 @@ where
                     operation: op,
                     duration: d,
                 })
-                .await? // ? here returns the OperationTimedOut error
+                .await?
         }
 
         // no timeout, just run the Future and return

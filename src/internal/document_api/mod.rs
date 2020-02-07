@@ -1,5 +1,5 @@
-use crate::config::{IronOxideConfig, PolicyCachingConfig};
 use crate::{
+    config::{IronOxideConfig, PolicyCachingConfig},
     crypto::{
         aes::{self, AesEncryptedValue},
         transform,

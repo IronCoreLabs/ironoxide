@@ -6,8 +6,8 @@ use galvanic_assert::{
     matchers::{collection::contains_in_any_order, eq},
     *,
 };
-use ironoxide::config::IronOxideConfig;
 use ironoxide::{
+    config::IronOxideConfig,
     document::{advanced::*, *},
     group::GroupCreateOpts,
     prelude::*,

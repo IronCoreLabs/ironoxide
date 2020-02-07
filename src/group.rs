@@ -2,9 +2,11 @@ pub use crate::internal::group_api::{
     GroupAccessEditErr, GroupAccessEditResult, GroupCreateResult, GroupGetResult, GroupId,
     GroupListResult, GroupMetaResult, GroupName, GroupUpdatePrivateKeyResult,
 };
-use crate::internal::run_maybe_timed_sdk_op;
 use crate::{
-    internal::{group_api, group_api::GroupCreateOptsStd, user_api::UserId, IronOxideErr},
+    internal::{
+        group_api, group_api::GroupCreateOptsStd, run_maybe_timed_sdk_op, user_api::UserId,
+        IronOxideErr,
+    },
     Result, SdkOperation,
 };
 use vec1::Vec1;

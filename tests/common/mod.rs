@@ -1,5 +1,5 @@
-use ironoxide::config::IronOxideConfig;
 use ironoxide::{
+    config::IronOxideConfig,
     prelude::*,
     user::{UserCreateOpts, UserResult},
     InitAndRotationCheck,
