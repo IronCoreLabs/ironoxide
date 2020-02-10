@@ -37,7 +37,8 @@ percent-encoding="~1.0"
 log = "~0.4"
 protobuf = {version = "~2.10", features = ["with-bytes"]}
 vec1 = "~1.4.0"
-tokio = {version = "~0.2.0", features=["time"]}
+# ironoxide requires rt-threaded at runtime, but not at compile time
+tokio = {version = "~0.2.0", features=["time", "rt-threaded"]}
 dashmap = "3.4.0"
 
 [dev-dependencies]
@@ -69,6 +70,9 @@ debug = true
 opt-level = 3
 debug = false
 lto = true
+
+[profile.bench]
+
 
 [[bench]]
 name = "ironoxide_bench"
