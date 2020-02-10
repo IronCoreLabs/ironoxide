@@ -73,7 +73,7 @@ impl DocumentAdvancedOps for crate::IronOxide {
             };
 
         run_maybe_timed_sdk_op(
-            internal::document_api::encrypted_document_unmanaged(
+            internal::document_api::encrypt_document_unmanaged(
                 self.device.auth(),
                 &self.recrypt,
                 &self.user_master_pub_key,

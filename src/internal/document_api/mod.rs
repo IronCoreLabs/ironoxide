@@ -670,7 +670,7 @@ where
 /// Encrypts a document but does not create the document in the IronCore system.
 /// The resultant DocumentDetachedEncryptResult contains both the EncryptedDeks and the AesEncryptedValue
 /// Both pieces will be required for decryption.
-pub async fn encrypted_document_unmanaged<R1, R2>(
+pub async fn encrypt_document_unmanaged<R1, R2>(
     auth: &RequestAuth,
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
     user_master_pub_key: &PublicKey,

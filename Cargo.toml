@@ -71,9 +71,6 @@ opt-level = 3
 debug = false
 lto = true
 
-[profile.bench]
-
-
 [[bench]]
 name = "ironoxide_bench"
 harness = false
