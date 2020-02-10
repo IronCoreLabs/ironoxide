@@ -112,39 +112,7 @@ pub enum SdkOperation {
 
 impl std::fmt::Display for SdkOperation {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        let name = match self {
-            SdkOperation::InitializeSdk => "initialize",
-            SdkOperation::InitializeSdkCheckRotation => "initialize_check_rotation",
-            SdkOperation::RotateAll => "rotate_all",
-            SdkOperation::DocumentList => "document_list",
-            SdkOperation::DocumentGetMetadata => "document_get_metadata",
-            SdkOperation::DocumentEncrypt => "document_encrypt",
-            SdkOperation::DocumentUpdateBytes => "document_update_bytes",
-            SdkOperation::DocumentDecrypt => "document_decrypt",
-            SdkOperation::DocumentUpdateName => "document_update_name",
-            SdkOperation::DocumentGrantAccess => "document_grant_access",
-            SdkOperation::DocumentRevokeAccess => "document_revoke_access",
-            SdkOperation::DocumentEncryptUnmanaged => "document_encrypt_unmanaged",
-            SdkOperation::DocumentDecryptUnmanaged => "document_decrypt_unmanaged",
-            SdkOperation::UserCreate => "user_create",
-            SdkOperation::UserListDevices => "user_list_devices",
-            SdkOperation::GenerateNewDevice => "generate_new_device",
-            SdkOperation::UserDeleteDevice => "user_delete_device",
-            SdkOperation::UserVerify => "user_verify",
-            SdkOperation::UserGetPublicKey => "user_get_public_key",
-            SdkOperation::UserRotatePrivateKey => "user_rotate_private_key",
-            SdkOperation::GroupList => "group_list",
-            SdkOperation::GroupCreate => "group_create",
-            SdkOperation::GroupGetMetadata => "group_get_metadata",
-            SdkOperation::GroupDelete => "group_delete",
-            SdkOperation::GroupUpdateName => "group_update_name",
-            SdkOperation::GroupAddMembers => "group_add_members",
-            SdkOperation::GroupRemoveMembers => "group_remove_members",
-            SdkOperation::GroupAddAdmins => "group_add_admin",
-            SdkOperation::GroupRemoveAdmins => "group_remove_admin",
-            SdkOperation::GroupRotatePrivateKey => "group_rotate_private_key",
-        };
-        f.write_str(name)
+        write!(f, "'{:?}'", self)
     }
 }
 

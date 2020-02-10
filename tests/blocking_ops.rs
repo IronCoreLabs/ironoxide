@@ -20,7 +20,7 @@ mod integration_tests {
     fn rotate_all() -> Result<(), IronOxideErr> {
         let account_id: UserId = create_id_all_classes("").try_into()?;
         let jwt = gen_jwt(Some(account_id.id())).0;
-        BlockingIronOxide::user_create(&jwt, USER_PASSWORD, &UserCreateOpts::new(true))?;
+        BlockingIronOxide::user_create(&jwt, USER_PASSWORD, &UserCreateOpts::new(true), None)?;
         let device = BlockingIronOxide::generate_new_device(
             &gen_jwt(Some(account_id.id())).0,
             USER_PASSWORD,
@@ -72,6 +72,7 @@ mod integration_tests {
             &gen_jwt(Some(account_id.id())).0,
             USER_PASSWORD,
             &UserCreateOpts::new(false),
+            None,
         )?;
         let device = BlockingIronOxide::generate_new_device(
             &gen_jwt(Some(account_id.id())).0,
@@ -101,6 +102,7 @@ mod integration_tests {
             &gen_jwt(Some(account_id.id())).0,
             USER_PASSWORD,
             &UserCreateOpts::new(false),
+            None,
         )?;
         let device = BlockingIronOxide::generate_new_device(
             &gen_jwt(Some(account_id.id())).0,
@@ -110,7 +112,7 @@ mod integration_tests {
         )?
         .into();
 
-        // set a timeout that is unreasonably small
+        // set an initialize timeout that is unreasonably small
         let duration = Duration::from_millis(5);
         let config = IronOxideConfig {
             sdk_operation_timeout: Some(duration),
@@ -139,6 +141,7 @@ mod integration_tests {
             &gen_jwt(Some(account_id.id())).0,
             USER_PASSWORD,
             &UserCreateOpts::new(true),
+            None,
         )?;
         let device = BlockingIronOxide::generate_new_device(
             &gen_jwt(Some(account_id.id())).0,
@@ -148,12 +151,11 @@ mod integration_tests {
         )?
         .into();
 
-        // set a timeout that is unreasonably small
-        let duration = Some(Duration::from_millis(5));
-
         if let InitAndRotationCheck::RotationNeeded(bio, to_rotate) =
             ironoxide::blocking::initialize_check_rotation(&device, &Default::default())?
         {
+            // set a rotate_all timeout that is unreasonably small
+            let duration = Some(Duration::from_millis(5));
             let result = bio.rotate_all(&to_rotate, USER_PASSWORD, duration);
 
             let err_result = result.unwrap_err();

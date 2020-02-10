@@ -229,6 +229,7 @@ impl BlockingIronOxide {
         jwt: &str,
         password: &str,
         user_create_opts: &UserCreateOpts,
+        timeout: Option<std::time::Duration>,
     ) -> Result<UserCreateResult> {
         let rt = create_runtime();
         rt.enter(|| {
@@ -236,7 +237,7 @@ impl BlockingIronOxide {
                 jwt,
                 password,
                 user_create_opts,
-                None,
+                timeout,
             ))
         })
     }
