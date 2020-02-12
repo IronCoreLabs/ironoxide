@@ -890,7 +890,7 @@ fn gen_plaintext_and_aug_with_retry<R: CryptoOps>(
 /// If a timeout limit is reached, the result will be an IronOxideErr::OperationTimedOut.
 /// If no timeout is specified, or if the operation finishes before the timeout, the
 /// result is the result of the sdk operation.
-pub async fn run_maybe_timed_sdk_op<F: Future>(
+pub async fn add_optional_timeout<F: Future>(
     f: F,
     timeout: Option<std::time::Duration>,
     op: SdkOperation,
@@ -1395,11 +1395,11 @@ pub(crate) mod tests {
         }
         let forty_two = get_42();
         let result =
-            run_maybe_timed_sdk_op(forty_two, None, SdkOperation::DocumentRevokeAccess).await?;
+            add_optional_timeout(forty_two, None, SdkOperation::DocumentRevokeAccess).await?;
         assert_eq!(result, 42);
 
         let forty_two = get_42();
-        let result = run_maybe_timed_sdk_op(
+        let result = add_optional_timeout(
             forty_two,
             Some(Duration::from_secs(1)),
             SdkOperation::DocumentRevokeAccess,
@@ -1413,8 +1413,7 @@ pub(crate) mod tests {
         }
 
         let err_f = get_err();
-        let result =
-            run_maybe_timed_sdk_op(err_f, None, SdkOperation::DocumentRevokeAccess).await?;
+        let result = add_optional_timeout(err_f, None, SdkOperation::DocumentRevokeAccess).await?;
         assert!(result.is_err());
         assert_that!(
             &result.unwrap_err(),
@@ -1422,7 +1421,7 @@ pub(crate) mod tests {
         );
 
         let err_f = get_err();
-        let result = run_maybe_timed_sdk_op(
+        let result = add_optional_timeout(
             err_f,
             Some(Duration::from_secs(1)),
             SdkOperation::DocumentRevokeAccess,
@@ -1447,7 +1446,7 @@ pub(crate) mod tests {
         }
 
         let forty_two = get_42();
-        let result = run_maybe_timed_sdk_op(
+        let result = add_optional_timeout(
             forty_two,
             Some(Duration::from_nanos(1)),
             SdkOperation::DocumentRevokeAccess,
@@ -1465,7 +1464,7 @@ pub(crate) mod tests {
         }
 
         let err_f = get_err();
-        let result = run_maybe_timed_sdk_op(
+        let result = add_optional_timeout(
             err_f,
             Some(Duration::from_millis(1)),
             SdkOperation::DocumentRevokeAccess,

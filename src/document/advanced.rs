@@ -4,7 +4,7 @@ pub use crate::internal::document_api::{
 use crate::{
     document::{partition_user_or_group, DocumentEncryptOpts},
     internal,
-    internal::run_maybe_timed_sdk_op,
+    internal::add_optional_timeout,
     Result, SdkOperation,
 };
 use itertools::EitherOrBoth;
@@ -72,7 +72,7 @@ impl DocumentAdvancedOps for crate::IronOxide {
                 }
             };
 
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             internal::document_api::encrypt_document_unmanaged(
                 self.device.auth(),
                 &self.recrypt,
@@ -96,7 +96,7 @@ impl DocumentAdvancedOps for crate::IronOxide {
         encrypted_data: &[u8],
         encrypted_deks: &[u8],
     ) -> Result<DocumentDecryptUnmanagedResult> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             internal::document_api::decrypt_document_unmanaged(
                 self.device.auth(),
                 &self.recrypt,

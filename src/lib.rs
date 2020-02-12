@@ -83,9 +83,9 @@ pub use crate::internal::{
 use crate::{
     config::IronOxideConfig,
     internal::{
+        add_optional_timeout,
         document_api::UserOrGroup,
         group_api::{GroupId, GroupUpdatePrivateKeyResult},
-        run_maybe_timed_sdk_op,
         user_api::{UserId, UserResult, UserUpdatePrivateKeyResult},
         WithKey,
     },
@@ -230,7 +230,7 @@ pub async fn initialize(
     device_context: &DeviceContext,
     config: &IronOxideConfig,
 ) -> Result<IronOxide> {
-    internal::run_maybe_timed_sdk_op(
+    internal::add_optional_timeout(
         internal::user_api::user_get_current(&device_context.auth()),
         config.sdk_operation_timeout,
         SdkOperation::InitializeSdk,
@@ -275,7 +275,7 @@ pub async fn initialize_check_rotation(
     device_context: &DeviceContext,
     config: &IronOxideConfig,
 ) -> Result<InitAndRotationCheck<IronOxide>> {
-    let (curr_user, group_list_result) = run_maybe_timed_sdk_op(
+    let (curr_user, group_list_result) = add_optional_timeout(
         futures::future::try_join(
             internal::user_api::user_get_current(device_context.auth()),
             internal::group_api::list(device_context.auth(), None),
@@ -374,7 +374,7 @@ impl IronOxide {
         });
         let user_opt_future: futures::future::OptionFuture<_> = user_future.into();
         let group_opt_future: futures::future::OptionFuture<_> = group_futures.into();
-        let (user_opt_result, group_opt_vec_result) = run_maybe_timed_sdk_op(
+        let (user_opt_result, group_opt_vec_result) = add_optional_timeout(
             futures::future::join(user_opt_future, group_opt_future),
             timeout,
             SdkOperation::RotateAll,

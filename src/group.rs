@@ -4,7 +4,7 @@ pub use crate::internal::group_api::{
 };
 use crate::{
     internal::{
-        group_api, group_api::GroupCreateOptsStd, run_maybe_timed_sdk_op, user_api::UserId,
+        add_optional_timeout, group_api, group_api::GroupCreateOptsStd, user_api::UserId,
         IronOxideErr,
     },
     Result, SdkOperation,
@@ -268,7 +268,7 @@ pub trait GroupOps {
 #[async_trait]
 impl GroupOps for crate::IronOxide {
     async fn group_list(&self) -> Result<GroupListResult> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             group_api::list(self.device.auth(), None),
             self.config.sdk_operation_timeout,
             SdkOperation::GroupList,
@@ -288,7 +288,7 @@ impl GroupOps for crate::IronOxide {
             needs_rotation,
         } = standard_opts;
 
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             group_api::group_create(
                 &self.recrypt,
                 self.device.auth(),
@@ -307,7 +307,7 @@ impl GroupOps for crate::IronOxide {
     }
 
     async fn group_get_metadata(&self, id: &GroupId) -> Result<GroupGetResult> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             group_api::get_metadata(self.device.auth(), id),
             self.config.sdk_operation_timeout,
             SdkOperation::GroupGetMetadata,
@@ -316,7 +316,7 @@ impl GroupOps for crate::IronOxide {
     }
 
     async fn group_delete(&self, id: &GroupId) -> Result<GroupId> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             group_api::group_delete(self.device.auth(), id),
             self.config.sdk_operation_timeout,
             SdkOperation::GroupDelete,
@@ -329,7 +329,7 @@ impl GroupOps for crate::IronOxide {
         id: &GroupId,
         name: Option<&GroupName>,
     ) -> Result<GroupMetaResult> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             group_api::update_group_name(self.device.auth(), id, name),
             self.config.sdk_operation_timeout,
             SdkOperation::GroupUpdateName,
@@ -342,7 +342,7 @@ impl GroupOps for crate::IronOxide {
         id: &GroupId,
         grant_list: &[UserId],
     ) -> Result<GroupAccessEditResult> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             group_api::group_add_members(
                 &self.recrypt,
                 self.device.auth(),
@@ -361,7 +361,7 @@ impl GroupOps for crate::IronOxide {
         id: &GroupId,
         revoke_list: &[UserId],
     ) -> Result<GroupAccessEditResult> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             group_api::group_remove_entity(
                 self.device.auth(),
                 id,
@@ -379,7 +379,7 @@ impl GroupOps for crate::IronOxide {
         id: &GroupId,
         users: &[UserId],
     ) -> Result<GroupAccessEditResult> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             group_api::group_add_admins(
                 &self.recrypt,
                 self.device.auth(),
@@ -398,7 +398,7 @@ impl GroupOps for crate::IronOxide {
         id: &GroupId,
         revoke_list: &[UserId],
     ) -> Result<GroupAccessEditResult> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             group_api::group_remove_entity(
                 self.device.auth(),
                 id,
@@ -412,7 +412,7 @@ impl GroupOps for crate::IronOxide {
     }
 
     async fn group_rotate_private_key(&self, id: &GroupId) -> Result<GroupUpdatePrivateKeyResult> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             group_api::group_rotate_private_key(
                 &self.recrypt,
                 self.device().auth(),

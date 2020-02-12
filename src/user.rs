@@ -4,7 +4,7 @@ pub use crate::internal::user_api::{
 };
 use crate::{
     internal::{
-        run_maybe_timed_sdk_op,
+        add_optional_timeout,
         user_api::{self, DeviceId, DeviceName},
         DeviceAddResult, PublicKey, OUR_REQUEST,
     },
@@ -160,7 +160,7 @@ impl UserOps for IronOxide {
         timeout: Option<std::time::Duration>,
     ) -> Result<UserCreateResult> {
         let recrypt = Recrypt::new();
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             user_api::user_create(
                 &recrypt,
                 jwt.try_into()?,
@@ -175,7 +175,7 @@ impl UserOps for IronOxide {
     }
 
     async fn user_list_devices(&self) -> Result<UserDeviceListResult> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             user_api::device_list(self.device.auth()),
             self.config.sdk_operation_timeout,
             SdkOperation::UserListDevices,
@@ -193,7 +193,7 @@ impl UserOps for IronOxide {
 
         let device_create_options = device_create_options.clone();
 
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             user_api::generate_device_key(
                 &recrypt,
                 &jwt.try_into()?,
@@ -209,7 +209,7 @@ impl UserOps for IronOxide {
     }
 
     async fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             user_api::device_delete(self.device.auth(), device_id),
             self.config.sdk_operation_timeout,
             SdkOperation::UserDeleteDevice,
@@ -221,7 +221,7 @@ impl UserOps for IronOxide {
         jwt: &str,
         timeout: Option<std::time::Duration>,
     ) -> Result<Option<UserResult>> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             user_api::user_verify(jwt.try_into()?, *OUR_REQUEST),
             timeout,
             SdkOperation::UserVerify,
@@ -230,7 +230,7 @@ impl UserOps for IronOxide {
     }
 
     async fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             user_api::user_key_list(self.device.auth(), &users.to_vec()),
             self.config.sdk_operation_timeout,
             SdkOperation::UserGetPublicKey,
@@ -239,7 +239,7 @@ impl UserOps for IronOxide {
     }
 
     async fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             user_api::user_rotate_private_key(
                 &self.recrypt,
                 password.try_into()?,

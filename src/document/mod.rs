@@ -5,9 +5,9 @@ pub use crate::internal::document_api::{
 };
 use crate::{
     internal::{
+        add_optional_timeout,
         document_api::{self, DocumentId, DocumentName},
         group_api::GroupId,
-        run_maybe_timed_sdk_op,
         user_api::UserId,
         SdkOperation,
     },
@@ -201,7 +201,7 @@ pub trait DocumentOps {
 #[async_trait]
 impl DocumentOps for crate::IronOxide {
     async fn document_list(&self) -> Result<DocumentListResult> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             document_api::document_list(self.device.auth()),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentList,
@@ -210,7 +210,7 @@ impl DocumentOps for crate::IronOxide {
     }
 
     async fn document_get_metadata(&self, id: &DocumentId) -> Result<DocumentMetadataResult> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             document_api::document_get_metadata(self.device.auth(), id),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentGetMetadata,
@@ -246,7 +246,7 @@ impl DocumentOps for crate::IronOxide {
                     )
                 }
             };
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             document_api::encrypt_document(
                 self.device.auth(),
                 &self.config,
@@ -273,7 +273,7 @@ impl DocumentOps for crate::IronOxide {
         id: &DocumentId,
         new_document_data: &[u8],
     ) -> Result<DocumentEncryptResult> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             document_api::document_update_bytes(
                 self.device.auth(),
                 &self.recrypt,
@@ -289,7 +289,7 @@ impl DocumentOps for crate::IronOxide {
     }
 
     async fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             document_api::decrypt_document(
                 self.device.auth(),
                 &self.recrypt,
@@ -307,7 +307,7 @@ impl DocumentOps for crate::IronOxide {
         id: &DocumentId,
         name: Option<&DocumentName>,
     ) -> Result<DocumentMetadataResult> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             document_api::update_document_name(self.device.auth(), id, name),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentUpdateName,
@@ -322,7 +322,7 @@ impl DocumentOps for crate::IronOxide {
     ) -> Result<DocumentAccessResult> {
         let (users, groups) = partition_user_or_group(grant_list);
 
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             document_api::document_grant_access(
                 self.device.auth(),
                 &self.recrypt,
@@ -343,7 +343,7 @@ impl DocumentOps for crate::IronOxide {
         id: &DocumentId,
         revoke_list: &Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult> {
-        run_maybe_timed_sdk_op(
+        add_optional_timeout(
             document_api::document_revoke_access(self.device.auth(), id, revoke_list),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentRevokeAccess,
