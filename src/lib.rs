@@ -76,18 +76,21 @@ pub mod policy;
 /// Convenience re-export of essential IronOxide types
 pub mod prelude;
 
-use crate::config::IronOxideConfig;
-use crate::internal::document_api::UserOrGroup;
-use crate::internal::{
-    group_api::{GroupId, GroupUpdatePrivateKeyResult},
-    user_api::{UserId, UserResult, UserUpdatePrivateKeyResult},
-    WithKey,
-};
 pub use crate::internal::{
     DeviceAddResult, DeviceContext, DeviceSigningKeyPair, IronOxideErr, KeyPair, PrivateKey,
-    PublicKey,
+    PublicKey, SdkOperation,
 };
-use crate::policy::PolicyGrant;
+use crate::{
+    config::IronOxideConfig,
+    internal::{
+        add_optional_timeout,
+        document_api::UserOrGroup,
+        group_api::{GroupId, GroupUpdatePrivateKeyResult},
+        user_api::{UserId, UserResult, UserUpdatePrivateKeyResult},
+        WithKey,
+    },
+    policy::PolicyGrant,
+};
 use dashmap::DashMap;
 use itertools::EitherOrBoth;
 use rand::{
@@ -96,7 +99,7 @@ use rand::{
 };
 use rand_chacha::ChaChaCore;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
-use std::{convert::TryInto, sync::Mutex};
+use std::{convert::TryInto, fmt, sync::Mutex};
 use vec1::Vec1;
 
 /// Result of an Sdk operation
@@ -105,16 +108,15 @@ type PolicyCache = DashMap<PolicyGrant, Vec<WithKey<UserOrGroup>>>;
 
 /// IronOxide SDK configuration
 pub mod config {
+    use std::time::Duration;
 
+    /// Top-level configuration object for IronOxide.
     #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub struct IronOxideConfig {
-        pub(crate) policy_caching: PolicyCachingConfig,
-    }
-
-    impl IronOxideConfig {
-        pub fn new(policy_caching: PolicyCachingConfig) -> IronOxideConfig {
-            IronOxideConfig { policy_caching }
-        }
+        /// See [PolicyCachingConfig](struct.PolicyCachingConfig.html)
+        pub policy_caching: PolicyCachingConfig,
+        /// Timeout for all SDK methods. Will return IronOxideErr::OperationTimedOut on timeout.
+        pub sdk_operation_timeout: Option<Duration>,
     }
 
     /// Policy evaluation caching config. Lifetime of the cache is the lifetime of the `IronOxide` struct.
@@ -124,26 +126,16 @@ pub mod config {
     /// if you want to clear it at runtime, call [IronOxide::clear_policy_cache()](../struct.IronOxide.html#method.clear_policy_cache).
     #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
     pub struct PolicyCachingConfig {
-        pub(crate) max_entries: usize,
-    }
-
-    impl PolicyCachingConfig {
-        /// # Arguments
-        /// `max_entries` - maximum number of policy evaluations that will be cached by the SDK.
-        /// If the maximum number is exceeded, the cache will be cleared prior to storing the next entry.
-        pub fn new(max_entries: usize) -> PolicyCachingConfig {
-            PolicyCachingConfig { max_entries }
-        }
-
-        pub fn max_entries(&self) -> usize {
-            self.max_entries
-        }
+        /// maximum number of policy evaluations that will be cached by the SDK.
+        /// If the maximum number is exceeded, the cache will be cleared prior to storing the next entry
+        pub max_entries: usize,
     }
 
     impl Default for IronOxideConfig {
         fn default() -> Self {
             IronOxideConfig {
                 policy_caching: PolicyCachingConfig::default(),
+                sdk_operation_timeout: Some(Duration::from_secs(30)),
             }
         }
     }
@@ -166,6 +158,18 @@ pub struct IronOxide {
     pub(crate) device: DeviceContext,
     pub(crate) rng: Mutex<ReseedingRng<ChaChaCore, EntropyRng>>,
     pub(crate) policy_eval_cache: PolicyCache,
+}
+
+/// Manual implementation of Debug without the `recrypt` or `rng` fields
+impl fmt::Debug for IronOxide {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("IronOxide")
+            .field("config", &self.config)
+            .field("user_master_pub_key", &self.user_master_pub_key)
+            .field("device", &self.device)
+            .field("policy_eval_cache", &self.policy_eval_cache)
+            .finish()
+    }
 }
 
 /// Result of calling `initialize_check_rotation`
@@ -226,10 +230,14 @@ pub async fn initialize(
     device_context: &DeviceContext,
     config: &IronOxideConfig,
 ) -> Result<IronOxide> {
-    internal::user_api::user_get_current(&device_context.auth())
-        .await
-        .map(|current_user| IronOxide::create(&current_user, device_context, config))
-        .map_err(|_| IronOxideErr::InitializeError)
+    internal::add_optional_timeout(
+        internal::user_api::user_get_current(&device_context.auth()),
+        config.sdk_operation_timeout,
+        SdkOperation::InitializeSdk,
+    )
+    .await?
+    .map(|current_user| IronOxide::create(&current_user, device_context, config))
+    .map_err(|_| IronOxideErr::InitializeError)
 }
 
 /// Finds the groups that the caller is an admin of that need rotation and
@@ -267,10 +275,16 @@ pub async fn initialize_check_rotation(
     device_context: &DeviceContext,
     config: &IronOxideConfig,
 ) -> Result<InitAndRotationCheck<IronOxide>> {
-    let (curr_user, group_list_result) = futures::try_join!(
-        internal::user_api::user_get_current(device_context.auth()),
-        internal::group_api::list(device_context.auth(), None)
-    )?;
+    let (curr_user, group_list_result) = add_optional_timeout(
+        futures::future::try_join(
+            internal::user_api::user_get_current(device_context.auth()),
+            internal::group_api::list(device_context.auth(), None),
+        ),
+        config.sdk_operation_timeout,
+        SdkOperation::InitializeSdkCheckRotation,
+    )
+    .await??;
+
     let ironoxide = IronOxide::create(&curr_user, device_context, config);
     let user_groups = group_list_result.result();
 
@@ -303,8 +317,6 @@ impl IronOxide {
         device_context: &DeviceContext,
         config: &IronOxideConfig,
     ) -> IronOxide {
-        // create a tokio runtime with the default number of core threads (num of cores on a machine)
-        // and an elevated number of blocking_threads as we expect heavy concurrency to be network-bound
         IronOxide {
             config: config.clone(),
             recrypt: Recrypt::new(),
@@ -327,10 +339,13 @@ impl IronOxide {
     /// # Arguments
     /// - `rotations` - PrivateKeyRotationCheckResult that holds all users and groups to be rotated
     /// - `password` - Password to unlock the current user's user master key
+    /// - `timeout` - timeout for rotate_all. This is a separate timeout from the SDK-wide timeout as it is
+    /// expected that this operation might take significantly longer than other operations.
     pub async fn rotate_all(
         &self,
         rotations: &PrivateKeyRotationCheckResult,
         password: &str,
+        timeout: Option<std::time::Duration>,
     ) -> Result<(
         Option<UserUpdatePrivateKeyResult>,
         Option<Vec<GroupUpdatePrivateKeyResult>>,
@@ -359,8 +374,12 @@ impl IronOxide {
         });
         let user_opt_future: futures::future::OptionFuture<_> = user_future.into();
         let group_opt_future: futures::future::OptionFuture<_> = group_futures.into();
-        let (user_opt_result, group_opt_vec_result) =
-            futures::future::join(user_opt_future, group_opt_future).await;
+        let (user_opt_result, group_opt_vec_result) = add_optional_timeout(
+            futures::future::join(user_opt_future, group_opt_future),
+            timeout,
+            SdkOperation::RotateAll,
+        )
+        .await?;
         let group_opt_result_vec = group_opt_vec_result.map(|g| g.into_iter().collect());
         Ok((
             user_opt_result.transpose()?,

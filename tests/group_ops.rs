@@ -56,12 +56,14 @@ async fn group_init_and_rotation_check() -> Result<(), IronOxideErr> {
         &gen_jwt(Some(user.id())).0,
         USER_PASSWORD,
         &Default::default(),
+        None,
     )
     .await?;
     let device: DeviceContext = IronOxide::generate_new_device(
         &gen_jwt(Some(user.id())).0,
         USER_PASSWORD,
         &Default::default(),
+        None,
     )
     .await?
     .into();
@@ -177,11 +179,12 @@ async fn rotate_all() -> Result<(), IronOxideErr> {
     use ironoxide::{user::UserCreateOpts, InitAndRotationCheck};
     let account_id: UserId = create_id_all_classes("").try_into()?;
     let jwt = gen_jwt(Some(account_id.id())).0;
-    IronOxide::user_create(&jwt, USER_PASSWORD, &UserCreateOpts::new(true)).await?;
+    IronOxide::user_create(&jwt, USER_PASSWORD, &UserCreateOpts::new(true), None).await?;
     let device: DeviceContext = IronOxide::generate_new_device(
         &gen_jwt(Some(account_id.id())).0,
         USER_PASSWORD,
         &Default::default(),
+        None,
     )
     .await?
     .into();
@@ -220,14 +223,16 @@ async fn rotate_all() -> Result<(), IronOxideErr> {
         InitAndRotationCheck::NoRotationNeeded(_) => {
             panic!("both user and groups should need rotation!");
         }
-        InitAndRotationCheck::RotationNeeded(io, rot) => io.rotate_all(&rot, USER_PASSWORD).await?,
+        InitAndRotationCheck::RotationNeeded(io, rot) => {
+            io.rotate_all(&rot, USER_PASSWORD, None).await?
+        }
     };
     assert!(user_result.is_some());
     assert!(group_result.is_some());
 
     assert_eq!(group_result.unwrap().len(), 2);
 
-    let user_result = IronOxide::user_verify(&jwt).await?;
+    let user_result = IronOxide::user_verify(&jwt, None).await?;
     assert!(!user_result.unwrap().needs_rotation());
 
     let group1_result = creator_sdk.group_get_metadata(group_create1.id()).await?;

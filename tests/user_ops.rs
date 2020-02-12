@@ -1,17 +1,18 @@
 mod common;
 
 use common::{create_id_all_classes, gen_jwt, initialize_sdk};
+use galvanic_assert::{matchers::*, *};
 use ironoxide::{
     document::DocumentEncryptOpts,
     prelude::*,
     user::{DeviceCreateOpts, UserCreateOpts},
+    SdkOperation,
 };
 use std::{convert::TryInto, default::Default};
 use uuid::Uuid;
-
 #[tokio::test]
 async fn user_verify_non_existing_user() -> Result<(), IronOxideErr> {
-    let option_result = IronOxide::user_verify(&gen_jwt(None).0).await?;
+    let option_result = IronOxide::user_verify(&gen_jwt(None).0, None).await?;
     assert_eq!(true, option_result.is_none());
     Ok(())
 }
@@ -23,10 +24,11 @@ async fn user_verify_existing_user() -> Result<(), IronOxideErr> {
         &gen_jwt(Some(account_id.id())).0,
         "foo",
         &Default::default(),
+        None,
     )
     .await?;
 
-    let result = IronOxide::user_verify(&gen_jwt(Some(account_id.id())).0).await?;
+    let result = IronOxide::user_verify(&gen_jwt(Some(account_id.id())).0, None).await?;
     assert_eq!(true, result.is_some());
     let verify_resp = result.unwrap();
 
@@ -41,10 +43,11 @@ async fn user_verify_after_create_with_needs_rotation() -> Result<(), IronOxideE
         &gen_jwt(Some(account_id.id())).0,
         "foo",
         &UserCreateOpts::new(true),
+        None,
     )
     .await?;
 
-    let result = IronOxide::user_verify(&gen_jwt(Some(account_id.id())).0).await?;
+    let result = IronOxide::user_verify(&gen_jwt(Some(account_id.id())).0, None).await?;
     assert!(result.is_some());
     let verify_resp = result.unwrap();
     assert!(verify_resp.needs_rotation());
@@ -57,12 +60,14 @@ async fn user_create_good_with_devices() -> Result<(), IronOxideErr> {
         &gen_jwt(Some(account_id.id())).0,
         "foo",
         &Default::default(),
+        None,
     )
     .await?;
     let device: DeviceContext = IronOxide::generate_new_device(
         &gen_jwt(Some(account_id.id())).0,
         "foo",
         &DeviceCreateOpts::new(Some("myDevice".try_into()?)),
+        None,
     )
     .await?
     .into();
@@ -132,6 +137,7 @@ async fn user_add_device_after_rotation() -> Result<(), IronOxideErr> {
         &common::gen_jwt(Some(user.id())).0,
         common::USER_PASSWORD,
         &Default::default(),
+        None,
     )
     .await?;
 
@@ -155,8 +161,32 @@ async fn user_create_with_needs_rotation() -> Result<(), IronOxideErr> {
         &gen_jwt(Some(account_id.id())).0,
         common::USER_PASSWORD,
         &UserCreateOpts::new(true),
+        None,
     )
     .await;
     assert!(result?.needs_rotation());
+    Ok(())
+}
+#[tokio::test]
+async fn generate_device_with_timeout() -> Result<(), IronOxideErr> {
+    let result = IronOxide::generate_new_device(
+        common::gen_jwt(None).0.as_str(),
+        "pass",
+        &Default::default(),
+        Some(std::time::Duration::from_millis(1)),
+    )
+    .await;
+
+    assert!(result.is_err());
+    let err_result = result.unwrap_err();
+    dbg!(&err_result);
+    assert_that!(&err_result, is_variant!(IronOxideErr::OperationTimedOut));
+    assert_that!(
+        &err_result,
+        has_structure!(IronOxideErr::OperationTimedOut {
+            operation: eq(SdkOperation::GenerateNewDevice),
+            duration: eq(std::time::Duration::from_millis(1))
+        })
+    );
     Ok(())
 }

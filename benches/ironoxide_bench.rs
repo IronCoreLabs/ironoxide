@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use futures::executor::block_on;
-use ironoxide::config::IronOxideConfig;
 use ironoxide::{
+    config::IronOxideConfig,
     document::{advanced::DocumentAdvancedOps, DocumentEncryptOpts},
     prelude::*,
     DeviceContext, IronOxide,

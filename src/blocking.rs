@@ -24,6 +24,7 @@ pub use crate::internal::{
     },
 };
 use crate::{
+    config::IronOxideConfig,
     document::{advanced::DocumentAdvancedOps, DocumentEncryptOpts, DocumentOps},
     group::{GroupCreateOpts, GroupOps},
     user::{DeviceCreateOpts, UserCreateOpts, UserOps},
@@ -37,6 +38,7 @@ use std::collections::HashMap;
 /// Struct that is used to make authenticated requests to the IronCore API. Instantiated with the details
 /// of an account's various ids, device, and signing keys. Once instantiated all operations will be
 /// performed in the context of the account provided. Identical to IronOxide but also contains a Runtime.
+#[derive(Debug)]
 pub struct BlockingIronOxide {
     pub(crate) ironoxide: IronOxide,
     pub(crate) runtime: tokio::runtime::Runtime,
@@ -53,12 +55,13 @@ impl BlockingIronOxide {
         &self,
         rotations: &PrivateKeyRotationCheckResult,
         password: &str,
+        timeout: Option<std::time::Duration>,
     ) -> Result<(
         Option<UserUpdatePrivateKeyResult>,
         Option<Vec<GroupUpdatePrivateKeyResult>>,
     )> {
         self.runtime
-            .enter(|| block_on(self.ironoxide.rotate_all(rotations, password)))
+            .enter(|| block_on(self.ironoxide.rotate_all(rotations, password, timeout)))
     }
 
     /// See [ironoxide::document::DocumentOps::document_list()](trait.DocumentOps.html#tymethod.document_list)
@@ -226,9 +229,17 @@ impl BlockingIronOxide {
         jwt: &str,
         password: &str,
         user_create_opts: &UserCreateOpts,
+        timeout: Option<std::time::Duration>,
     ) -> Result<UserCreateResult> {
         let rt = create_runtime();
-        rt.enter(|| block_on(IronOxide::user_create(jwt, password, user_create_opts)))
+        rt.enter(|| {
+            block_on(IronOxide::user_create(
+                jwt,
+                password,
+                user_create_opts,
+                timeout,
+            ))
+        })
     }
     /// See [ironoxide::user::UserOps::user_list_devices()](trait.UserOps.html#tymethod.user_list_devices)
     pub fn user_list_devices(&self) -> Result<UserDeviceListResult> {
@@ -240,6 +251,7 @@ impl BlockingIronOxide {
         jwt: &str,
         password: &str,
         device_create_options: &DeviceCreateOpts,
+        timeout: Option<std::time::Duration>,
     ) -> Result<DeviceAddResult> {
         let rt = create_runtime();
         rt.enter(|| {
@@ -247,6 +259,7 @@ impl BlockingIronOxide {
                 jwt,
                 password,
                 device_create_options,
+                timeout,
             ))
         })
     }
@@ -256,9 +269,12 @@ impl BlockingIronOxide {
             .enter(|| block_on(self.ironoxide.user_delete_device(device_id)))
     }
     /// See [ironoxide::user::UserOps::user_verify()](trait.UserOps.html#tymethod.user_verify)
-    pub fn user_verify(jwt: &str) -> Result<Option<UserResult>> {
+    pub fn user_verify(
+        jwt: &str,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<Option<UserResult>> {
         let rt = create_runtime();
-        rt.enter(|| block_on(IronOxide::user_verify(jwt)))
+        rt.enter(|| block_on(IronOxide::user_verify(jwt, timeout)))
     }
     /// See [ironoxide::user::UserOps::user_get_public_key()](trait.UserOps.html#tymethod.user_get_public_key)
     pub fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {
@@ -285,9 +301,12 @@ fn create_runtime() -> tokio::runtime::Runtime {
 
 /// Initialize the BlockingIronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
 /// keys are valid and exist for the provided account. If successful, returns instance of the BlockingIronOxide SDK.
-pub fn initialize(device_context: &DeviceContext) -> Result<BlockingIronOxide> {
+pub fn initialize(
+    device_context: &DeviceContext,
+    config: &IronOxideConfig,
+) -> Result<BlockingIronOxide> {
     let rt = create_runtime();
-    let maybe_io = rt.enter(|| block_on(crate::initialize(device_context, &Default::default())));
+    let maybe_io = rt.enter(|| block_on(crate::initialize(device_context, config)));
     maybe_io.map(|io| BlockingIronOxide {
         ironoxide: io,
         runtime: rt,
@@ -299,14 +318,11 @@ pub fn initialize(device_context: &DeviceContext) -> Result<BlockingIronOxide> {
 /// for private key rotation.
 pub fn initialize_check_rotation(
     device_context: &DeviceContext,
+    config: &IronOxideConfig,
 ) -> Result<InitAndRotationCheck<BlockingIronOxide>> {
     let rt = create_runtime();
-    let maybe_init = rt.enter(|| {
-        block_on(crate::initialize_check_rotation(
-            device_context,
-            &Default::default(),
-        ))
-    });
+    let maybe_init =
+        rt.enter(|| block_on(crate::initialize_check_rotation(device_context, config)));
     maybe_init.map(|init| match init {
         NoRotationNeeded(io) => NoRotationNeeded(BlockingIronOxide {
             ironoxide: io,

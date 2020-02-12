@@ -5,9 +5,11 @@ pub use crate::internal::document_api::{
 };
 use crate::{
     internal::{
+        add_optional_timeout,
         document_api::{self, DocumentId, DocumentName},
         group_api::GroupId,
         user_api::UserId,
+        SdkOperation,
     },
     policy::*,
     Result,
@@ -199,11 +201,21 @@ pub trait DocumentOps {
 #[async_trait]
 impl DocumentOps for crate::IronOxide {
     async fn document_list(&self) -> Result<DocumentListResult> {
-        document_api::document_list(self.device.auth()).await
+        add_optional_timeout(
+            document_api::document_list(self.device.auth()),
+            self.config.sdk_operation_timeout,
+            SdkOperation::DocumentList,
+        )
+        .await?
     }
 
     async fn document_get_metadata(&self, id: &DocumentId) -> Result<DocumentMetadataResult> {
-        document_api::document_get_metadata(self.device.auth(), id).await
+        add_optional_timeout(
+            document_api::document_get_metadata(self.device.auth(), id),
+            self.config.sdk_operation_timeout,
+            SdkOperation::DocumentGetMetadata,
+        )
+        .await?
     }
 
     fn document_get_id_from_bytes(&self, encrypted_document: &[u8]) -> Result<DocumentId> {
@@ -234,23 +246,26 @@ impl DocumentOps for crate::IronOxide {
                     )
                 }
             };
-
-        document_api::encrypt_document(
-            self.device.auth(),
-            &self.config,
-            &self.recrypt,
-            &self.user_master_pub_key,
-            &self.rng,
-            document_data,
-            encrypt_opts.id,
-            encrypt_opts.name,
-            grant_to_author,
-            &explicit_users,
-            &explicit_groups,
-            policy_grants.as_ref(),
-            &self.policy_eval_cache,
+        add_optional_timeout(
+            document_api::encrypt_document(
+                self.device.auth(),
+                &self.config,
+                &self.recrypt,
+                &self.user_master_pub_key,
+                &self.rng,
+                document_data,
+                encrypt_opts.id,
+                encrypt_opts.name,
+                grant_to_author,
+                &explicit_users,
+                &explicit_groups,
+                policy_grants.as_ref(),
+                &self.policy_eval_cache,
+            ),
+            self.config.sdk_operation_timeout,
+            SdkOperation::DocumentEncrypt,
         )
-        .await
+        .await?
     }
 
     async fn document_update_bytes(
@@ -258,25 +273,33 @@ impl DocumentOps for crate::IronOxide {
         id: &DocumentId,
         new_document_data: &[u8],
     ) -> Result<DocumentEncryptResult> {
-        document_api::document_update_bytes(
-            self.device.auth(),
-            &self.recrypt,
-            self.device.device_private_key(),
-            &self.rng,
-            id,
-            &new_document_data,
+        add_optional_timeout(
+            document_api::document_update_bytes(
+                self.device.auth(),
+                &self.recrypt,
+                self.device.device_private_key(),
+                &self.rng,
+                id,
+                &new_document_data,
+            ),
+            self.config.sdk_operation_timeout,
+            SdkOperation::DocumentUpdateBytes,
         )
-        .await
+        .await?
     }
 
     async fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult> {
-        document_api::decrypt_document(
-            self.device.auth(),
-            &self.recrypt,
-            self.device.device_private_key(),
-            encrypted_document,
+        add_optional_timeout(
+            document_api::decrypt_document(
+                self.device.auth(),
+                &self.recrypt,
+                self.device.device_private_key(),
+                encrypted_document,
+            ),
+            self.config.sdk_operation_timeout,
+            SdkOperation::DocumentDecrypt,
         )
-        .await
+        .await?
     }
 
     async fn document_update_name(
@@ -284,7 +307,12 @@ impl DocumentOps for crate::IronOxide {
         id: &DocumentId,
         name: Option<&DocumentName>,
     ) -> Result<DocumentMetadataResult> {
-        document_api::update_document_name(self.device.auth(), id, name).await
+        add_optional_timeout(
+            document_api::update_document_name(self.device.auth(), id, name),
+            self.config.sdk_operation_timeout,
+            SdkOperation::DocumentUpdateName,
+        )
+        .await?
     }
 
     async fn document_grant_access(
@@ -294,16 +322,20 @@ impl DocumentOps for crate::IronOxide {
     ) -> Result<DocumentAccessResult> {
         let (users, groups) = partition_user_or_group(grant_list);
 
-        document_api::document_grant_access(
-            self.device.auth(),
-            &self.recrypt,
-            id,
-            &self.user_master_pub_key,
-            &self.device.device_private_key(),
-            &users,
-            &groups,
+        add_optional_timeout(
+            document_api::document_grant_access(
+                self.device.auth(),
+                &self.recrypt,
+                id,
+                &self.user_master_pub_key,
+                &self.device.device_private_key(),
+                &users,
+                &groups,
+            ),
+            self.config.sdk_operation_timeout,
+            SdkOperation::DocumentGrantAccess,
         )
-        .await
+        .await?
     }
 
     async fn document_revoke_access(
@@ -311,7 +343,12 @@ impl DocumentOps for crate::IronOxide {
         id: &DocumentId,
         revoke_list: &Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult> {
-        document_api::document_revoke_access(self.device.auth(), id, revoke_list).await
+        add_optional_timeout(
+            document_api::document_revoke_access(self.device.auth(), id, revoke_list),
+            self.config.sdk_operation_timeout,
+            SdkOperation::DocumentRevokeAccess,
+        )
+        .await?
     }
 }
 

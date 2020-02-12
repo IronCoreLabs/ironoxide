@@ -8,6 +8,7 @@ use crate::internal::{
     user_api::{DeviceId, DeviceName, UserId},
 };
 use chrono::{DateTime, Utc};
+use futures::Future;
 use log::error;
 use protobuf::{self, ProtobufError};
 use recrypt::api::{
@@ -20,9 +21,11 @@ use reqwest::Method;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     convert::{TryFrom, TryInto},
+    fmt::{Error, Formatter},
     result::Result,
     sync::{Mutex, MutexGuard},
 };
+use tokio::time::Elapsed;
 
 pub mod document_api;
 pub mod group_api;
@@ -70,6 +73,47 @@ pub enum RequestErrorCode {
     DocumentRevokeAccess,
     EdekTransform,
     PolicyGet,
+}
+
+/// Public SDK operations
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
+pub enum SdkOperation {
+    InitializeSdk,
+    InitializeSdkCheckRotation,
+    RotateAll,
+    DocumentList,
+    DocumentGetMetadata,
+    DocumentEncrypt,
+    DocumentUpdateBytes,
+    DocumentDecrypt,
+    DocumentUpdateName,
+    DocumentGrantAccess,
+    DocumentRevokeAccess,
+    DocumentEncryptUnmanaged,
+    DocumentDecryptUnmanaged,
+    UserCreate,
+    UserListDevices,
+    GenerateNewDevice,
+    UserDeleteDevice,
+    UserVerify,
+    UserGetPublicKey,
+    UserRotatePrivateKey,
+    GroupList,
+    GroupCreate,
+    GroupGetMetadata,
+    GroupDelete,
+    GroupUpdateName,
+    GroupAddMembers,
+    GroupRemoveMembers,
+    GroupAddAdmins,
+    GroupRemoveAdmins,
+    GroupRotatePrivateKey,
+}
+
+impl std::fmt::Display for SdkOperation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        write!(f, "'{:?}'", self)
+    }
 }
 
 quick_error! {
@@ -139,6 +183,9 @@ quick_error! {
         }
         GroupPrivateKeyRotationError(msg: String) {
             display("Group private key rotation failed with '{}'", msg)
+        }
+        OperationTimedOut{operation: SdkOperation, duration: std::time::Duration} {
+            display("Operation {} timed out after {}ms", operation, duration.as_millis())
         }
     }
 }
@@ -838,11 +885,40 @@ fn gen_plaintext_and_aug_with_retry<R: CryptoOps>(
     aug_private_key().or_else(|_| aug_private_key())
 }
 
+/// Runs a future with a timeout or just runs the future, depending on if a timeout is specified.
+///
+/// If a timeout limit is reached, the result will be an IronOxideErr::OperationTimedOut.
+/// If no timeout is specified, or if the operation finishes before the timeout, the
+/// result is the result of the sdk operation.
+pub async fn add_optional_timeout<F: Future>(
+    f: F,
+    timeout: Option<std::time::Duration>,
+    op: SdkOperation,
+) -> Result<F::Output, IronOxideErr> {
+    use futures::future::TryFutureExt;
+    let result = match timeout {
+        Some(d) => {
+            tokio::time::timeout(d, f)
+                .map_err(|_: Elapsed| IronOxideErr::OperationTimedOut {
+                    operation: op,
+                    duration: d,
+                })
+                .await?
+        }
+
+        // no timeout, just run the Future and return
+        None => f.await,
+    };
+
+    Ok(result)
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
     use galvanic_assert::{matchers::*, MatchResultBuilder, Matcher};
     use std::fmt::Debug;
+    use tokio::time::Duration;
 
     /// String contains matcher to assert that the provided substring exists in the provided value
     pub fn contains<'a>(expected: &'a str) -> Box<dyn Matcher<String> + 'a> {
@@ -1308,6 +1384,97 @@ pub(crate) mod tests {
             Some(&vec1![good_group_id])
         );
         assert_eq!(rotation.user_rotation_needed(), Some(&user_id));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_maybe_timed_sdk_op_no_timeout() -> Result<(), IronOxideErr> {
+        async fn get_42() -> u8 {
+            tokio::time::delay_for(Duration::from_millis(100)).await;
+            42
+        }
+        let forty_two = get_42();
+        let result =
+            add_optional_timeout(forty_two, None, SdkOperation::DocumentRevokeAccess).await?;
+        assert_eq!(result, 42);
+
+        let forty_two = get_42();
+        let result = add_optional_timeout(
+            forty_two,
+            Some(Duration::from_secs(1)),
+            SdkOperation::DocumentRevokeAccess,
+        )
+        .await?;
+        assert_eq!(result, 42);
+
+        async fn get_err() -> Result<(), IronOxideErr> {
+            tokio::time::delay_for(Duration::from_millis(100)).await;
+            Err(IronOxideErr::MissingTransformBlocks)
+        }
+
+        let err_f = get_err();
+        let result = add_optional_timeout(err_f, None, SdkOperation::DocumentRevokeAccess).await?;
+        assert!(result.is_err());
+        assert_that!(
+            &result.unwrap_err(),
+            is_variant!(IronOxideErr::MissingTransformBlocks)
+        );
+
+        let err_f = get_err();
+        let result = add_optional_timeout(
+            err_f,
+            Some(Duration::from_secs(1)),
+            SdkOperation::DocumentRevokeAccess,
+        )
+        .await?;
+        assert!(result.is_err());
+        assert_that!(
+            &result.unwrap_err(),
+            is_variant!(IronOxideErr::MissingTransformBlocks)
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_maybe_timed_sdk_op_with_timeout() -> Result<(), IronOxideErr> {
+        async fn get_42() -> u8 {
+            // allow other futures to run, like the timer
+            // without this the future will run to completion, regardless of the timer
+            tokio::time::delay_for(Duration::from_millis(100)).await;
+            42
+        }
+
+        let forty_two = get_42();
+        let result = add_optional_timeout(
+            forty_two,
+            Some(Duration::from_nanos(1)),
+            SdkOperation::DocumentRevokeAccess,
+        )
+        .await;
+        assert!(result.is_err());
+        assert_that!(
+            &result.unwrap_err(),
+            is_variant!(IronOxideErr::OperationTimedOut)
+        );
+
+        async fn get_err() -> Result<u8, IronOxideErr> {
+            tokio::time::delay_for(Duration::from_millis(100)).await;
+            Err(IronOxideErr::MissingTransformBlocks)
+        }
+
+        let err_f = get_err();
+        let result = add_optional_timeout(
+            err_f,
+            Some(Duration::from_millis(1)),
+            SdkOperation::DocumentRevokeAccess,
+        )
+        .await;
+        assert!(result.is_err());
+        assert_that!(
+            &result.unwrap_err(),
+            is_variant!(IronOxideErr::OperationTimedOut)
+        );
         Ok(())
     }
 }
