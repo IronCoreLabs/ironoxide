@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.19 (unreleased)
+## 0.19 
 - [[#114]](https://github.com/IronCoreLabs/ironoxide/pull/114)
   - Adds timeouts to all public API methods. Most timeouts use a top-level config set in IronOxideConfig. Some special cases allow for passing an optional timeout directly (rotate_all, user_create, user_verify, generate_new_device). Timeouts apply to both IronOxide and BlockingIronOxide
   - Configs can now be set on BlockingIronOxide. Before, defaults were always used.
