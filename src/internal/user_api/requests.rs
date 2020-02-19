@@ -151,7 +151,7 @@ pub mod user_get {
             .get(
                 "users/current",
                 RequestErrorCode::UserGetCurrent,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -206,7 +206,7 @@ pub mod user_update_private_key {
                     augmentation_factor: augmenting_key,
                 },
                 RequestErrorCode::UserKeyUpdate,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -287,14 +287,14 @@ pub mod user_key_list {
         auth: &RequestAuth,
         users: &Vec<UserId>,
     ) -> Result<UserKeyListResponse, IronOxideErr> {
-        let user_ids: Vec<&str> = users.iter().map(|user| user.id()).collect();
-        if user_ids.len() != 0 {
+        let user_ids: Vec<&str> = users.iter().map(UserId::id).collect();
+        if !user_ids.is_empty() {
             auth.request
                 .get_with_query_params(
-                    "users".into(),
-                    &vec![("id".into(), rest::url_encode(&user_ids.join(",")))],
+                    "users",
+                    &[("id".into(), rest::url_encode(&user_ids.join(",")))],
                     RequestErrorCode::UserKeyList,
-                    AuthV2Builder::new(&auth, Utc::now()),
+                    AuthV2Builder::new(auth, Utc::now()),
                 )
                 .await
         } else {
@@ -394,7 +394,7 @@ pub mod device_list {
             .get(
                 &format!("users/{}/devices", rest::url_encode(&auth.account_id().0)),
                 RequestErrorCode::UserDeviceList,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -433,7 +433,7 @@ pub mod device_delete {
                     device_id.0
                 ),
                 RequestErrorCode::UserDeviceDelete,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -448,7 +448,7 @@ pub mod device_delete {
                     rest::url_encode(&auth.account_id().0)
                 ),
                 RequestErrorCode::UserDeviceDelete,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }

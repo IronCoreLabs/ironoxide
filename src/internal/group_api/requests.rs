@@ -186,7 +186,7 @@ pub mod group_list {
             .get(
                 "groups",
                 RequestErrorCode::GroupList,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -196,13 +196,13 @@ pub mod group_list {
         auth: &RequestAuth,
         groups: &Vec<GroupId>,
     ) -> Result<GroupListResponse, IronOxideErr> {
-        let group_ids: Vec<&str> = groups.iter().map(|group| group.id()).collect();
+        let group_ids: Vec<&str> = groups.iter().map(GroupId::id).collect();
         auth.request
             .get_with_query_params(
                 "groups",
-                &vec![("id".into(), rest::url_encode(&group_ids.join(",")))],
+                &[("id".into(), rest::url_encode(&group_ids.join(",")))],
                 RequestErrorCode::GroupList,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -236,10 +236,10 @@ pub mod group_create {
         let req = GroupCreateReq {
             id,
             name,
-            owner: owner,
-            admins: admins,
+            owner,
+            admins,
             group_public_key: group_pub_key.into(),
-            members: members,
+            members,
             needs_rotation,
         };
 
@@ -248,7 +248,7 @@ pub mod group_create {
                 "groups",
                 &req,
                 RequestErrorCode::GroupCreate,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -265,7 +265,7 @@ pub mod group_get {
             .get(
                 &format!("groups/{}", rest::url_encode(&id.0)),
                 RequestErrorCode::GroupGet,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -319,7 +319,7 @@ pub mod group_update_private_key {
                     admins,
                 },
                 RequestErrorCode::GroupKeyUpdate,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -341,7 +341,7 @@ pub mod group_delete {
             .delete_with_no_body(
                 &format!("groups/{}", rest::url_encode(&id.0)),
                 RequestErrorCode::GroupDelete,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -365,7 +365,7 @@ pub mod group_update {
                 &format!("groups/{}", rest::url_encode(&id.0)),
                 &GroupUpdateRequest { name },
                 RequestErrorCode::GroupUpdate,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -393,8 +393,8 @@ pub mod group_add_member {
             .into_iter()
             .map(|(user_id, pk, tkey)| GroupMember {
                 user_id,
-                transform_key: tkey.into(),
-                user_master_public_key: pk.into(),
+                transform_key: tkey,
+                user_master_public_key: pk,
             })
             .collect();
         auth.request
@@ -405,7 +405,7 @@ pub mod group_add_member {
                     signature: signature.into(),
                 },
                 RequestErrorCode::GroupAddMember,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -437,7 +437,7 @@ pub mod group_add_admin {
                     signature: signature.into(),
                 },
                 RequestErrorCode::GroupAddMember,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -464,7 +464,7 @@ pub mod group_remove_entity {
         entity_type: GroupEntity,
     ) -> Result<GroupUserEditResponse, IronOxideErr> {
         let removed_users = user_ids
-            .into_iter()
+            .iter()
             .map(|user_id| GroupEntityId { user_id })
             .collect();
         let (url_entity_path, error_code) = match entity_type {
@@ -482,7 +482,7 @@ pub mod group_remove_entity {
                     users: removed_users,
                 },
                 error_code,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -498,8 +498,8 @@ mod tests {
     ///This test is to ensure our lowercase admin and member permissions are handled correctly.
     #[test]
     fn group_item_serde_format_is_expected() {
-        let created = Utc.timestamp_millis(1551461529000);
-        let updated = Utc.timestamp_millis(1551461529001);
+        let created = Utc.timestamp_millis(1_551_461_529_000);
+        let updated = Utc.timestamp_millis(1_551_461_529_001);
         let mut permissions = HashSet::new();
         permissions.insert(Permission::Member);
         permissions.insert(Permission::Admin);

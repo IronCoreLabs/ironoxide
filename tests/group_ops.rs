@@ -132,7 +132,7 @@ async fn group_rotate_private_key() -> Result<(), IronOxideErr> {
     assert_eq!(group_rotate.needs_rotation(), false);
 
     creator_sdk
-        .group_add_members(group_create.id(), &vec![member])
+        .group_add_members(group_create.id(), &[member])
         .await?;
 
     let creator_decrypt_result = creator_sdk.document_decrypt(encrypted_data).await?;
@@ -296,7 +296,7 @@ async fn group_delete() -> Result<(), IronOxideErr> {
     let group_id = group_result.id().clone();
 
     let group_delete_result = sdk.group_delete(&group_id).await?;
-    assert_eq!(group_id, group_delete_result.clone());
+    assert_eq!(group_id, group_delete_result);
     Ok(())
 }
 
