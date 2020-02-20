@@ -17,12 +17,12 @@ const REQUIRED_LEN: usize = 32;
 ///The result of creating a new index as well as indexing on a particular phrase.
 ///If you only want to create the index, see create_index.
 pub struct CreatedIndexResult {
-    index: Vec<u32>,
-    encrypted_salt: DocumentEncryptUnmanagedResult,
-    sdk: IronSimpleSearch,
+    pub index: Vec<u32>,
+    pub encrypted_salt: DocumentEncryptUnmanagedResult,
+    pub sdk: IronSimpleSearch,
 }
 
-///Trait which
+///Trait which gives the ability to create an index
 #[async_trait]
 pub trait SimpleSeachInitialize {
     ///Given the encrypted salt and the edeks, decrypt them and give back the IronSimpleSearch object.
@@ -94,7 +94,7 @@ impl SimpleSeachInitialize for IronOxide {
         })
     }
 }
-
+#[derive(Debug, PartialEq)]
 pub struct IronSimpleSearch {
     decrypted_salt: [u8; 32],
 }
@@ -129,5 +129,26 @@ impl IronSimpleSearch {
     ///Create a new index for the term in partition_id.
     pub fn generate_index_tokens(&self, term: &str, partition_id: Option<&str>) -> Vec<u32> {
         self.generate_query(term, partition_id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use galvanic_assert::matchers::*;
+
+    #[test]
+    fn try_from_works_for_correct_size() -> Result<()> {
+        let bytes = [0u8; 32];
+        let _: IronSimpleSearch = (&bytes[..]).try_into()?;
+        Ok(())
+    }
+    #[test]
+    fn try_from_errors_for_incorrect_size() -> Result<()> {
+        let bytes = [0u8; 100];
+        let maybe_error: Result<IronSimpleSearch> = (&bytes[..]).try_into();
+        let error = maybe_error.unwrap_err();
+        assert_that!(&error, is_variant!(IronOxideErr::WrongSizeError));
+        Ok(())
     }
 }
