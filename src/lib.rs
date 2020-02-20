@@ -57,7 +57,8 @@ mod internal;
 // include generated proto code as a proto module
 include!(concat!(env!("OUT_DIR"), "/transform.rs"));
 
-pub mod blind_index;
+#[cfg(feature = "beta")]
+pub mod search;
 
 /// SDK document operations
 pub mod document;

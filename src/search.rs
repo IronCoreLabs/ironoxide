@@ -22,6 +22,7 @@ pub struct CreatedIndexResult {
     sdk: IronSimpleSearch,
 }
 
+///Trait which
 #[async_trait]
 pub trait SimpleSeachInitialize {
     ///Given the encrypted salt and the edeks, decrypt them and give back the IronSimpleSearch object.

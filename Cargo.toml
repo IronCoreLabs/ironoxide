@@ -40,7 +40,7 @@ vec1 = "~1.4.0"
 # ironoxide requires rt-threaded at runtime, but not at compile time
 tokio = {version = "~0.2.0", features=["time", "rt-threaded"]}
 dashmap = "3.4.0"
-ironcore-search-helpers = { git = "https://github.com/IronCoreLabs/search-helpers", rev = "cf9d8bd" }
+ironcore-search-helpers = { git = "https://github.com/IronCoreLabs/search-helpers", rev = "cf9d8bd", optional=true}
 
 [dev-dependencies]
 frank_jwt = "~3.1.2"
@@ -58,6 +58,7 @@ all-features = true
 
 [features]
 blocking = ["tokio/rt-threaded"]
+beta = ["ironcore-search-helpers"]
 
 [profile.dev]
 opt-level = 2
