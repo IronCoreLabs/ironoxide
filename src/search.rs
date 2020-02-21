@@ -17,7 +17,6 @@ const REQUIRED_LEN: usize = 32;
 ///The result of creating a new index as well as indexing on a particular phrase.
 ///If you only want to create the index, see create_index.
 pub struct CreatedIndexResult {
-    pub index: Vec<u32>,
     pub encrypted_salt: DocumentEncryptUnmanagedResult,
     pub sdk: IronSimpleSearch,
 }
@@ -36,12 +35,7 @@ pub trait SimpleSeachInitialize {
     ///the IronSimpleSearch for reuse.
     async fn create_index(&self, group_id: &GroupId) -> Result<DocumentEncryptUnmanagedResult>;
     ///Create an index and also index the term.
-    async fn create_index_and_initialize(
-        &self,
-        term: &str,
-        partition_id: Option<&str>,
-        group_id: &GroupId,
-    ) -> Result<CreatedIndexResult>;
+    async fn create_index_and_initialize(&self, group_id: &GroupId) -> Result<CreatedIndexResult>;
 }
 
 #[async_trait]
@@ -57,17 +51,11 @@ impl SimpleSeachInitialize for IronOxide {
         decrypted_value.decrypted_data().try_into()
     }
     async fn create_index(&self, group_id: &GroupId) -> Result<DocumentEncryptUnmanagedResult> {
-        let CreatedIndexResult { encrypted_salt, .. } = self
-            .create_index_and_initialize("", Option::None, group_id)
-            .await?;
+        let CreatedIndexResult { encrypted_salt, .. } =
+            self.create_index_and_initialize(group_id).await?;
         Ok(encrypted_salt)
     }
-    async fn create_index_and_initialize(
-        &self,
-        term: &str,
-        partition_id: Option<&str>,
-        group_id: &GroupId,
-    ) -> Result<CreatedIndexResult> {
+    async fn create_index_and_initialize(&self, group_id: &GroupId) -> Result<CreatedIndexResult> {
         let salt = {
             let mut mut_salt = [0u8; 32];
             take_lock(&self.rng).deref_mut().fill_bytes(&mut mut_salt);
@@ -88,7 +76,6 @@ impl SimpleSeachInitialize for IronOxide {
         let search_sdk = IronSimpleSearch::new(salt);
 
         Ok(CreatedIndexResult {
-            index: search_sdk.generate_query(term, partition_id),
             encrypted_salt,
             sdk: search_sdk,
         })

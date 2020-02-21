@@ -20,9 +20,12 @@ mod search_tests {
         let sdk = initialize_sdk().await?;
         let group_create_result = sdk.group_create(&Default::default()).await?;
         let result = sdk
-            .create_index_and_initialize("hello world", Option::None, group_create_result.id())
+            .create_index_and_initialize(group_create_result.id())
             .await?;
-        assert_eq!(result.index.len(), 6); //hel, ell, elo, wor, orl, rld --The numbers are random and aren't worth asserting about.
+        let index_tokens = result
+            .sdk
+            .generate_index_tokens("hello world", Option::None);
+        assert_eq!(index_tokens.len(), 6); //hel, ell, elo, wor, orl, rld --The numbers are random and aren't worth asserting about.
         Ok(())
     }
 
@@ -31,11 +34,28 @@ mod search_tests {
         let sdk = initialize_sdk().await?;
         let group_create_result = sdk.group_create(&Default::default()).await?;
         let initialize_result = sdk
-            .create_index_and_initialize("hello world", Option::None, group_create_result.id())
+            .create_index_and_initialize(group_create_result.id())
             .await?;
         let search_sdk = initialize_result.sdk;
         let search_tokens = search_sdk.generate_index_tokens("hello world", Option::None);
-        assert_eq!(initialize_result.index, search_tokens);
+        let search_tokens_two = search_sdk.generate_index_tokens("hello world", Option::None);
+        assert_eq!(search_tokens_two, search_tokens);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn create_index_changes_partition() -> Result<(), IronOxideErr> {
+        let sdk = initialize_sdk().await?;
+        let group_create_result = sdk.group_create(&Default::default()).await?;
+        let initialize_result = sdk
+            .create_index_and_initialize(group_create_result.id())
+            .await?;
+        let search_sdk = initialize_result.sdk;
+        let search_tokens = search_sdk.generate_index_tokens("hello world", Option::None);
+        let search_tokens_two =
+            search_sdk.generate_index_tokens("hello world", Option::Some("foo"));
+        //Since one has a partition_id, these should be different.
+        assert_ne!(search_tokens_two, search_tokens);
         Ok(())
     }
 
@@ -44,7 +64,7 @@ mod search_tests {
         let sdk = initialize_sdk().await?;
         let group_create_result = sdk.group_create(&Default::default()).await?;
         let initialize_result = sdk
-            .create_index_and_initialize("", Option::None, group_create_result.id())
+            .create_index_and_initialize(group_create_result.id())
             .await?;
         let search_sdk = initialize_result.sdk;
         let second_search_sdk = sdk
