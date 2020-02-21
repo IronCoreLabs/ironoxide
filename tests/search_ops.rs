@@ -2,19 +2,9 @@ mod common;
 
 #[cfg(feature = "beta")]
 mod search_tests {
-    use crate::common::{
-        create_id_all_classes, create_second_user, gen_jwt, init_sdk_get_user, initialize_sdk,
-        USER_PASSWORD,
-    };
-    use galvanic_assert::{assert_that, is_variant};
-    use ironoxide::{
-        document::DocumentEncryptOpts,
-        group::{GroupCreateOpts, GroupId, GroupOps},
-        prelude::*,
-        search::*,
-    };
-    use std::convert::TryInto;
-    use uuid::Uuid;
+    use crate::common::initialize_sdk;
+    use ironoxide::{group::GroupOps, prelude::*, search::*};
+
     #[tokio::test]
     async fn create_index() -> Result<(), IronOxideErr> {
         let sdk = initialize_sdk().await?;

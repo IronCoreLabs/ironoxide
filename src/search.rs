@@ -94,7 +94,7 @@ impl SimpleSeachInitialize for IronOxide {
         })
     }
 }
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct IronSimpleSearch {
     decrypted_salt: [u8; 32],
 }
@@ -109,7 +109,7 @@ impl TryFrom<&[u8]> for IronSimpleSearch {
                 Some(REQUIRED_LEN),
             ))
         } else {
-            let mut a: [u8; 32] = Default::default();
+            let mut a = [0u8; 32];
             a.copy_from_slice(&bytes[0..32]);
             Ok(IronSimpleSearch::new(a))
         }
