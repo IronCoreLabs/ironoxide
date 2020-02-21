@@ -14,14 +14,14 @@ type Result<A> = std::result::Result<A, IronOxideErr>;
 ///The required length of the salt.
 const REQUIRED_LEN: usize = 32;
 
-///The result of creating a new index as well as indexing on a particular phrase.
+///The result of creating a new index as well as initializing an IronSimpleSdk.
 ///If you only want to create the index, see create_index.
 pub struct CreatedIndexResult {
     pub encrypted_salt: DocumentEncryptUnmanagedResult,
     pub sdk: IronSimpleSearch,
 }
 
-///Trait which gives the ability to create an index
+///Trait which gives the ability to create an index.
 #[async_trait]
 pub trait SimpleSeachInitialize {
     ///Given the encrypted salt and the edeks, decrypt them and give back the IronSimpleSearch object.
@@ -34,7 +34,7 @@ pub trait SimpleSeachInitialize {
     ///If you need to index terms immediately, see `create_index_and_initialize` which will return
     ///the IronSimpleSearch for reuse.
     async fn create_index(&self, group_id: &GroupId) -> Result<DocumentEncryptUnmanagedResult>;
-    ///Create an index and also index the term.
+    ///Create an index, encrypt it and initialize a IronSimpleSearch for immediate use.
     async fn create_index_and_initialize(&self, group_id: &GroupId) -> Result<CreatedIndexResult>;
 }
 
@@ -122,7 +122,6 @@ impl IronSimpleSearch {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use galvanic_assert::matchers::*;
 
     #[test]
     fn try_from_works_for_correct_size() -> Result<()> {
