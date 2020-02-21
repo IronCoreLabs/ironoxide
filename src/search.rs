@@ -25,22 +25,25 @@ pub struct CreatedIndexResult {
 #[async_trait]
 pub trait SimpleSeachInitialize {
     ///Given the encrypted salt and the edeks, decrypt them and give back the IronSimpleSearch object.
-    async fn initialize_search_index(
+    async fn initialize_search_sdk(
         &self,
         encrypted_data: &[u8],
         encrypted_deks: &[u8],
     ) -> Result<IronSimpleSearch>;
     ///Create an index and encrypt it to the provided group_id.
-    ///If you need to index terms immediately, see `create_index_and_initialize` which will return
+    ///If you need to index data immediately, see `create_index_and_initialize_search_sdk` which will return
     ///the IronSimpleSearch for reuse.
     async fn create_index(&self, group_id: &GroupId) -> Result<DocumentEncryptUnmanagedResult>;
     ///Create an index, encrypt it and initialize a IronSimpleSearch for immediate use.
-    async fn create_index_and_initialize(&self, group_id: &GroupId) -> Result<CreatedIndexResult>;
+    async fn create_index_and_initialize_search_sdk(
+        &self,
+        group_id: &GroupId,
+    ) -> Result<CreatedIndexResult>;
 }
 
 #[async_trait]
 impl SimpleSeachInitialize for IronOxide {
-    async fn initialize_search_index(
+    async fn initialize_search_sdk(
         &self,
         encrypted_salt: &[u8],
         encrypted_salt_deks: &[u8],
@@ -51,11 +54,15 @@ impl SimpleSeachInitialize for IronOxide {
         decrypted_value.decrypted_data().try_into()
     }
     async fn create_index(&self, group_id: &GroupId) -> Result<DocumentEncryptUnmanagedResult> {
-        let CreatedIndexResult { encrypted_salt, .. } =
-            self.create_index_and_initialize(group_id).await?;
+        let CreatedIndexResult { encrypted_salt, .. } = self
+            .create_index_and_initialize_search_sdk(group_id)
+            .await?;
         Ok(encrypted_salt)
     }
-    async fn create_index_and_initialize(&self, group_id: &GroupId) -> Result<CreatedIndexResult> {
+    async fn create_index_and_initialize_search_sdk(
+        &self,
+        group_id: &GroupId,
+    ) -> Result<CreatedIndexResult> {
         let salt = {
             let mut mut_salt = [0u8; 32];
             take_lock(&self.rng).deref_mut().fill_bytes(&mut mut_salt);
@@ -108,14 +115,14 @@ impl IronSimpleSearch {
         IronSimpleSearch { decrypted_salt }
     }
 
-    ///Generate the search query to try and find term in a pariticular partition_id.
-    pub fn generate_query(&self, term: &str, partition_id: Option<&str>) -> Vec<u32> {
-        generate_hashes_for_string(term, partition_id, &self.decrypted_salt[..])
+    ///Generate the list of tokens to use to find entries that match the search query, given the specified partition_id.
+    pub fn tokenize_query(&self, query: &str, partition_id: Option<&str>) -> Vec<u32> {
+        generate_hashes_for_string(query, partition_id, &self.decrypted_salt[..])
     }
 
-    ///Create a new index for the term in partition_id.
-    pub fn generate_index_tokens(&self, term: &str, partition_id: Option<&str>) -> Vec<u32> {
-        self.generate_query(term, partition_id)
+    ///Generate the list of search tokens that represent the supplied string.
+    pub fn tokenize_data(&self, data: &str, partition_id: Option<&str>) -> Vec<u32> {
+        generate_hashes_for_string(data, partition_id, &self.decrypted_salt[..])
     }
 }
 
