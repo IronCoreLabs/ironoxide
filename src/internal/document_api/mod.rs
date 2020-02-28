@@ -46,7 +46,7 @@ const HEADER_META_LENGTH_LENGTH: usize = 2;
 const CURRENT_DOCUMENT_ID_VERSION: u8 = 2;
 
 /// Document ID. Unique within the segment. Must match the regex `^[a-zA-Z0-9_.$#|@/:;=+'-]+$`
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DocumentId(pub(crate) String);
 impl DocumentId {
     pub fn id(&self) -> &str {
@@ -74,7 +74,7 @@ impl TryFrom<String> for DocumentId {
 }
 
 /// (unencrypted) name of a document. Construct via `try_from(&str)`
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Hash, Eq)]
 pub struct DocumentName(pub(crate) String);
 impl DocumentName {
     pub fn name(&self) -> &String {
@@ -173,7 +173,7 @@ pub enum AssociationType {
 }
 
 /// Represents a User struct which is returned from doc get to show the IDs of users the document is visible to
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VisibleUser {
     id: UserId,
 }
@@ -184,7 +184,7 @@ impl VisibleUser {
 }
 
 /// Represents a Group struct which is returned from doc get to show the IDs and names of groups the document is visible to
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VisibleGroup {
     id: GroupId,
     name: Option<GroupName>,
@@ -201,7 +201,7 @@ impl VisibleGroup {
 /// Single document's (abbreviated) metadata. Returned as part of a `DocumentListResult`.
 ///
 /// If you want full metadata for a document, see `DocumentMetadataResult`
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DocumentListMeta(DocumentListApiResponseItem);
 impl DocumentListMeta {
     pub fn id(&self) -> &DocumentId {
@@ -222,7 +222,7 @@ impl DocumentListMeta {
 }
 
 /// Metadata for each of the documents that the current user has access to decrypt.
-#[derive(Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DocumentListResult {
     result: Vec<DocumentListMeta>,
 }
@@ -233,7 +233,7 @@ impl DocumentListResult {
 }
 
 /// Full metadata for a document.
-#[derive(Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DocumentMetadataResult(DocumentMetaApiResponse);
 impl DocumentMetadataResult {
     pub fn id(&self) -> &DocumentId {
@@ -273,7 +273,7 @@ impl DocumentMetadataResult {
 /// - `encrypted_data` - Bytes of encrypted document content
 /// - `encrypted_deks` - List of encrypted document encryption keys (EDEK) of users/groups that have been granted access to `encrypted_data`
 /// - `access_errs` - Users and groups that could not be granted access
-#[derive(Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DocumentEncryptUnmanagedResult {
     id: DocumentId,
     encrypted_data: Vec<u8>,
@@ -329,7 +329,7 @@ impl DocumentEncryptUnmanagedResult {
 /// - `encrypted_data` - Bytes of encrypted document content
 /// - `grants` - Users and groups that have access to decrypt the `encrypted_data`
 /// - `access_errs` - Users and groups that could not be granted access
-#[derive(Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DocumentEncryptResult {
     id: DocumentId,
     name: Option<DocumentName>,
@@ -363,7 +363,7 @@ impl DocumentEncryptResult {
     }
 }
 /// Result of decrypting a document. Includes minimal metadata as well as the decrypted bytes.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DocumentDecryptResult {
     id: DocumentId,
     name: Option<DocumentName>,
@@ -390,7 +390,7 @@ impl DocumentDecryptResult {
 }
 
 /// A failure to edit the access list of a document.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DocAccessEditErr {
     /// User or group whose access was to be granted/revoked
     pub user_or_group: UserOrGroup,
@@ -409,7 +409,7 @@ impl DocAccessEditErr {
 
 /// Result of granting or revoking access to a document. Both grant and revoke support partial
 /// success.
-#[derive(Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DocumentAccessResult {
     succeeded: Vec<UserOrGroup>,
     failed: Vec<DocAccessEditErr>,
@@ -433,11 +433,11 @@ impl DocumentAccessResult {
         &self.failed
     }
 }
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 struct DecryptedData(Vec<u8>);
 
 /// Result of successful unmanaged decryption
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DocumentDecryptUnmanagedResult {
     id: DocumentId,
     access_via: UserOrGroup,

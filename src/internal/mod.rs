@@ -302,7 +302,7 @@ pub mod auth_v2 {
 }
 
 ///Structure that contains all the info needed to make a signed API request from a device.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
 #[serde(rename_all = "camelCase")]
 pub struct RequestAuth {
     ///The user's given id, which uniquely identifies them inside the segment.
@@ -348,7 +348,7 @@ impl RequestAuth {
 }
 
 /// Account's device context. Needed to initialize the Sdk with a set of device keys. See `IronOxide.initialize()`
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceContext {
     #[serde(flatten)]
@@ -411,7 +411,7 @@ impl From<DeviceAddResult> for DeviceContext {
 }
 
 // Note: Equality is not provided to protect the security of the device private key.
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct DeviceAddResult {
     /// The user's given id, which uniquely identifies them inside the segment.
     account_id: UserId,
@@ -497,7 +497,7 @@ impl From<SchnorrSignature> for Vec<u8> {
 
 /// Represents an asymmetric public key that wraps the underlying bytes
 /// of the key.
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Hash, Eq)]
 pub struct PublicKey(RecryptPublicKey);
 
 impl From<RecryptPublicKey> for PublicKey {
@@ -555,7 +555,7 @@ impl PublicKey {
 
 /// Represents an asymmetric private key that wraps the underlying bytes
 /// of the key.
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct PrivateKey(RecryptPrivateKey);
 impl PrivateKey {
     const BYTES_SIZE: usize = RecryptPrivateKey::ENCODED_SIZE_BYTES;
@@ -618,14 +618,10 @@ impl PrivateKey {
         augmenting_key: &AugmentationFactor,
         error_fn: F,
     ) -> Result<PrivateKey, IronOxideErr> {
-        use recrypt::Revealed;
         let zero: RecryptPrivateKey = RecryptPrivateKey::new([0u8; 32]);
-        if Revealed(augmenting_key.clone().into()) == Revealed(zero) {
+        if RecryptPrivateKey::from(augmenting_key.clone()) == zero {
             Err(error_fn("Augmenting key cannot be zero".into()))
-        }
-        // These clones can be removed once https://github.com/IronCoreLabs/recrypt-rs/issues/91 is fixed
-        // result of the augmentation would be zero
-        else if Revealed(augmenting_key.clone().into()) == Revealed(self.clone().0) {
+        } else if RecryptPrivateKey::from(augmenting_key.clone()) == self.0 {
             Err(error_fn(
                 "PrivateKey augmentation failed with a zero value".into(),
             ))
@@ -699,7 +695,7 @@ impl KeyPair {
 
 /// Signing keypair specific to a device. Used to sign all requests to the IronCore API
 /// endpoints. Needed to create a `DeviceContext`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Eq, Clone, Hash)]
 pub struct DeviceSigningKeyPair(RecryptSigningKeypair);
 impl From<&DeviceSigningKeyPair> for RecryptSigningKeypair {
     fn from(dsk: &DeviceSigningKeyPair) -> RecryptSigningKeypair {
@@ -1159,14 +1155,13 @@ pub(crate) mod tests {
 
     #[test]
     fn private_key_augmentation_is_augment_minus() {
-        use recrypt::Revealed;
         let p1 = gen_priv_key();
         let p2 = gen_priv_key();
 
         let p3 = p1.clone().0.augment_minus(&p2.clone().0);
 
         let aug_p = p1.augment_user(&AugmentationFactor(p2)).unwrap();
-        assert_eq!(Revealed(aug_p.0), Revealed(p3))
+        assert_eq!(aug_p.0, p3)
     }
 
     #[test]
@@ -1264,13 +1259,10 @@ pub(crate) mod tests {
 
         let result = augment_private_key_with_retry(&recrypt_mock, &curr_priv_key).unwrap();
         assert_eq!(
-            recrypt::Revealed((result.clone().0).0),
-            recrypt::Revealed(RecryptPrivateKey::new(expected_priv_key_bytes))
+            (result.0).0,
+            RecryptPrivateKey::new(expected_priv_key_bytes)
         );
-        assert_eq!(
-            recrypt::Revealed(((result.1).0).0),
-            recrypt::Revealed(good_re_private_key)
-        )
+        assert_eq!(((result.1).0).0, good_re_private_key)
     }
     #[test]
     fn augment_private_key_with_retry_retries_only_once() {
@@ -1305,10 +1297,7 @@ pub(crate) mod tests {
         // the augmentation will result in zero, causing the function to retry.
         let result =
             gen_plaintext_and_aug_with_retry(&recrypt_mock, &bad_private_key.into()).unwrap();
-        assert_eq!(
-            recrypt::Revealed(result.0),
-            recrypt::Revealed(good_plaintext)
-        );
+        assert_eq!(result.0, good_plaintext);
     }
 
     #[test]

@@ -14,13 +14,13 @@ use crate::internal::{
 use chrono::{DateTime, Utc};
 use std::convert::{TryFrom, TryInto};
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Hash, Eq)]
 pub struct Association {
     #[serde(rename = "type")]
     pub typ: AssociationType,
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DocumentVisibility {
     pub users: Vec<VisibleUser>,
     pub groups: Vec<VisibleGroup>,
@@ -121,7 +121,7 @@ impl From<&AccessGrant> for UserOrGroup {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentMetaApiResponse {
     pub id: DocumentId,
@@ -141,7 +141,7 @@ pub mod document_list {
         pub result: Vec<DocumentListApiResponseItem>,
     }
 
-    #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+    #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Hash, Eq)]
     pub struct DocumentListApiResponseItem {
         pub id: DocumentId,
         pub name: Option<DocumentName>,

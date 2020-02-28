@@ -297,7 +297,7 @@ impl<'a> HeaderIronCoreRequestSig<'a> {
 }
 
 ///A struct which holds the basic info that will be needed for making requests to an ironcore service. Currently just the base_url.
-#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy, Eq, PartialEq, Hash)]
 pub struct IronCoreRequest {
     base_url: &'static str,
 }
@@ -850,7 +850,7 @@ pub mod json {
 
     base64_serde_type!(pub Base64Standard, base64::STANDARD);
 
-    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Eq, Hash)]
     pub struct PublicKey {
         #[serde(with = "Base64Standard")]
         pub x: Vec<u8>,
@@ -909,7 +909,7 @@ pub mod json {
         }
     }
 
-    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Hash, Eq)]
     #[serde(rename_all = "camelCase")]
     pub struct EncryptedOnceValue {
         #[serde(with = "Base64Standard")]
@@ -932,7 +932,7 @@ pub mod json {
         }
     }
 
-    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Eq, Hash)]
     #[serde(rename_all = "camelCase")]
     pub struct TransformedEncryptedValue {
         #[serde(flatten)]
@@ -940,7 +940,7 @@ pub mod json {
         transform_blocks: Vec<TransformBlock>,
     }
 
-    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Eq, Hash)]
     #[serde(rename_all = "camelCase")]
     pub struct TransformBlock {
         #[serde(with = "Base64Standard")]

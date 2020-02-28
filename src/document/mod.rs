@@ -15,21 +15,44 @@ use crate::{
     Result,
 };
 use itertools::{Either, EitherOrBoth, Itertools};
+use std::hash::{Hash, Hasher};
 
 /// Advanced document operations
 pub mod advanced;
 
 /// Optional parameters that can be provided when encrypting a new document.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct DocumentEncryptOpts {
     id: Option<DocumentId>,
     name: Option<DocumentName>,
     // at least one user/group must be included either explicitly or via a policy
     grants: EitherOrBoth<ExplicitGrant, PolicyGrant>,
 }
-#[derive(Debug, PartialEq, Clone)]
+
+impl Hash for DocumentEncryptOpts {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+        self.name.hash(state);
+        match &self.grants {
+            EitherOrBoth::Left(explicit) => {
+                0.hash(state);
+                explicit.hash(state);
+            }
+            EitherOrBoth::Right(policy) => {
+                1.hash(state);
+                policy.hash(state);
+            }
+            EitherOrBoth::Both(explicit, policy) => {
+                2.hash(state);
+                explicit.hash(state);
+                policy.hash(state);
+            }
+        }
+    }
+}
 
 /// Explicit users/groups that should have access to decrypt a document.
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct ExplicitGrant {
     grant_to_author: bool,
     grants: Vec<UserOrGroup>,
