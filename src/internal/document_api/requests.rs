@@ -158,7 +158,7 @@ pub mod document_list {
             .get(
                 "documents",
                 RequestErrorCode::DocumentList,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -175,7 +175,7 @@ pub mod document_get {
             .get(
                 &format!("documents/{}", rest::url_encode(&id.0)),
                 RequestErrorCode::DocumentGet,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -193,7 +193,7 @@ pub mod edek_transform {
                 "edeks/transform",
                 edek_bytes,
                 RequestErrorCode::EdekTransform,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -258,7 +258,7 @@ pub mod document_create {
                 "documents",
                 &req,
                 RequestErrorCode::DocumentCreate,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -271,7 +271,7 @@ pub mod policy_get {
         policy::{Category, DataSubject, PolicyGrant, Sensitivity},
     };
 
-    pub(crate) const SUBSTITUTE_ID_QUERY_PARAM: &'static str = "substituteId";
+    pub(crate) const SUBSTITUTE_ID_QUERY_PARAM: &str = "substituteId";
 
     #[derive(Deserialize, Debug, Clone)]
     #[serde(rename_all = "camelCase")]
@@ -309,7 +309,7 @@ pub mod policy_get {
                 "policies",
                 &query_params,
                 RequestErrorCode::PolicyGet,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -333,7 +333,7 @@ pub mod document_update {
                 &format!("documents/{}", rest::url_encode(&id.0)),
                 &DocumentUpdateRequest { name },
                 RequestErrorCode::DocumentUpdate,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -462,7 +462,7 @@ pub mod document_access {
                 &format!("documents/{}/access", rest::url_encode(id.id())),
                 &req,
                 RequestErrorCode::DocumentGrantAccess,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -479,7 +479,7 @@ pub mod document_access {
                     user_or_groups: revoke_list,
                 },
                 RequestErrorCode::DocumentRevokeAccess,
-                AuthV2Builder::new(&auth, Utc::now()),
+                AuthV2Builder::new(auth, Utc::now()),
             )
             .await
     }
@@ -496,8 +496,8 @@ mod tests {
     fn document_item_serde_format_is_expected() {
         use document_list::DocumentListApiResponseItem;
 
-        let created = Utc.timestamp_millis(1551461529000);
-        let updated = Utc.timestamp_millis(1551461529001);
+        let created = Utc.timestamp_millis(1_551_461_529_000);
+        let updated = Utc.timestamp_millis(1_551_461_529_001);
         let item = DocumentListApiResponseItem {
             id: DocumentId("my_id".to_string()),
             name: None,

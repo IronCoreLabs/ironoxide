@@ -56,7 +56,7 @@ impl TryFrom<u64> for DeviceId {
         //Validate the range of the device ID to always be positive, but also be
         //less than i64 (i.e. no high bit set) for compatibility with other
         //languages (i.e. Java)
-        if device_id < 1 || device_id > (std::i64::MAX as u64) {
+        if device_id < 1 || device_id > (i64::max_value() as u64) {
             Err(IronOxideErr::ValidationError(
                 "device_id".to_string(),
                 format!("'{}' must be a number greater than 0", device_id),
@@ -288,7 +288,7 @@ pub async fn user_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
         current_key_id,
         id: curr_user_id,
         ..
-    } = requests::user_get::get_curr_user(&auth).await?;
+    } = requests::user_get::get_curr_user(auth).await?;
     let (user_id, curr_key_id, new_encrypted_priv_key, aug_factor) = {
         let priv_key: PrivateKey = aes::decrypt_user_master_key(
             &password.0,
@@ -310,7 +310,7 @@ pub async fn user_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
         )
     };
     Ok(requests::user_update_private_key::update_private_key(
-        &auth,
+        auth,
         user_id,
         curr_key_id,
         new_encrypted_priv_key.into(),
@@ -336,11 +336,13 @@ pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
         id: account_id,
         segment_id,
         ..
-    } = requests::user_verify::user_verify(&jwt, &request)
+    } = requests::user_verify::user_verify(jwt, request)
         .await?
-        .ok_or(IronOxideErr::UserDoesNotExist(
-            "Device cannot be added to a user that doesn't exist".to_string(),
-        ))?;
+        .ok_or_else(|| {
+            IronOxideErr::UserDoesNotExist(
+                "Device cannot be added to a user that doesn't exist".to_string(),
+            )
+        })?;
     // unpack the verified user and create a DeviceAdd
     let (device_add, account_id) = (
         {
@@ -355,14 +357,14 @@ pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
                 KeyPair::new(user_public_key, RecryptPrivateKey::new(user_private_key));
 
             // generate info needed to add a device
-            generate_device_add(recrypt, &jwt, &user_keypair, &signing_ts)?
+            generate_device_add(recrypt, jwt, &user_keypair, signing_ts)?
         },
         account_id.try_into()?,
     );
 
     // call device_add
     let device_add_response =
-        requests::device_add::user_device_add(&jwt, &device_add, &device_name, &request).await?;
+        requests::device_add::user_device_add(jwt, &device_add, &device_name, request).await?;
     // on successful response, assemble a DeviceContext for the caller
     Ok(DeviceAddResult {
         account_id,
@@ -430,10 +432,10 @@ pub(crate) async fn get_user_keys(
     users: &Vec<UserId>,
 ) -> Result<(Vec<UserId>, Vec<WithKey<UserId>>), IronOxideErr> {
     // if there aren't any users in the list, just return with empty results
-    if users.len() == 0 {
+    if users.is_empty() {
         Ok((vec![], vec![]))
     } else {
-        user_api::user_key_list(auth, &users)
+        user_api::user_key_list(auth, users)
             .await
             .map(|ids_with_keys| {
                 users.clone().into_iter().partition_map(|user_id| {
@@ -463,17 +465,17 @@ fn generate_device_add<CR: rand::CryptoRng + rand::RngCore>(
     // generate a transform key from the user's private key to the new device
     let trans_key: TransformKey = recrypt
         .generate_transform_key(
-            &user_master_keypair.private_key().recrypt_key(),
+            user_master_keypair.private_key().recrypt_key(),
             &device_keypair.public_key().into(),
             &signing_keypair,
         )?
         .into();
 
-    let sig = gen_device_add_signature(recrypt, jwt, &user_master_keypair, &trans_key, signing_ts);
+    let sig = gen_device_add_signature(recrypt, jwt, user_master_keypair, &trans_key, signing_ts);
     Ok(DeviceAdd {
         user_public_key: user_master_keypair.public_key().clone(),
-        transform_key: trans_key.into(),
-        device_keys: device_keypair.into(),
+        transform_key: trans_key,
+        device_keys: device_keypair,
         signing_keys: signing_keypair.into(),
         signature: sig,
         signature_ts: signing_ts.to_owned(),
@@ -498,7 +500,7 @@ fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
     impl<'a> recrypt::api::Hashable for SignedMessage<'a> {
         fn to_bytes(&self) -> Vec<u8> {
             let mut vec: Vec<u8> = vec![];
-            vec.extend_from_slice(&self.timestamp.timestamp_millis().to_string().as_bytes());
+            vec.extend_from_slice(self.timestamp.timestamp_millis().to_string().as_bytes());
             vec.extend_from_slice(&self.transform_key.to_bytes());
             vec.extend_from_slice(&self.jwt.to_utf8());
             vec.extend_from_slice(&self.user_public_key.as_bytes());
@@ -510,12 +512,12 @@ fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
         timestamp: signing_ts,
         transform_key,
         jwt,
-        user_public_key: &user_master_keypair.public_key(),
+        user_public_key: user_master_keypair.public_key(),
     };
 
     recrypt
         .schnorr_sign(
-            &user_master_keypair.private_key().recrypt_key(),
+            user_master_keypair.private_key().recrypt_key(),
             &user_master_keypair.public_key().into(),
             &msg,
         )

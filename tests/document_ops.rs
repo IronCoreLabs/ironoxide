@@ -244,12 +244,8 @@ fn setup_encrypt_with_explicit_self_grant() -> DocumentEncryptOpts {
         Some("first name".try_into().unwrap()),
         true,
         vec![
-            UserOrGroup::User {
-                id: bad_user.clone(),
-            },
-            UserOrGroup::Group {
-                id: bad_group.clone(),
-            },
+            UserOrGroup::User { id: bad_user },
+            UserOrGroup::Group { id: bad_group },
         ],
     )
 }
@@ -379,7 +375,7 @@ async fn setup_encrypt_with_explicit_and_policy_grants(
             // note that both the policy and the `grant_to_author` will encrypt to the
             // logged in user. This gets deduplicated internally.
             EitherOrBoth::Both(
-                ExplicitGrant::new(true, &vec![ex_group_id.into(), bad_group.into()]),
+                ExplicitGrant::new(true, &[ex_group_id.into(), bad_group.into()]),
                 PolicyGrant::new(
                     Some("PII".try_into()?),
                     Some("INTERNAL".try_into()?),

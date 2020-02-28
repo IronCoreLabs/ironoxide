@@ -280,7 +280,7 @@ impl DocumentOps for crate::IronOxide {
                 self.device.device_private_key(),
                 &self.rng,
                 id,
-                &new_document_data,
+                new_document_data,
             ),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentUpdateBytes,
@@ -328,7 +328,7 @@ impl DocumentOps for crate::IronOxide {
                 &self.recrypt,
                 id,
                 &self.user_master_pub_key,
-                &self.device.device_private_key(),
+                self.device.device_private_key(),
                 &users,
                 &groups,
             ),
@@ -354,7 +354,7 @@ impl DocumentOps for crate::IronOxide {
 
 fn partition_user_or_group(uog_slice: &[UserOrGroup]) -> (Vec<UserId>, Vec<GroupId>) {
     uog_slice
-        .into_iter()
+        .iter()
         .partition_map(|access_grant| match access_grant {
             UserOrGroup::User { id } => Either::Left(id.clone()),
             UserOrGroup::Group { id } => Either::Right(id.clone()),

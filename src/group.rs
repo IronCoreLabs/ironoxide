@@ -117,13 +117,16 @@ impl GroupCreateOpts {
         };
 
         let non_empty_admins = Vec1::try_from_vec(standardized_admins).map_err(|_| {
-            IronOxideErr::ValidationError(format!("admins"), format!("admins list cannot be empty"))
+            IronOxideErr::ValidationError(
+                "admins".to_string(),
+                "admins list cannot be empty".to_string(),
+            )
         })?;
 
         if !non_empty_admins.contains(owner_id) {
             Err(IronOxideErr::ValidationError(
-                format!("admins"),
-                format!("admins list must contain the owner"),
+                "admins".to_string(),
+                "admins list must contain the owner".to_string(),
             ))
         } else {
             Ok(GroupCreateOptsStd {
@@ -471,7 +474,7 @@ mod tests {
         let std_opts = opts.standardize(&calling_user_id)?;
         assert_eq!(std_opts.all_users(), [owner.clone()]);
         assert_eq!(std_opts.owner, Some(owner.clone()));
-        assert_eq!(std_opts.admins, [owner.clone()]);
+        assert_eq!(std_opts.admins, [owner]);
         assert_eq!(std_opts.members, []);
         assert_eq!(std_opts.needs_rotation, true);
         Ok(())

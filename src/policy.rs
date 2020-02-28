@@ -144,7 +144,7 @@ macro_rules! policy_field {
             type Error = IronOxideErr;
 
             fn try_from(value: &str) -> Result<Self> {
-                validate_simple_policy_field_value(value, $l).map(|v| Self(v))
+                validate_simple_policy_field_value(value, $l).map(Self)
             }
         }
 

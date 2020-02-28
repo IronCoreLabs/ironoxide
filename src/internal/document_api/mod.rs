@@ -512,7 +512,7 @@ pub async fn document_get_metadata(
 
 /// Attempt to parse the provided encrypted document header and extract out the ID if present
 pub fn get_id_from_bytes(encrypted_document: &[u8]) -> Result<DocumentId, IronOxideErr> {
-    parse_document_parts(&encrypted_document).map(|header| header.0.document_id)
+    parse_document_parts(encrypted_document).map(|header| header.0.document_id)
 }
 
 /// Encrypt a new document and share it with explicit users/groups and with users/groups specified by a policy
@@ -535,7 +535,7 @@ pub async fn encrypt_document<
     policy_cache: &PolicyCache,
 ) -> Result<DocumentEncryptResult, IronOxideErr> {
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
-    let doc_id = document_id.unwrap_or(DocumentId::goo_id(rng));
+    let doc_id = document_id.unwrap_or_else(|| DocumentId::goo_id(rng));
     let pt_bytes = plaintext.to_vec();
 
     let (encrypted_doc, (grants, key_errs)) = try_join!(
@@ -564,7 +564,7 @@ pub async fn encrypt_document<
     )?;
     let encryption_errs = r.encryption_errs.clone();
     document_create(
-        &auth,
+        auth,
         r.into_edoc(DocumentHeader::new(doc_id.clone(), auth.segment_id)),
         doc_id,
         &document_name,
@@ -605,7 +605,7 @@ async fn resolve_keys_for_grants(
 
     let policy_grants_f = async {
         if let Some((p, policy_eval_f)) = maybe_policy_grants_f {
-            get_cached_policy_or(&config.policy_caching, &p, &policy_cache, policy_eval_f).await
+            get_cached_policy_or(&config.policy_caching, p, policy_cache, policy_eval_f).await
         } else {
             // No policies were included
             Ok((vec![], vec![]))
@@ -690,7 +690,7 @@ where
     let config = IronOxideConfig::default();
 
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
-    let doc_id = document_id.unwrap_or(DocumentId::goo_id(rng));
+    let doc_id = document_id.unwrap_or_else(|| DocumentId::goo_id(rng));
     let pt_bytes = plaintext.to_vec();
 
     let (encryption_result, (grants, key_errs)) = try_join!(
@@ -957,14 +957,14 @@ pub async fn document_update_bytes<
     document_id: &DocumentId,
     plaintext: &[u8],
 ) -> Result<DocumentEncryptResult, IronOxideErr> {
-    let doc_meta = document_get_metadata(auth, &document_id).await?;
+    let doc_meta = document_get_metadata(auth, document_id).await?;
     let sym_key = transform::decrypt_as_symmetric_key(
-        &recrypt,
+        recrypt,
         doc_meta.0.encrypted_symmetric_key.clone().try_into()?,
-        &device_private_key.recrypt_key(),
+        device_private_key.recrypt_key(),
     )?;
     Ok(
-        aes::encrypt(&rng, &plaintext.to_vec(), *sym_key.bytes()).map(move |encrypted_doc| {
+        aes::encrypt(rng, &plaintext.to_vec(), *sym_key.bytes()).map(move |encrypted_doc| {
             let mut encrypted_payload =
                 DocumentHeader::new(document_id.clone(), auth.segment_id()).pack();
             encrypted_payload.0.append(&mut encrypted_doc.bytes());
@@ -992,9 +992,9 @@ pub async fn decrypt_document<CR: rand::CryptoRng + rand::RngCore>(
     let (doc_header, mut enc_doc) = parse_document_parts(encrypted_doc)?;
     let doc_meta = document_get_metadata(auth, &doc_header.document_id).await?;
     let sym_key = transform::decrypt_as_symmetric_key(
-        &recrypt,
+        recrypt,
         doc_meta.0.encrypted_symmetric_key.clone().try_into()?,
-        &device_private_key.recrypt_key(),
+        device_private_key.recrypt_key(),
     )?;
 
     Ok(
@@ -1039,9 +1039,9 @@ pub async fn decrypt_document_unmanaged<CR: rand::CryptoRng + rand::RngCore>(
     } = transform_resp;
 
     let sym_key = transform::decrypt_as_symmetric_key(
-        &recrypt,
+        recrypt,
         encrypted_symmetric_key.try_into()?,
-        &device_private_key.recrypt_key(),
+        device_private_key.recrypt_key(),
     )?;
     aes::decrypt(&mut aes_encrypted_value, *sym_key.bytes())
         .map_err(|e| e.into())
@@ -1141,7 +1141,7 @@ pub async fn document_revoke_access(
     use requests::document_access::{self, resp};
 
     let revoke_request_list: Vec<_> = revoke_list
-        .into_iter()
+        .iter()
         .map(|entity| match entity {
             UserOrGroup::User { id } => resp::UserOrGroupAccess::User { id: id.0.clone() },
             UserOrGroup::Group { id } => resp::UserOrGroupAccess::Group { id: id.0.clone() },
@@ -1256,8 +1256,7 @@ fn process_policy(
 
                 any => {
                     let uog: UserOrGroup = any.clone().into();
-                    let err_msg =
-                        format!("{} does not have associated public key", &uog).to_string();
+                    let err_msg = format!("{} does not have associated public key", &uog);
                     Either::Left(DocAccessEditErr::new(uog, err_msg))
                 }
             });
@@ -1553,7 +1552,7 @@ mod tests {
 
         let (errs, results) = process_policy(&policy);
         assert_that!(results.len() == 2);
-        assert_that!(errs.len() == 0);
+        assert_that!(errs.is_empty());
 
         let ex_user = WithKey {
             id: UserOrGroup::User {
@@ -1787,13 +1786,10 @@ mod tests {
                         }),
                     }
                 } else {
-                    Err(IronOxideErr::ProtobufValidationError(
-                        format!(
-                            "EncryptedDek does not have a valid user or group: {:?}",
-                            &edek
-                        )
-                        .into(),
-                    ))
+                    Err(IronOxideErr::ProtobufValidationError(format!(
+                        "EncryptedDek does not have a valid user or group: {:?}",
+                        &edek
+                    )))
                 }
             })
             .collect();

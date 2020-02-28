@@ -24,7 +24,7 @@ pub fn gen_group_keys<R: CryptoOps + KeyGenOps>(
     let plaintext = recrypt.gen_plaintext();
     let priv_key = recrypt.derive_private_key(&plaintext);
     let pub_key = recrypt.compute_public_key(&priv_key)?;
-    Ok((plaintext, priv_key.into(), pub_key.into()))
+    Ok((plaintext, priv_key, pub_key.into()))
 }
 
 /// Decrypt the provided encrypted plaintext and return the symmetric key that is derived from it.
@@ -33,7 +33,7 @@ pub fn decrypt_as_symmetric_key<CR: rand::CryptoRng + rand::RngCore>(
     encrypted_plaintext: EncryptedValue,
     user_device_private_key: &PrivateKey,
 ) -> Result<DerivedSymmetricKey, IronOxideErr> {
-    let plaintext = recrypt.decrypt(encrypted_plaintext, &user_device_private_key)?;
+    let plaintext = recrypt.decrypt(encrypted_plaintext, user_device_private_key)?;
     let symmetric_key = recrypt.derive_symmetric_key(&plaintext);
     Ok(symmetric_key)
 }
@@ -45,7 +45,7 @@ pub fn decrypt_as_private_key<CR: rand::CryptoRng + rand::RngCore>(
     encrypted_plaintext: EncryptedValue,
     user_device_private_key: &PrivateKey,
 ) -> Result<(Plaintext, PrivateKey), IronOxideErr> {
-    let plaintext = recrypt.decrypt(encrypted_plaintext, &user_device_private_key)?;
+    let plaintext = recrypt.decrypt(encrypted_plaintext, user_device_private_key)?;
     let private_key = recrypt.derive_private_key(&plaintext);
     Ok((plaintext, private_key))
 }
@@ -64,7 +64,7 @@ pub fn encrypt_to_with_key<T, CR: rand::CryptoRng + rand::RngCore>(
     //Generate encrypted results for all the users we can. If they error, we'll put them in the acc_fails list.
     let enc_results_iter = with_keys.into_iter().map(move |key_entry| {
         let enc_result = recrypt.encrypt(
-            plaintext.into(),
+            plaintext,
             &key_entry.public_key.clone().into(),
             signing_keys,
         );
