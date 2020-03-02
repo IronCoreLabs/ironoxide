@@ -43,7 +43,7 @@ impl TryFrom<&str> for UserId {
 }
 
 /// Device ID type. Validates that the provided ID is greater than 0
-#[derive(Clone, Serialize, Deserialize, PartialEq, Debug, Eq, Hash)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct DeviceId(pub(crate) u64);
 impl DeviceId {
     pub fn id(&self) -> &u64 {

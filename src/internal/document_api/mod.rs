@@ -74,7 +74,7 @@ impl TryFrom<String> for DocumentId {
 }
 
 /// (unencrypted) name of a document. Construct via `try_from(&str)`
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Hash, Eq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct DocumentName(pub(crate) String);
 impl DocumentName {
     pub fn name(&self) -> &String {
