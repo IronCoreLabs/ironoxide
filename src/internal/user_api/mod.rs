@@ -17,7 +17,7 @@ use std::{
 mod requests;
 
 /// ID of a user. Unique with in a segment. Must match the regex `^[a-zA-Z0-9_.$#|@/:;=+'-]+$`
-#[derive(PartialEq, Debug, Serialize, Deserialize, Clone, Eq, Hash)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct UserId(pub(crate) String);
 impl UserId {
     pub fn id(&self) -> &str {
@@ -83,7 +83,7 @@ impl TryFrom<&str> for DeviceName {
 }
 
 /// Keypair for a newly created user
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UserCreateResult {
     user_public_key: PublicKey,
     // does the private key of this key pair need to be rotated?
@@ -119,7 +119,7 @@ pub struct DeviceAdd {
 }
 
 /// IDs and public key for existing user on verify result
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UserResult {
     account_id: UserId,
     segment_id: usize,
@@ -145,7 +145,7 @@ impl UserResult {
 }
 
 /// Devices for a user, sorted by the device id
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UserDeviceListResult {
     result: Vec<UserDevice>,
 }
@@ -160,7 +160,7 @@ impl UserDeviceListResult {
 }
 
 /// Metadata about a user device
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UserDevice {
     id: DeviceId,
     name: Option<DeviceName>,
@@ -236,7 +236,7 @@ pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
     .try_into()
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct EncryptedPrivateKey(Vec<u8>);
 
 impl EncryptedPrivateKey {
@@ -245,7 +245,7 @@ impl EncryptedPrivateKey {
     }
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UserUpdatePrivateKeyResult {
     user_master_private_key: EncryptedPrivateKey,
     needs_rotation: bool,

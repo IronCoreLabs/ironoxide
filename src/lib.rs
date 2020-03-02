@@ -99,7 +99,12 @@ use rand::{
 };
 use rand_chacha::ChaChaCore;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
-use std::{convert::TryInto, fmt, sync::Mutex};
+use std::{
+    convert::TryInto,
+    fmt,
+    hash::{Hash, Hasher},
+    sync::Mutex,
+};
 use vec1::Vec1;
 
 /// Result of an Sdk operation
@@ -111,7 +116,7 @@ pub mod config {
     use std::time::Duration;
 
     /// Top-level configuration object for IronOxide.
-    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
     pub struct IronOxideConfig {
         /// See [PolicyCachingConfig](struct.PolicyCachingConfig.html)
         pub policy_caching: PolicyCachingConfig,
@@ -124,7 +129,7 @@ pub mod config {
     /// Since policies are evaluated by the webservice, caching the result can greatly speed
     /// up encrypting a document with a [PolicyGrant](../policy/struct.PolicyGrant.html). There is no expiration of the cache, so
     /// if you want to clear it at runtime, call [IronOxide::clear_policy_cache()](../struct.IronOxide.html#method.clear_policy_cache).
-    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
     pub struct PolicyCachingConfig {
         /// maximum number of policy evaluations that will be cached by the SDK.
         /// If the maximum number is exceeded, the cache will be cleared prior to storing the next entry
@@ -173,6 +178,7 @@ impl fmt::Debug for IronOxide {
 }
 
 /// Result of calling `initialize_check_rotation`
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum InitAndRotationCheck<T> {
     /// Initialization succeeded, and no requests for private key rotations were present
     NoRotationNeeded(T),
@@ -204,6 +210,7 @@ impl<T> InitAndRotationCheck<T> {
 const BYTES_BEFORE_RESEEDING: u64 = 1024 * 1024;
 
 /// Provides soft rotation capabilities for user and group keys
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PrivateKeyRotationCheckResult {
     pub rotations_needed: EitherOrBoth<UserId, Vec1<GroupId>>,
 }
@@ -220,6 +227,26 @@ impl PrivateKeyRotationCheckResult {
         match &self.rotations_needed {
             EitherOrBoth::Right(groups) | EitherOrBoth::Both(_, groups) => Some(groups),
             _ => None,
+        }
+    }
+}
+
+impl Hash for PrivateKeyRotationCheckResult {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match &self.rotations_needed {
+            EitherOrBoth::Left(user) => {
+                0.hash(state);
+                user.hash(state);
+            }
+            EitherOrBoth::Right(group) => {
+                1.hash(state);
+                group.hash(state);
+            }
+            EitherOrBoth::Both(user, group) => {
+                2.hash(state);
+                user.hash(state);
+                group.hash(state);
+            }
         }
     }
 }

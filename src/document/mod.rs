@@ -21,7 +21,7 @@ use std::hash::{Hash, Hasher};
 pub mod advanced;
 
 /// Optional parameters that can be provided when encrypting a new document.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DocumentEncryptOpts {
     id: Option<DocumentId>,
     name: Option<DocumentName>,
@@ -52,7 +52,7 @@ impl Hash for DocumentEncryptOpts {
 }
 
 /// Explicit users/groups that should have access to decrypt a document.
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct ExplicitGrant {
     grant_to_author: bool,
     grants: Vec<UserOrGroup>,

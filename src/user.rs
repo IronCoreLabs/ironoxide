@@ -14,7 +14,7 @@ use recrypt::api::Recrypt;
 use std::{collections::HashMap, convert::TryInto};
 
 /// Optional parameters for creating a new device instance.
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DeviceCreateOpts {
     device_name: Option<DeviceName>,
 }
@@ -31,7 +31,7 @@ impl Default for DeviceCreateOpts {
 }
 
 /// Options that can be specified at when calling [`user_create`](trait.UserOps.html#tymethod.user_create).
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UserCreateOpts {
     // see docs on `new`
     needs_rotation: bool,
