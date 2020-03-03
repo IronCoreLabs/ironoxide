@@ -3,7 +3,7 @@
 ## 0.19.1
 
 - [[#120](https://github.com/IronCoreLabs/ironoxide/pull/120)]
-  - Adds `clear_policy_cache()` to `BlockingIronOxide`.
+  - Add `clear_policy_cache()` to `BlockingIronOxide`.
 
 ## 0.19.0
 
