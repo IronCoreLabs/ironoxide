@@ -50,9 +50,7 @@ impl BlockingIronOxide {
         &self.ironoxide.device
     }
 
-    /// Clears all entries from the policy cache.
-    /// # Returns
-    /// Number of entries cleared from the cache
+    /// See [ironoxide::IronOxide::clear_policy_cache()](../struct.IronOxide.html#method.clear_policy_cache)
     pub fn clear_policy_cache(&self) -> usize {
         self.ironoxide.clear_policy_cache()
     }
