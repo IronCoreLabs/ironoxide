@@ -14,19 +14,19 @@ use crate::internal::{
 use chrono::{DateTime, Utc};
 use std::convert::{TryFrom, TryInto};
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Hash, Eq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct Association {
     #[serde(rename = "type")]
     pub typ: AssociationType,
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Deserialize)]
 pub struct DocumentVisibility {
     pub users: Vec<VisibleUser>,
     pub groups: Vec<VisibleGroup>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum UserOrGroupWithKey {
     #[serde(rename_all = "camelCase")]
@@ -55,7 +55,7 @@ impl From<UserOrGroupWithKey> for UserOrGroup {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccessGrant {
     pub(crate) user_or_group: UserOrGroupWithKey,
@@ -121,7 +121,7 @@ impl From<&AccessGrant> for UserOrGroup {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentMetaApiResponse {
     pub id: DocumentId,
@@ -136,12 +136,12 @@ pub struct DocumentMetaApiResponse {
 pub mod document_list {
     use super::*;
 
-    #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     pub struct DocumentListApiResponse {
         pub result: Vec<DocumentListApiResponseItem>,
     }
 
-    #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Hash, Eq)]
+    #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
     pub struct DocumentListApiResponseItem {
         pub id: DocumentId,
         pub name: Option<DocumentName>,
@@ -198,7 +198,7 @@ pub mod edek_transform {
             .await
     }
 
-    #[derive(Serialize, Debug, Clone, Deserialize, PartialEq)]
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct EdekTransformResponse {
         pub(in crate::internal::document_api) user_or_group: UserOrGroup,
@@ -214,20 +214,20 @@ pub mod document_create {
     };
     use std::convert::TryInto;
 
-    #[derive(Serialize, Debug, Clone, Deserialize, PartialEq)]
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct DocumentCreateValue {
         pub(crate) name: Option<DocumentName>,
         pub(crate) shared_with: Vec<AccessGrant>,
     }
 
-    #[derive(Serialize, Debug, Clone, PartialEq)]
+    #[derive(Clone, Debug, PartialEq, Serialize)]
     pub struct DocumentCreateRequest {
         pub(crate) id: DocumentId,
         pub(crate) value: DocumentCreateValue,
     }
 
-    #[derive(Deserialize, Debug, Clone)]
+    #[derive(Clone, Debug, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct DocumentCreateResponse {
         pub(crate) id: DocumentId,
@@ -273,7 +273,7 @@ pub mod policy_get {
 
     pub(crate) const SUBSTITUTE_ID_QUERY_PARAM: &str = "substituteId";
 
-    #[derive(Deserialize, Debug, Clone)]
+    #[derive(Clone, Debug, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct PolicyResponse {
         pub(crate) users_and_groups: Vec<UserOrGroupWithKey>,
@@ -318,7 +318,7 @@ pub mod policy_get {
 pub mod document_update {
     use super::*;
 
-    #[derive(Serialize, Debug, Clone, PartialEq)]
+    #[derive(Clone, Debug, PartialEq, Serialize)]
     struct DocumentUpdateRequest<'a> {
         name: Option<&'a DocumentName>,
     }
@@ -354,20 +354,20 @@ pub mod document_access {
             user_api::UserId,
         };
 
-        #[derive(Deserialize, Debug)]
+        #[derive(Debug, Deserialize)]
         #[serde(rename_all = "camelCase")]
         struct SuccessRes {
             pub(crate) user_or_group: UserOrGroupAccess,
         }
 
-        #[derive(Deserialize, Debug)]
+        #[derive(Debug, Deserialize)]
         #[serde(rename_all = "camelCase")]
         struct FailRes {
             pub(crate) user_or_group: UserOrGroupAccess,
             pub(crate) error_message: String,
         }
 
-        #[derive(Deserialize, Serialize, Debug)]
+        #[derive(Debug, Serialize, Deserialize)]
         #[serde(tag = "type", rename_all = "camelCase")]
         pub enum UserOrGroupAccess {
             User { id: String },
@@ -402,7 +402,7 @@ pub mod document_access {
             }
         }
 
-        #[derive(Deserialize, Debug)]
+        #[derive(Debug, Deserialize)]
         #[serde(rename_all = "camelCase")]
         pub struct DocumentAccessResponse {
             succeeded_ids: Vec<SuccessRes>,
@@ -430,7 +430,7 @@ pub mod document_access {
         }
     }
 
-    #[derive(Serialize, Debug)]
+    #[derive(Debug, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct DocumentGrantAccessRequest {
         /// Granting user's public key
@@ -438,7 +438,7 @@ pub mod document_access {
         to: Vec<AccessGrant>,
     }
 
-    #[derive(Serialize, Debug)]
+    #[derive(Debug, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct DocumentRevokeAccessRequest {
         user_or_groups: Vec<UserOrGroupAccess>,

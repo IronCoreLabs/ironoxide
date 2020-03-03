@@ -18,14 +18,14 @@ use std::{
     convert::{TryFrom, TryInto},
 };
 
-#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Permission {
     Member,
     Admin,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupBasicApiResponse {
     pub(crate) id: GroupId,
@@ -56,7 +56,7 @@ impl TryFrom<GroupBasicApiResponse> for GroupMetaResult {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupGetApiResponse {
     pub(crate) id: GroupId,
@@ -95,7 +95,7 @@ impl TryFrom<GroupGetApiResponse> for GroupGetResult {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupCreateApiResponse {
     pub(in crate::internal) id: GroupId,
@@ -130,14 +130,14 @@ impl TryFrom<GroupCreateApiResponse> for GroupCreateResult {
     }
 }
 
-#[derive(Serialize, Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct GroupAdmin {
     pub(in crate::internal) user: User,
     #[serde(flatten)]
     pub(in crate::internal) encrypted_msg: EncryptedOnceValue,
 }
 
-#[derive(Serialize, Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupMember {
     pub(in crate::internal) user_id: UserId,
@@ -145,27 +145,27 @@ pub struct GroupMember {
     pub(in crate::internal) user_master_public_key: PublicKey,
 }
 
-#[derive(Serialize, Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct User {
     pub(in crate::internal) user_id: UserId,
     pub(in crate::internal) user_master_public_key: PublicKey,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SuccessRes {
     pub(crate) user_id: UserId,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FailRes {
     pub(crate) user_id: UserId,
     pub(crate) error_message: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupUserEditResponse {
     pub(crate) succeeded_ids: Vec<SuccessRes>,
@@ -175,7 +175,7 @@ pub struct GroupUserEditResponse {
 pub mod group_list {
     use super::*;
 
-    #[derive(Deserialize, Debug, Clone)]
+    #[derive(Clone, Debug, Deserialize)]
     pub struct GroupListResponse {
         pub result: Vec<GroupBasicApiResponse>,
     }
@@ -276,14 +276,14 @@ pub mod group_update_private_key {
     use super::*;
     use internal::{group_api::GroupUpdatePrivateKeyResult, rest::json::AugmentationFactor};
 
-    #[derive(Serialize, Debug)]
+    #[derive(Debug, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct GroupUpdatePrivateKeyRequest {
         admins: Vec<GroupAdmin>,
         augmentation_factor: AugmentationFactor,
     }
 
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Debug, PartialEq, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct GroupUpdatePrivateKeyResponse {
         group_key_id: u64,
@@ -350,7 +350,7 @@ pub mod group_delete {
 pub mod group_update {
     use super::*;
 
-    #[derive(Serialize, Debug, Clone, PartialEq)]
+    #[derive(Clone, Debug, PartialEq, Serialize)]
     struct GroupUpdateRequest<'a> {
         name: Option<&'a GroupName>,
     }
@@ -446,13 +446,13 @@ pub mod group_add_admin {
 pub mod group_remove_entity {
     use super::*;
 
-    #[derive(Serialize, Debug, Clone, PartialEq)]
+    #[derive(Clone, Debug, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     struct GroupEntityId<'a> {
         user_id: &'a UserId,
     }
 
-    #[derive(Serialize, Debug, Clone, PartialEq)]
+    #[derive(Clone, Debug, PartialEq, Serialize)]
     struct GroupEntityRemoveRequest<'a> {
         users: Vec<GroupEntityId<'a>>,
     }

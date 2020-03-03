@@ -46,7 +46,7 @@ lazy_static! {
     pub static ref OUR_REQUEST: IronCoreRequest = IronCoreRequest::new(URL_STRING.as_str());
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum RequestErrorCode {
     UserVerify,
     UserCreate,
@@ -302,7 +302,7 @@ pub mod auth_v2 {
 }
 
 ///Structure that contains all the info needed to make a signed API request from a device.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RequestAuth {
     ///The user's given id, which uniquely identifies them inside the segment.
@@ -763,7 +763,7 @@ impl DeviceSigningKeyPair {
 ///     "sub" : unique_user_id
 /// });
 ///
-#[derive(Debug, PartialEq, Serialize, Clone)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Jwt(String);
 impl TryFrom<&str> for Jwt {
     type Error = IronOxideErr;

@@ -46,7 +46,7 @@ const HEADER_META_LENGTH_LENGTH: usize = 2;
 const CURRENT_DOCUMENT_ID_VERSION: u8 = 2;
 
 /// Document ID. Unique within the segment. Must match the regex `^[a-zA-Z0-9_.$#|@/:;=+'-]+$`
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct DocumentId(pub(crate) String);
 impl DocumentId {
     pub fn id(&self) -> &str {
@@ -92,7 +92,7 @@ impl TryFrom<&str> for DocumentName {
 struct DocHeaderPacked(Vec<u8>);
 
 /// Represents a parsed document header which is decoded from JSON
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct DocumentHeader {
     #[serde(rename = "_did_")]
     document_id: DocumentId,
@@ -433,7 +433,7 @@ impl DocumentAccessResult {
         &self.failed
     }
 }
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 struct DecryptedData(Vec<u8>);
 
 /// Result of successful unmanaged decryption
@@ -859,7 +859,7 @@ impl TryFrom<&EncryptedDek> for EncryptedDekP {
 /// Result of recrypt encryption. Contains the encrypted DEKs and the encrypted (user) data.
 /// `RecryptionResult` is an intermediate value as it cannot be serialized to bytes directly.
 /// To serialize to bytes, first construct an `EncryptedDoc`
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 struct RecryptionResult {
     edeks: Vec<EncryptedDek>,
     encrypted_data: AesEncryptedValue,
