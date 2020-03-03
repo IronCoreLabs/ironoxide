@@ -50,6 +50,11 @@ impl BlockingIronOxide {
         &self.ironoxide.device
     }
 
+    /// See [ironoxide::IronOxide::clear_policy_cache()](../struct.IronOxide.html#method.clear_policy_cache)
+    pub fn clear_policy_cache(&self) -> usize {
+        self.ironoxide.clear_policy_cache()
+    }
+
     /// See [ironoxide::IronOxide::rotate_all()](../struct.IronOxide.html#method.rotate_all)
     pub fn rotate_all(
         &self,
