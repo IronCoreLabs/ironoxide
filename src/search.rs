@@ -1,3 +1,13 @@
+//! BlindIndexSearch - Search SDK for working with Blind Indexes.
+//!
+//! This is a technique that allows you to hide the terms that have been indexed. This particular implementation uses tri-grams, which
+//! are salted and hashed to produce the list of tokens.
+//!
+//! ## [BlindIndexSearch](BlindIndexSearch.html)
+//!
+//! The BlindIndexSearch gives the ability to generate queries as well as create the search entries to store.
+//!
+
 use crate::document::advanced::DocumentEncryptUnmanagedResult;
 use crate::document::advanced::*;
 use crate::document::DocumentEncryptOpts;
@@ -6,6 +16,7 @@ use crate::Result;
 use crate::{GroupId, IronOxide};
 use async_trait::async_trait;
 use rand::{self, RngCore};
+use std::collections::HashSet;
 use std::convert::{TryFrom, TryInto};
 use std::ops::DerefMut;
 
@@ -14,11 +25,11 @@ use ironcore_search_helpers::generate_hashes_for_string;
 ///The required length of the salt.
 const REQUIRED_LEN: usize = 32;
 
-///The result of creating a new index as well as initializing a BlindIndexSearchSdk.
+///The result of creating a new index as well as initializing a BlindIndexSearch.
 ///If you only want to create the index, see create_index.
 pub struct CreatedIndexResult {
     pub encrypted_salt: EncryptedBlindIndexSalt,
-    pub sdk: BlindIndexSearchSdk,
+    pub sdk: BlindIndexSearch,
 }
 
 pub struct EncryptedBlindIndexSalt {
@@ -29,41 +40,37 @@ pub struct EncryptedBlindIndexSalt {
 ///Trait which gives the ability to create an blind index.
 #[async_trait]
 pub trait BlindIndexSearchInitialize {
-    ///Given the encrypted blind index salt, decrypt it and give back the BlindIndexSearchSdk object.
-    async fn initialize_search(
-        &self,
-        search: &EncryptedBlindIndexSalt,
-    ) -> Result<BlindIndexSearchSdk>;
+    ///Given the encrypted blind index salt, decrypt it and give back the BlindIndexSearch object.
+    async fn initialize_search(&self, search: &EncryptedBlindIndexSalt)
+        -> Result<BlindIndexSearch>;
     ///Create an index and encrypt it to the provided group_id.
-    ///If you need to index data immediately, see `create_index_and_initialize_search`.
+    ///If you need to index data immediately, see `initialize_blind_index_search`.
     async fn create_index(&self, group_id: &GroupId) -> Result<EncryptedBlindIndexSalt>;
-    ///Create an index, encrypt it and initialize a BlindIndexSearchSdk for immediate use.
-    async fn create_index_and_initialize_search(
-        &self,
-        group_id: &GroupId,
-    ) -> Result<CreatedIndexResult>;
+    ///Create an index, encrypt it and initialize a BlindIndexSearch for immediate use.
+    async fn initialize_blind_index_search(&self, group_id: &GroupId)
+        -> Result<CreatedIndexResult>;
 }
 
 #[async_trait]
 impl BlindIndexSearchInitialize for IronOxide {
     async fn initialize_search(
         &self,
-        search: &EncryptedBlindIndexSalt,
-    ) -> Result<BlindIndexSearchSdk> {
+        encrypted_salt: &EncryptedBlindIndexSalt,
+    ) -> Result<BlindIndexSearch> {
         let decrypted_value = self
             .document_decrypt_unmanaged(
-                &search.encrypted_salt_bytes[..],
-                &search.encrypted_deks[..],
+                &encrypted_salt.encrypted_salt_bytes[..],
+                &encrypted_salt.encrypted_deks[..],
             )
             .await?;
         decrypted_value.decrypted_data().try_into()
     }
     async fn create_index(&self, group_id: &GroupId) -> Result<EncryptedBlindIndexSalt> {
         let CreatedIndexResult { encrypted_salt, .. } =
-            self.create_index_and_initialize_search(group_id).await?;
+            self.initialize_blind_index_search(group_id).await?;
         Ok(encrypted_salt)
     }
-    async fn create_index_and_initialize_search(
+    async fn initialize_blind_index_search(
         &self,
         group_id: &GroupId,
     ) -> Result<CreatedIndexResult> {
@@ -84,7 +91,7 @@ impl BlindIndexSearchInitialize for IronOxide {
                 ),
             )
             .await?;
-        let search = BlindIndexSearchSdk::new(salt);
+        let search = BlindIndexSearch::new(salt);
 
         Ok(CreatedIndexResult {
             encrypted_salt: encrypted_salt.try_into()?,
@@ -93,13 +100,13 @@ impl BlindIndexSearchInitialize for IronOxide {
     }
 }
 #[derive(Debug, PartialEq, Clone, Hash, Eq)]
-pub struct BlindIndexSearchSdk {
+pub struct BlindIndexSearch {
     decrypted_salt: [u8; 32],
 }
 
-impl TryFrom<&[u8]> for BlindIndexSearchSdk {
+impl TryFrom<&[u8]> for BlindIndexSearch {
     type Error = IronOxideErr;
-    fn try_from(bytes: &[u8]) -> Result<BlindIndexSearchSdk> {
+    fn try_from(bytes: &[u8]) -> Result<BlindIndexSearch> {
         let decrypted_len = bytes.len();
         if decrypted_len != REQUIRED_LEN {
             std::result::Result::Err(IronOxideErr::WrongSizeError(
@@ -109,7 +116,7 @@ impl TryFrom<&[u8]> for BlindIndexSearchSdk {
         } else {
             let mut a = [0u8; 32];
             a.copy_from_slice(&bytes[0..32]);
-            Ok(BlindIndexSearchSdk::new(a))
+            Ok(BlindIndexSearch::new(a))
         }
     }
 }
@@ -129,18 +136,22 @@ impl TryFrom<DocumentEncryptUnmanagedResult> for EncryptedBlindIndexSalt {
     }
 }
 
-impl BlindIndexSearchSdk {
-    fn new(decrypted_salt: [u8; 32]) -> BlindIndexSearchSdk {
-        BlindIndexSearchSdk { decrypted_salt }
+impl BlindIndexSearch {
+    fn new(decrypted_salt: [u8; 32]) -> BlindIndexSearch {
+        BlindIndexSearch { decrypted_salt }
     }
 
     ///Generate the list of tokens to use to find entries that match the search query, given the specified partition_id.
-    pub fn tokenize_query(&self, query: &str, partition_id: Option<&str>) -> Vec<u32> {
+    /// query - The string you want to tokenize and hash
+    /// partition_id - An extra string you want to include in every hash, this allows 2 queries with different partition_ids to produce a different set of
+    pub fn tokenize_query(&self, query: &str, partition_id: Option<&str>) -> HashSet<u32> {
         generate_hashes_for_string(query, partition_id, &self.decrypted_salt[..])
     }
 
-    ///Generate the list of search tokens that represent the supplied string.
-    pub fn tokenize_data(&self, data: &str, partition_id: Option<&str>) -> Vec<u32> {
+    ///Generate the list of tokens to use to find entries that match the search query, given the specified partition_id.
+    /// query - The string you want to tokenize and hash
+    /// partition_id - An extra string you want to include in every hash, this allows 2 queries with different partition_ids to produce a different set of
+    pub fn tokenize_data(&self, data: &str, partition_id: Option<&str>) -> HashSet<u32> {
         generate_hashes_for_string(data, partition_id, &self.decrypted_salt[..])
     }
 }
@@ -152,13 +163,13 @@ mod tests {
     #[test]
     fn try_from_works_for_correct_size() -> Result<()> {
         let bytes = [0u8; 32];
-        let _: BlindIndexSearchSdk = (&bytes[..]).try_into()?;
+        let _: BlindIndexSearch = (&bytes[..]).try_into()?;
         Ok(())
     }
     #[test]
     fn try_from_errors_for_incorrect_size() -> Result<()> {
         let bytes = [0u8; 100];
-        let maybe_error: Result<BlindIndexSearchSdk> = (&bytes[..]).try_into();
+        let maybe_error: Result<BlindIndexSearch> = (&bytes[..]).try_into();
         let error = maybe_error.unwrap_err();
         assert_that!(&error, is_variant!(IronOxideErr::WrongSizeError));
         Ok(())

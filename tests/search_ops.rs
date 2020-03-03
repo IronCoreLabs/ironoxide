@@ -14,11 +14,11 @@ mod search_tests {
     }
 
     #[tokio::test]
-    async fn create_index_and_initialize_search() -> Result<(), IronOxideErr> {
+    async fn initialize_blind_index_search() -> Result<(), IronOxideErr> {
         let sdk = initialize_sdk().await?;
         let group_create_result = sdk.group_create(&Default::default()).await?;
         let result = sdk
-            .create_index_and_initialize_search(group_create_result.id())
+            .initialize_blind_index_search(group_create_result.id())
             .await?;
         let index_tokens = result.sdk.tokenize_data("hello world", Option::None);
         assert_eq!(index_tokens.len(), 6); //hel, ell, elo, wor, orl, rld --The numbers are random and aren't worth asserting about.
@@ -26,11 +26,11 @@ mod search_tests {
     }
 
     #[tokio::test]
-    async fn create_index_and_initialize_search_consistency() -> Result<(), IronOxideErr> {
+    async fn initialize_blind_index_search_consistency() -> Result<(), IronOxideErr> {
         let sdk = initialize_sdk().await?;
         let group_create_result = sdk.group_create(&Default::default()).await?;
         let initialize_result = sdk
-            .create_index_and_initialize_search(group_create_result.id())
+            .initialize_blind_index_search(group_create_result.id())
             .await?;
         let search_sdk = initialize_result.sdk;
         let search_tokens = search_sdk.tokenize_data("hello world", Option::None);
@@ -44,7 +44,7 @@ mod search_tests {
         let sdk = initialize_sdk().await?;
         let group_create_result = sdk.group_create(&Default::default()).await?;
         let initialize_result = sdk
-            .create_index_and_initialize_search(group_create_result.id())
+            .initialize_blind_index_search(group_create_result.id())
             .await?;
         let search_sdk = initialize_result.sdk;
         let search_tokens = search_sdk.tokenize_data("hello world", Option::None);
@@ -59,7 +59,7 @@ mod search_tests {
         let sdk = initialize_sdk().await?;
         let group_create_result = sdk.group_create(&Default::default()).await?;
         let initialize_result = sdk
-            .create_index_and_initialize_search(group_create_result.id())
+            .initialize_blind_index_search(group_create_result.id())
             .await?;
         let search_sdk = initialize_result.sdk;
         let second_search_sdk = sdk
