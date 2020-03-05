@@ -638,7 +638,7 @@ pub async fn group_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
         aug_factor,
     )
     .await
-    .map(|resp| (resp, group_id.to_owned()).into())
+    .map(|resp| resp.into())
 }
 
 /// Get the metadata for a group given its ID
