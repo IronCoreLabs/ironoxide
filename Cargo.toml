@@ -24,7 +24,7 @@ rand = "~0.6"
 rand_chacha = "~0.1"
 regex = "~1.3"
 ring = { version= "~0.16", features = ["std"] }
-recrypt = {git = "https://github.com/IronCoreLabs/recrypt-rs", branch = "hash_eq_all_types"}
+recrypt = "~0.10"
 url= "~2.1.0"
 reqwest = {version="~0.10.0", features = ["json"]}
 hex = "~0.3"
