@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.20.0
+
+- [[#119](https://github.com/IronCoreLabs/ironoxide/pull/119)]
+  - Add `Clone`, `Debug`, `Eq`, `Hash`, and `PartialEq` to almost all public structs.
+  - Depend on a specific commit hash of itertools
+
 ## 0.19.1
 
 - [[#120](https://github.com/IronCoreLabs/ironoxide/pull/120)]

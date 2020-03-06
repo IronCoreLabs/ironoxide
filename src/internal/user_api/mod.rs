@@ -17,7 +17,7 @@ use std::{
 mod requests;
 
 /// ID of a user. Unique with in a segment. Must match the regex `^[a-zA-Z0-9_.$#|@/:;=+'-]+$`
-#[derive(PartialEq, Debug, Serialize, Deserialize, Clone, Eq, Hash)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct UserId(pub(crate) String);
 impl UserId {
     pub fn id(&self) -> &str {
@@ -43,7 +43,7 @@ impl TryFrom<&str> for UserId {
 }
 
 /// Device ID type. Validates that the provided ID is greater than 0
-#[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct DeviceId(pub(crate) u64);
 impl DeviceId {
     pub fn id(&self) -> &u64 {
@@ -68,7 +68,7 @@ impl TryFrom<u64> for DeviceId {
 }
 
 /// Device name type. Validates that the provided name isn't an empty string
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DeviceName(pub(crate) String);
 impl DeviceName {
     pub fn name(&self) -> &String {
@@ -83,7 +83,7 @@ impl TryFrom<&str> for DeviceName {
 }
 
 /// Keypair for a newly created user
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UserCreateResult {
     user_public_key: PublicKey,
     // does the private key of this key pair need to be rotated?
@@ -119,7 +119,7 @@ pub struct DeviceAdd {
 }
 
 /// IDs and public key for existing user on verify result
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UserResult {
     account_id: UserId,
     segment_id: usize,
@@ -144,8 +144,8 @@ impl UserResult {
     }
 }
 
-#[derive(Debug)]
 /// Devices for a user, sorted by the device id
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UserDeviceListResult {
     result: Vec<UserDevice>,
 }
@@ -159,8 +159,8 @@ impl UserDeviceListResult {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
 /// Metadata about a user device
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UserDevice {
     id: DeviceId,
     name: Option<DeviceName>,
@@ -236,7 +236,7 @@ pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
     .try_into()
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct EncryptedPrivateKey(Vec<u8>);
 
 impl EncryptedPrivateKey {
@@ -245,7 +245,7 @@ impl EncryptedPrivateKey {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UserUpdatePrivateKeyResult {
     user_master_private_key: EncryptedPrivateKey,
     needs_rotation: bool,

@@ -11,8 +11,8 @@ use crate::{
 };
 use vec1::Vec1;
 
-#[derive(Clone)]
 /// Options for group creation.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GroupCreateOpts {
     // unique id of a group within a segment. If none, the server will assign an id.
     id: Option<GroupId>,
