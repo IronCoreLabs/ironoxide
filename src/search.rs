@@ -37,48 +37,27 @@ pub struct EncryptedBlindIndexSalt {
     pub encrypted_salt_bytes: Vec<u8>,
 }
 
+impl EncryptedBlindIndexSalt {
+    //ecrypt the blind index salt and give back the BlindIndexSearch object.
+    pub async fn initialize_search(&self, ironoxide: &IronOxide) -> Result<BlindIndexSearch> {
+        let decrypted_value = ironoxide
+            .document_decrypt_unmanaged(&self.encrypted_salt_bytes[..], &self.encrypted_deks[..])
+            .await?;
+        decrypted_value.decrypted_data().try_into()
+    }
+}
+
 ///Trait which gives the ability to create an blind index.
 #[async_trait]
 pub trait BlindIndexSearchInitialize {
-    ///Given the encrypted blind index salt, decrypt it and give back the BlindIndexSearch object.
-    async fn initialize_blind_index_search(
-        &self,
-        search: &EncryptedBlindIndexSalt,
-    ) -> Result<BlindIndexSearch>;
     ///Create an index and encrypt it to the provided group_id.
     ///If you need to index data immediately, see `initialize_blind_index_search`.
-    async fn create_index(&self, group_id: &GroupId) -> Result<EncryptedBlindIndexSalt>;
-    ///Create an index, encrypt it and initialize a BlindIndexSearch for immediate use.
-    async fn create_and_initialize_blind_index_search(
-        &self,
-        group_id: &GroupId,
-    ) -> Result<BlindIndexCreateResult>;
+    async fn create_blind_index(&self, group_id: &GroupId) -> Result<EncryptedBlindIndexSalt>;
 }
 
 #[async_trait]
 impl BlindIndexSearchInitialize for IronOxide {
-    async fn initialize_blind_index_search(
-        &self,
-        encrypted_salt: &EncryptedBlindIndexSalt,
-    ) -> Result<BlindIndexSearch> {
-        let decrypted_value = self
-            .document_decrypt_unmanaged(
-                &encrypted_salt.encrypted_salt_bytes[..],
-                &encrypted_salt.encrypted_deks[..],
-            )
-            .await?;
-        decrypted_value.decrypted_data().try_into()
-    }
-    async fn create_index(&self, group_id: &GroupId) -> Result<EncryptedBlindIndexSalt> {
-        let BlindIndexCreateResult { encrypted_salt, .. } = self
-            .create_and_initialize_blind_index_search(group_id)
-            .await?;
-        Ok(encrypted_salt)
-    }
-    async fn create_and_initialize_blind_index_search(
-        &self,
-        group_id: &GroupId,
-    ) -> Result<BlindIndexCreateResult> {
+    async fn create_blind_index(&self, group_id: &GroupId) -> Result<EncryptedBlindIndexSalt> {
         let salt = {
             let mut mut_salt = [0u8; 32];
             take_lock(&self.rng).deref_mut().fill_bytes(&mut mut_salt);
@@ -96,12 +75,7 @@ impl BlindIndexSearchInitialize for IronOxide {
                 ),
             )
             .await?;
-        let search = BlindIndexSearch::new(salt);
-
-        Ok(BlindIndexCreateResult {
-            encrypted_salt: encrypted_salt.try_into()?,
-            sdk: search,
-        })
+        encrypted_salt.try_into()
     }
 }
 #[derive(Debug, PartialEq, Clone, Hash, Eq)]
