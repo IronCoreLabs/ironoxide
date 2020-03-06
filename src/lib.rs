@@ -204,7 +204,7 @@ impl<T> InitAndRotationCheck<T> {
 }
 
 /// number of bytes that can be read from `IronOxide.rng` before it is reseeded. 1 MB
-const BYTES_BEFORE_RESEEDING: u64 = 1 * 1024 * 1024;
+const BYTES_BEFORE_RESEEDING: u64 = 1024 * 1024;
 
 /// Provides soft rotation capabilities for user and group keys
 pub struct PrivateKeyRotationCheckResult {
@@ -234,7 +234,7 @@ pub async fn initialize(
     config: &IronOxideConfig,
 ) -> Result<IronOxide> {
     internal::add_optional_timeout(
-        internal::user_api::user_get_current(&device_context.auth()),
+        internal::user_api::user_get_current(device_context.auth()),
         config.sdk_operation_timeout,
         SdkOperation::InitializeSdk,
     )
@@ -253,7 +253,7 @@ fn check_groups_and_collect_rotation<T>(
 ) -> InitAndRotationCheck<T> {
     use EitherOrBoth::{Both, Left, Right};
     let groups_needing_rotation = groups
-        .into_iter()
+        .iter()
         .filter(|meta_result| meta_result.needs_rotation() == Some(true))
         .map(|meta_result| meta_result.id().to_owned())
         .collect::<Vec<_>>();
@@ -368,7 +368,7 @@ impl IronOxide {
                     internal::group_api::group_rotate_private_key(
                         &self.recrypt,
                         self.device().auth(),
-                        &group_id,
+                        group_id,
                         self.device().device_private_key(),
                     )
                 })

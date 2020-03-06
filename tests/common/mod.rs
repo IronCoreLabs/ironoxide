@@ -93,9 +93,7 @@ pub fn gen_jwt(account_id: Option<&str>) -> (String, String) {
         &jwt_payload,
         frank_jwt::Algorithm::ES256,
     )
-    .expect(
-        &format!("Error with {}: You don't appear to have the proper service private key to sign the test JWT.", KEYPATH.0)
-    );
+    .unwrap_or_else(|_| panic!("Error with {}: You don't appear to have the proper service private key to sign the test JWT.", KEYPATH.0));
     (jwt, sub.to_string())
 }
 

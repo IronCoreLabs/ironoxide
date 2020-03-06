@@ -20,7 +20,6 @@ use serde::{
     Serialize,
 };
 use std::{borrow::BorrowMut, marker::PhantomData, ops::Deref};
-use url;
 
 lazy_static! {
     static ref DEFAULT_HEADERS: HeaderMap = {
@@ -483,8 +482,8 @@ impl IronCoreRequest {
             error_code,
             auth.to_auth_header(),
             move |server_resp| {
-                if server_resp.len() > 0 {
-                    IronCoreRequest::deserialize_body(&server_resp, error_code).map(|a| Some(a))
+                if !server_resp.is_empty() {
+                    IronCoreRequest::deserialize_body(server_resp, error_code).map(Some)
                 } else {
                     Ok(None)
                 }
@@ -580,7 +579,7 @@ impl IronCoreRequest {
 
             // add query params
             if let Some(query) = maybe_query_params {
-                Self::req_add_query(req.borrow_mut(), &query);
+                Self::req_add_query(req.borrow_mut(), query);
             }
 
             // add the body
@@ -714,12 +713,12 @@ impl IronCoreRequest {
         body: &[u8],
         error_code: RequestErrorCode,
     ) -> Result<A, IronOxideErr> {
-        let deserialized = serde_json::from_slice(&body);
+        let deserialized = serde_json::from_slice(body);
         deserialized.map_err(|serde_err| {
             IronCoreRequest::create_request_err(
                 format!(
                     "Could not deserialize JSON response of: {:?} => serde error was: {}",
-                    &std::str::from_utf8(&body),
+                    &std::str::from_utf8(body),
                     serde_err
                 ),
                 error_code,
@@ -757,13 +756,14 @@ impl IronCoreRequest {
         } else {
             //If the status code is an error we can try and rip off the ServerErrors which the webservice
             //returns, otherwise process it the way the user wants.
-            IronCoreRequest::deserialize_body::<Vec<ServerError>>(&body, error_code)
-                .map(|error_response| IronOxideErr::RequestServerErrors {
+            IronCoreRequest::deserialize_body::<Vec<ServerError>>(body, error_code).map_or_else(
+                |e| e,
+                |error_response| IronOxideErr::RequestServerErrors {
                     errors: error_response,
                     code: error_code,
                     http_status: Some(status_code.as_u16()),
-                })
-                .unwrap_or_else(|e| e)
+                },
+            )
         }
     }
 
@@ -898,10 +898,8 @@ pub mod json {
         fn from(tkey: internal::TransformKey) -> Self {
             use recrypt::api::Hashable;
             TransformKey {
-                ephemeral_public_key: internal::PublicKey::from(
-                    tkey.0.ephemeral_public_key().clone(),
-                )
-                .into(),
+                ephemeral_public_key: internal::PublicKey::from(*tkey.0.ephemeral_public_key())
+                    .into(),
                 to_public_key: internal::PublicKey::from(*tkey.0.to_public_key()).into(),
                 encrypted_temp_key: tkey.0.encrypted_temp_key().to_bytes(),
                 hashed_temp_key: tkey.0.hashed_temp_key().to_bytes(),
@@ -1038,7 +1036,7 @@ mod tests {
     #[test]
     fn deserialize_errors() {
         let raw_string = r#"[{"message":"foo","code":2},{"message":"bar","code":3}]"#;
-        let result: Vec<ServerError> = serde_json::from_slice(&raw_string.as_bytes()).unwrap();
+        let result: Vec<ServerError> = serde_json::from_slice(raw_string.as_bytes()).unwrap();
         assert_eq!(result.len(), 2);
     }
 
@@ -1110,7 +1108,7 @@ mod tests {
         let server_error = IronCoreRequest::request_failure_to_error(
             StatusCode::UNPROCESSABLE_ENTITY,
             RequestErrorCode::DocumentList,
-            &error_as_bytes,
+            error_as_bytes,
         );
 
         assert_that!(
@@ -1132,7 +1130,7 @@ mod tests {
     fn url_encode_ids() {
         // regex of allowed ids from ironcore-id: ^[a-zA-Z0-9_.$#|@/:;=+'-]{1,100}
         let not_url_safe_id = "'=#.other|/$non@;safe'-:;id_";
-        let url_encoded = url_encode(&not_url_safe_id);
+        let url_encoded = url_encode(not_url_safe_id);
         assert_eq!(
             *url_encoded,
             "\'%3D%23.other%7C%2F%24non%40%3Bsafe\'-%3A%3Bid_"
@@ -1141,7 +1139,7 @@ mod tests {
 
     #[test]
     fn ironcore_user_context_signing_and_headers_are_correct() {
-        let ts = Utc.timestamp_millis(123456);
+        let ts = Utc.timestamp_millis(123_456);
         let signing_key_bytes: [u8; 64] = [
             38, 218, 141, 117, 248, 58, 31, 187, 17, 183, 163, 49, 109, 66, 9, 132, 131, 77, 196,
             31, 117, 15, 61, 29, 171, 119, 177, 31, 219, 164, 218, 221, 198, 202, 159, 250, 136,
@@ -1197,7 +1195,7 @@ mod tests {
 
     #[test]
     fn ironcore_auth_v2_produces_expected_values() {
-        let ts = Utc.timestamp_millis(123456);
+        let ts = Utc.timestamp_millis(123_456);
         let signing_key_bytes: [u8; 64] = [
             38, 218, 141, 117, 248, 58, 31, 187, 17, 183, 163, 49, 109, 66, 9, 132, 131, 77, 196,
             31, 117, 15, 61, 29, 171, 119, 177, 31, 219, 164, 218, 221, 198, 202, 159, 250, 136,
@@ -1224,7 +1222,7 @@ mod tests {
             k1: vec![42u8; 10],
             k2: 64u64,
             k3: "Fake text for a fake request".to_string(),
-            k4: -482949i64,
+            k4: -482_949_i64,
         };
 
         let expected = "123456,1,user-10,xsqf+oiBpQPDr69jb+TvKxMSdnYATr7igNNR/uA1wtw=GET/api/1/users?id=user-10{\"k1\":[42,42,42,42,42,42,42,42,42,42],\"k2\":64,\"k3\":\"Fake text for a fake request\",\"k4\":-482949}";
@@ -1234,7 +1232,7 @@ mod tests {
         // first test the signature over a JSON encoded request
         //
         let fake_req_json = serde_json::to_string(&fake_req).unwrap();
-        let fake_req_json_bytes = fake_req_json.clone().into_bytes();
+        let fake_req_json_bytes = fake_req_json.into_bytes();
         let request_sig = HeaderIronCoreRequestSig {
             ironcore_user_context: user_context.clone(),
             method: Method::GET,
@@ -1290,7 +1288,7 @@ mod tests {
 
         // verify that the authorization header is expected
         let auth = Authorization::create_signatures_v2(
-            ts.clone(),
+            ts,
             segment_id,
             &user_id,
             Method::POST,
@@ -1362,7 +1360,7 @@ mod tests {
                 .unwrap(),
         );
         let q = "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
-        IronCoreRequest::req_add_query(&mut req, &[("id".to_string(), url_encode(&q))]);
+        IronCoreRequest::req_add_query(&mut req, &[("id".to_string(), url_encode(q))]);
         //NOTE: This is not the same as SignatureUrlString's encoding, but is being documented here so we know if
         //it changes. `'` is being encoded in this case, but should not be according to the spec we have for v2 signatures.
         assert_eq!(req.url().query(), Some("id=!%22%23%24%25%26%27()*%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"))

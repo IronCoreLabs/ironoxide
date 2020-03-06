@@ -516,7 +516,7 @@ impl From<PublicKey> for RecryptPublicKey {
 }
 impl From<&PublicKey> for RecryptPublicKey {
     fn from(public_key: &PublicKey) -> Self {
-        public_key.0.clone()
+        public_key.0
     }
 }
 impl From<PublicKey> for crate::proto::transform::PublicKey {
@@ -563,7 +563,7 @@ pub struct PrivateKey(RecryptPrivateKey);
 impl PrivateKey {
     const BYTES_SIZE: usize = RecryptPrivateKey::ENCODED_SIZE_BYTES;
     pub fn as_bytes(&self) -> &[u8; PrivateKey::BYTES_SIZE] {
-        &self.0.bytes()
+        self.0.bytes()
     }
     fn recrypt_key(&self) -> &RecryptPrivateKey {
         &self.0
@@ -718,7 +718,7 @@ impl TryFrom<&[u8]> for DeviceSigningKeyPair {
     type Error = IronOxideErr;
     fn try_from(signing_key_bytes: &[u8]) -> Result<DeviceSigningKeyPair, Self::Error> {
         RecryptSigningKeypair::from_byte_slice(signing_key_bytes)
-            .map(|dsk| DeviceSigningKeyPair(dsk))
+            .map(DeviceSigningKeyPair)
             .map_err(|e| {
                 IronOxideErr::ValidationError("DeviceSigningKeyPair".to_string(), format!("{}", e))
             })
@@ -758,7 +758,7 @@ impl DeviceSigningKeyPair {
         self.0.sign(&payload).into()
     }
     pub fn as_bytes(&self) -> &[u8; 64] {
-        &self.0.bytes()
+        self.0.bytes()
     }
     pub fn public_key(&self) -> [u8; 32] {
         self.0.public_key().into()
@@ -783,7 +783,7 @@ impl TryFrom<&str> for Jwt {
     type Error = IronOxideErr;
     fn try_from(maybe_jwt: &str) -> Result<Self, Self::Error> {
         //Valid JWTs are base64 encoded and have 3 segments separated by periods
-        if maybe_jwt.is_ascii() && maybe_jwt.matches(".").count() == 2 {
+        if maybe_jwt.is_ascii() && maybe_jwt.matches('.').count() == 2 {
             Ok(Jwt(maybe_jwt.to_string()))
         } else {
             Err(IronOxideErr::ValidationError(
@@ -805,7 +805,7 @@ pub struct Password(String);
 impl TryFrom<&str> for Password {
     type Error = IronOxideErr;
     fn try_from(maybe_password: &str) -> Result<Self, Self::Error> {
-        if maybe_password.trim().len() > 0 {
+        if !maybe_password.trim().is_empty() {
             Ok(Password(maybe_password.to_string()))
         } else {
             Err(IronOxideErr::ValidationError(
@@ -882,7 +882,7 @@ fn gen_plaintext_and_aug_with_retry<R: CryptoOps>(
         let new_group_private_key = recrypt.derive_private_key(&new_plaintext);
         let new_key_aug = AugmentationFactor(new_group_private_key.into());
         let aug_factor = priv_key.augment_group(&new_key_aug)?;
-        Ok((new_plaintext, AugmentationFactor(aug_factor.into())))
+        Ok((new_plaintext, AugmentationFactor(aug_factor)))
     };
     // retry generation of private key one time. If this fails twice there's something wrong.
     aug_private_key().or_else(|_| aug_private_key())
@@ -960,7 +960,6 @@ pub(crate) mod tests {
 
     #[test]
     fn serde_devicecontext_roundtrip() -> Result<(), IronOxideErr> {
-        use serde_json;
         let priv_key: recrypt::api::PrivateKey = recrypt::api::PrivateKey::new_from_slice(
             base64::decode("bzb0Rlg0u7gx9wDuk1ppRI77OH/0ferXleenJ3Ag6Jg=")
                 .unwrap()
@@ -1167,7 +1166,7 @@ pub(crate) mod tests {
         let p1 = gen_priv_key();
         let p2 = gen_priv_key();
 
-        let p3 = p1.clone().0.augment_minus(&p2.clone().0).into();
+        let p3 = p1.clone().0.augment_minus(&p2.clone().0);
 
         let aug_p = p1.augment_user(&AugmentationFactor(p2)).unwrap();
         assert_eq!(Revealed(aug_p.0), Revealed(p3))
@@ -1272,7 +1271,7 @@ pub(crate) mod tests {
             recrypt::Revealed(RecryptPrivateKey::new(expected_priv_key_bytes))
         );
         assert_eq!(
-            recrypt::Revealed(((result.clone().1).0).0),
+            recrypt::Revealed(((result.1).0).0),
             recrypt::Revealed(good_re_private_key)
         )
     }
@@ -1329,7 +1328,7 @@ pub(crate) mod tests {
         recrypt_mock.gen_plaintext.return_values(vec![
             bad_plaintext.clone(),
             bad_plaintext,
-            good_plaintext.clone(),
+            good_plaintext,
         ]);
 
         // since this will generate bad_plaintext, which bad_private_key is derived from,
@@ -1366,7 +1365,7 @@ pub(crate) mod tests {
             )
         };
         let de_json = r#"{"deviceId":314,"accountId":"account_id","segmentId":22,"signingPrivateKey":"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQGKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXA==","devicePrivateKey":"bzb0Rlg0u7gx9wDuk1ppRI77OH/0ferXleenJ3Ag6Jg="}"#;
-        let de: DeviceContext = serde_json::from_str(&de_json).unwrap();
+        let de: DeviceContext = serde_json::from_str(de_json).unwrap();
         let user_id = UserId::try_from("account_id")?;
         let user = create_user_result(user_id.clone(), 22, pub_key.into(), true);
         let io = IronOxide::create(&user, &de, &Default::default());

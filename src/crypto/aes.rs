@@ -7,7 +7,7 @@ use crate::internal::{take_lock, IronOxideErr};
 use std::{convert::TryFrom, ops::DerefMut, sync::Mutex};
 
 //There is no way this can fail. Value is most definitely not less than one.
-const PBKDF2_ITERATIONS: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(250000) };
+const PBKDF2_ITERATIONS: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(250_000) };
 const PBKDF2_SALT_LEN: usize = 32;
 const AES_GCM_TAG_LEN: usize = 16;
 const AES_IV_LEN: usize = 12;
@@ -141,7 +141,7 @@ pub fn encrypt_user_master_key<R: CryptoRng + RngCore>(
 ) -> Result<EncryptedMasterKey, Unspecified> {
     let mut salt = [0u8; PBKDF2_SALT_LEN];
 
-    take_lock(&rng).deref_mut().fill_bytes(&mut salt);
+    take_lock(rng).deref_mut().fill_bytes(&mut salt);
     let derived_key = derive_key_from_password(password, salt);
 
     let encrypted_key = encrypt(rng, &user_master_key.to_vec(), derived_key)?;
@@ -200,7 +200,7 @@ impl aead::NonceSequence for SingleUseNonceGenerator {
 /// is a struct which contains the resulting ciphertext and the IV used during encryption.
 pub fn encrypt<R: CryptoRng + RngCore>(
     rng: &Mutex<R>,
-    plaintext: &Vec<u8>,
+    plaintext: &[u8],
     key: [u8; AES_KEY_LEN],
 ) -> Result<AesEncryptedValue, Unspecified> {
     let algorithm = &aead::AES_256_GCM;
@@ -211,7 +211,7 @@ pub fn encrypt<R: CryptoRng + RngCore>(
         SingleUseNonceGenerator::new(iv),
     );
     //Increase the size of the plaintext vector to fit the GCM auth tag
-    let mut ciphertext = plaintext.clone(); // <-- Not good. We're copying the entire plaintext, which could be large.
+    let mut ciphertext = plaintext.to_owned(); // <-- Not good. We're copying the entire plaintext, which could be large.
     aes_key.seal_in_place_append_tag(aead::Aad::empty(), &mut ciphertext)?;
     Ok(AesEncryptedValue {
         ciphertext,
@@ -222,7 +222,7 @@ pub fn encrypt<R: CryptoRng + RngCore>(
 /// Like `encrypt`, just async for convenience
 pub async fn encrypt_async<R: CryptoRng + RngCore>(
     rng: &Mutex<R>,
-    plaintext: &Vec<u8>,
+    plaintext: &[u8],
     key: [u8; AES_KEY_LEN],
 ) -> Result<AesEncryptedValue, IronOxideErr> {
     async { encrypt(rng, plaintext, key).map_err(IronOxideErr::from) }.await
@@ -254,7 +254,7 @@ mod tests {
         let password = "MyPassword";
         let rng = rand::thread_rng();
         let encrypted_master_key =
-            encrypt_user_master_key(&Mutex::new(rng), &password, &user_master_key).unwrap();
+            encrypt_user_master_key(&Mutex::new(rng), password, &user_master_key).unwrap();
         assert_eq!(encrypted_master_key.pbkdf2_salt.len(), 32);
         assert_eq!(encrypted_master_key.aes_iv.len(), 12);
         assert_eq!(encrypted_master_key.encrypted_key.len(), 48);
@@ -266,10 +266,10 @@ mod tests {
         let password = "MyPassword";
         let rng = rand::thread_rng();
         let encrypted_master_key =
-            encrypt_user_master_key(&Mutex::new(rng), &password, &user_master_key).unwrap();
+            encrypt_user_master_key(&Mutex::new(rng), password, &user_master_key).unwrap();
 
         let decrypted_master_key =
-            decrypt_user_master_key(&password, &encrypted_master_key).unwrap();
+            decrypt_user_master_key(password, &encrypted_master_key).unwrap();
         assert_eq!(decrypted_master_key, user_master_key);
     }
 
@@ -284,7 +284,7 @@ mod tests {
         assert_eq!(res.aes_iv.len(), 12);
         assert_eq!(
             res.ciphertext.len(),
-            plaintext.len() + &aead::AES_256_GCM.tag_len()
+            plaintext.len() + aead::AES_256_GCM.tag_len()
         );
     }
 
@@ -313,10 +313,10 @@ mod tests {
         assert_eq!(round_tripped_aes_encrypted_value.bytes(), encrypted_bytes);
 
         // same test with 0 bytes of encrypted data
-        let encrypted_bytes = [0u8; 0 + AES_IV_LEN + AES_GCM_TAG_LEN];
+        let encrypted_bytes2 = [0u8; AES_IV_LEN + AES_GCM_TAG_LEN];
         let round_tripped_aes_encrypted_value: AesEncryptedValue =
-            encrypted_bytes.as_ref().try_into()?;
-        assert_eq!(round_tripped_aes_encrypted_value.bytes(), encrypted_bytes);
+            encrypted_bytes2.as_ref().try_into()?;
+        assert_eq!(round_tripped_aes_encrypted_value.bytes(), encrypted_bytes2);
         Ok(())
     }
 
