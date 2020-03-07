@@ -1344,7 +1344,7 @@ mod tests {
         let policy_cache = DashMap::new();
         let config = PolicyCachingConfig::default();
 
-        // as a baseline, show that the get_policy_f runs if there is a cache miss
+        // show transformation of RequestError - 404 for Policy GET to PolicyDoesNotExist
         let err_result = get_cached_policy_or(&config, &policy_grant, &policy_cache, async {
             Err(IronOxideErr::RequestError {
                 message: "".into(),
