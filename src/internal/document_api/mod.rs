@@ -653,17 +653,26 @@ where
         Ok((vec![], cached_policy.clone()))
     } else {
         // otherwise query the webservice and cache the result if there are no errors
-        get_policy_f.await.map(|policy_resp| {
-            let (errs, public_keys) = process_policy(&policy_resp);
-            if errs.is_empty() {
-                //if the cache has grown too large, clear it prior to adding new entries
-                if policy_cache.len() >= config.max_entries {
-                    policy_cache.clear()
+        get_policy_f
+            .await
+            .map(|policy_resp| {
+                let (errs, public_keys) = process_policy(&policy_resp);
+                if errs.is_empty() {
+                    //if the cache has grown too large, clear it prior to adding new entries
+                    if policy_cache.len() >= config.max_entries {
+                        policy_cache.clear()
+                    }
+                    policy_cache.insert(grant.clone(), public_keys.clone());
                 }
-                policy_cache.insert(grant.clone(), public_keys.clone());
-            }
-            (errs, public_keys)
-        })
+                (errs, public_keys)
+            })
+            .map_err(|x| match x {
+                IronOxideErr::RequestError {
+                    http_status: Some(code),
+                    ..
+                } if code == 404 => IronOxideErr::PolicyDoesNotExist,
+                e => e,
+            })
     }
 }
 
@@ -1287,6 +1296,7 @@ mod tests {
     use galvanic_assert::matchers::{collection::*, *};
 
     use super::*;
+    use crate::internal::RequestErrorCode;
     use dashmap::DashMap;
     use std::borrow::Borrow;
 
@@ -1324,6 +1334,30 @@ mod tests {
         })
         .await?;
         assert_eq!(1, policy_cache.len());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn policy_404_gives_nice_error() -> Result<(), IronOxideErr> {
+        let policy_grant = PolicyGrant::default();
+        let policy_cache = DashMap::new();
+        let config = PolicyCachingConfig::default();
+
+        // as a baseline, show that the get_policy_f runs if there is a cache miss
+        let err_result = get_cached_policy_or(&config, &policy_grant, &policy_cache, async {
+            Err(IronOxideErr::RequestError {
+                message: "".into(),
+                code: RequestErrorCode::PolicyGet,
+                http_status: Some(404),
+            })
+        })
+        .await;
+        assert!(err_result.is_err());
+        assert_that!(
+            &err_result.unwrap_err(),
+            is_variant!(IronOxideErr::PolicyDoesNotExist)
+        );
 
         Ok(())
     }
