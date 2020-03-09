@@ -28,8 +28,7 @@ recrypt = "~0.10"
 url= "~2.1.0"
 reqwest = {version="~0.10.0", features = ["json"]}
 hex = "~0.3"
-# itertools 0.8.2++ - remove on next release
-itertools = {git = "https://github.com/rust-itertools/itertools", rev = "c83cc48ffe39b96b7c6797b7b31752e840b373bb"}
+itertools = "~0.9.0"
 futures = "~0.3.1"
 quick-error = "~1.2"
 lazy_static = "~1.4"
