@@ -20,16 +20,16 @@ use itertools::{Either, EitherOrBoth, Itertools};
 pub mod advanced;
 
 /// Optional parameters that can be provided when encrypting a new document.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DocumentEncryptOpts {
     id: Option<DocumentId>,
     name: Option<DocumentName>,
     // at least one user/group must be included either explicitly or via a policy
     grants: EitherOrBoth<ExplicitGrant, PolicyGrant>,
 }
-#[derive(Debug, PartialEq, Clone)]
 
 /// Explicit users/groups that should have access to decrypt a document.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct ExplicitGrant {
     grant_to_author: bool,
     grants: Vec<UserOrGroup>,

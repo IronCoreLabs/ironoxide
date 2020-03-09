@@ -111,7 +111,7 @@ pub mod config {
     use std::time::Duration;
 
     /// Top-level configuration object for IronOxide.
-    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
     pub struct IronOxideConfig {
         /// See [PolicyCachingConfig](struct.PolicyCachingConfig.html)
         pub policy_caching: PolicyCachingConfig,
@@ -124,7 +124,7 @@ pub mod config {
     /// Since policies are evaluated by the webservice, caching the result can greatly speed
     /// up encrypting a document with a [PolicyGrant](../policy/struct.PolicyGrant.html). There is no expiration of the cache, so
     /// if you want to clear it at runtime, call [IronOxide::clear_policy_cache()](../struct.IronOxide.html#method.clear_policy_cache).
-    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
     pub struct PolicyCachingConfig {
         /// maximum number of policy evaluations that will be cached by the SDK.
         /// If the maximum number is exceeded, the cache will be cleared prior to storing the next entry
@@ -173,6 +173,7 @@ impl fmt::Debug for IronOxide {
 }
 
 /// Result of calling `initialize_check_rotation`
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum InitAndRotationCheck<T> {
     /// Initialization succeeded, and no requests for private key rotations were present
     NoRotationNeeded(T),
@@ -204,6 +205,7 @@ impl<T> InitAndRotationCheck<T> {
 const BYTES_BEFORE_RESEEDING: u64 = 1024 * 1024;
 
 /// Provides soft rotation capabilities for user and group keys
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct PrivateKeyRotationCheckResult {
     pub rotations_needed: EitherOrBoth<UserId, Vec1<GroupId>>,
 }

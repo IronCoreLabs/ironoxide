@@ -51,7 +51,7 @@ impl GroupCreateOptsStd {
 }
 
 /// Group ID. Unique within a segment. Must match the regex `^[a-zA-Z0-9_.$#|@/:;=+'-]+$`
-#[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct GroupId(pub(crate) String);
 impl GroupId {
     pub fn id(&self) -> &str {
@@ -82,7 +82,7 @@ impl TryFrom<&str> for GroupId {
 }
 
 /// Group's user-assigned name. (non-unique)
-#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct GroupName(pub(crate) String);
 impl GroupName {
     pub fn name(&self) -> &String {
@@ -104,7 +104,7 @@ impl TryFrom<&str> for GroupName {
 }
 
 /// List of (abbreviated) groups for which the requesting user is either an admin or member.
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GroupListResult {
     result: Vec<GroupMetaResult>,
 }
@@ -118,7 +118,7 @@ impl GroupListResult {
     }
 }
 /// Abbreviated group information.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GroupMetaResult {
     id: GroupId,
     name: Option<GroupName>,
@@ -165,7 +165,7 @@ impl GroupMetaResult {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GroupCreateResult {
     id: GroupId,
     name: Option<GroupName>,
@@ -227,7 +227,7 @@ impl GroupCreateResult {
     }
 }
 /// Group information.
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GroupGetResult {
     id: GroupId,
     name: Option<GroupName>,
@@ -293,7 +293,7 @@ impl GroupGetResult {
 }
 
 /// Failure to make the requested change to a group's membership or administrators.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GroupAccessEditErr {
     user: UserId,
     error: String,
@@ -312,7 +312,7 @@ impl GroupAccessEditErr {
 }
 
 /// Result from requesting changes to a group's membership or administrators. Partial success is supported.
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GroupAccessEditResult {
     succeeded: Vec<UserId>,
     failed: Vec<GroupAccessEditErr>,
@@ -530,7 +530,7 @@ pub async fn group_create<CR: rand::CryptoRng + rand::RngCore>(
     resp.try_into()
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GroupUpdatePrivateKeyResult {
     id: GroupId,
     needs_rotation: bool,
@@ -638,7 +638,7 @@ pub async fn group_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
         aug_factor,
     )
     .await
-    .map(|resp| (resp, group_id.to_owned()).into())
+    .map(|resp| resp.into())
 }
 
 /// Get the metadata for a group given its ID

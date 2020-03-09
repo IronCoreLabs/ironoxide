@@ -46,7 +46,7 @@ lazy_static! {
     pub static ref OUR_REQUEST: IronCoreRequest = IronCoreRequest::new(URL_STRING.as_str());
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum RequestErrorCode {
     UserVerify,
     UserCreate,
@@ -76,7 +76,7 @@ pub enum RequestErrorCode {
 }
 
 /// Public SDK operations
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum SdkOperation {
     InitializeSdk,
     InitializeSdkCheckRotation,
@@ -306,7 +306,7 @@ pub mod auth_v2 {
 }
 
 ///Structure that contains all the info needed to make a signed API request from a device.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RequestAuth {
     ///The user's given id, which uniquely identifies them inside the segment.
@@ -352,7 +352,7 @@ impl RequestAuth {
 }
 
 /// Account's device context. Needed to initialize the Sdk with a set of device keys. See `IronOxide.initialize()`
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceContext {
     #[serde(flatten)]
@@ -414,8 +414,7 @@ impl From<DeviceAddResult> for DeviceContext {
     }
 }
 
-// Note: Equality is not provided to protect the security of the device private key.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DeviceAddResult {
     /// The user's given id, which uniquely identifies them inside the segment.
     account_id: UserId,
@@ -501,7 +500,7 @@ impl From<SchnorrSignature> for Vec<u8> {
 
 /// Represents an asymmetric public key that wraps the underlying bytes
 /// of the key.
-#[derive(PartialEq, Debug, Clone)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct PublicKey(RecryptPublicKey);
 
 impl From<RecryptPublicKey> for PublicKey {
@@ -559,7 +558,7 @@ impl PublicKey {
 
 /// Represents an asymmetric private key that wraps the underlying bytes
 /// of the key.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct PrivateKey(RecryptPrivateKey);
 impl PrivateKey {
     const BYTES_SIZE: usize = RecryptPrivateKey::ENCODED_SIZE_BYTES;
@@ -622,14 +621,10 @@ impl PrivateKey {
         augmenting_key: &AugmentationFactor,
         error_fn: F,
     ) -> Result<PrivateKey, IronOxideErr> {
-        use recrypt::Revealed;
         let zero: RecryptPrivateKey = RecryptPrivateKey::new([0u8; 32]);
-        if Revealed(augmenting_key.clone().into()) == Revealed(zero) {
+        if RecryptPrivateKey::from(augmenting_key.clone()) == zero {
             Err(error_fn("Augmenting key cannot be zero".into()))
-        }
-        // These clones can be removed once https://github.com/IronCoreLabs/recrypt-rs/issues/91 is fixed
-        // result of the augmentation would be zero
-        else if Revealed(augmenting_key.clone().into()) == Revealed(self.clone().0) {
+        } else if RecryptPrivateKey::from(augmenting_key.clone()) == self.0 {
             Err(error_fn(
                 "PrivateKey augmentation failed with a zero value".into(),
             ))
@@ -679,7 +674,7 @@ impl From<AugmentationFactor> for RecryptPrivateKey {
 }
 
 /// Public/Private asymmetric keypair that is used for decryption/encryption.
-#[derive(Clone)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct KeyPair {
     public_key: PublicKey,
     private_key: PrivateKey,
@@ -703,7 +698,7 @@ impl KeyPair {
 
 /// Signing keypair specific to a device. Used to sign all requests to the IronCore API
 /// endpoints. Needed to create a `DeviceContext`.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DeviceSigningKeyPair(RecryptSigningKeypair);
 impl From<&DeviceSigningKeyPair> for RecryptSigningKeypair {
     fn from(dsk: &DeviceSigningKeyPair) -> RecryptSigningKeypair {
@@ -723,12 +718,6 @@ impl TryFrom<&[u8]> for DeviceSigningKeyPair {
             .map_err(|e| {
                 IronOxideErr::ValidationError("DeviceSigningKeyPair".to_string(), format!("{}", e))
             })
-    }
-}
-
-impl PartialEq for DeviceSigningKeyPair {
-    fn eq(&self, other: &DeviceSigningKeyPair) -> bool {
-        self.0.bytes().to_vec() == other.0.bytes().to_vec()
     }
 }
 
@@ -778,7 +767,7 @@ impl DeviceSigningKeyPair {
 ///     "sub" : unique_user_id
 /// });
 ///
-#[derive(Debug, PartialEq, Serialize, Clone)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Jwt(String);
 impl TryFrom<&str> for Jwt {
     type Error = IronOxideErr;
@@ -817,7 +806,7 @@ impl TryFrom<&str> for Password {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct WithKey<T> {
     pub(crate) id: T,
     pub(crate) public_key: PublicKey,
@@ -1163,14 +1152,13 @@ pub(crate) mod tests {
 
     #[test]
     fn private_key_augmentation_is_augment_minus() {
-        use recrypt::Revealed;
         let p1 = gen_priv_key();
         let p2 = gen_priv_key();
 
         let p3 = p1.clone().0.augment_minus(&p2.clone().0);
 
         let aug_p = p1.augment_user(&AugmentationFactor(p2)).unwrap();
-        assert_eq!(Revealed(aug_p.0), Revealed(p3))
+        assert_eq!(aug_p.0, p3)
     }
 
     #[test]
@@ -1268,13 +1256,10 @@ pub(crate) mod tests {
 
         let result = augment_private_key_with_retry(&recrypt_mock, &curr_priv_key).unwrap();
         assert_eq!(
-            recrypt::Revealed((result.clone().0).0),
-            recrypt::Revealed(RecryptPrivateKey::new(expected_priv_key_bytes))
+            (result.0).0,
+            RecryptPrivateKey::new(expected_priv_key_bytes)
         );
-        assert_eq!(
-            recrypt::Revealed(((result.1).0).0),
-            recrypt::Revealed(good_re_private_key)
-        )
+        assert_eq!(((result.1).0).0, good_re_private_key)
     }
     #[test]
     fn augment_private_key_with_retry_retries_only_once() {
@@ -1309,10 +1294,7 @@ pub(crate) mod tests {
         // the augmentation will result in zero, causing the function to retry.
         let result =
             gen_plaintext_and_aug_with_retry(&recrypt_mock, &bad_private_key.into()).unwrap();
-        assert_eq!(
-            recrypt::Revealed(result.0),
-            recrypt::Revealed(good_plaintext)
-        );
+        assert_eq!(result.0, good_plaintext);
     }
 
     #[test]

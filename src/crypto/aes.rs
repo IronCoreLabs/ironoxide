@@ -83,7 +83,7 @@ impl EncryptedMasterKey {
         dest
     }
 }
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct AesEncryptedValue {
     aes_iv: [u8; AES_IV_LEN],
     ciphertext: Vec<u8>,

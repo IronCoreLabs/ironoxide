@@ -18,7 +18,7 @@ use chrono::{DateTime, Utc};
 use std::convert::TryFrom;
 
 use crate::internal::auth_v2::AuthV2Builder;
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct EncryptedPrivateKey(#[serde(with = "Base64Standard")] pub Vec<u8>);
 
 impl From<EncryptedMasterKey> for EncryptedPrivateKey {
@@ -47,7 +47,7 @@ pub mod user_verify {
 
     use super::*;
 
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Debug, PartialEq, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct UserVerifyResponse {
         pub(crate) id: String,
@@ -133,7 +133,7 @@ pub mod user_get {
     use super::*;
     use crate::internal::group_api::GroupId;
 
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Debug, PartialEq, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct CurrentUserResponse {
         pub(in crate::internal) current_key_id: u64,
@@ -162,14 +162,14 @@ pub mod user_update_private_key {
     use super::*;
     use internal::{rest::json::AugmentationFactor, user_api::UserUpdatePrivateKeyResult};
 
-    #[derive(Serialize, Debug)]
+    #[derive(Debug, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct UserUpdatePrivateKey {
         user_private_key: EncryptedPrivateKey,
         augmentation_factor: AugmentationFactor,
     }
 
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Debug, PartialEq, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct UserUpdatePrivateKeyResponse {
         current_key_id: u64,
@@ -217,7 +217,7 @@ pub mod user_create {
 
     use super::*;
 
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Debug, PartialEq, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct UserCreateResponse {
         id: String,
@@ -228,7 +228,7 @@ pub mod user_create {
         needs_rotation: bool,
     }
 
-    #[derive(Serialize, Debug)]
+    #[derive(Debug, Serialize)]
     #[serde(rename_all = "camelCase")]
     struct UserCreateReq {
         user_public_key: PublicKey,
@@ -312,7 +312,7 @@ pub mod device_add {
 
     use super::*;
 
-    #[derive(Serialize, Debug)]
+    #[derive(Debug, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct DeviceAddReq {
         pub timestamp: u64,
@@ -322,14 +322,14 @@ pub mod device_add {
         pub user_public_key: PublicKey,
     }
 
-    #[derive(Serialize, Debug)]
+    #[derive(Debug, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct Device {
         pub transform_key: TransformKey,
         pub name: Option<DeviceName>,
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Debug, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct DeviceAddResponse {
         #[serde(rename = "id")]
@@ -373,7 +373,7 @@ pub mod device_list {
 
     use super::*;
 
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Debug, PartialEq, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct DeviceListItem {
         #[serde(rename = "id")]
@@ -384,7 +384,7 @@ pub mod device_list {
         is_current_device: bool,
     }
 
-    #[derive(Deserialize, PartialEq, Debug)]
+    #[derive(Debug, PartialEq, Deserialize)]
     pub struct DeviceListResponse {
         pub(in crate::internal) result: Vec<DeviceListItem>,
     }
