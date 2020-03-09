@@ -163,6 +163,10 @@ quick_error! {
         NotGroupAdmin(id: GroupId) {
             display("You are not an administrator of group '{}'", id.id())
         }
+        /// No policy exists for the segment
+        PolicyDoesNotExist {
+            display("No policy is defined. Please visit https://admin.ironcorelabs.com/policy to set a policy")
+        }
         /// Protobuf encode/decode error
         ProtobufSerdeError(err: protobuf::ProtobufError) {
             cause(err)
