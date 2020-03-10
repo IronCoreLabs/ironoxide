@@ -35,6 +35,9 @@ use crate::{
 use futures::executor::block_on;
 use std::collections::HashMap;
 
+#[cfg(feature = "beta")]
+use crate::search::{BlindIndexSearchInitialize, EncryptedBlindIndexSalt};
+
 /// Struct that is used to make authenticated requests to the IronCore API. Instantiated with the details
 /// of an account's various ids, device, and signing keys. Once instantiated all operations will be
 /// performed in the context of the account provided. Identical to IronOxide but also contains a Runtime.
@@ -53,6 +56,13 @@ impl BlockingIronOxide {
     /// See [ironoxide::IronOxide::clear_policy_cache()](../struct.IronOxide.html#method.clear_policy_cache)
     pub fn clear_policy_cache(&self) -> usize {
         self.ironoxide.clear_policy_cache()
+    }
+
+    /// See [ironoxide::IronOxide::create_blind_index()](../struct.IronOxide.html#method.create_blind_index)
+    #[cfg(feature = "beta")]
+    pub fn create_blind_index(&self, group_id: &GroupId) -> Result<EncryptedBlindIndexSalt> {
+        self.runtime
+            .enter(|| block_on(self.ironoxide.create_blind_index(group_id)))
     }
 
     /// See [ironoxide::IronOxide::rotate_all()](../struct.IronOxide.html#method.rotate_all)
