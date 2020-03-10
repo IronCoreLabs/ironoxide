@@ -25,13 +25,6 @@ use ironcore_search_helpers::generate_hashes_for_string;
 ///The required length of the salt.
 const REQUIRED_LEN: usize = 32;
 
-///The result of creating a new index as well as initializing a BlindIndexSearch.
-///If you only want to create the index, see create_index.
-pub struct BlindIndexCreateResult {
-    pub encrypted_salt: EncryptedBlindIndexSalt,
-    pub sdk: BlindIndexSearch,
-}
-
 pub struct EncryptedBlindIndexSalt {
     pub encrypted_deks: Vec<u8>,
     pub encrypted_salt_bytes: Vec<u8>,
@@ -51,7 +44,6 @@ impl EncryptedBlindIndexSalt {
 #[async_trait]
 pub trait BlindIndexSearchInitialize {
     ///Create an index and encrypt it to the provided group_id.
-    ///If you need to index data immediately, see `initialize_blind_index_search`.
     async fn create_blind_index(&self, group_id: &GroupId) -> Result<EncryptedBlindIndexSalt>;
 }
 
