@@ -38,7 +38,7 @@ pub struct EncryptedBlindIndexSalt {
 }
 
 impl EncryptedBlindIndexSalt {
-    //ecrypt the blind index salt and give back the BlindIndexSearch object.
+    //encrypt the blind index salt and give back the BlindIndexSearch object.
     pub async fn initialize_search(&self, ironoxide: &IronOxide) -> Result<BlindIndexSearch> {
         let decrypted_value = ironoxide
             .document_decrypt_unmanaged(&self.encrypted_salt_bytes[..], &self.encrypted_deks[..])
@@ -47,7 +47,7 @@ impl EncryptedBlindIndexSalt {
     }
 }
 
-///Trait which gives the ability to create an blind index.
+///Trait which gives the ability to create a blind index.
 #[async_trait]
 pub trait BlindIndexSearchInitialize {
     ///Create an index and encrypt it to the provided group_id.
@@ -88,7 +88,7 @@ impl TryFrom<&[u8]> for BlindIndexSearch {
     fn try_from(bytes: &[u8]) -> Result<BlindIndexSearch> {
         let decrypted_len = bytes.len();
         if decrypted_len != REQUIRED_LEN {
-            std::result::Result::Err(IronOxideErr::WrongSizeError(
+            Err(IronOxideErr::WrongSizeError(
                 Some(decrypted_len),
                 Some(REQUIRED_LEN),
             ))
