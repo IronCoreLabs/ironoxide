@@ -28,6 +28,7 @@ use crate::blocking::BlockingIronOxide;
 ///The required length of the salt.
 const REQUIRED_LEN: usize = 32;
 
+#[derive(Debug, PartialEq, Clone, Hash, Eq)]
 pub struct EncryptedBlindIndexSalt {
     pub encrypted_deks: Vec<u8>,
     pub encrypted_salt_bytes: Vec<u8>,
