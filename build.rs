@@ -1,4 +1,3 @@
-extern crate protobuf_codegen_pure;
 use std::{
     env,
     fs::File,

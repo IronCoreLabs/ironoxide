@@ -35,7 +35,7 @@ lazy_static! {
     };
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct ServerError {
     message: String,
     code: u32,
@@ -176,7 +176,7 @@ impl<'a> Authorization<'a> {
 /// We sign over: `/api/1/users?id=abcABC012_.%24%23%7C%40%2F%3A%3B%3D%2B'-`
 ///
 /// Anyone wanting to verify this signature will need to be able to match this exact encoding.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct SignatureUrlString(String);
 
 impl SignatureUrlString {
@@ -297,7 +297,7 @@ impl<'a> HeaderIronCoreRequestSig<'a> {
 }
 
 ///A struct which holds the basic info that will be needed for making requests to an ironcore service. Currently just the base_url.
-#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct IronCoreRequest {
     base_url: &'static str,
 }
@@ -850,7 +850,7 @@ pub mod json {
 
     base64_serde_type!(pub Base64Standard, base64::STANDARD);
 
-    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
     pub struct PublicKey {
         #[serde(with = "Base64Standard")]
         pub x: Vec<u8>,
@@ -879,7 +879,7 @@ pub mod json {
         }
     }
 
-    #[derive(Serialize, Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct TransformKey {
         ephemeral_public_key: PublicKey,
@@ -909,7 +909,7 @@ pub mod json {
         }
     }
 
-    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct EncryptedOnceValue {
         #[serde(with = "Base64Standard")]
@@ -923,7 +923,7 @@ pub mod json {
         public_signing_key: Vec<u8>,
     }
 
-    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
     pub struct AugmentationFactor(#[serde(with = "Base64Standard")] pub Vec<u8>);
 
     impl From<internal::AugmentationFactor> for AugmentationFactor {
@@ -932,7 +932,7 @@ pub mod json {
         }
     }
 
-    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct TransformedEncryptedValue {
         #[serde(flatten)]
@@ -940,7 +940,7 @@ pub mod json {
         transform_blocks: Vec<TransformBlock>,
     }
 
-    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct TransformBlock {
         #[serde(with = "Base64Standard")]

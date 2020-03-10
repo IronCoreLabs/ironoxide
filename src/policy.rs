@@ -85,7 +85,7 @@ use std::convert::TryFrom;
 /// rule may generate any number of users/groups.
 ///
 /// `substitute_user` replaces `%USER%` in a matched policy rule.
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct PolicyGrant {
     category: Option<Category>,
     sensitivity: Option<Sensitivity>,
@@ -137,7 +137,7 @@ impl Default for PolicyGrant {
 
 macro_rules! policy_field {
     ($t: ident, $l: literal) => {
-        #[derive(Debug, PartialEq, Eq, Hash, Clone)]
+        #[derive(Clone, Debug, Eq, Hash, PartialEq)]
         pub struct $t(pub(crate) String);
 
         impl TryFrom<&str> for $t {
