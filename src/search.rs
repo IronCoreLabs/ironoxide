@@ -22,6 +22,9 @@ use std::ops::DerefMut;
 
 use ironcore_search_helpers::generate_hashes_for_string;
 
+#[cfg(feature = "blocking")]
+use crate::blocking::BlockingIronOxide;
+
 ///The required length of the salt.
 const REQUIRED_LEN: usize = 32;
 
@@ -37,6 +40,12 @@ impl EncryptedBlindIndexSalt {
             .document_decrypt_unmanaged(&self.encrypted_salt_bytes[..], &self.encrypted_deks[..])
             .await?;
         decrypted_value.decrypted_data().try_into()
+    }
+
+    #[cfg(feature = "blocking")]
+    pub fn initialize_search_blocking(&self, bio: &BlockingIronOxide) -> Result<BlindIndexSearch> {
+        bio.runtime
+            .enter(|| futures::executor::block_on(self.initialize_search(&bio.ironoxide)))
     }
 }
 
@@ -70,6 +79,7 @@ impl BlindIndexSearchInitialize for IronOxide {
         encrypted_salt.try_into()
     }
 }
+
 #[derive(Debug, PartialEq, Clone, Hash, Eq)]
 pub struct BlindIndexSearch {
     decrypted_salt: [u8; 32],
