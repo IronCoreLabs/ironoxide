@@ -56,7 +56,7 @@ protobuf-codegen-pure = "~2.10"
 all-features = true
 
 [features]
-blocking = ["tokio/rt-threaded"]
+blocking = []
 
 [profile.dev]
 opt-level = 2
