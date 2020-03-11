@@ -4,7 +4,7 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use itertools::{Either, Itertools};
-use rand::rngs::EntropyRng;
+use rand::rngs::OsRng;
 use recrypt::prelude::*;
 use std::{
     collections::HashMap,
@@ -298,7 +298,7 @@ pub async fn user_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
 
         let (new_priv_key, aug_factor) = augment_private_key_with_retry(recrypt, &priv_key)?;
         let new_encrypted_priv_key = aes::encrypt_user_master_key(
-            &Mutex::new(EntropyRng::default()),
+            &Mutex::new(OsRng::default()),
             &password.0,
             new_priv_key.as_bytes(),
         )?;

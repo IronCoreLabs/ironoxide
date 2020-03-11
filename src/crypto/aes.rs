@@ -322,7 +322,7 @@ mod tests {
 
     #[test]
     fn test_parallel_encrypt() {
-        use rand::FromEntropy;
+        use rand::SeedableRng;
 
         let plaintext = vec![1, 2, 3, 4, 5, 6, 7];
         let mut key = [0u8; 32];
