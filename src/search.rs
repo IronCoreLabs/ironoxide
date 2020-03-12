@@ -140,7 +140,7 @@ impl BlindIndexSearch {
         }
     }
 
-    ///Generate the list of tokens to use to find entries that match the search query, given the specified partition_id.
+    /// Generate the list of tokens to use to find entries that match the search query, given the specified partition_id.
     /// query - The string you want to tokenize and hash
     /// partition_id - An extra string you want to include in every hash, this allows 2 queries with different partition_ids to produce a different set of tokens for the same query
     pub fn tokenize_query(&self, query: &str, partition_id: Option<&str>) -> Result<HashSet<u32>> {
@@ -148,8 +148,11 @@ impl BlindIndexSearch {
             .map_err(|message| IronOxideErr::ValidationError("query".to_string(), message))
     }
 
-    ///Generate the list of tokens to use to find entries that match the search query, given the specified partition_id.
-    /// query - The string you want to tokenize and hash
+    /// Generate the list of tokens to create a search entry for `data`. This function will also return some random values in the HashSet, which will make
+    /// it harder for someone to know what the input was. Because of this, calling this function will not be the same as `tokenize_query`, but `tokenize_query` will always
+    /// return a subset of the values returned by `tokenize_data`.
+    ///
+    /// data - The string you want to tokenize and hash
     /// partition_id - An extra string you want to include in every hash, this allows 2 queries with different partition_ids to produce a different set of tokens for the same data
     pub fn tokenize_data(&self, data: &str, partition_id: Option<&str>) -> Result<HashSet<u32>> {
         generate_hashes_for_string_with_padding(
