@@ -97,8 +97,8 @@ use crate::{
 use dashmap::DashMap;
 use itertools::EitherOrBoth;
 use rand::{
-    rngs::{adapter::ReseedingRng, EntropyRng},
-    FromEntropy,
+    rngs::{adapter::ReseedingRng, OsRng},
+    SeedableRng,
 };
 use rand_chacha::ChaChaCore;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
@@ -159,7 +159,7 @@ pub struct IronOxide {
     /// Master public key for the user identified by `account_id`
     pub(crate) user_master_pub_key: PublicKey,
     pub(crate) device: DeviceContext,
-    pub(crate) rng: Mutex<ReseedingRng<ChaChaCore, EntropyRng>>,
+    pub(crate) rng: Mutex<ReseedingRng<ChaChaCore, OsRng>>,
     pub(crate) policy_eval_cache: PolicyCache,
 }
 
@@ -330,7 +330,7 @@ impl IronOxide {
             rng: Mutex::new(ReseedingRng::new(
                 rand_chacha::ChaChaCore::from_entropy(),
                 BYTES_BEFORE_RESEEDING,
-                EntropyRng::new(),
+                OsRng::default(),
             )),
             policy_eval_cache: DashMap::new(),
         }
