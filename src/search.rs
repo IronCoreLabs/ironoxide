@@ -15,18 +15,26 @@ use crate::internal::{take_lock, IronOxideErr};
 use crate::Result;
 use crate::{GroupId, IronOxide};
 use async_trait::async_trait;
-use rand::{self, RngCore};
+use rand::rngs::adapter::ReseedingRng;
+use rand::rngs::OsRng;
+use rand::{self, RngCore, SeedableRng};
+use rand_chacha::ChaChaCore;
 use std::collections::HashSet;
 use std::convert::{TryFrom, TryInto};
 use std::ops::DerefMut;
+use std::sync::Mutex;
 
-use ironcore_search_helpers::generate_hashes_for_string;
+use ironcore_search_helpers::{
+    generate_hashes_for_string, generate_hashes_for_string_with_padding,
+};
 
 #[cfg(feature = "blocking")]
 use crate::blocking::BlockingIronOxide;
 
 ///The required length of the salt.
 const REQUIRED_LEN: usize = 32;
+/// number of bytes that can be read from `BlindIndexSearch.rng` before it is reseeded. 1 MB
+const BYTES_BEFORE_RESEEDING: u64 = 1024 * 1024;
 
 #[derive(Debug, PartialEq, Clone, Hash, Eq)]
 pub struct EncryptedBlindIndexSalt {
@@ -81,9 +89,10 @@ impl BlindIndexSearchInitialize for IronOxide {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Hash, Eq)]
+#[derive(Debug)]
 pub struct BlindIndexSearch {
     decrypted_salt: [u8; 32],
+    rng: Mutex<ReseedingRng<ChaChaCore, OsRng>>,
 }
 
 impl TryFrom<&[u8]> for BlindIndexSearch {
@@ -120,21 +129,36 @@ impl TryFrom<DocumentEncryptUnmanagedResult> for EncryptedBlindIndexSalt {
 
 impl BlindIndexSearch {
     fn new(decrypted_salt: [u8; 32]) -> BlindIndexSearch {
-        BlindIndexSearch { decrypted_salt }
+        let rng = Mutex::new(ReseedingRng::new(
+            rand_chacha::ChaChaCore::from_entropy(),
+            BYTES_BEFORE_RESEEDING,
+            OsRng::default(),
+        ));
+        BlindIndexSearch {
+            decrypted_salt,
+            rng,
+        }
     }
 
     ///Generate the list of tokens to use to find entries that match the search query, given the specified partition_id.
     /// query - The string you want to tokenize and hash
     /// partition_id - An extra string you want to include in every hash, this allows 2 queries with different partition_ids to produce a different set of tokens for the same query
-    pub fn tokenize_query(&self, query: &str, partition_id: Option<&str>) -> HashSet<u32> {
+    pub fn tokenize_query(&self, query: &str, partition_id: Option<&str>) -> Result<HashSet<u32>> {
         generate_hashes_for_string(query, partition_id, &self.decrypted_salt[..])
+            .map_err(|message| IronOxideErr::ValidationError("query".to_string(), message))
     }
 
     ///Generate the list of tokens to use to find entries that match the search query, given the specified partition_id.
     /// query - The string you want to tokenize and hash
     /// partition_id - An extra string you want to include in every hash, this allows 2 queries with different partition_ids to produce a different set of tokens for the same data
-    pub fn tokenize_data(&self, data: &str, partition_id: Option<&str>) -> HashSet<u32> {
-        generate_hashes_for_string(data, partition_id, &self.decrypted_salt[..])
+    pub fn tokenize_data(&self, data: &str, partition_id: Option<&str>) -> Result<HashSet<u32>> {
+        generate_hashes_for_string_with_padding(
+            data,
+            partition_id,
+            &self.decrypted_salt[..],
+            &self.rng,
+        )
+        .map_err(|message| IronOxideErr::ValidationError("data".to_string(), message))
     }
 }
 
