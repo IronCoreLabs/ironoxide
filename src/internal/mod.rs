@@ -146,6 +146,9 @@ quick_error! {
         UserDoesNotExist(msg: String) {
             display("Operation failed with error '{}'", msg)
         }
+        UserOrGroupDoesNotExist(user_or_group: document_api::UserOrGroup) {
+            display("User or group {} does not exist.", user_or_group)
+        }
         InitializeError {
             display("Initialization failed as device info provided was not valid.")
         }
