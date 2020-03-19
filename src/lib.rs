@@ -242,7 +242,7 @@ pub async fn initialize(
     )
     .await?
     .map(|current_user| IronOxide::create(&current_user, device_context, config))
-    .map_err(|_| IronOxideErr::InitializeError)
+    .map_err(|e: IronOxideErr| IronOxideErr::InitializeError(e.to_string()))
 }
 
 /// Finds the groups that the caller is an admin of that need rotation and

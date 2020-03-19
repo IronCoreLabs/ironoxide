@@ -1312,7 +1312,7 @@ mod tests {
 
         // as a baseline, show that the get_policy_f runs if there is a cache miss
         let err_result = get_cached_policy_or(&config, &policy_grant, &policy_cache, async {
-            Err(IronOxideErr::InitializeError)
+            Err(IronOxideErr::InitializeError("".into()))
         })
         .await;
 
@@ -1330,7 +1330,7 @@ mod tests {
 
         // let's get the policy again, but if the policy future executes (cache miss) error
         get_cached_policy_or(&config, &policy_grant, &policy_cache, async {
-            Err(IronOxideErr::InitializeError)
+            Err(IronOxideErr::InitializeError("".into()))
         })
         .await?;
         assert_eq!(1, policy_cache.len());

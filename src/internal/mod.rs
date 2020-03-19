@@ -149,8 +149,8 @@ quick_error! {
         UserOrGroupDoesNotExist(user_or_group: document_api::UserOrGroup) {
             display("User or group {} does not exist.", user_or_group)
         }
-        InitializeError {
-            display("Initialization failed as device info provided was not valid.")
+        InitializeError(cause: String) {
+            display("SDK initialization failed. Underlying cause '{}'", cause)
         }
         RequestError { message: String, code: RequestErrorCode, http_status: Option<u16> } {
             display("Request failed with HTTP status code '{:?}' message '{}' and code '{:?}'", http_status, message, code)
