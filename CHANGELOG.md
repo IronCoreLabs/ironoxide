@@ -1,10 +1,14 @@
 # Changelog
 
+## 0.21.1 (unreleased)
+- [[#129](https://github.com/IronCoreLabs/ironoxide/pull/129)] 
+  - Improved error message for SDK initialization failure
+
 ## 0.21.0
 
-- [[126](https://github.com/IronCoreLabs/ironoxide/pull/126)]
+- [[#126](https://github.com/IronCoreLabs/ironoxide/pull/126)]
   - Upgrade dependencies (`rand`, `rand_chacha`, `recrypt`)
-- [[118]](https://github.com/IronCoreLabs/ironoxide/pull/118)
+- [[#118](https://github.com/IronCoreLabs/ironoxide/pull/118)]
   - Introduce `search` module with ability to create blind indexes. (behind beta flag)
 
 ## 0.20.0
