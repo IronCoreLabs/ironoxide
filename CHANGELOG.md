@@ -2,7 +2,9 @@
 
 ## 0.21.1 (unreleased)
 - [[#129](https://github.com/IronCoreLabs/ironoxide/pull/129)] 
-  - Improved error message for SDK initialization failure
+  - Improve error message for SDK initialization failure
+- [[#132](https://github.com/IronCoreLabs/ironoxide/pull/132)]  
+  - Add feature flags to enable alternative TLS linking and implementations
 
 ## 0.21.0
 
