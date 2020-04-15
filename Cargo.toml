@@ -18,7 +18,8 @@ base64-serde = "~0.3.1"
 bytes = "~0.5"
 serde = "~1.0"
 serde_json = "~1.0"
-publicsuffix = "~1.5.4"
+# default features force a dependency on openssl-sys, which we want to avoid for embedded applications
+publicsuffix = { version="~1.5.4", default-features = false}
 serde_derive = "~1.0"
 rand = "~0.7"
 rand_chacha = "~0.2.2"
