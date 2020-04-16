@@ -5,27 +5,59 @@
 //! SDK supports all possible operations that work in the IronCore platform including creating and managing users and groups, encrypting
 //! and decrypting document bytes, and granting and revoking access to documents to users and groups.
 //!
-//! ## [User Operations](user/trait.UserOps.html)
+//! # User Operations
 //!
-//! The IronOxide SDK user methods allow for multiple operations to manage your synced users/service accounts from your application
+//! The IronOxide SDK [user methods](user/trait.UserOps.html) allow for multiple operations to manage your synced users/service accounts from your application
 //! into the IronCore platform:
 //!
 //! + Lookup existing synced users in the IronCore system given their unique account IDs
 //! + Sync and generate cryptographic keys for authenticated users from your application into IronCore
 //! + List, create, and delete cryptographic device keys for synced users
-//! + List a users devices
+//! + List a user's devices
 //!
-//! ## [Document Operations](document/trait.DocumentOps.html)
+//! # Group Operations
+//!
+//! Groups are one of the many differentiating features of the IronCore platform. This SDK allows for easy management of your cryptographic
+//! groups. Groups can be created, updated, and deleted along with management of a group's administrators and members.
+//!
+//! # Document Operations
 //!
 //! All secret data that is encrypted using the IronCore platform are referred to as documents. Documents wrap the raw bytes of
 //! secret data to encrypt along with various metadata that helps convey access information to that data. Documents can be encrypted,
 //! decrypted, updated, granted to users and groups, and revoked from users and groups.
 //!
-//! ## [Group Operations](group/trait.GroupOps.html)
+//! ### Encrypting a Document
 //!
-//! Groups are one of the many differentiating features of the IronCore platform. This SDK allows for easy management of your cryptographic
-//! groups. Groups can be created, updated, and deleted along with management of a groups administrators and members.
+//! For simple encryption to self, the [document_encrypt()](document/trait.DocumentOps.html#tymethod.document_encrypt) function can be
+//! called with default values.
 //!
+//!```
+//! # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+//! # use ironoxide::prelude::*;
+//! # let sdk: IronOxide = unimplemented!();
+//! use ironoxide::document::DocumentEncryptOpts;
+//! let data = "secret data".as_bytes();
+//! let encrypted = sdk.document_encrypt(data, &DocumentEncryptOpts::default()).await?;
+//! let encrypted_bytes = encrypted.encrypted_data();
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ### Decrypting a Document
+//!
+//! Decrypting a document is even simpler, as the only thing required by
+//! [document_decrypt()](document/trait.DocumentOps.html#tymethod.document_decrypt) is the bytes of the encrypted document.
+//!
+//!```
+//! # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+//! # use ironoxide::prelude::*;
+//! # let sdk: IronOxide = unimplemented!();
+//! # let encrypted_bytes: &[u8] = &[1;1];
+//! let document = sdk.document_decrypt(encrypted_bytes).await?;
+//! let decrypted_data = document.decrypted_data();
+//! # Ok(())
+//! # }
+//! ```
 
 // required by quick_error or IronOxideErr
 #![recursion_limit = "128"]
@@ -105,7 +137,7 @@ use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
 use std::{convert::TryInto, fmt, sync::Mutex};
 use vec1::Vec1;
 
-/// Result of an Sdk operation
+/// A `Result` alias where the Err case is `IronOxideErr`
 pub type Result<T> = std::result::Result<T, IronOxideErr>;
 type PolicyCache = DashMap<PolicyGrant, Vec<WithKey<UserOrGroup>>>;
 
