@@ -42,8 +42,8 @@ impl ExplicitGrant {
 
 /// Parameters that can be provided when encrypting a new document.
 ///
-/// If no document ID is provided, one will be generated for it. If no document name is provided, the document's
-/// name will be left empty.
+/// Document IDs must be unique to the segment. If no ID is provided, one will be generated for it.
+/// If no document name is provided, the document's name will be left empty.
 ///
 /// For default parameters, use `DocumentEncryptOpts::default()`.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -64,7 +64,7 @@ impl DocumentEncryptOpts {
     /// # Arguments
     /// - `id` - Unique ID to use for the document. Note: this ID will **not** be encrypted.
     /// - `name` - Non-unique name to use for the document. Note: this name will **not** be encrypted.
-    /// - `grants` - Grants that control who will be granted access to this encrypted document.
+    /// - `grants` - Grants that control who will have access to read and decrypt this document.
     pub fn new(
         id: Option<DocumentId>,
         name: Option<DocumentName>,
@@ -79,7 +79,7 @@ impl DocumentEncryptOpts {
     /// - `id` - Unique ID to use for the document. Note: this ID will **not** be encrypted.
     /// - `name` - Non-unique name to use for the document. Note: this name will **not** be encrypted.
     /// - `grant_to_author` - True if the calling user should have access to decrypt the document
-    /// - `grants` - List of users and groups that should have access to decrypt the document
+    /// - `grants` - List of users and groups that should have access to read and decrypt this document
     pub fn with_explicit_grants(
         id: Option<DocumentId>,
         name: Option<DocumentName>,
@@ -101,7 +101,7 @@ impl DocumentEncryptOpts {
     /// # Arguments
     /// - `id` - Unique ID to use for the document. Note: this ID will **not** be encrypted.
     /// - `name` - Non-unique name to use for the document. Note: this name will **not** be encrypted.
-    /// - `grants` - Policy to determine what users and groups will have access to the document.
+    /// - `grants` - Policy to determine which users and groups will have access to read and decrypt this document.
     pub fn with_policy_grants(
         id: Option<DocumentId>,
         name: Option<DocumentName>,
@@ -118,7 +118,8 @@ impl DocumentEncryptOpts {
 impl Default for DocumentEncryptOpts {
     /// Constructs a `DocumentEncryptOpts` with common values.
     ///
-    /// The document will have a generated ID and no name. Access to the document will be granted only to its creator.
+    /// The document will have a generated ID and no name. Only the document's author will be able to
+    /// read and decrypt it.
     fn default() -> Self {
         DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![])
     }
@@ -128,9 +129,13 @@ impl Default for DocumentEncryptOpts {
 pub trait DocumentOps {
     /// Encrypts the provided document bytes.
     ///
-    /// This will create an entry for the document in the IronCore service. Returns a `DocumentEncryptResult`
-    /// which contains document metadata as well as the `encrypted_data`, which is the only thing that must be passed
-    /// to [document_decrypt()](trait.DocumentOps.html#tymethod.document_decrypt) in order to decrypt the document.
+    /// Returns a `DocumentEncryptResult` which contains document metadata as well as the `encrypted_data`,
+    /// which is the only thing that must be passed to [document_decrypt()](trait.DocumentOps.html#tymethod.document_decrypt)
+    /// in order to decrypt the document.
+    ///
+    /// Metadata about the document will be stored by IronCore, but the encrypted bytes of the document will not. To encrypt
+    /// without any document information being stored by IronCore, consider using
+    /// [document_encrypt_unmanaged()](advanced/trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged) instead.
     ///
     /// # Arguments
     /// - `document_data` - Bytes of the document to encrypt
@@ -177,8 +182,7 @@ pub trait DocumentOps {
     /// ```
     async fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult>;
 
-    /// Lists all of the IronCore encrypted documents that the calling user has been
-    /// granted access to.
+    /// Lists all of the encrypted documents that the calling user can read or decrypt.
     ///
     /// # Examples
     /// ```
@@ -192,7 +196,9 @@ pub trait DocumentOps {
     /// # }
     async fn document_list(&self) -> Result<DocumentListResult>;
 
-    /// Returns the metadata for an IronCore encrypted document.
+    /// Returns the metadata for an encrypted document.
+    ///
+    /// This will not return the encrypted document bytes, as they are not stored by IronCore.
     ///
     /// # Arguments
     /// - `id` - Unique ID of the document to retrieve
@@ -257,7 +263,7 @@ pub trait DocumentOps {
         new_document_data: &[u8],
     ) -> Result<DocumentEncryptResult>;
 
-    /// Updates a document's name to a new value.
+    /// Modifies or removes a document's name.
     ///
     /// Returns the updated metadata of the document.
     ///
@@ -283,13 +289,18 @@ pub trait DocumentOps {
         name: Option<&DocumentName>,
     ) -> Result<DocumentMetadataResult>;
 
-    /// Grants access to a document for a list of users and groups.
+    /// Grants decryption access to a document for the provided users and/or groups.
     ///
     /// Returns lists of successful and failed grants.
     ///
     /// # Arguments
     /// `document_id` - Unique ID of the document whose access is being modified.
     /// `grant_list` - List of users and groups to grant access to.
+    ///
+    /// # Errors
+    /// Fails only if the calling user does not have access to the document. If the response is an `Ok`, then the resulting
+    /// `DocumentAccessResult` will indicate which grants succeeded and which failed, and it will provide explanations for
+    /// each failure.
     ///
     /// # Examples
     /// ```
@@ -312,13 +323,18 @@ pub trait DocumentOps {
         grant_list: &Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult>;
 
-    /// Revokes access to a document for a list of users and groups.
+    /// Revokes decryption access to a document for the provided users and/or groups.
     ///
     /// Returns lists of successful and failed revocations.
     ///
     /// # Arguments
     /// `document_id` - Unique ID of the document whose access is being modified.
     /// `revoke_list` - List of users and groups to revoke access from.
+    ///
+    /// # Errors
+    /// Fails only if the calling user does not have access to the document. If the response is an `Ok`, then the resulting
+    /// `DocumentAccessResult` will indicate which revocations succeeded and which failed, and it will provide explanations for
+    /// each failure.
     ///
     /// # Examples
     /// ```
