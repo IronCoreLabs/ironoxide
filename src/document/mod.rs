@@ -19,7 +19,7 @@ use itertools::{Either, EitherOrBoth, Itertools};
 /// Advanced document operations
 pub mod advanced;
 
-/// Explicit list of users and groups that should have access to decrypt a document.
+/// List of users and groups that should have access to decrypt a document.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct ExplicitGrant {
     grant_to_author: bool,
@@ -203,13 +203,13 @@ pub trait DocumentOps {
     /// # use ironoxide::prelude::*;
     /// # let sdk: IronOxide = unimplemented!();
     /// # let document_id: DocumentId = unimplemented!();
-    /// let document_data = sdk.document_get_metadata(&document_id).await?;
+    /// let document_meta = sdk.document_get_metadata(&document_id).await?;
     /// # Ok(())
     /// # }
     /// ```
     async fn document_get_metadata(&self, id: &DocumentId) -> Result<DocumentMetadataResult>;
 
-    /// Returns the document ID from the bytes of an IronCore encrypted document.
+    /// Returns the document ID from the bytes of an encrypted document.
     ///
     /// This is the same ID returned by `DocumentEncryptResult.id()`.
     ///
@@ -217,7 +217,7 @@ pub trait DocumentOps {
     /// - `encrypted_document` - Bytes of the encrypted document
     ///
     /// # Errors
-    /// Fails if the provided encrypted bytes have no header.
+    /// Fails if the provided bytes are not an encrypted document or have no header.
     ///
     /// # Examples
     /// ```
