@@ -3,9 +3,10 @@ mod common;
 #[cfg(feature = "beta")]
 mod search_tests {
     use crate::common::initialize_sdk;
-    use galvanic_assert::assert_that;
-    use galvanic_assert::matchers::collection::contains_subset;
-    use galvanic_assert::matchers::geq;
+    use galvanic_assert::{
+        assert_that,
+        matchers::{collection::contains_subset, geq},
+    };
     use ironoxide::{group::GroupOps, prelude::*, search::*};
 
     #[tokio::test]
