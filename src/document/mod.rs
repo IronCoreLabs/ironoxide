@@ -298,9 +298,9 @@ pub trait DocumentOps {
     /// `grant_list` - List of users and groups to grant access to.
     ///
     /// # Errors
-    /// Fails only if the calling user does not have access to the document. If the response is an `Ok`, then the resulting
-    /// `DocumentAccessResult` will indicate which grants succeeded and which failed, and it will provide explanations for
-    /// each failure.
+    /// This operation supports partial success. If the request succeeds, then the resulting
+    /// `DocumentAccessResult` will indicate which grants succeeded and which failed, and it
+    /// will provide an explanation for each failure.
     ///
     /// # Examples
     /// ```
@@ -332,9 +332,9 @@ pub trait DocumentOps {
     /// `revoke_list` - List of users and groups to revoke access from.
     ///
     /// # Errors
-    /// Fails only if the calling user does not have access to the document. If the response is an `Ok`, then the resulting
-    /// `DocumentAccessResult` will indicate which revocations succeeded and which failed, and it will provide explanations for
-    /// each failure.
+    /// This operation supports partial success. If the request succeeds, then the resulting
+    /// `DocumentAccessResult` will indicate which revocations succeeded and which failed, and it
+    /// will provide an explanation for each failure.
     ///
     /// # Examples
     /// ```
