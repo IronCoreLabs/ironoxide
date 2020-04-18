@@ -1,4 +1,3 @@
-#[doc(inline)]
 pub use crate::{
     document::DocumentOps,
     group::GroupOps,
