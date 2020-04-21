@@ -111,7 +111,6 @@ type PolicyCache = DashMap<PolicyGrant, Vec<WithKey<UserOrGroup>>>;
 // This is where we export structs that don't fit into a single module.
 // They were previously exported at the top level, but added clutter to the docs landing page.
 /// Types that are useful in multiple modules
-#[doc(inline)]
 pub mod common {
     pub use crate::internal::{
         DeviceContext, DeviceSigningKeyPair, PrivateKey, PublicKey, SdkOperation,
@@ -131,6 +130,15 @@ pub mod config {
         pub sdk_operation_timeout: Option<Duration>,
     }
 
+    impl Default for IronOxideConfig {
+        fn default() -> Self {
+            IronOxideConfig {
+                policy_caching: PolicyCachingConfig::default(),
+                sdk_operation_timeout: Some(Duration::from_secs(30)),
+            }
+        }
+    }
+
     /// Policy evaluation caching config. Lifetime of the cache is the lifetime of the `IronOxide` struct.
     ///
     /// Since policies are evaluated by the webservice, caching the result can greatly speed
@@ -141,15 +149,6 @@ pub mod config {
         /// maximum number of policy evaluations that will be cached by the SDK.
         /// If the maximum number is exceeded, the cache will be cleared prior to storing the next entry
         pub max_entries: usize,
-    }
-
-    impl Default for IronOxideConfig {
-        fn default() -> Self {
-            IronOxideConfig {
-                policy_caching: PolicyCachingConfig::default(),
-                sdk_operation_timeout: Some(Duration::from_secs(30)),
-            }
-        }
     }
 
     impl Default for PolicyCachingConfig {
