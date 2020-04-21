@@ -9,11 +9,18 @@
 //!
 
 use crate::{
-    document::{advanced::*, DocumentEncryptOpts},
-    internal::{take_lock, IronOxideErr},
-    GroupId, IronOxide, Result,
+    document::{
+        advanced::{DocumentAdvancedOps, DocumentEncryptUnmanagedResult},
+        DocumentEncryptOpts,
+    },
+    group::GroupId,
+    internal::take_lock,
+    IronOxide, IronOxideErr, Result,
 };
 use async_trait::async_trait;
+use ironcore_search_helpers::{
+    generate_hashes_for_string, generate_hashes_for_string_with_padding,
+};
 use rand::{
     self,
     rngs::{adapter::ReseedingRng, OsRng},
@@ -25,10 +32,6 @@ use std::{
     convert::{TryFrom, TryInto},
     ops::DerefMut,
     sync::Mutex,
-};
-
-use ironcore_search_helpers::{
-    generate_hashes_for_string, generate_hashes_for_string_with_padding,
 };
 
 #[cfg(feature = "blocking")]

@@ -346,21 +346,21 @@ pub async fn user_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DeviceAddResult {
     /// The user's given id, which uniquely identifies them inside the segment.
-    account_id: UserId,
+    pub(crate) account_id: UserId,
     /// The user's segment id
-    segment_id: usize,
+    pub(crate) segment_id: usize,
     /// The private key which was generated for a particular device for the user. Not the user's master private key.
-    device_private_key: PrivateKey,
+    pub(crate) device_private_key: PrivateKey,
     /// The signing key which was generated for the device. “expanded private key” (both pub/priv)
-    signing_private_key: DeviceSigningKeyPair,
+    pub(crate) signing_private_key: DeviceSigningKeyPair,
     /// The id of the device that was added
-    device_id: DeviceId,
+    pub(crate) device_id: DeviceId,
     /// The name of the device that was added
-    name: Option<DeviceName>,
+    pub(crate) name: Option<DeviceName>,
     /// The date and time that the device was created
-    created: DateTime<Utc>,
+    pub(crate) created: DateTime<Utc>,
     /// The date and time that the device was last updated
-    last_updated: DateTime<Utc>,
+    pub(crate) last_updated: DateTime<Utc>,
 }
 
 impl DeviceAddResult {
@@ -387,17 +387,6 @@ impl DeviceAddResult {
     }
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.last_updated
-    }
-}
-
-impl From<DeviceAddResult> for DeviceContext {
-    fn from(dar: DeviceAddResult) -> Self {
-        DeviceContext::new(
-            dar.account_id,
-            dar.segment_id,
-            dar.device_private_key,
-            dar.signing_private_key,
-        )
     }
 }
 

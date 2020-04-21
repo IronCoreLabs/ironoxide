@@ -84,14 +84,11 @@ pub use crate::internal::IronOxideErr;
 use crate::{
     common::{DeviceContext, DeviceSigningKeyPair, PublicKey, SdkOperation},
     config::IronOxideConfig,
-    internal::{
-        add_optional_timeout,
-        document_api::UserOrGroup,
-        group_api::{GroupId, GroupUpdatePrivateKeyResult},
-        user_api::{UserId, UserResult, UserUpdatePrivateKeyResult},
-        WithKey,
-    },
+    document::UserOrGroup,
+    group::{GroupId, GroupUpdatePrivateKeyResult},
+    internal::{add_optional_timeout, WithKey},
     policy::PolicyGrant,
+    user::{UserId, UserResult, UserUpdatePrivateKeyResult},
 };
 use dashmap::DashMap;
 use itertools::EitherOrBoth;
