@@ -3,10 +3,10 @@ mod common;
 use common::{create_id_all_classes, gen_jwt, initialize_sdk};
 use galvanic_assert::{matchers::*, *};
 use ironoxide::{
+    common::SdkOperation,
     document::DocumentEncryptOpts,
     prelude::*,
     user::{DeviceCreateOpts, UserCreateOpts},
-    SdkOperation,
 };
 use std::{convert::TryInto, default::Default};
 use uuid::Uuid;

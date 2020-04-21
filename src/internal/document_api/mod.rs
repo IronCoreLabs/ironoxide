@@ -26,10 +26,10 @@ use itertools::{Either, Itertools};
 use protobuf::{Message, RepeatedField};
 use rand::{self, CryptoRng, RngCore};
 use recrypt::{api::Plaintext, prelude::*};
-pub use requests::policy_get::PolicyResponse;
 use requests::{
     document_create,
     document_list::{DocumentListApiResponse, DocumentListApiResponseItem},
+    policy_get::PolicyResponse,
     DocumentMetaApiResponse,
 };
 use std::{

@@ -79,11 +79,10 @@ pub mod policy;
 /// Convenience re-export of essential IronOxide types
 pub mod prelude;
 
-pub use crate::internal::{
-    DeviceAddResult, DeviceContext, DeviceSigningKeyPair, IronOxideErr, KeyPair, PrivateKey,
-    PublicKey, SdkOperation,
-};
+pub use crate::internal::IronOxideErr;
+
 use crate::{
+    common::{DeviceContext, DeviceSigningKeyPair, PublicKey, SdkOperation},
     config::IronOxideConfig,
     internal::{
         add_optional_timeout,
@@ -108,6 +107,16 @@ use vec1::Vec1;
 /// Result of an Sdk operation
 pub type Result<T> = std::result::Result<T, IronOxideErr>;
 type PolicyCache = DashMap<PolicyGrant, Vec<WithKey<UserOrGroup>>>;
+
+// This is where we export structs that don't fit into a single module.
+// They were previously exported at the top level, but added clutter to the docs landing page.
+/// Types that are useful in multiple modules
+#[doc(inline)]
+pub mod common {
+    pub use crate::internal::{
+        DeviceContext, DeviceSigningKeyPair, PrivateKey, PublicKey, SdkOperation,
+    };
+}
 
 /// IronOxide SDK configuration
 pub mod config {

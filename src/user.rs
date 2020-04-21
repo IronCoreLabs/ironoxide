@@ -1,12 +1,12 @@
 pub use crate::internal::user_api::{
-    EncryptedPrivateKey, UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserResult,
-    UserUpdatePrivateKeyResult,
+    DeviceAddResult, EncryptedPrivateKey, KeyPair, UserCreateResult, UserDevice,
+    UserDeviceListResult, UserId, UserResult, UserUpdatePrivateKeyResult,
 };
 use crate::{
     internal::{
         add_optional_timeout,
         user_api::{self, DeviceId, DeviceName},
-        DeviceAddResult, PublicKey, OUR_REQUEST,
+        PublicKey, OUR_REQUEST,
     },
     IronOxide, Result, SdkOperation,
 };

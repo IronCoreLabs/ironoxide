@@ -7,11 +7,12 @@ use galvanic_assert::{
     *,
 };
 use ironoxide::{
+    common::SdkOperation,
     config::IronOxideConfig,
     document::{advanced::*, *},
     group::GroupCreateOpts,
     prelude::*,
-    IronOxide, SdkOperation,
+    IronOxide,
 };
 use itertools::EitherOrBoth;
 use std::convert::{TryFrom, TryInto};

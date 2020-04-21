@@ -7,28 +7,31 @@
 //!
 //! # Optional
 //! This requires the optional `blocking` feature to be enabled.
-pub use crate::internal::{
-    document_api::{
-        AssociationType, DocAccessEditErr, DocumentAccessResult, DocumentDecryptResult,
-        DocumentDecryptUnmanagedResult, DocumentEncryptResult, DocumentEncryptUnmanagedResult,
-        DocumentId, DocumentListMeta, DocumentListResult, DocumentMetadataResult, DocumentName,
-        UserOrGroup, VisibleGroup, VisibleUser,
-    },
-    group_api::{
-        GroupAccessEditErr, GroupAccessEditResult, GroupCreateResult, GroupGetResult, GroupId,
-        GroupListResult, GroupMetaResult, GroupName, GroupUpdatePrivateKeyResult,
-    },
-    user_api::{
-        DeviceId, EncryptedPrivateKey, UserCreateResult, UserDevice, UserDeviceListResult, UserId,
-        UserResult, UserUpdatePrivateKeyResult,
-    },
-};
+
+/// Convenience re-export of all blocking IronOxide types
+pub mod prelude;
+
 use crate::{
     config::IronOxideConfig,
     document::{advanced::DocumentAdvancedOps, DocumentEncryptOpts, DocumentOps},
     group::{GroupCreateOpts, GroupOps},
-    user::{DeviceCreateOpts, UserCreateOpts, UserOps},
-    DeviceAddResult, DeviceContext,
+    internal::{
+        document_api::{
+            DocumentAccessResult, DocumentDecryptResult, DocumentDecryptUnmanagedResult,
+            DocumentEncryptResult, DocumentEncryptUnmanagedResult, DocumentId, DocumentListResult,
+            DocumentMetadataResult, DocumentName, UserOrGroup,
+        },
+        group_api::{
+            GroupAccessEditResult, GroupCreateResult, GroupGetResult, GroupId, GroupListResult,
+            GroupMetaResult, GroupName, GroupUpdatePrivateKeyResult,
+        },
+        user_api::{
+            DeviceId, UserCreateResult, UserDeviceListResult, UserId, UserResult,
+            UserUpdatePrivateKeyResult,
+        },
+    },
+    user::{DeviceAddResult, DeviceCreateOpts, UserCreateOpts, UserOps},
+    DeviceContext,
     InitAndRotationCheck::{self, NoRotationNeeded, RotationNeeded},
     IronOxide, PrivateKeyRotationCheckResult, PublicKey, Result,
 };

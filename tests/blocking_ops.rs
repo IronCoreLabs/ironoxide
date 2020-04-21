@@ -8,10 +8,11 @@ mod integration_tests {
     use galvanic_assert::{matchers::*, *};
     use ironoxide::{
         blocking::BlockingIronOxide,
+        common::SdkOperation,
         config::IronOxideConfig,
         group::GroupCreateOpts,
         user::{UserCreateOpts, UserId},
-        InitAndRotationCheck, IronOxideErr, SdkOperation,
+        InitAndRotationCheck, IronOxideErr,
     };
     use std::{convert::TryInto, time::Duration};
     // Tests a UserOp (user_create/generate_new_device), a GroupOp (group_create),
