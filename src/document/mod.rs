@@ -57,9 +57,9 @@ pub struct DocumentEncryptOpts {
 impl DocumentEncryptOpts {
     /// Constructs a new `DocumentEncryptOpts`.
     ///
-    /// This requires either an `ExplicitGrant`, a `PolicyGrant`, or both. If only using one type
-    /// of grant, consider using [with_explicit_grants()](./struct.DocumentEncryptOpts.html#method.with_explicit_grants)
-    /// or [with_policy_grants()](./struct.DocumentEncryptOpts.html#method.with_policy_grants) instead.
+    /// Document encryption requires an `ExplicitGrant`, a `PolicyGrant`, or both. If only using one type
+    /// of grant, consider using [with_explicit_grants](./struct.DocumentEncryptOpts.html#method.with_explicit_grants)
+    /// or [with_policy_grants](./struct.DocumentEncryptOpts.html#method.with_policy_grants) instead.
     ///
     /// # Arguments
     /// - `id` - Unique ID to use for the document. Note: this ID will **not** be encrypted.
@@ -101,7 +101,8 @@ impl DocumentEncryptOpts {
     /// # Arguments
     /// - `id` - Unique ID to use for the document. Note: this ID will **not** be encrypted.
     /// - `name` - Non-unique name to use for the document. Note: this name will **not** be encrypted.
-    /// - `grants` - Policy to determine which users and groups will have access to read and decrypt this document.
+    /// - `policy` - Policy to determine which users and groups will have access to read and decrypt this document.
+    ///              See the [policy](../policy/index.html) module for more information.
     pub fn with_policy_grants(
         id: Option<DocumentId>,
         name: Option<DocumentName>,
@@ -130,12 +131,12 @@ pub trait DocumentOps {
     /// Encrypts the provided document bytes.
     ///
     /// Returns a `DocumentEncryptResult` which contains document metadata as well as the `encrypted_data`,
-    /// which is the only thing that must be passed to [document_decrypt()](trait.DocumentOps.html#tymethod.document_decrypt)
+    /// which is the only thing that must be passed to [document_decrypt](trait.DocumentOps.html#tymethod.document_decrypt)
     /// in order to decrypt the document.
     ///
     /// Metadata about the document will be stored by IronCore, but the encrypted bytes of the document will not. To encrypt
     /// without any document information being stored by IronCore, consider using
-    /// [document_encrypt_unmanaged()](advanced/trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged) instead.
+    /// [document_encrypt_unmanaged](advanced/trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged) instead.
     ///
     /// # Arguments
     /// - `document_data` - Bytes of the document to encrypt
@@ -146,7 +147,7 @@ pub trait DocumentOps {
     /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
     /// # use ironoxide::prelude::*;
     /// # let sdk: IronOxide = unimplemented!();
-    /// use ironoxide::document::DocumentEncryptOpts;
+    /// # use ironoxide::document::DocumentEncryptOpts;
     /// let data = "secret data".as_bytes();
     /// let encrypted = sdk.document_encrypt(data, &DocumentEncryptOpts::default()).await?;
     /// # Ok(())
@@ -164,7 +165,7 @@ pub trait DocumentOps {
     ///
     /// # Arguments
     /// - `encrypted_document` - Bytes of encrypted document. These should be the same bytes returned from
-    /// [document_encrypt()](trait.DocumentOps.html#tymethod.document_encrypt).
+    /// [document_encrypt](trait.DocumentOps.html#tymethod.document_encrypt).
     ///
     /// # Errors
     /// Fails if passed malformed data or if the calling user does not have sufficient access to the document.
@@ -182,7 +183,7 @@ pub trait DocumentOps {
     /// ```
     async fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult>;
 
-    /// Lists all of the encrypted documents that the calling user can read or decrypt.
+    /// Lists metadata for all of the encrypted documents that the calling user can read or decrypt.
     ///
     /// # Examples
     /// ```
@@ -208,7 +209,8 @@ pub trait DocumentOps {
     /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
     /// # use ironoxide::prelude::*;
     /// # let sdk: IronOxide = unimplemented!();
-    /// # let document_id: DocumentId = unimplemented!();
+    /// use std::convert::TryFrom;
+    /// let document_id = DocumentId::try_from("test_document")?;
     /// let document_meta = sdk.document_get_metadata(&document_id).await?;
     /// # Ok(())
     /// # }
@@ -231,6 +233,7 @@ pub trait DocumentOps {
     /// # use ironoxide::prelude::*;
     /// # let sdk: IronOxide = unimplemented!();
     /// # let bytes: Vec<u8> = vec![];
+    /// // with `bytes` returned from `document_encrypt`
     /// let document_id = sdk.document_get_id_from_bytes(&bytes)?;
     /// # Ok(())
     /// # }
@@ -294,8 +297,8 @@ pub trait DocumentOps {
     /// Returns lists of successful and failed grants.
     ///
     /// # Arguments
-    /// `document_id` - Unique ID of the document whose access is being modified.
-    /// `grant_list` - List of users and groups to grant access to.
+    /// - `document_id` - Unique ID of the document whose access is being modified.
+    /// - `grant_list` - List of users and groups to grant access to.
     ///
     /// # Errors
     /// This operation supports partial success. If the request succeeds, then the resulting
@@ -309,7 +312,6 @@ pub trait DocumentOps {
     /// # let sdk: IronOxide = unimplemented!();
     /// # let document_id: DocumentId = unimplemented!();
     /// # let users: Vec<UserId> = vec![];
-    /// use std::convert::TryFrom;
     /// use ironoxide::document::UserOrGroup;
     /// // from a list of UserIds, `users`
     /// let users_or_groups: Vec<UserOrGroup> = users.iter().map(|user| user.into()).collect();
@@ -328,8 +330,8 @@ pub trait DocumentOps {
     /// Returns lists of successful and failed revocations.
     ///
     /// # Arguments
-    /// `document_id` - Unique ID of the document whose access is being modified.
-    /// `revoke_list` - List of users and groups to revoke access from.
+    /// - `document_id` - Unique ID of the document whose access is being modified.
+    /// - `revoke_list` - List of users and groups to revoke access from.
     ///
     /// # Errors
     /// This operation supports partial success. If the request succeeds, then the resulting
@@ -343,7 +345,6 @@ pub trait DocumentOps {
     /// # let sdk: IronOxide = unimplemented!();
     /// # let document_id: DocumentId = unimplemented!();
     /// # let users: Vec<UserId> = vec![];
-    /// use std::convert::TryFrom;
     /// use ironoxide::document::UserOrGroup;
     /// // from a list of UserIds, `users`
     /// let users_or_groups: Vec<UserOrGroup> = users.iter().map(|user| user.into()).collect();

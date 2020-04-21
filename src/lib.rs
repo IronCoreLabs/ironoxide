@@ -28,7 +28,7 @@
 //!
 //! ### Encrypting a Document
 //!
-//! For simple encryption to self, the [document_encrypt()](document/trait.DocumentOps.html#tymethod.document_encrypt) function can be
+//! For simple encryption to self, the [document_encrypt](document/trait.DocumentOps.html#tymethod.document_encrypt) function can be
 //! called with default values.
 //!
 //!```
@@ -46,7 +46,7 @@
 //! ### Decrypting a Document
 //!
 //! Decrypting a document is even simpler, as the only thing required by
-//! [document_decrypt()](document/trait.DocumentOps.html#tymethod.document_decrypt) is the bytes of the encrypted document.
+//! [document_decrypt](document/trait.DocumentOps.html#tymethod.document_decrypt) is the bytes of the encrypted document.
 //!
 //!```
 //! # async fn run() -> Result<(), ironoxide::IronOxideErr> {
@@ -158,7 +158,7 @@ pub mod config {
     ///
     /// Since policies are evaluated by the webservice, caching the result can greatly speed
     /// up encrypting a document with a [PolicyGrant](../policy/struct.PolicyGrant.html). There is no expiration of the cache, so
-    /// if you want to clear it at runtime, call [IronOxide::clear_policy_cache()](../struct.IronOxide.html#method.clear_policy_cache).
+    /// if you want to clear it at runtime, call [IronOxide::clear_policy_cache](../struct.IronOxide.html#method.clear_policy_cache).
     #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
     pub struct PolicyCachingConfig {
         /// maximum number of policy evaluations that will be cached by the SDK.
@@ -371,8 +371,8 @@ impl IronOxide {
     /// Rotate the private key of the calling user and all groups they are an administrator of where needs_rotation is true.
     /// Note that this function has the potential to take much longer than other functions, as rotation will be done
     /// individually on each user/group. If rotation is only needed for a specific group, it is strongly recommended
-    /// to call [user_rotate_private_key()](user\/trait.UserOps.html#tymethod.user_rotate_private_key) or
-    /// [group_rotate_private_key()](group\/trait.GroupOps.html#tymethod.group_rotate_private_key) instead.
+    /// to call [user_rotate_private_key](user\/trait.UserOps.html#tymethod.user_rotate_private_key) or
+    /// [group_rotate_private_key](group\/trait.GroupOps.html#tymethod.group_rotate_private_key) instead.
     /// # Arguments
     /// - `rotations` - PrivateKeyRotationCheckResult that holds all users and groups to be rotated
     /// - `password` - Password to unlock the current user's user master key

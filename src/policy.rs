@@ -79,7 +79,7 @@ use crate::{internal::user_api::UserId, IronOxideErr, Result};
 use regex::Regex;
 use std::convert::TryFrom;
 
-/// Document access granted by a policy. For use with [DocumentOps.document_encrypt()](../document/trait.DocumentOps.html#tymethod.document_encrypt).
+/// Document access granted by a policy. For use with [DocumentOps.document_encrypt](../document/trait.DocumentOps.html#tymethod.document_encrypt).
 ///
 /// The triple (`category`, `sensitivity`, `data_subject`) maps to a single policy rule. Each policy
 /// rule may generate any number of users/groups.
