@@ -5,11 +5,7 @@ use common::{
     USER_PASSWORD,
 };
 use galvanic_assert::{assert_that, is_variant};
-use ironoxide::{
-    document::DocumentEncryptOpts,
-    group::{GroupCreateOpts, GroupId, GroupOps},
-    prelude::*,
-};
+use ironoxide::prelude::*;
 use std::convert::TryInto;
 use uuid::Uuid;
 
