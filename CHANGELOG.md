@@ -1,12 +1,12 @@
 # Changelog
 
-## 0.21.1 (unreleased)
+## 0.21.1
 
 - [[#138](https://github.com/IronCoreLabs/ironoxide/pull/138)]
-  - Remove `publicsuffix` default features (openssl-sys) 
-- [[#129](https://github.com/IronCoreLabs/ironoxide/pull/129)] 
+  - Remove `publicsuffix` default features (openssl-sys)
+- [[#129](https://github.com/IronCoreLabs/ironoxide/pull/129)]
   - Improve error message for SDK initialization failure
-- [[#132](https://github.com/IronCoreLabs/ironoxide/pull/132)]  
+- [[#132](https://github.com/IronCoreLabs/ironoxide/pull/132)]
   - Add feature flags to enable alternative TLS linking and implementations
 
 ## 0.21.0
