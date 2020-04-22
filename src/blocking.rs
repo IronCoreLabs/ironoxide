@@ -8,15 +8,12 @@
 //! # Optional
 //! This requires the optional `blocking` feature to be enabled.
 
-/// Convenience re-export of all blocking IronOxide types
-pub mod prelude;
-
 use crate::{
+    prelude::*,
     InitAndRotationCheck::{NoRotationNeeded, RotationNeeded},
     Result,
 };
 use futures::executor::block_on;
-use prelude::*;
 use std::collections::HashMap;
 
 #[cfg(feature = "beta")]

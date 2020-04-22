@@ -7,7 +7,7 @@ mod search_tests {
         assert_that,
         matchers::{collection::contains_subset, geq},
     };
-    use ironoxide::{prelude::*, search::*};
+    use ironoxide::prelude::*;
 
     #[tokio::test]
     async fn create_blind_index() -> Result<(), IronOxideErr> {
