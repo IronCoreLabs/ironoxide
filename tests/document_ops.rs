@@ -11,6 +11,21 @@ use itertools::EitherOrBoth;
 use std::convert::{TryFrom, TryInto};
 
 #[tokio::test]
+async fn doc_list() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
+    let (other_user, _) = init_sdk_get_user().await;
+    let doc = "secret".as_bytes();
+    // grant_to_author is false, but doc should still come back in document_list
+    let opts =
+        DocumentEncryptOpts::with_explicit_grants(None, None, false, vec![(&other_user).into()]);
+    sdk.document_encrypt(doc, &opts).await?;
+    let document_list = sdk.document_list().await?;
+    dbg!(&document_list);
+    assert_eq!(document_list.result().len(), 1);
+    Ok(())
+}
+
+#[tokio::test]
 async fn doc_roundtrip_empty_data() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
     let doc = [0u8; 0];

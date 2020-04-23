@@ -34,19 +34,19 @@ impl BlockingIronOxide {
         &self.ironoxide.device
     }
 
-    /// See [ironoxide::IronOxide::clear_policy_cache()](../struct.IronOxide.html#method.clear_policy_cache)
+    /// See [ironoxide::IronOxide::clear_policy_cache](../struct.IronOxide.html#method.clear_policy_cache)
     pub fn clear_policy_cache(&self) -> usize {
         self.ironoxide.clear_policy_cache()
     }
 
-    /// See [ironoxide::IronOxide::create_blind_index()](../struct.IronOxide.html#method.create_blind_index)
+    /// See [ironoxide::IronOxide::create_blind_index](../struct.IronOxide.html#method.create_blind_index)
     #[cfg(feature = "beta")]
     pub fn create_blind_index(&self, group_id: &GroupId) -> Result<EncryptedBlindIndexSalt> {
         self.runtime
             .enter(|| block_on(self.ironoxide.create_blind_index(group_id)))
     }
 
-    /// See [ironoxide::IronOxide::rotate_all()](../struct.IronOxide.html#method.rotate_all)
+    /// See [ironoxide::IronOxide::rotate_all](../struct.IronOxide.html#method.rotate_all)
     pub fn rotate_all(
         &self,
         rotations: &PrivateKeyRotationCheckResult,
@@ -60,22 +60,22 @@ impl BlockingIronOxide {
             .enter(|| block_on(self.ironoxide.rotate_all(rotations, password, timeout)))
     }
 
-    /// See [ironoxide::document::DocumentOps::document_list()](trait.DocumentOps.html#tymethod.document_list)
+    /// See [ironoxide::document::DocumentOps::document_list](trait.DocumentOps.html#tymethod.document_list)
     pub fn document_list(&self) -> Result<DocumentListResult> {
         self.runtime
             .enter(|| block_on(self.ironoxide.document_list()))
     }
-    /// See [ironoxide::document::DocumentOps::document_get_metadata()](trait.DocumentOps.html#tymethod.document_get_metadata)
+    /// See [ironoxide::document::DocumentOps::document_get_metadata](trait.DocumentOps.html#tymethod.document_get_metadata)
     pub fn document_get_metadata(&self, id: &DocumentId) -> Result<DocumentMetadataResult> {
         self.runtime
             .enter(|| block_on(self.ironoxide.document_get_metadata(id)))
     }
-    /// See [ironoxide::document::DocumentOps::document_get_id_from_bytes()](trait.DocumentOps.html#tymethod.document_get_id_from_bytes)
+    /// See [ironoxide::document::DocumentOps::document_get_id_from_bytes](trait.DocumentOps.html#tymethod.document_get_id_from_bytes)
     pub fn document_get_id_from_bytes(&self, encrypted_document: &[u8]) -> Result<DocumentId> {
         self.ironoxide
             .document_get_id_from_bytes(encrypted_document)
     }
-    /// See [ironoxide::document::DocumentOps::document_encrypt()](trait.DocumentOps.html#tymethod.document_encrypt)
+    /// See [ironoxide::document::DocumentOps::document_encrypt](trait.DocumentOps.html#tymethod.document_encrypt)
     pub fn document_encrypt(
         &self,
         document_data: &[u8],
@@ -84,7 +84,7 @@ impl BlockingIronOxide {
         self.runtime
             .enter(|| block_on(self.ironoxide.document_encrypt(document_data, encrypt_opts)))
     }
-    /// See [ironoxide::document::DocumentOps::document_update_bytes()](trait.DocumentOps.html#tymethod.document_update_bytes)
+    /// See [ironoxide::document::DocumentOps::document_update_bytes](trait.DocumentOps.html#tymethod.document_update_bytes)
     pub fn document_update_bytes(
         &self,
         id: &DocumentId,
@@ -93,12 +93,12 @@ impl BlockingIronOxide {
         self.runtime
             .enter(|| block_on(self.ironoxide.document_update_bytes(id, new_document_data)))
     }
-    /// See [ironoxide::document::DocumentOps::document_decrypt()](trait.DocumentOps.html#tymethod.document_decrypt)
+    /// See [ironoxide::document::DocumentOps::document_decrypt](trait.DocumentOps.html#tymethod.document_decrypt)
     pub fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult> {
         self.runtime
             .enter(|| block_on(self.ironoxide.document_decrypt(encrypted_document)))
     }
-    /// See [ironoxide::document::DocumentOps::document_update_name()](trait.DocumentOps.html#tymethod.document_update_name)
+    /// See [ironoxide::document::DocumentOps::document_update_name](trait.DocumentOps.html#tymethod.document_update_name)
     pub fn document_update_name(
         &self,
         id: &DocumentId,
@@ -107,7 +107,7 @@ impl BlockingIronOxide {
         self.runtime
             .enter(|| block_on(self.ironoxide.document_update_name(id, name)))
     }
-    /// See [ironoxide::document::DocumentOps::document_grant_access()](trait.DocumentOps.html#tymethod.document_grant_access)
+    /// See [ironoxide::document::DocumentOps::document_grant_access](trait.DocumentOps.html#tymethod.document_grant_access)
     pub fn document_grant_access(
         &self,
         id: &DocumentId,
@@ -116,7 +116,7 @@ impl BlockingIronOxide {
         self.runtime
             .enter(|| block_on(self.ironoxide.document_grant_access(id, grant_list)))
     }
-    /// See [ironoxide::document::DocumentOps::document_revoke_access()](trait.DocumentOps.html#tymethod.document_revoke_access)
+    /// See [ironoxide::document::DocumentOps::document_revoke_access](trait.DocumentOps.html#tymethod.document_revoke_access)
     pub fn document_revoke_access(
         &self,
         id: &DocumentId,
@@ -125,7 +125,7 @@ impl BlockingIronOxide {
         self.runtime
             .enter(|| block_on(self.ironoxide.document_revoke_access(id, revoke_list)))
     }
-    /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_encrypt_unmanaged()](trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged)
+    /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_encrypt_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged)
     pub fn document_encrypt_unmanaged(
         &self,
         data: &[u8],
@@ -138,7 +138,7 @@ impl BlockingIronOxide {
             )
         })
     }
-    /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_decrypt_unmanaged()](trait.DocumentAdvancedOps.html#tymethod.document_decrypt_unmanaged)
+    /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_decrypt_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_decrypt_unmanaged)
     pub fn document_decrypt_unmanaged(
         &self,
         encrypted_data: &[u8],
@@ -151,26 +151,26 @@ impl BlockingIronOxide {
             )
         })
     }
-    /// See [ironoxide::group::GroupOps::group_list()](trait.GroupOps.html#tymethod.group_list)
+    /// See [ironoxide::group::GroupOps::group_list](trait.GroupOps.html#tymethod.group_list)
     pub fn group_list(&self) -> Result<GroupListResult> {
         self.runtime.enter(|| block_on(self.ironoxide.group_list()))
     }
-    /// See [ironoxide::group::GroupOps::group_create()](trait.GroupOps.html#tymethod.group_create)
+    /// See [ironoxide::group::GroupOps::group_create](trait.GroupOps.html#tymethod.group_create)
     pub fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupCreateResult> {
         self.runtime
             .enter(|| block_on(self.ironoxide.group_create(opts)))
     }
-    /// See [ironoxide::group::GroupOps::group_get_metadata()](trait.GroupOps.html#tymethod.group_get_metadata)
+    /// See [ironoxide::group::GroupOps::group_get_metadata](trait.GroupOps.html#tymethod.group_get_metadata)
     pub fn group_get_metadata(&self, id: &GroupId) -> Result<GroupGetResult> {
         self.runtime
             .enter(|| block_on(self.ironoxide.group_get_metadata(id)))
     }
-    /// See [ironoxide::group::GroupOps::group_delete()](trait.GroupOps.html#tymethod.group_delete)
+    /// See [ironoxide::group::GroupOps::group_delete](trait.GroupOps.html#tymethod.group_delete)
     pub fn group_delete(&self, id: &GroupId) -> Result<GroupId> {
         self.runtime
             .enter(|| block_on(self.ironoxide.group_delete(id)))
     }
-    /// See [ironoxide::group::GroupOps::group_update_name()](trait.GroupOps.html#tymethod.group_update_name)
+    /// See [ironoxide::group::GroupOps::group_update_name](trait.GroupOps.html#tymethod.group_update_name)
     pub fn group_update_name(
         &self,
         id: &GroupId,
@@ -179,7 +179,7 @@ impl BlockingIronOxide {
         self.runtime
             .enter(|| block_on(self.ironoxide.group_update_name(id, name)))
     }
-    /// See [ironoxide::group::GroupOps::group_add_members()](trait.GroupOps.html#tymethod.group_add_members)
+    /// See [ironoxide::group::GroupOps::group_add_members](trait.GroupOps.html#tymethod.group_add_members)
     pub fn group_add_members(
         &self,
         id: &GroupId,
@@ -188,7 +188,7 @@ impl BlockingIronOxide {
         self.runtime
             .enter(|| block_on(self.ironoxide.group_add_members(id, grant_list)))
     }
-    /// See [ironoxide::group::GroupOps::group_remove_members()](trait.GroupOps.html#tymethod.group_remove_members)
+    /// See [ironoxide::group::GroupOps::group_remove_members](trait.GroupOps.html#tymethod.group_remove_members)
     pub fn group_remove_members(
         &self,
         id: &GroupId,
@@ -197,7 +197,7 @@ impl BlockingIronOxide {
         self.runtime
             .enter(|| block_on(self.ironoxide.group_remove_members(id, revoke_list)))
     }
-    /// See [ironoxide::group::GroupOps::group_add_admins()](trait.GroupOps.html#tymethod.group_add_admins)
+    /// See [ironoxide::group::GroupOps::group_add_admins](trait.GroupOps.html#tymethod.group_add_admins)
     pub fn group_add_admins(
         &self,
         id: &GroupId,
@@ -206,7 +206,7 @@ impl BlockingIronOxide {
         self.runtime
             .enter(|| block_on(self.ironoxide.group_add_admins(id, users)))
     }
-    /// See [ironoxide::group::GroupOps::group_remove_admins()](trait.GroupOps.html#tymethod.group_remove_admins)
+    /// See [ironoxide::group::GroupOps::group_remove_admins](trait.GroupOps.html#tymethod.group_remove_admins)
     pub fn group_remove_admins(
         &self,
         id: &GroupId,
@@ -215,12 +215,12 @@ impl BlockingIronOxide {
         self.runtime
             .enter(|| block_on(self.ironoxide.group_remove_admins(id, revoke_list)))
     }
-    /// See [ironoxide::group::GroupOps::group_rotate_private_key()](trait.GroupOps.html#tymethod.group_rotate_private_key)
+    /// See [ironoxide::group::GroupOps::group_rotate_private_key](trait.GroupOps.html#tymethod.group_rotate_private_key)
     pub fn group_rotate_private_key(&self, id: &GroupId) -> Result<GroupUpdatePrivateKeyResult> {
         self.runtime
             .enter(|| block_on(self.ironoxide.group_rotate_private_key(id)))
     }
-    /// See [ironoxide::user::UserOps::user_create()](trait.UserOps.html#tymethod.user_create)
+    /// See [ironoxide::user::UserOps::user_create](trait.UserOps.html#tymethod.user_create)
     pub fn user_create(
         jwt: &str,
         password: &str,
@@ -237,12 +237,12 @@ impl BlockingIronOxide {
             ))
         })
     }
-    /// See [ironoxide::user::UserOps::user_list_devices()](trait.UserOps.html#tymethod.user_list_devices)
+    /// See [ironoxide::user::UserOps::user_list_devices](trait.UserOps.html#tymethod.user_list_devices)
     pub fn user_list_devices(&self) -> Result<UserDeviceListResult> {
         self.runtime
             .enter(|| block_on(self.ironoxide.user_list_devices()))
     }
-    /// See [ironoxide::user::UserOps::generate_new_device()](trait.UserOps.html#tymethod.generate_new_device)
+    /// See [ironoxide::user::UserOps::generate_new_device](trait.UserOps.html#tymethod.generate_new_device)
     pub fn generate_new_device(
         jwt: &str,
         password: &str,
@@ -259,12 +259,12 @@ impl BlockingIronOxide {
             ))
         })
     }
-    /// See [ironoxide::user::UserOps::user_delete_device()](trait.UserOps.html#tymethod.user_delete_device)
+    /// See [ironoxide::user::UserOps::user_delete_device](trait.UserOps.html#tymethod.user_delete_device)
     pub fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId> {
         self.runtime
             .enter(|| block_on(self.ironoxide.user_delete_device(device_id)))
     }
-    /// See [ironoxide::user::UserOps::user_verify()](trait.UserOps.html#tymethod.user_verify)
+    /// See [ironoxide::user::UserOps::user_verify](trait.UserOps.html#tymethod.user_verify)
     pub fn user_verify(
         jwt: &str,
         timeout: Option<std::time::Duration>,
@@ -272,12 +272,12 @@ impl BlockingIronOxide {
         let rt = create_runtime();
         rt.enter(|| block_on(IronOxide::user_verify(jwt, timeout)))
     }
-    /// See [ironoxide::user::UserOps::user_get_public_key()](trait.UserOps.html#tymethod.user_get_public_key)
+    /// See [ironoxide::user::UserOps::user_get_public_key](trait.UserOps.html#tymethod.user_get_public_key)
     pub fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {
         self.runtime
             .enter(|| block_on(self.ironoxide.user_get_public_key(users)))
     }
-    /// See [ironoxide::user::UserOps::user_rotate_private_key()](trait.UserOps.html#tymethod.user_rotate_private_key)
+    /// See [ironoxide::user::UserOps::user_rotate_private_key](trait.UserOps.html#tymethod.user_rotate_private_key)
     pub fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult> {
         self.runtime
             .enter(|| block_on(self.ironoxide.user_rotate_private_key(password)))
