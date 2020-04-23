@@ -8,8 +8,10 @@
 //! # Optional
 //! This requires the optional `blocking` feature to be enabled.
 
+#[doc(no_inline)]
+use crate::prelude::*;
+
 use crate::{
-    prelude::*,
     InitAndRotationCheck::{NoRotationNeeded, RotationNeeded},
     Result,
 };
