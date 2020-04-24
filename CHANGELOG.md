@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.22.0 (Unreleased)
+
+- [[#142](https://github.com/IronCoreLabs/ironoxide/pull/142)]
+  - Significant changes to organization of structs
+    - Add `ironoxide::common` module to hold structs that span modules
+    - Add all structs and traits to `ironoxide::prelude`
+    - Move `DeviceId`, `DeviceName`, `DeviceAddResult`, and `KeyPair` to `ironoxide::user` module
+    - Move `DocumentId` and `DocumentName` to `ironoxide::document` module
+
 ## 0.21.1
 
 - [[#138](https://github.com/IronCoreLabs/ironoxide/pull/138)]
@@ -22,7 +31,6 @@
   - Add `Clone`, `Debug`, `Eq`, `Hash`, and `PartialEq` to almost all public structs.
   - Upgrade to itertools 0.9.0
 - [[#123](https://github.com/IronCoreLabs/ironoxide/pull/123)]
-
   - Add better error message for missing policy
 
 ## 0.19.1

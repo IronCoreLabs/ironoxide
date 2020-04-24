@@ -5,7 +5,7 @@
 use crate::internal::{
     group_api::GroupId,
     rest::{Authorization, IronCoreRequest, SignatureUrlString},
-    user_api::{DeviceAddResult, UserId},
+    user_api::UserId,
 };
 use chrono::{DateTime, Utc};
 use futures::Future;
@@ -403,17 +403,6 @@ impl DeviceContext {
 
     pub fn device_private_key(&self) -> &PrivateKey {
         &self.device_private_key
-    }
-}
-
-impl From<DeviceAddResult> for DeviceContext {
-    fn from(dar: DeviceAddResult) -> Self {
-        DeviceContext::new(
-            dar.account_id,
-            dar.segment_id,
-            dar.device_private_key,
-            dar.signing_private_key,
-        )
     }
 }
 
