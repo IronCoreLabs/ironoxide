@@ -8,24 +8,30 @@
 //! The BlindIndexSearch gives the ability to generate queries as well as create the search entries to store.
 //!
 
-use crate::document::advanced::DocumentEncryptUnmanagedResult;
-use crate::document::advanced::*;
-use crate::document::DocumentEncryptOpts;
-use crate::internal::{take_lock, IronOxideErr};
-use crate::Result;
-use crate::{GroupId, IronOxide};
+use crate::{
+    document::{
+        advanced::{DocumentAdvancedOps, DocumentEncryptUnmanagedResult},
+        DocumentEncryptOpts,
+    },
+    group::GroupId,
+    internal::take_lock,
+    IronOxide, IronOxideErr, Result,
+};
 use async_trait::async_trait;
-use rand::rngs::adapter::ReseedingRng;
-use rand::rngs::OsRng;
-use rand::{self, RngCore, SeedableRng};
-use rand_chacha::ChaChaCore;
-use std::collections::HashSet;
-use std::convert::{TryFrom, TryInto};
-use std::ops::DerefMut;
-use std::sync::Mutex;
-
 use ironcore_search_helpers::{
     generate_hashes_for_string, generate_hashes_for_string_with_padding,
+};
+use rand::{
+    self,
+    rngs::{adapter::ReseedingRng, OsRng},
+    RngCore, SeedableRng,
+};
+use rand_chacha::ChaChaCore;
+use std::{
+    collections::HashSet,
+    convert::{TryFrom, TryInto},
+    ops::DerefMut,
+    sync::Mutex,
 };
 
 #[cfg(feature = "blocking")]

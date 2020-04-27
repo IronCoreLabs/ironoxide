@@ -111,20 +111,16 @@ pub mod policy;
 /// Convenience re-export of essential IronOxide types
 pub mod prelude;
 
-pub use crate::internal::{
-    DeviceAddResult, DeviceContext, DeviceSigningKeyPair, IronOxideErr, KeyPair, PrivateKey,
-    PublicKey, SdkOperation,
-};
+pub use crate::internal::IronOxideErr;
+
 use crate::{
+    common::{DeviceContext, DeviceSigningKeyPair, PublicKey, SdkOperation},
     config::IronOxideConfig,
-    internal::{
-        add_optional_timeout,
-        document_api::UserOrGroup,
-        group_api::{GroupId, GroupUpdatePrivateKeyResult},
-        user_api::{UserId, UserResult, UserUpdatePrivateKeyResult},
-        WithKey,
-    },
+    document::UserOrGroup,
+    group::{GroupId, GroupUpdatePrivateKeyResult},
+    internal::{add_optional_timeout, WithKey},
     policy::PolicyGrant,
+    user::{UserId, UserResult, UserUpdatePrivateKeyResult},
 };
 use dashmap::DashMap;
 use itertools::EitherOrBoth;
@@ -141,6 +137,15 @@ use vec1::Vec1;
 pub type Result<T> = std::result::Result<T, IronOxideErr>;
 type PolicyCache = DashMap<PolicyGrant, Vec<WithKey<UserOrGroup>>>;
 
+// This is where we export structs that don't fit into a single module.
+// They were previously exported at the top level, but added clutter to the docs landing page.
+/// Types that are useful in multiple modules
+pub mod common {
+    pub use crate::internal::{
+        DeviceContext, DeviceSigningKeyPair, PrivateKey, PublicKey, SdkOperation,
+    };
+}
+
 /// IronOxide SDK configuration
 pub mod config {
     use std::time::Duration;
@@ -154,6 +159,15 @@ pub mod config {
         pub sdk_operation_timeout: Option<Duration>,
     }
 
+    impl Default for IronOxideConfig {
+        fn default() -> Self {
+            IronOxideConfig {
+                policy_caching: PolicyCachingConfig::default(),
+                sdk_operation_timeout: Some(Duration::from_secs(30)),
+            }
+        }
+    }
+
     /// Policy evaluation caching config. Lifetime of the cache is the lifetime of the `IronOxide` struct.
     ///
     /// Since policies are evaluated by the webservice, caching the result can greatly speed
@@ -164,15 +178,6 @@ pub mod config {
         /// maximum number of policy evaluations that will be cached by the SDK.
         /// If the maximum number is exceeded, the cache will be cleared prior to storing the next entry
         pub max_entries: usize,
-    }
-
-    impl Default for IronOxideConfig {
-        fn default() -> Self {
-            IronOxideConfig {
-                policy_caching: PolicyCachingConfig::default(),
-                sdk_operation_timeout: Some(Duration::from_secs(30)),
-            }
-        }
     }
 
     impl Default for PolicyCachingConfig {

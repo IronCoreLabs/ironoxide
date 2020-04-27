@@ -1,17 +1,14 @@
 pub use crate::internal::document_api::{
     AssociationType, DocAccessEditErr, DocumentAccessResult, DocumentDecryptResult,
-    DocumentEncryptResult, DocumentListMeta, DocumentListResult, DocumentMetadataResult,
-    UserOrGroup, VisibleGroup, VisibleUser,
+    DocumentEncryptResult, DocumentId, DocumentListMeta, DocumentListResult,
+    DocumentMetadataResult, DocumentName, UserOrGroup, VisibleGroup, VisibleUser,
 };
 use crate::{
-    internal::{
-        add_optional_timeout,
-        document_api::{self, DocumentId, DocumentName},
-        group_api::GroupId,
-        user_api::UserId,
-        SdkOperation,
-    },
-    policy::*,
+    common::SdkOperation,
+    group::GroupId,
+    internal::{add_optional_timeout, document_api},
+    policy::PolicyGrant,
+    user::UserId,
     Result,
 };
 use itertools::{Either, EitherOrBoth, Itertools};

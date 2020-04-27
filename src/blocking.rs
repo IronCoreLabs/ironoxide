@@ -7,30 +7,13 @@
 //!
 //! # Optional
 //! This requires the optional `blocking` feature to be enabled.
-pub use crate::internal::{
-    document_api::{
-        AssociationType, DocAccessEditErr, DocumentAccessResult, DocumentDecryptResult,
-        DocumentDecryptUnmanagedResult, DocumentEncryptResult, DocumentEncryptUnmanagedResult,
-        DocumentId, DocumentListMeta, DocumentListResult, DocumentMetadataResult, DocumentName,
-        UserOrGroup, VisibleGroup, VisibleUser,
-    },
-    group_api::{
-        GroupAccessEditErr, GroupAccessEditResult, GroupCreateResult, GroupGetResult, GroupId,
-        GroupListResult, GroupMetaResult, GroupName, GroupUpdatePrivateKeyResult,
-    },
-    user_api::{
-        DeviceId, EncryptedPrivateKey, UserCreateResult, UserDevice, UserDeviceListResult, UserId,
-        UserResult, UserUpdatePrivateKeyResult,
-    },
-};
+
+#[doc(no_inline)]
+use crate::prelude::*;
+
 use crate::{
-    config::IronOxideConfig,
-    document::{advanced::DocumentAdvancedOps, DocumentEncryptOpts, DocumentOps},
-    group::{GroupCreateOpts, GroupOps},
-    user::{DeviceCreateOpts, UserCreateOpts, UserOps},
-    DeviceAddResult, DeviceContext,
-    InitAndRotationCheck::{self, NoRotationNeeded, RotationNeeded},
-    IronOxide, PrivateKeyRotationCheckResult, PublicKey, Result,
+    InitAndRotationCheck::{NoRotationNeeded, RotationNeeded},
+    Result,
 };
 use futures::executor::block_on;
 use std::collections::HashMap;

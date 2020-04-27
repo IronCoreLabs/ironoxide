@@ -3,10 +3,11 @@ mod common;
 #[cfg(feature = "beta")]
 mod search_tests {
     use crate::common::initialize_sdk;
-    use galvanic_assert::assert_that;
-    use galvanic_assert::matchers::collection::contains_subset;
-    use galvanic_assert::matchers::geq;
-    use ironoxide::{group::GroupOps, prelude::*, search::*};
+    use galvanic_assert::{
+        assert_that,
+        matchers::{collection::contains_subset, geq},
+    };
+    use ironoxide::prelude::*;
 
     #[tokio::test]
     async fn create_blind_index() -> Result<(), IronOxideErr> {

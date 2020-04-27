@@ -1,14 +1,11 @@
 pub use crate::internal::user_api::{
-    EncryptedPrivateKey, UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserResult,
-    UserUpdatePrivateKeyResult,
+    DeviceAddResult, DeviceId, DeviceName, EncryptedPrivateKey, KeyPair, UserCreateResult,
+    UserDevice, UserDeviceListResult, UserId, UserResult, UserUpdatePrivateKeyResult,
 };
 use crate::{
-    internal::{
-        add_optional_timeout,
-        user_api::{self, DeviceId, DeviceName},
-        DeviceAddResult, PublicKey, OUR_REQUEST,
-    },
-    IronOxide, Result, SdkOperation,
+    common::{PublicKey, SdkOperation},
+    internal::{add_optional_timeout, user_api, OUR_REQUEST},
+    IronOxide, Result,
 };
 use recrypt::api::Recrypt;
 use std::{collections::HashMap, convert::TryInto};

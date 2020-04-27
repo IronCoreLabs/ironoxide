@@ -6,13 +6,7 @@ mod common;
 mod integration_tests {
     use crate::common::{create_id_all_classes, gen_jwt, USER_PASSWORD};
     use galvanic_assert::{matchers::*, *};
-    use ironoxide::{
-        blocking::BlockingIronOxide,
-        config::IronOxideConfig,
-        group::GroupCreateOpts,
-        user::{UserCreateOpts, UserId},
-        InitAndRotationCheck, IronOxideErr, SdkOperation,
-    };
+    use ironoxide::prelude::*;
     use std::{convert::TryInto, time::Duration};
     // Tests a UserOp (user_create/generate_new_device), a GroupOp (group_create),
     // and ironoxide::blocking functions (initialize/initialize_check_rotation)

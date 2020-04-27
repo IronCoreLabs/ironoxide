@@ -3,11 +3,10 @@ pub use crate::internal::group_api::{
     GroupListResult, GroupMetaResult, GroupName, GroupUpdatePrivateKeyResult,
 };
 use crate::{
-    internal::{
-        add_optional_timeout, group_api, group_api::GroupCreateOptsStd, user_api::UserId,
-        IronOxideErr,
-    },
-    Result, SdkOperation,
+    common::SdkOperation,
+    internal::{add_optional_timeout, group_api, group_api::GroupCreateOptsStd},
+    user::UserId,
+    IronOxideErr, Result,
 };
 use vec1::Vec1;
 

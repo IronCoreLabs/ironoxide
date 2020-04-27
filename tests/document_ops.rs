@@ -6,13 +6,7 @@ use galvanic_assert::{
     matchers::{collection::contains_in_any_order, eq},
     *,
 };
-use ironoxide::{
-    config::IronOxideConfig,
-    document::{advanced::*, *},
-    group::GroupCreateOpts,
-    prelude::*,
-    IronOxide, SdkOperation,
-};
+use ironoxide::prelude::*;
 use itertools::EitherOrBoth;
 use std::convert::{TryFrom, TryInto};
 

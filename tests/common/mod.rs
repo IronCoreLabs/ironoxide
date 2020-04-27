@@ -1,9 +1,4 @@
-use ironoxide::{
-    config::IronOxideConfig,
-    prelude::*,
-    user::{UserCreateOpts, UserResult},
-    InitAndRotationCheck,
-};
+use ironoxide::prelude::*;
 use lazy_static::*;
 use std::{convert::TryInto, default::Default};
 use uuid::Uuid;

@@ -5,7 +5,7 @@
 use crate::internal::{
     group_api::GroupId,
     rest::{Authorization, IronCoreRequest, SignatureUrlString},
-    user_api::{DeviceId, DeviceName, UserId},
+    user_api::UserId,
 };
 use chrono::{DateTime, Utc};
 use futures::Future;
@@ -406,71 +406,6 @@ impl DeviceContext {
     }
 }
 
-impl From<DeviceAddResult> for DeviceContext {
-    fn from(dar: DeviceAddResult) -> Self {
-        DeviceContext::new(
-            dar.account_id,
-            dar.segment_id,
-            dar.device_private_key,
-            dar.signing_private_key,
-        )
-    }
-}
-
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct DeviceAddResult {
-    /// The user's given id, which uniquely identifies them inside the segment.
-    account_id: UserId,
-    /// The user's segment id
-    segment_id: usize,
-    /// The private key which was generated for a particular device for the user. Not the user's master private key.
-    device_private_key: PrivateKey,
-    /// The signing key which was generated for the device. “expanded private key” (both pub/priv)
-    signing_private_key: DeviceSigningKeyPair,
-    /// The id of the device that was added
-    device_id: DeviceId,
-    /// The name of the device that was added
-    name: Option<DeviceName>,
-    /// The date and time that the device was created
-    created: DateTime<Utc>,
-    /// The date and time that the device was last updated
-    last_updated: DateTime<Utc>,
-}
-
-impl DeviceAddResult {
-    pub fn account_id(&self) -> &UserId {
-        &self.account_id
-    }
-
-    pub fn segment_id(&self) -> usize {
-        self.segment_id
-    }
-
-    pub fn signing_private_key(&self) -> &DeviceSigningKeyPair {
-        &self.signing_private_key
-    }
-
-    pub fn device_private_key(&self) -> &PrivateKey {
-        &self.device_private_key
-    }
-
-    pub fn device_id(&self) -> &DeviceId {
-        &self.device_id
-    }
-
-    pub fn name(&self) -> Option<&DeviceName> {
-        self.name.as_ref()
-    }
-
-    pub fn created(&self) -> &DateTime<Utc> {
-        &self.created
-    }
-
-    pub fn last_updated(&self) -> &DateTime<Utc> {
-        &self.last_updated
-    }
-}
-
 /// Newtype wrapper around Recrypt TransformKey type
 #[derive(Clone, PartialEq, Debug)]
 pub struct TransformKey(recrypt::api::TransformKey);
@@ -673,29 +608,6 @@ impl AugmentationFactor {
 impl From<AugmentationFactor> for RecryptPrivateKey {
     fn from(aug: AugmentationFactor) -> Self {
         (aug.0).0
-    }
-}
-
-/// Public/Private asymmetric keypair that is used for decryption/encryption.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct KeyPair {
-    public_key: PublicKey,
-    private_key: PrivateKey,
-}
-impl KeyPair {
-    pub fn new(public_key: RecryptPublicKey, private_key: RecryptPrivateKey) -> Self {
-        KeyPair {
-            public_key: public_key.into(),
-            private_key: private_key.into(),
-        }
-    }
-
-    pub fn public_key(&self) -> &PublicKey {
-        &self.public_key
-    }
-
-    pub fn private_key(&self) -> &PrivateKey {
-        &self.private_key
     }
 }
 
