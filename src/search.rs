@@ -8,6 +8,8 @@
 //! The BlindIndexSearch gives the ability to generate queries as well as create the search entries to store.
 //!
 
+#[cfg(feature = "blocking")]
+use crate::blocking::BlockingIronOxide;
 use crate::{
     document::{
         advanced::{DocumentAdvancedOps, DocumentEncryptUnmanagedResult},
@@ -33,8 +35,6 @@ use std::{
     ops::DerefMut,
     sync::Mutex,
 };
-#[cfg(feature = "blocking")]
-use crate::blocking::BlockingIronOxide;
 
 ///The required length of the salt.
 const REQUIRED_LEN: usize = 32;

@@ -23,11 +23,11 @@ mod search_tests {
     async fn serde_blind_index_salt_roundtrips() -> Result<(), IronOxideErr> {
         let ebis = EncryptedBlindIndexSalt {
             encrypted_deks: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-            encrypted_salt_bytes:vec![0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30]};
+            encrypted_salt_bytes: vec![0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30],
+        };
         let ebis_str = serde_json::to_string(&ebis).unwrap();
         let ebis2: EncryptedBlindIndexSalt = serde_json::from_str(&ebis_str).unwrap();
-        assert_eq!(ebis2.encrypted_deks, ebis.encrypted_deks);
-        assert_eq!(ebis2.encrypted_salt_bytes, ebis.encrypted_salt_bytes);
+        assert_eq!(ebis2, ebis);
         Ok(())
     }
 
