@@ -42,6 +42,7 @@ const REQUIRED_LEN: usize = 32;
 const BYTES_BEFORE_RESEEDING: u64 = 1024 * 1024;
 
 #[derive(Debug, PartialEq, Clone, Hash, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EncryptedBlindIndexSalt {
     pub encrypted_deks: Vec<u8>,
     pub encrypted_salt_bytes: Vec<u8>,
