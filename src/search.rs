@@ -33,7 +33,6 @@ use std::{
     ops::DerefMut,
     sync::Mutex,
 };
-
 #[cfg(feature = "blocking")]
 use crate::blocking::BlockingIronOxide;
 
@@ -42,7 +41,7 @@ const REQUIRED_LEN: usize = 32;
 /// number of bytes that can be read from `BlindIndexSearch.rng` before it is reseeded. 1 MB
 const BYTES_BEFORE_RESEEDING: u64 = 1024 * 1024;
 
-#[derive(Debug, PartialEq, Clone, Hash, Eq)]
+#[derive(Debug, PartialEq, Clone, Hash, Eq, Serialize, Deserialize)]
 pub struct EncryptedBlindIndexSalt {
     pub encrypted_deks: Vec<u8>,
     pub encrypted_salt_bytes: Vec<u8>,
