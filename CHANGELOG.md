@@ -8,6 +8,8 @@
     - Add all structs and traits to `ironoxide::prelude`
     - Move `DeviceId`, `DeviceName`, `DeviceAddResult`, and `KeyPair` to `ironoxide::user` module
     - Move `DocumentId` and `DocumentName` to `ironoxide::document` module
+- [[#148](https://github.com/IronCoreLabs/ironoxide/pull/148)]
+  - Add serde support for `EncryptedBlindSearchIndex`
 
 ## 0.21.1
 
