@@ -8,6 +8,8 @@
 //! The BlindIndexSearch gives the ability to generate queries as well as create the search entries to store.
 //!
 
+#[cfg(feature = "blocking")]
+use crate::blocking::BlockingIronOxide;
 use crate::{
     document::{
         advanced::{DocumentAdvancedOps, DocumentEncryptUnmanagedResult},
@@ -34,15 +36,13 @@ use std::{
     sync::Mutex,
 };
 
-#[cfg(feature = "blocking")]
-use crate::blocking::BlockingIronOxide;
-
 ///The required length of the salt.
 const REQUIRED_LEN: usize = 32;
 /// number of bytes that can be read from `BlindIndexSearch.rng` before it is reseeded. 1 MB
 const BYTES_BEFORE_RESEEDING: u64 = 1024 * 1024;
 
-#[derive(Debug, PartialEq, Clone, Hash, Eq)]
+#[derive(Debug, PartialEq, Clone, Hash, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EncryptedBlindIndexSalt {
     pub encrypted_deks: Vec<u8>,
     pub encrypted_salt_bytes: Vec<u8>,
