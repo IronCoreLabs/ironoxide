@@ -34,7 +34,7 @@ IronOxide tests can be run against any other environment, with proper setup. To 
 
 ### Identity Assertion Key File
 
-An Identity Assertion Key file must be downloaded from the admin console interface immediately after creating a new Identity Assertion Key. It must be named `iak.pem` and placed in `./tests/testkeys/`.
+An Identity Assertion Key file must be downloaded from the admin console interface immediately after creating a new Identity Assertion Key. It must be named `iak-${IRONCORE_ENV}.pem` (defaults to `iak-prod.pem` if the IRONCORE_ENV variable is not set) and placed in `./tests/testkeys/`.
 
 ### IronCore Config File
 
@@ -50,7 +50,7 @@ An IronCore Config file can be downloaded from the admin console on creation of 
 
 Note that case is significant for the key names.
 
-This file must be named `ironcore-config.json` and placed in `./tests/testkeys/`.
+This file must be named `ironcore-config-${IRONCORE_ENV}.json` and placed in `./tests/testkeys/` (`ironcore-config-prod.json` if IRONCORE_ENV is not set).
 
 ### Environment URL
 

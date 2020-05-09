@@ -9,6 +9,15 @@ mod search_tests {
     };
     use ironoxide::prelude::*;
 
+    async fn setup_test() -> Result<BlindIndexSearch, IronOxideErr> {
+        let ironoxide = initialize_sdk().await?;
+        let group_create_result = ironoxide.group_create(&Default::default()).await?;
+        let encrypted_blind_index = ironoxide
+            .create_blind_index(group_create_result.id())
+            .await?;
+        encrypted_blind_index.initialize_search(&ironoxide).await
+    }
+
     #[tokio::test]
     async fn create_blind_index() -> Result<(), IronOxideErr> {
         let ironoxide = initialize_sdk().await?;
@@ -34,13 +43,16 @@ mod search_tests {
     }
 
     #[tokio::test]
+    async fn transliterate_string() -> Result<(), IronOxideErr> {
+        let search_sdk = setup_test().await?;
+        let tl_str = search_sdk.transliterate_string("Æneid - 北亰.");
+        assert_eq!(tl_str, "aeneid  bei jing ");
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn create_blind_index_search_tokenize_data() -> Result<(), IronOxideErr> {
-        let ironoxide = initialize_sdk().await?;
-        let group_create_result = ironoxide.group_create(&Default::default()).await?;
-        let encrypted_blind_index = ironoxide
-            .create_blind_index(group_create_result.id())
-            .await?;
-        let search_sdk = encrypted_blind_index.initialize_search(&ironoxide).await?;
+        let search_sdk = setup_test().await?;
         let index_tokens = search_sdk.tokenize_data("hello world", Option::None)?;
         assert_that!(&index_tokens.len(), geq(7)); //hel, ell, elo, wor, orl, rld  plus some extras -- The numbers are random and aren't worth asserting about.
         Ok(())
@@ -48,12 +60,7 @@ mod search_tests {
 
     #[tokio::test]
     async fn create_index_and_tokenize_query() -> Result<(), IronOxideErr> {
-        let ironoxide = initialize_sdk().await?;
-        let group_create_result = ironoxide.group_create(&Default::default()).await?;
-        let encrypted_blind_index = ironoxide
-            .create_blind_index(group_create_result.id())
-            .await?;
-        let search_sdk = encrypted_blind_index.initialize_search(&ironoxide).await?;
+        let search_sdk = setup_test().await?;
         let search_index_data = search_sdk.tokenize_data("hello world", Option::None)?;
         let search_tokens = search_sdk.tokenize_query("hello world", Option::None)?;
         assert_that!(&search_index_data, contains_subset(search_tokens));
@@ -62,12 +69,7 @@ mod search_tests {
 
     #[tokio::test]
     async fn tokenize_query_changes_partition() -> Result<(), IronOxideErr> {
-        let ironoxide = initialize_sdk().await?;
-        let group_create_result = ironoxide.group_create(&Default::default()).await?;
-        let encrypted_blind_index = ironoxide
-            .create_blind_index(group_create_result.id())
-            .await?;
-        let search_sdk = encrypted_blind_index.initialize_search(&ironoxide).await?;
+        let search_sdk = setup_test().await?;
         let search_tokens = search_sdk.tokenize_query("hello world", Option::None)?;
         let search_tokens_two = search_sdk.tokenize_query("hello world", Option::Some("foo"))?;
         //Since one has a partition_id, these should be different.

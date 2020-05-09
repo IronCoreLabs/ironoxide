@@ -21,7 +21,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use ironcore_search_helpers::{
-    generate_hashes_for_string, generate_hashes_for_string_with_padding,
+    generate_hashes_for_string, generate_hashes_for_string_with_padding, transliterate_string,
 };
 use rand::{
     self,
@@ -168,6 +168,16 @@ impl BlindIndexSearch {
             &self.rng,
         )
         .map_err(|message| IronOxideErr::ValidationError("data".to_string(), message))
+    }
+
+    /// Process a string using the same transliteration that is done when a string is processed to
+    /// tokenize data or a query. This processing will drop any characters that are ignored (mostly
+    /// punctuation), remove any diacritical marks, and convert characters to sequences of latin equivalents.
+    /// For example, the string “Æneid” is converted to “AEneid”, and “北亰” is converted to “Bei Jing”.
+    ///
+    /// s - The string you want to process
+    pub fn transliterate_string(&self, s: &str) -> String {
+        transliterate_string(s)
     }
 }
 
