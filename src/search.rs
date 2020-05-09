@@ -172,8 +172,9 @@ impl BlindIndexSearch {
 
     /// Process a string using the same transliteration that is done when a string is processed to
     /// tokenize data or a query. This processing will drop any characters that are ignored (mostly
-    /// punctuation), remove any diacritical marks, and convert characters to sequences of latin equivalents.
-    /// For example, the string “Æneid” is converted to “AEneid”, and “北亰” is converted to “Bei Jing”.
+    /// punctuation), remove any diacritical marks, convert characters to sequences of latin equivalents,
+    /// and lower case all characters.
+    /// For example, the string “Æneid” is converted to “aeneid”, and “北亰” is converted to “bei jing ”.
     ///
     /// s - The string you want to process
     pub fn transliterate_string(&self, s: &str) -> String {
