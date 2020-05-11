@@ -43,9 +43,8 @@ mod search_tests {
     }
 
     #[tokio::test]
-    async fn transliterate_string() -> Result<(), IronOxideErr> {
-        let search_sdk = setup_test().await?;
-        let tl_str = search_sdk.transliterate_string("Æneid - 北亰.");
+    async fn transliterate_string_test() -> Result<(), IronOxideErr> {
+        let tl_str = transliterate_string("Æneid - 北亰.");
         assert_eq!(tl_str, "aeneid  bei jing ");
         Ok(())
     }
