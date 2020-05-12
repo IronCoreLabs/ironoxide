@@ -10,6 +10,7 @@
     - Move `DocumentId` and `DocumentName` to `ironoxide::document` module
 - [[#148](https://github.com/IronCoreLabs/ironoxide/pull/148)]
   - Add serde support for `EncryptedBlindSearchIndex`
+  - Expose `transliterate_string` function
 
 ## 0.21.1
 
