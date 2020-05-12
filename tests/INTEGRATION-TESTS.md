@@ -22,7 +22,7 @@ Integration tests run against IronCore environments require some test keys and c
 
 ### Running the Tests
 
-The environment you would like to test against is specified in the environment variable `IRONCORE_ENV`. This variable can be set to `dev`, `stage`, or `prod` to use the pre-generated keys and config files. To test against these, run one of the following:
+The environment you would like to test against is specified in the environment variable `IRONCORE_ENV`. This variable can be set to `dev`, `stage`, or `prod` - this will cause the tests to use one set of the pre-generated key and config files (i.e. iak-dev.pem and ironcore-config-dev.json). To test against these, run one of the following:
 
 - Development: `IRONCORE_ENV=dev cargo t`
 - Staging: `IRONCORE_ENV=stage cargo t`
@@ -34,7 +34,7 @@ IronOxide tests can be run against any other environment, with proper setup. To 
 
 ### Identity Assertion Key File
 
-An Identity Assertion Key file must be downloaded from the admin console interface immediately after creating a new Identity Assertion Key. It must be named `iak-${IRONCORE_ENV}.pem` (defaults to `iak-prod.pem` if the IRONCORE_ENV variable is not set) and placed in `./tests/testkeys/`.
+An Identity Assertion Key file must be downloaded from the admin console interface immediately after creating a new Identity Assertion Key. It must be named `iak.pem` and placed in `./tests/testkeys/`.
 
 ### IronCore Config File
 
@@ -50,7 +50,7 @@ An IronCore Config file can be downloaded from the admin console on creation of 
 
 Note that case is significant for the key names.
 
-This file must be named `ironcore-config-${IRONCORE_ENV}.json` and placed in `./tests/testkeys/` (`ironcore-config-prod.json` if IRONCORE_ENV is not set).
+This file must be named `ironcore-config.json` and placed in `./tests/testkeys/`.
 
 ### Environment URL
 
