@@ -1,3 +1,5 @@
+//! Document types
+
 pub use crate::internal::document_api::{
     AssociationType, DocAccessEditErr, DocumentAccessResult, DocumentDecryptResult,
     DocumentEncryptResult, DocumentId, DocumentListMeta, DocumentListResult,
@@ -123,6 +125,7 @@ impl Default for DocumentEncryptOpts {
     }
 }
 
+/// IronOxide Document Operations
 #[async_trait]
 pub trait DocumentOps {
     /// Encrypts the provided document bytes.

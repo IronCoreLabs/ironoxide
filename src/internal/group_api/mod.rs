@@ -50,17 +50,23 @@ impl GroupCreateOptsStd {
     }
 }
 
-/// Group ID. Unique within a segment. Must match the regex `^[a-zA-Z0-9_.$#|@/:;=+'-]+$`
+/// ID of a group.
+///
+/// The ID can be validated from a `String` or `&str` using `GroupId::try_from`.
+///
+/// # Requirements
+/// - Must be unique within the group's segment.
+/// - Must match the regex `^[a-zA-Z0-9_.$#|@/:;=+'-]+$`.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct GroupId(pub(crate) String);
 impl GroupId {
-    pub fn id(&self) -> &str {
-        &self.0
-    }
-
-    /// Create a GroupId from a string with no validation. Useful for ids coming back from the web service.
+    /// Construct a `GroupId` with no validation. Useful for IDs coming back from the web service.
     pub fn unsafe_from_string(id: String) -> GroupId {
         GroupId(id)
+    }
+    /// ID of the group.
+    pub fn id(&self) -> &str {
+        &self.0
     }
 }
 impl recrypt::api::Hashable for GroupId {
@@ -81,10 +87,16 @@ impl TryFrom<&str> for GroupId {
     }
 }
 
-/// Group's user-assigned name. (non-unique)
+/// Name of a group.
+///
+/// The name should be human-readable and does not have to be unique. It can be validated from a `String` or `&str` using `GroupName::try_from`.
+///
+/// # Requirements
+/// - Must be between 1 and 100 characters long.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct GroupName(pub(crate) String);
 impl GroupName {
+    /// Name of the group.
     pub fn name(&self) -> &String {
         &self.0
     }
@@ -95,7 +107,6 @@ impl TryFrom<String> for GroupName {
         group_name.as_str().try_into()
     }
 }
-
 impl TryFrom<&str> for GroupName {
     type Error = IronOxideErr;
     fn try_from(group_name: &str) -> Result<Self, Self::Error> {
@@ -103,21 +114,24 @@ impl TryFrom<&str> for GroupName {
     }
 }
 
-/// List of (abbreviated) groups for which the requesting user is either an admin or member.
+/// Metadata for each group the user is an admin or a member of.
+///
+/// Result from [group_list](trait.GroupOps.html#tymethod.group_list).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GroupListResult {
     result: Vec<GroupMetaResult>,
 }
 impl GroupListResult {
-    pub fn new(metas: Vec<GroupMetaResult>) -> GroupListResult {
-        GroupListResult { result: metas }
-    }
-
+    /// Metadata for each group that the requesting user is an admin or a member of
     pub fn result(&self) -> &Vec<GroupMetaResult> {
         &self.result
     }
 }
-/// Abbreviated group information.
+
+/// Abbreviated group metadata.
+///
+/// Result from [GroupListResult.result()](struct.GroupListResult.html#method.result) and
+/// [group_update_name](trait.GroupOps.html#tymethod.group_update_name).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GroupMetaResult {
     id: GroupId,
@@ -130,7 +144,7 @@ pub struct GroupMetaResult {
     needs_rotation: Option<bool>,
 }
 impl GroupMetaResult {
-    /// A single document grant/revoke failure for a user or group.
+    /// ID of the group
     pub fn id(&self) -> &GroupId {
         &self.id
     }
@@ -138,11 +152,11 @@ impl GroupMetaResult {
     pub fn name(&self) -> Option<&GroupName> {
         self.name.as_ref()
     }
-    /// true if the calling user is a group administrator
+    /// `true` if the calling user is a group administrator
     pub fn is_admin(&self) -> bool {
         self.is_admin
     }
-    /// true if the calling user is a group member
+    /// `true` if the calling user is a group member
     pub fn is_member(&self) -> bool {
         self.is_member
     }
@@ -158,14 +172,18 @@ impl GroupMetaResult {
     pub fn group_master_public_key(&self) -> &PublicKey {
         &self.group_master_public_key
     }
-    /// `Some(boolean)` indicating if the group needs rotation if the calling user is a group admin.
-    /// `None` if the calling user is not a group admin.
+    /// Whether the group's private key needs rotation. Can only be accessed by a group administrator.
+    /// - `Some(bool)` - Indicates whether the group's private key needs rotation.
+    /// - `None` - The calling user does not have permission to view this.
     pub fn needs_rotation(&self) -> Option<bool> {
         self.needs_rotation
     }
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+/// Full metadata for a newly created group.
+///
+/// Result from [group_create](trait.GroupOps.html#tymethod.group_create)
 pub struct GroupCreateResult {
     id: GroupId,
     name: Option<GroupName>,
@@ -180,7 +198,7 @@ pub struct GroupCreateResult {
     needs_rotation: Option<bool>,
 }
 impl GroupCreateResult {
-    /// A single document grant/revoke failure for a user or group.
+    /// ID of the group
     pub fn id(&self) -> &GroupId {
         &self.id
     }
@@ -192,23 +210,23 @@ impl GroupCreateResult {
     pub fn group_master_public_key(&self) -> &PublicKey {
         &self.group_master_public_key
     }
-    /// true if the calling user is a group administrator
+    /// `true` if the calling user is a group administrator
     pub fn is_admin(&self) -> bool {
         self.is_admin
     }
-    /// true if the calling user is a group member
+    /// `true` if the calling user is a group member
     pub fn is_member(&self) -> bool {
         self.is_member
     }
-    /// owner of the group
+    /// Owner of the group
     pub fn owner(&self) -> &UserId {
         &self.owner
     }
-    /// List of all group admins. Group admins can change group membership.
+    /// List of all group administrators
     pub fn admins(&self) -> &Vec<UserId> {
         self.admins.as_ref()
     }
-    /// List of group members. Members of a group can decrypt values encrypted to the group.
+    /// List of all group members
     pub fn members(&self) -> &Vec<UserId> {
         self.members.as_ref()
     }
@@ -220,13 +238,17 @@ impl GroupCreateResult {
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
     }
-    /// `Some(boolean)` indicating if the group needs rotation if the calling user is a group admin.
-    /// `None` if the calling user is not a group admin.
+    /// Whether the group's private key needs rotation. Can only be accessed by a group administrator.
+    /// - `Some(bool)` - Indicates whether the group's private key needs rotation.
+    /// - `None` - The calling user does not have permission to view this.
     pub fn needs_rotation(&self) -> Option<bool> {
         self.needs_rotation
     }
 }
-/// Group information.
+
+/// Full metadata for a group.
+///
+/// Result from [group_get_metadata](trait.GroupOps.html#tymethod.group_get_metadata).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GroupGetResult {
     id: GroupId,
@@ -240,10 +262,11 @@ pub struct GroupGetResult {
     created: DateTime<Utc>,
     updated: DateTime<Utc>,
     needs_rotation: Option<bool>,
-    pub(crate) encrypted_private_key: Option<TransformedEncryptedValue>,
+    /// not exposed outside of the module
+    encrypted_private_key: Option<TransformedEncryptedValue>,
 }
 impl GroupGetResult {
-    /// unique id of the group (within the segment)
+    /// ID of the group
     pub fn id(&self) -> &GroupId {
         &self.id
     }
@@ -255,11 +278,11 @@ impl GroupGetResult {
     pub fn group_master_public_key(&self) -> &PublicKey {
         &self.group_master_public_key
     }
-    /// true if the calling user is a group administrator
+    /// `true` if the calling user is a group administrator
     pub fn is_admin(&self) -> bool {
         self.is_admin
     }
-    /// true if the calling user is a group member
+    /// `true` if the calling user is a group member
     pub fn is_member(&self) -> bool {
         self.is_member
     }
@@ -271,47 +294,54 @@ impl GroupGetResult {
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
     }
-    /// The owner of the group. The group owner cannot be removed as an admin.
-    ///     Some(UserId) - The id of the group owner.
-    ///     None - The calling user is not a member of the group and cannot view the owner.
+    /// The owner of the group
+    ///     - Some(UserId) - The ID of the group owner.
+    ///     - None - The calling user is not a member of the group and cannot view the owner.
     pub fn owner(&self) -> Option<&UserId> {
         self.owner.as_ref()
     }
-    /// List of all group admins. Group admins can change group membership.
+    /// List of all group administrators
     pub fn admin_list(&self) -> Option<&Vec<UserId>> {
         self.admin_list.as_ref()
     }
-    /// List of group members. Members of a group can decrypt values encrypted to the group.
+    /// List of all group members
     pub fn member_list(&self) -> Option<&Vec<UserId>> {
         self.member_list.as_ref()
     }
-    /// `Some(boolean)` indicating if the group needs rotation if the calling user is a group admin.
-    /// `None` if the calling user is not a group admin.
+    /// Whether the group's private key needs rotation. Can only be accessed by a group administrator.
+    /// - `Some(bool)` - Indicates whether the group's private key needs rotation.
+    /// - `None` - The calling user does not have permission to view this.
     pub fn needs_rotation(&self) -> Option<bool> {
         self.needs_rotation
     }
 }
 
-/// Failure to make the requested change to a group's membership or administrators.
+/// A failure when attempting to change a group's member or admin lists.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GroupAccessEditErr {
     user: UserId,
     error: String,
 }
-
 impl GroupAccessEditErr {
-    pub(crate) fn new(user: UserId, error: String) -> GroupAccessEditErr {
+    fn new(user: UserId, error: String) -> GroupAccessEditErr {
         GroupAccessEditErr { user, error }
     }
+    /// The user who was unable to be added/removed from the group.
     pub fn user(&self) -> &UserId {
         &self.user
     }
+    /// The error encountered when attempting to add/remove the user from the group.
     pub fn error(&self) -> &String {
         &self.error
     }
 }
 
-/// Result from requesting changes to a group's membership or administrators. Partial success is supported.
+/// Successful and failed changes to a group's member or admin lists.
+///
+/// Partial success is supported.
+///
+/// Result from [group_add_members](trait.GroupOps.html#tymethod.group_add_members), [group_remove_members](trait.GroupOps.html#tymethod.group_remove_members),
+/// [group_add_admins](trait.GroupOps.html#tymethod.group_add_admins), and [group_remove_admins](trait.GroupOps.html#tymethod.group_remove_admins).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GroupAccessEditResult {
     succeeded: Vec<UserId>,
@@ -319,13 +349,13 @@ pub struct GroupAccessEditResult {
 }
 
 impl GroupAccessEditResult {
-    /// Users whose access could not be modified.
-    pub fn failed(&self) -> &Vec<GroupAccessEditErr> {
-        &self.failed
-    }
-    /// Users whose access was modified.
+    /// Users whose access was successfully modified.
     pub fn succeeded(&self) -> &Vec<UserId> {
         &self.succeeded
+    }
+    /// Errors resulting from failure to modify a user's access.
+    pub fn failed(&self) -> &Vec<GroupAccessEditErr> {
+        &self.failed
     }
 }
 
@@ -342,7 +372,7 @@ pub async fn list(
         .into_iter()
         .map(|g| g.try_into())
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(GroupListResult::new(group_list))
+    Ok(GroupListResult { result: group_list })
 }
 
 /// Get the keys for groups. The result should be either a failure for a specific UserId (Left) or the id with their public key (Right).
@@ -446,14 +476,14 @@ fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
 /// Create a group with the calling user as the group admin.
 ///
 /// # Arguments
-/// `recrypt` - recrypt instance to use for cryptographic operations
-/// `auth` - Auth context details for making API requests. The user associated with this device will be an admin
+/// - `recrypt` - recrypt instance to use for cryptographic operations
+/// - `auth` - Auth context details for making API requests. The user associated with this device will be an admin
 ///     of the newly created group,
-/// `user_master_pub_key` - public key of the user creating this group.
-/// `group_id` - unique id for the group within the segment.
-/// `name` - name for the group. Does not need to be unique.
-/// `members` - list of user ids to add as members of the group.
-/// `needs_rotation` - true if the group private key should be rotated by an admin, else false
+/// - `user_master_pub_key` - public key of the user creating this group.
+/// - `group_id` - unique id for the group within the segment.
+/// - `name` - name for the group. Does not need to be unique.
+/// - `members` - list of user ids to add as members of the group.
+/// - `needs_rotation` - true if the group private key should be rotated by an admin, else false
 pub async fn group_create<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &RequestAuth,
@@ -531,17 +561,19 @@ pub async fn group_create<CR: rand::CryptoRng + rand::RngCore>(
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+/// Metadata returned after rotating a group's private key.
+///
+/// Result from [group_rotate_private_key](trait.GroupOps.html#tymethod.group_rotate_private_key).
 pub struct GroupUpdatePrivateKeyResult {
     id: GroupId,
     needs_rotation: bool,
 }
-
 impl GroupUpdatePrivateKeyResult {
-    /// The id of the group that was rotated
+    /// The ID of the group whose private key was rotated.
     pub fn id(&self) -> &GroupId {
         &self.id
     }
-    /// True if this group's private key requires additional rotation
+    /// `true` if this group's private key requires additional rotation.
     pub fn needs_rotation(&self) -> bool {
         self.needs_rotation
     }
@@ -602,10 +634,10 @@ fn generate_aug_and_admins<CR: rand::CryptoRng + rand::RngCore>(
 /// Rotate the group's private key. The public key for the group remains unchanged.
 ///
 /// # Arguments
-/// `recrypt` - recrypt instance to use for cryptographic operations
-/// `auth` - Auth context details for making API requests. The user associated with this device must be an admin of the group.
-/// `group_id` - unique id for the group needing rotation within the segment.
-/// `device_private_key` - user's device private key to use for decrypting the group's private key.
+/// - `recrypt` - recrypt instance to use for cryptographic operations
+/// - `auth` - Auth context details for making API requests. The user associated with this device must be an admin of the group.
+/// - `group_id` - unique id for the group needing rotation within the segment.
+/// - `device_private_key` - user's device private key to use for decrypting the group's private key.
 pub async fn group_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &RequestAuth,
@@ -660,11 +692,13 @@ pub async fn group_delete(auth: &RequestAuth, group_id: &GroupId) -> Result<Grou
 /// Add the users as members of a group.
 ///
 /// # Arguments
-/// `recrypt` - recrypt instance to use for cryptographic operations
-/// `auth` - Auth context details for making API requests. The user associated with this device must be an admin of the group.
-/// `group_id` - unique id for the group within the segment.
-/// `users` - The list of users thet will be added to the group as members.
-/// # Returns GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
+/// - `recrypt` - recrypt instance to use for cryptographic operations
+/// - `auth` - Auth context details for making API requests. The user associated with this device must be an admin of the group.
+/// - `group_id` - unique id for the group within the segment.
+/// - `users` - The list of users that will be added to the group as members.
+///
+/// # Returns
+/// GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
 ///   the reason they were not.
 pub async fn group_add_members<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -720,11 +754,13 @@ pub async fn group_add_members<CR: rand::CryptoRng + rand::RngCore>(
 /// Add the users as admins of a group.
 ///
 /// # Arguments
-/// `recrypt` - recrypt instance to use for cryptographic operations
-/// `auth` - Auth context details for making API requests. The user associated with this device must be an admin of the group.
-/// `group_id` - unique id for the group within the segment.
-/// `users` - The list of users that will be added to the group as admins.
-/// # Returns GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
+/// - `recrypt` - recrypt instance to use for cryptographic operations
+/// - `auth` - Auth context details for making API requests. The user associated with this device must be an admin of the group.
+/// - `group_id` - unique id for the group within the segment.
+/// - `users` - The list of users that will be added to the group as admins.
+///
+/// # Returns
+/// GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
 ///   the reason they were not.
 pub async fn group_add_admins<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -1119,7 +1155,7 @@ pub(crate) mod tests {
             .all(|text| text.bytes()[..] == first_admin.bytes()[..]));
 
         // using the first admin to test, verify that the augmentation factor plus the
-        // decryped plaintext's private key equals the group's private key
+        // decrypted plaintext's private key equals the group's private key
         let dec_private = recrypt.derive_private_key(first_admin);
         let group_private = recrypt.derive_private_key(&plaintext);
         let aug_private: PrivateKey = aug.0.as_slice().try_into()?;

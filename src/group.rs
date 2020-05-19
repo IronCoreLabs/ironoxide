@@ -1,3 +1,5 @@
+//! Group types
+
 pub use crate::internal::group_api::{
     GroupAccessEditErr, GroupAccessEditResult, GroupCreateResult, GroupGetResult, GroupId,
     GroupListResult, GroupMetaResult, GroupName, GroupUpdatePrivateKeyResult,
@@ -11,55 +13,59 @@ use crate::{
 use vec1::Vec1;
 
 /// Options for group creation.
+///
+/// Default values are provided with `GroupCreateOpts::default()`.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GroupCreateOpts {
-    // unique id of a group within a segment. If none, the server will assign an id.
+    /// Unique ID of a group within a segment. If `None`, the server will assign the ID.
     id: Option<GroupId>,
-    // human readable name of the group. Does not need to be unique.
+    /// Human-readable name of the group. Does not need to be unique.
     name: Option<GroupName>,
-    // true (default) - creating user will be added as an admin of the group.
-    // false - creating user will not be added as an admin of the group.
+    /// - `true` (default) - creating user will be added as an admin of the group.
+    /// - `false` - creating user will not be added as an admin of the group.
     add_as_admin: bool,
-    // true (default) - creating user will be added to the group's membership (in addition to being the group's admin);
-    // false - creating user will not be added to the group's membership
+    /// - `true` (default) - creating user will be added to the group's membership.
+    /// - `false` - creating user will not be added to the group's membership
     add_as_member: bool,
-    // Specifies who the owner of this group is. Group owners have the same permissions as other admins but they cannot be removed as an administrator.
-    // None (default) - The creating user will be the owner of the group. Cannot be used if `add_as_admin` is set to false as the owner must be an admin.
-    // Some(UserId) - The provided user will be the owner of the group. This ID will automatically be added to the admins list.
+    /// Specifies who the owner of this group is. Group owners have the same permissions as other admins but they cannot be removed as an administrator.
+    /// - `None` (default) - The creating user will be the owner of the group. Cannot be used if `add_as_admin` is set to false as the owner must be an admin.
+    /// - `Some` - The provided user will be the owner of the group. This ID will automatically be added to the admins list.
     owner: Option<UserId>,
-    // list of users to add as admins of the group
-    // note: even if `add_as_admin` is false, the calling user will be added as an admin if they are in this list.
+    /// List of users to add as admins of the group. Even if `add_as_admin` is false, the calling user will be added as an admin if they are in this list.
     admins: Vec<UserId>,
-    // list of users to add as members of the group.
-    // note: even if `add_as_member` is false, the calling user will be added as a member if they are in this list.
+    /// List of users to add as members of the group. Even if `add_as_member` is false, the calling user will be added as a member if they are in this list.
     members: Vec<UserId>,
-    // true - group's private key will be marked for rotation
-    // false (default) - group's private key will not be marked for rotation
+    /// - `true` - group's private key will be marked for rotation
+    /// `false` (default) - group's private key will not be marked for rotation
     needs_rotation: bool,
 }
 
 impl GroupCreateOpts {
-    /// Constructor. Also see `default()`
-    ///
     /// # Arguments
-    /// - `id` - Unique id of a group within a segment. If none, the server will assign an id.
-    /// - `name` - Human readable name of the group. Does not need to be unique. Will **not** be encrypted.
+    /// - `id`
+    ///     - `None` (default) - The server will assign the group's ID.
+    ///     - `Some` - The provided ID will be used as the group's ID.
+    /// - `name`
+    ///     - `None` (default) - The group will be created with no name.
+    ///     - `Some` - The provided name will be used as the group's name.
     /// - `add_as_admin`
-    ///     - true (default) - The creating user will be added as an admin of the group.
-    ///     - false - The creating user will not be an admin of the group.
+    ///     - `true` (default) - The creating user will be added as a group admin.
+    ///     - `false` - The creating user will not be a group admin.
     /// - `add_as_member`
-    ///     - true (default) - The creating user will be added as a member of the group.
-    ///     - false - The creating user will not be a member of the group.
-    /// - `owner` - Specifies the owner of the group
-    ///     - None (default) - The creating user will be the owner of the group. Cannot be used if `add_as_admin` is set to false as the owner must be an admin.
-    ///     - Some(UserId) - The provided user will be the owner of the group. This ID will automatically be added to the admins list.
-    /// - `admins` - List of users to be added as admins of the group. This list takes priority over `add_as_admin`,
-    ///             so the calling user will be added as a member if their id is in this list even if `add_as_admin` is false.
-    /// - `members` - List of users to be added as members of the group. This list takes priority over `add_as_member`,
-    ///             so the calling user will be added as a member if their id is in this list even if `add_as_member` is false.
+    ///     - `true` (default) - The creating user will be added as a group member.
+    ///     - `false` - The creating user will not be a group member.
+    /// - `owner`
+    ///     - `None` (default) - The creating user will be the owner of the group.
+    ///     - `Some` - The provided user will be the owner of the group. This ID will automatically be added to the admin list.
+    /// - `admins`
+    ///     - The list of users to be added as group admins. This list takes priority over `add_as_admin`,
+    ///       so the calling user will be added as an admin if they are in this list even if `add_as_admin` is false.
+    /// - `members`
+    ///     - The list of users to be added as members of the group. This list takes priority over `add_as_member`,
+    ///       so the calling user will be added as a member if they are in this list even if `add_as_member` is false.
     /// - `needs_rotation`
-    ///     - true - group's private key will be marked for rotation
-    ///     - false (default) - group's private key will not be marked for rotation
+    ///     - `true` - The group's private key will be marked for rotation.
+    ///     - `false` (default) - The group's private key will not be marked for rotation.
     pub fn new(
         id: Option<GroupId>,
         name: Option<GroupName>,
@@ -141,143 +147,287 @@ impl GroupCreateOpts {
 }
 
 impl Default for GroupCreateOpts {
-    /// Default GroupCreateOpts for common use cases. The user who calls `group_create()` will be the owner of the group
-    /// as well as an admin and member of the group.
+    /// Default `GroupCreateOpts` for common use cases.
+    ///
+    /// The user who calls [group_create](trait.GroupOps.html#tymethod.group_create) will be the owner of the group
+    /// as well as the only admin and member of the group. The group's private key will not be marked for rotation.
     fn default() -> Self {
         GroupCreateOpts::new(None, None, true, true, None, vec![], vec![], false)
     }
 }
 
+/// IronOxide Group Operations
+///
+/// # Key Terms
+/// - ID     - The ID representing a group. It must be unique within the group's segment.
+/// - Name   - The human-readable name of a group. It does not need to be unique and will **not** be encrypted.
+/// - Member - A user who is able to encrypt and decrypt data using the group.
+/// - Admin  - A user who is able to manage the group's member and admin lists. An admin cannot encrypt or decrypt data using the group
+///            unless they first add themselves as group members or are added by another admin.
+/// - Owner  - The user who owns the group. The owner has the same permissions as a group admin, but is protected from being removed as
+///            a group admin.
 #[async_trait]
 pub trait GroupOps {
-    /// List all of the groups that the current user is either an admin or member of.
+    /// Creates a group.
     ///
-    /// # Returns
-    /// `GroupListResult` List of (abbreviated) metadata about each group the user is a part of.
-    async fn group_list(&self) -> Result<GroupListResult>;
-
-    /// Create a group. The creating user will become a group admin and by default a group member.
+    /// With default `GroupCreateOpts`, the creating user will become the owner of the group and the only
+    /// group member and administrator.
     ///
     /// # Arguments
-    /// `group_create_opts` - See `GroupCreateOpts`. Use the `Default` implementation for defaults.
+    /// `group_create_opts` - Group creation parameters. Default values are provided with `GroupCreateOpts::default()`.
+    ///
+    /// # Examples
+    /// ```
+    /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+    /// # use ironoxide::prelude::*;
+    /// # let sdk: IronOxide = unimplemented!();
+    /// # use std::convert::TryFrom;
+    /// let group_id = Some(GroupId::try_from("empl412")?);
+    /// let opts = GroupCreateOpts::new(group_id, None, true, true, None, vec![], vec![], false);
+    /// let group = sdk.group_create(&opts).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     async fn group_create(&self, group_create_opts: &GroupCreateOpts) -> Result<GroupCreateResult>;
 
-    /// Get the full metadata for a specific group given its ID.
+    /// Gets the full metadata for a group.
+    ///
+    /// The encrypted private key for the group will not be returned.
     ///
     /// # Arguments
-    /// - `id` - Unique ID of the group to retrieve
+    /// - `id` - ID of the group to retrieve
     ///
-    /// # Returns
-    /// `GroupMetaResult` with details about the requested group.
+    /// # Examples
+    /// ```
+    /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+    /// # use ironoxide::prelude::*;
+    /// # let sdk: IronOxide = unimplemented!();
+    /// # use std::convert::TryFrom;
+    /// let group_id = GroupId::try_from("empl412")?;
+    /// let group_metadata = sdk.group_get_metadata(&group_id).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     async fn group_get_metadata(&self, id: &GroupId) -> Result<GroupGetResult>;
 
-    /// Delete the identified group. Group does not have to be empty of admins/members in order to
-    /// delete the group. **Warning: Deletion of a group will cause all documents encrypted to that
-    /// group to no longer be decryptable. Caution should be used when deleting groups.**
+    /// Lists all of the groups that the current user is an admin or a member of.
     ///
-    /// # Arguments
-    /// `id` - Unique id of group
-    ///
-    /// # Returns
-    /// Deleted group id or error
-    async fn group_delete(&self, id: &GroupId) -> Result<GroupId>;
+    /// # Examples
+    /// ```
+    /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+    /// # use ironoxide::prelude::*;
+    /// # let sdk: IronOxide = unimplemented!();
+    /// let group_list = sdk.group_list().await?;
+    /// let groups: Vec<GroupMetaResult> = group_list.result().to_vec();
+    /// # Ok(())
+    /// # }
+    /// ```
+    async fn group_list(&self) -> Result<GroupListResult>;
 
-    /// Update a group name to a new value or clear its value.
+    /// Modifies or removes a group's name.
+    ///
+    /// Returns the updated metadata of the group.
     ///
     /// # Arguments
     /// - `id` - ID of the group to update
-    /// - `name` - New name for the group. Provide a Some to update to a new name and a None to clear the name field.
+    /// - `name` - New name for the group. Provide a `Some` to update to a new name or a `None` to clear the group's name.
     ///
-    /// # Returns
-    /// `Result<GroupMetaResult>` Metadata about the group that was updated.
+    /// # Examples
+    /// ```
+    /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+    /// # use ironoxide::prelude::*;
+    /// # let sdk: IronOxide = unimplemented!();
+    /// # use std::convert::TryFrom;
+    /// let group_id = GroupId::try_from("empl412")?;
+    /// let new_name = GroupName::try_from("HQ Employees")?;
+    /// let new_metadata = sdk.group_update_name(&group_id, Some(&new_name)).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     async fn group_update_name(
         &self,
         id: &GroupId,
         name: Option<&GroupName>,
     ) -> Result<GroupMetaResult>;
 
-    /// Add the users as members of a group.
+    /// Rotates a group's private key while leaving its public key unchanged.
+    ///
+    /// There's no black magic here! This is accomplished via multi-party computation with the
+    /// IronCore webservice.
+    ///
+    /// Note: You must be an administrator of a group in order to rotate its private key.
+    ///
+    /// # Arguments
+    /// `id` - ID of the group you wish to rotate the private key of
+    ///
+    /// # Examples
+    /// ```
+    /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+    /// # use ironoxide::prelude::*;
+    /// # let sdk: IronOxide = unimplemented!();
+    /// # use std::convert::TryFrom;
+    /// let group_id = GroupId::try_from("empl412")?;
+    /// let rotate_result = sdk.group_rotate_private_key(&group_id).await?;
+    /// let new_rotation = rotate_result.needs_rotation();
+    /// # Ok(())
+    /// # }
+    /// ```
+    async fn group_rotate_private_key(&self, id: &GroupId) -> Result<GroupUpdatePrivateKeyResult>;
+
+    /// Adds members to a group.
+    ///
+    /// Returns lists of successful and failed additions.
     ///
     /// # Arguments
     /// - `id` - ID of the group to add members to
-    /// - `users` - The list of users thet will be added to the group as members.
-    /// # Returns
-    /// GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
-    ///   the reason they were not.
+    /// - `users` - List of users to add as group members
+    ///
+    /// # Examples
+    /// ```
+    /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+    /// # use ironoxide::prelude::*;
+    /// # let sdk: IronOxide = unimplemented!();
+    /// # use std::convert::TryFrom;
+    /// let group_id = GroupId::try_from("empl412")?;
+    /// let user = UserId::try_from("colt")?;
+    /// let add_result = sdk.group_add_members(&group_id, &vec![user]).await?;
+    /// let new_members: Vec<UserId> = add_result.succeeded().to_vec();
+    /// let failures: Vec<GroupAccessEditErr> = add_result.failed().to_vec();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// This operation supports partial success. If the request succeeds, then the resulting `GroupAccessEditResult`
+    /// will indicate which additions succeeded and which failed, and it will provide an explanation for each failure.
     async fn group_add_members(
         &self,
         id: &GroupId,
         users: &[UserId],
     ) -> Result<GroupAccessEditResult>;
 
-    /// Remove a list of users as members from the group.
+    /// Removes members from a group.
+    ///
+    /// Returns lists of successful and failed removals.
     ///
     /// # Arguments
     /// - `id` - ID of the group to remove members from
-    /// - `revoke_list` - List of user IDs to remove as members
+    /// - `revoke_list` - List of users to remove as group members
     ///
-    /// # Returns
-    /// `Result<GroupAccessEditResult>` List of users that were removed. Also contains the users that failed to be removed
-    ///    and the reason they were not.
+    /// # Examples
+    /// ```
+    /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+    /// # use ironoxide::prelude::*;
+    /// # let sdk: IronOxide = unimplemented!();
+    /// # use std::convert::TryFrom;
+    /// let group_id = GroupId::try_from("empl412")?;
+    /// let user = UserId::try_from("colt")?;
+    /// let remove_result = sdk.group_remove_members(&group_id, &vec![user]).await?;
+    /// let removed_members: Vec<UserId> = remove_result.succeeded().to_vec();
+    /// let failures: Vec<GroupAccessEditErr> = remove_result.failed().to_vec();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// This operation supports partial success. If the request succeeds, then the resulting `GroupAccessEditResult`
+    /// will indicate which removals succeeded and which failed, and it will provide an explanation for each failure.
     async fn group_remove_members(
         &self,
         id: &GroupId,
         revoke_list: &[UserId],
     ) -> Result<GroupAccessEditResult>;
 
-    /// Add the users as admins of a group.
+    /// Adds administrators to a group.
+    ///
+    /// Returns lists of successful and failed additions.
     ///
     /// # Arguments
-    /// - `id` - ID of the group to add admins to
-    /// - `users` - The list of users that will be added to the group as admins.
-    /// # Returns
-    /// GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
-    ///   the reason they were not.
+    /// - `id` - ID of the group to add administrators to
+    /// - `users` - List of users to add as group administrators
+    ///
+    /// # Examples
+    /// ```
+    /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+    /// # use ironoxide::prelude::*;
+    /// # let sdk: IronOxide = unimplemented!();
+    /// # use std::convert::TryFrom;
+    /// let group_id = GroupId::try_from("empl412")?;
+    /// let user = UserId::try_from("colt")?;
+    /// let add_result = sdk.group_add_admins(&group_id, &vec![user]).await?;
+    /// let new_admins: Vec<UserId> = add_result.succeeded().to_vec();
+    /// let failures: Vec<GroupAccessEditErr> = add_result.failed().to_vec();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// This operation supports partial success. If the request succeeds, then the resulting `GroupAccessEditResult`
+    /// will indicate which additions succeeded and which failed, and it will provide an explanation for each failure.
     async fn group_add_admins(
         &self,
         id: &GroupId,
         users: &[UserId],
     ) -> Result<GroupAccessEditResult>;
 
-    /// Remove a list of users as admins from the group.
+    /// Removes administrators from a group.
+    ///
+    /// Returns lists of successful and failed removals.
     ///
     /// # Arguments
-    /// - `id` - ID of the group
-    /// - `revoke_list` - List of user IDs to remove as admins
+    /// - `id` - ID of the group to remove administrators from
+    /// - `revoke_list` - List of users to remove as group administrators
     ///
-    /// # Returns
-    /// `Result<GroupAccessEditResult>` List of users that were removed. Also contains the users that failed to be removed
-    ///    and the reason they were not.
+    /// # Examples
+    /// ```
+    /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+    /// # use ironoxide::prelude::*;
+    /// # let sdk: IronOxide = unimplemented!();
+    /// # use std::convert::TryFrom;
+    /// let group_id = GroupId::try_from("empl412")?;
+    /// let user = UserId::try_from("colt")?;
+    /// let remove_result = sdk.group_remove_admins(&group_id, &vec![user]).await?;
+    /// let removed_admins: Vec<UserId> = remove_result.succeeded().to_vec();
+    /// let failures: Vec<GroupAccessEditErr> = remove_result.failed().to_vec();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// This operation supports partial success. If the request succeeds, then the resulting `GroupAccessEditResult`
+    /// will indicate which removals succeeded and which failed, and it will provide an explanation for each failure.
     async fn group_remove_admins(
         &self,
         id: &GroupId,
         revoke_list: &[UserId],
     ) -> Result<GroupAccessEditResult>;
 
-    /// Rotate the provided group's private key, but leave the public key the same.
-    /// There's no black magic here! This is accomplished via multi-party computation with the
-    /// IronCore webservice.
-    /// Note: You must be an admin of the group in order to rotate its private key.
+    /// Deletes a group.
+    ///
+    /// A group can be deleted even if it has existing members and administrators.
+    ///
+    /// **Warning: Deleting a group will cause all documents encrypted to that
+    /// group to no longer be decryptable. Caution should be used when deleting groups.**
     ///
     /// # Arguments
-    /// `id` - ID of the group you wish to rotate the private key of
+    /// `id` - ID of the group to delete
     ///
-    /// # Returns
-    /// An indication of whether the group's private key needs an additional rotation
-    async fn group_rotate_private_key(&self, id: &GroupId) -> Result<GroupUpdatePrivateKeyResult>;
+    /// # Examples
+    /// ```
+    /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+    /// # use ironoxide::prelude::*;
+    /// # let sdk: IronOxide = unimplemented!();
+    /// # use std::convert::TryFrom;
+    /// let group_id = GroupId::try_from("empl412")?;
+    /// let deleted_group_id = sdk.group_delete(&group_id).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    async fn group_delete(&self, id: &GroupId) -> Result<GroupId>;
 }
 
 #[async_trait]
 impl GroupOps for crate::IronOxide {
-    async fn group_list(&self) -> Result<GroupListResult> {
-        add_optional_timeout(
-            group_api::list(self.device.auth(), None),
-            self.config.sdk_operation_timeout,
-            SdkOperation::GroupList,
-        )
-        .await?
-    }
-
     async fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupCreateResult> {
         let standard_opts = opts.clone().standardize(self.device.auth().account_id())?;
         let all_users = &standard_opts.all_users();
@@ -317,11 +467,11 @@ impl GroupOps for crate::IronOxide {
         .await?
     }
 
-    async fn group_delete(&self, id: &GroupId) -> Result<GroupId> {
+    async fn group_list(&self) -> Result<GroupListResult> {
         add_optional_timeout(
-            group_api::group_delete(self.device.auth(), id),
+            group_api::list(self.device.auth(), None),
             self.config.sdk_operation_timeout,
-            SdkOperation::GroupDelete,
+            SdkOperation::GroupList,
         )
         .await?
     }
@@ -335,6 +485,20 @@ impl GroupOps for crate::IronOxide {
             group_api::update_group_name(self.device.auth(), id, name),
             self.config.sdk_operation_timeout,
             SdkOperation::GroupUpdateName,
+        )
+        .await?
+    }
+
+    async fn group_rotate_private_key(&self, id: &GroupId) -> Result<GroupUpdatePrivateKeyResult> {
+        add_optional_timeout(
+            group_api::group_rotate_private_key(
+                &self.recrypt,
+                self.device().auth(),
+                id,
+                self.device().device_private_key(),
+            ),
+            self.config.sdk_operation_timeout,
+            SdkOperation::GroupRotatePrivateKey,
         )
         .await?
     }
@@ -413,16 +577,11 @@ impl GroupOps for crate::IronOxide {
         .await?
     }
 
-    async fn group_rotate_private_key(&self, id: &GroupId) -> Result<GroupUpdatePrivateKeyResult> {
+    async fn group_delete(&self, id: &GroupId) -> Result<GroupId> {
         add_optional_timeout(
-            group_api::group_rotate_private_key(
-                &self.recrypt,
-                self.device().auth(),
-                id,
-                self.device().device_private_key(),
-            ),
+            group_api::group_delete(self.device.auth(), id),
             self.config.sdk_operation_timeout,
-            SdkOperation::GroupRotatePrivateKey,
+            SdkOperation::GroupDelete,
         )
         .await?
     }

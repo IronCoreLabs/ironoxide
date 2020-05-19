@@ -1,3 +1,5 @@
+//! Policy types
+//!
 //! Policies are a list of rules which map data labels to a list of users/groups. This allows the
 //! separation of concerns when it comes to labeling data vs defining who to encrypt to.
 //!

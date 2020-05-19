@@ -741,8 +741,7 @@ impl<T> WithKey<T> {
 /// single statement (mut)
 /// `let result = take_lock(&t).deref_mut().call_method_on_t();`
 ///
-/// mutli-statement (mut)
-///
+/// multi-statement (mut)
 /// ```ignore
 /// let t = T {};
 /// let result = {
