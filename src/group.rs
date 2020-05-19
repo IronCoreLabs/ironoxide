@@ -36,7 +36,7 @@ pub struct GroupCreateOpts {
     /// List of users to add as members of the group. Even if `add_as_member` is false, the calling user will be added as a member if they are in this list.
     members: Vec<UserId>,
     /// - `true` - group's private key will be marked for rotation
-    /// `false` (default) - group's private key will not be marked for rotation
+    /// - `false` (default) - group's private key will not be marked for rotation
     needs_rotation: bool,
 }
 
@@ -149,8 +149,8 @@ impl GroupCreateOpts {
 impl Default for GroupCreateOpts {
     /// Default `GroupCreateOpts` for common use cases.
     ///
-    /// The user who calls [group_create](trait.GroupOps.html#tymethod.group_create) will be the owner of the group
-    /// as well as the only admin and member of the group. The group's private key will not be marked for rotation.
+    /// The group will be assigned an ID and have an empty name. The user who calls [group_create](trait.GroupOps.html#tymethod.group_create)
+    /// will be the owner of the group as well as the only admin and member of the group. The group's private key will not be marked for rotation.
     fn default() -> Self {
         GroupCreateOpts::new(None, None, true, true, None, vec![], vec![], false)
     }
@@ -406,8 +406,8 @@ pub trait GroupOps {
     ///
     /// A group can be deleted even if it has existing members and administrators.
     ///
-    /// **Warning: Deleting a group will cause all documents encrypted to that
-    /// group to no longer be decryptable. Caution should be used when deleting groups.**
+    /// **Warning: Deleting a group will prevent its members from decrypting all of the
+    /// documents encrypted to that group. Caution should be used when deleting groups.**
     ///
     /// # Arguments
     /// `id` - ID of the group to delete
