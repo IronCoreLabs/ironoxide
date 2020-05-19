@@ -407,7 +407,7 @@ pub trait GroupOps {
     /// A group can be deleted even if it has existing members and administrators.
     ///
     /// **Warning: Deleting a group will prevent its members from decrypting all of the
-    /// documents encrypted to that group. Caution should be used when deleting groups.**
+    /// documents previously encrypted to the group. Caution should be used when deleting groups.**
     ///
     /// # Arguments
     /// `id` - ID of the group to delete
