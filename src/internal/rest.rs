@@ -7,7 +7,7 @@ use crate::internal::{
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
-use percent_encoding::{define_encode_set, SIMPLE_ENCODE_SET};
+use percent_encoding::{AsciiSet, CONTROLS};
 use reqwest::{
     header::{HeaderMap, HeaderValue, CONTENT_TYPE},
     Client, Method, Request, RequestBuilder, StatusCode, Url,
@@ -42,51 +42,48 @@ pub struct ServerError {
     code: u32,
 }
 
-define_encode_set! {
-    /// This encode set should be used for path components and query strings.
-    /// `A-Z a-z 0-9 - _ . ! ~ * ' ( )` are the only characters we _don't_ want to encode.
-    ///
-    /// If this is changed it will potentially need be changed in the webservice and all other SDKs.
-    #[rustfmt::skip]
-    pub ICL_ENCODE_SET = [SIMPLE_ENCODE_SET] | {
-        /* 0x20:   */ ' ',
-        /* 0x21: ! */ // ... no encode ..
-        /* 0x22: " */ '"',
-        /* 0x23: # */ '#',
-        /* 0x24: $ */ '$',
-        /* 0x25: % */ '%',
-        /* 0x26: & */ '&',
-        /* 0x27: ' */ // ... no encode ...
-        /* 0x28: ( */ // ... no encode ...
-        /* 0x29: ) */ // ... no encode ...
-        /* 0x2a: * */ // ... no encode ...
-        /* 0x2b: + */ '+',
-        /* 0x2c: , */ ',',
-        /* 0x2d: - */ // ... no encode ...
-        /* 0x2e: . */ // ... no encode ...
-        /* 0x2f: / */ '/',
-        // 0x30 - 0x39 are 0-9 (don't encode)
-        /* 0x3a: : */ ':',
-        /* 0x3b: ; */ ';',
-        /* 0x3c: < */ '<',
-        /* 0x3d: = */ '=',
-        /* 0x3e: > */ '>',
-        /* 0x3f: ? */ '?',
-        /* 0x40: @ */ '@',
-        // 0x41 - 0x5a are A-Z (don't encode)
-        /* 0x5b: [ */ '[',
-        /* 0x5c: \ */ '\\',
-        /* 0x5d: ] */ ']',
-        /* 0x5e: ^ */ '^',
-        /* 0x5f: _ */ // ... no encode ...
-        /* 0x60: ` */ '`',
-        // 0x61 - 0x7a are a-z (don't encode)
-        /* 0x7b: { */ '{',
-        /* 0x7c: | */ '|',
-        /* 0x7d: } */ '}'
-        /* 0x7e: ~ */ // ... no encode ...
-    }
-}
+/// This encode set should be used for path components and query strings.
+/// `A-Z a-z 0-9 - _ . ! ~ * ' ( )` are the only characters we _don't_ want to encode.
+///
+/// If this is changed it will potentially need be changed in the webservice and all other SDKs.
+#[rustfmt::skip]
+const ICL_ENCODE_SET: &AsciiSet = &CONTROLS
+    .add(b' ') // 0x20:
+               // 0x21: ! ... no encode ..
+    .add(b'"') // 0x22: "
+    .add(b'#') // 0x23: #
+    .add(b'$') // 0x24: $
+    .add(b'%') // 0x25: %
+    .add(b'&') // 0x26: &
+               // 0x27: ' ... no encode ...
+               // 0x28: ( ... no encode ...
+               // 0x29: ) ... no encode ...
+               // 0x2a: * ... no encode ...
+    .add(b'+') // 0x2b: +
+    .add(b',') // 0x2c: ,
+               // 0x2d: - ... no encode ...
+               // 0x2e: . ... no encode ...
+    .add(b'/') // 0x2f: /
+               // 0x30-0x39 are 0-9 ... no encode ...
+    .add(b':') // 0x3a: :
+    .add(b';') // 0x3b: ;
+    .add(b'<') // 0x3c: <
+    .add(b'=') // 0x3d: =
+    .add(b'>') // 0x3e: >
+    .add(b'?') // 0x3f: ?
+    .add(b'@') // 0x40: @
+               // 0x41-0x5a are A-Z ... no encode ...
+    .add(b'[') // 0x5b: [
+    .add(b'\\')// 0x5c: \
+    .add(b']') // 0x5d: ]
+    .add(b'^') // 0x5e: ^
+               // 0x5f: _ ... no encode ...
+    .add(b'`') // 0x60: `
+               // 0x61-0x7a are a-z ... no encode ...
+    .add(b'{') // 0x7b: {
+    .add(b'|') // 0x7c: |
+    .add(b'}'); //0x7d: }
+                //0x7e: ~ ... no encode ...
 
 #[derive(Clone, Debug)]
 /// Newtype for strings that have been percent encoded

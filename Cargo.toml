@@ -33,7 +33,7 @@ futures = "~0.3.1"
 quick-error = "~1.2"
 lazy_static = "~1.4"
 chrono = { version = "~0.4", features = ["serde"] }
-percent-encoding="~1.0"
+percent-encoding="~2.1"
 log = "~0.4"
 protobuf = {version = "~2.14", features = ["with-bytes"]}
 vec1 = "~1.4.0"
