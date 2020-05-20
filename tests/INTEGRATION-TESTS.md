@@ -22,7 +22,7 @@ Integration tests run against IronCore environments require some test keys and c
 
 ### Running the Tests
 
-The environment you would like to test against is specified in the environment variable `IRONCORE_ENV`. This variable can be set to `dev`, `stage`, or `prod` to use the pre-generated keys and config files. To test against these, run one of the following:
+The environment you would like to test against is specified in the environment variable `IRONCORE_ENV`. This variable can be set to `dev`, `stage`, or `prod` - this will cause the tests to use one set of the pre-generated key and config files (i.e. iak-dev.pem and ironcore-config-dev.json). To test against these, run one of the following:
 
 - Development: `IRONCORE_ENV=dev cargo t`
 - Staging: `IRONCORE_ENV=stage cargo t`

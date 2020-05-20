@@ -20,6 +20,7 @@ use crate::{
     IronOxide, IronOxideErr, Result,
 };
 use async_trait::async_trait;
+pub use ironcore_search_helpers::transliterate_string;
 use ironcore_search_helpers::{
     generate_hashes_for_string, generate_hashes_for_string_with_padding,
 };
