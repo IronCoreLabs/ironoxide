@@ -83,7 +83,11 @@ extern crate async_trait;
 #[macro_use]
 extern crate percent_encoding;
 
-mod crypto;
+mod crypto {
+    pub mod aes;
+    pub mod transform;
+}
+
 mod internal;
 
 // include generated proto code as a proto module
