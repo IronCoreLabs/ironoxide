@@ -1,3 +1,7 @@
+//! Document types
+//!
+//! See [DocumentOps](trait.DocumentOps.html) for document functions and key terms.
+
 pub use crate::internal::document_api::{
     AssociationType, DocAccessEditErr, DocumentAccessResult, DocumentDecryptResult,
     DocumentEncryptResult, DocumentId, DocumentListMeta, DocumentListResult,
@@ -13,7 +17,6 @@ use crate::{
 };
 use itertools::{Either, EitherOrBoth, Itertools};
 
-/// Advanced document operations
 pub mod advanced;
 
 /// List of users and groups that should have access to decrypt a document.
@@ -24,10 +27,10 @@ pub struct ExplicitGrant {
 }
 
 impl ExplicitGrant {
-    /// Construct a new ExplicitGrant.
+    /// Constructs a new ExplicitGrant.
     ///
     /// # Arguments
-    /// - `grant_to_author` - True if the calling user should have access to decrypt the document
+    /// - `grant_to_author` - `true` if the calling user should have access to decrypt the document
     /// - `grants` - List of users and groups that should have access to decrypt the document
     pub fn new(grant_to_author: bool, grants: &[UserOrGroup]) -> ExplicitGrant {
         ExplicitGrant {
@@ -40,9 +43,9 @@ impl ExplicitGrant {
 /// Parameters that can be provided when encrypting a new document.
 ///
 /// Document IDs must be unique to the segment. If no ID is provided, one will be generated for it.
-/// If no document name is provided, the document's name will be left empty.
+/// If no name is provided, the document's name will be left empty.
 ///
-/// For default parameters, use `DocumentEncryptOpts::default()`.
+/// Default values are provided with `DocumentEncryptOpts::default()`.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DocumentEncryptOpts {
     id: Option<DocumentId>,
@@ -50,7 +53,6 @@ pub struct DocumentEncryptOpts {
     // at least one user/group must be included either explicitly or via a policy
     grants: EitherOrBoth<ExplicitGrant, PolicyGrant>,
 }
-
 impl DocumentEncryptOpts {
     /// Constructs a new `DocumentEncryptOpts`.
     ///
@@ -59,8 +61,8 @@ impl DocumentEncryptOpts {
     /// or [with_policy_grants](./struct.DocumentEncryptOpts.html#method.with_policy_grants) instead.
     ///
     /// # Arguments
-    /// - `id` - Unique ID to use for the document. Note: this ID will **not** be encrypted.
-    /// - `name` - Non-unique name to use for the document. Note: this name will **not** be encrypted.
+    /// - `id` - ID to use for the document.
+    /// - `name` - Name to use for the document.
     /// - `grants` - Grants that control who will have access to read and decrypt this document.
     pub fn new(
         id: Option<DocumentId>,
@@ -73,8 +75,8 @@ impl DocumentEncryptOpts {
     /// Constructs a new `DocumentEncryptOpts` with access explicitly granted to certain users and groups.
     ///
     /// # Arguments
-    /// - `id` - Unique ID to use for the document. Note: this ID will **not** be encrypted.
-    /// - `name` - Non-unique name to use for the document. Note: this name will **not** be encrypted.
+    /// - `id` - ID to use for the document.
+    /// - `name` - Name to use for the document.
     /// - `grant_to_author` - True if the calling user should have access to decrypt the document
     /// - `grants` - List of users and groups that should have access to read and decrypt this document
     pub fn with_explicit_grants(
@@ -96,8 +98,8 @@ impl DocumentEncryptOpts {
     /// Constructs a new `DocumentEncryptOpts` with access granted by a policy.
     ///
     /// # Arguments
-    /// - `id` - Unique ID to use for the document. Note: this ID will **not** be encrypted.
-    /// - `name` - Non-unique name to use for the document. Note: this name will **not** be encrypted.
+    /// - `id` - ID to use for the document.
+    /// - `name` - Name to use for the document.
     /// - `policy` - Policy to determine which users and groups will have access to read and decrypt this document.
     ///              See the [policy](../policy/index.html) module for more information.
     pub fn with_policy_grants(
@@ -112,7 +114,6 @@ impl DocumentEncryptOpts {
         }
     }
 }
-
 impl Default for DocumentEncryptOpts {
     /// Constructs a `DocumentEncryptOpts` with common values.
     ///
@@ -123,6 +124,11 @@ impl Default for DocumentEncryptOpts {
     }
 }
 
+/// IronOxide Document Operations
+///
+/// # Key Terms
+/// - ID     - The ID representing a document. It must be unique within the document's segment and will **not** be encrypted.
+/// - Name   - The human-readable name of a document. It does not need to be unique and will **not** be encrypted.
 #[async_trait]
 pub trait DocumentOps {
     /// Encrypts the provided document bytes.
@@ -158,11 +164,12 @@ pub trait DocumentOps {
 
     /// Decrypts an IronCore encrypted document.
     ///
+    /// Requires the encrypted data returned from [document_encrypt](trait.DocumentOps.html#tymethod.document_encrypt).
+    ///
     /// Returns details about the document as well as its decrypted bytes.
     ///
     /// # Arguments
-    /// - `encrypted_document` - Bytes of encrypted document. These should be the same bytes returned from
-    /// [document_encrypt](trait.DocumentOps.html#tymethod.document_encrypt).
+    /// - `encrypted_document` - Bytes of the encrypted document
     ///
     /// # Errors
     /// Fails if passed malformed data or if the calling user does not have sufficient access to the document.
@@ -199,7 +206,7 @@ pub trait DocumentOps {
     /// This will not return the encrypted document bytes, as they are not stored by IronCore.
     ///
     /// # Arguments
-    /// - `id` - Unique ID of the document to retrieve
+    /// - `id` - ID of the document to retrieve
     ///
     /// # Examples
     /// ```
@@ -243,8 +250,8 @@ pub trait DocumentOps {
     /// will remain unchanged.
     ///
     /// # Arguments
-    /// - `id` - Unique ID of the document to update
-    /// - `new_document_data` - Updated bytes to encrypt
+    /// - `id` - ID of the document to update
+    /// - `new_document_data` - New document bytes to encrypt
     ///
     /// # Examples
     /// ```
@@ -268,7 +275,7 @@ pub trait DocumentOps {
     /// Returns the updated metadata of the document.
     ///
     /// # Arguments
-    /// - `id` - Unique ID of the document to update
+    /// - `id` - ID of the document to update
     /// - `name` - New name for the document. Provide a `Some` to update to a new name or a `None` to clear the name field.
     ///
     /// # Examples
@@ -294,7 +301,7 @@ pub trait DocumentOps {
     /// Returns lists of successful and failed grants.
     ///
     /// # Arguments
-    /// - `document_id` - Unique ID of the document whose access is being modified.
+    /// - `document_id` - ID of the document whose access is being modified.
     /// - `grant_list` - List of users and groups to grant access to.
     ///
     /// # Errors
@@ -327,7 +334,7 @@ pub trait DocumentOps {
     /// Returns lists of successful and failed revocations.
     ///
     /// # Arguments
-    /// - `document_id` - Unique ID of the document whose access is being modified.
+    /// - `document_id` - ID of the document whose access is being modified.
     /// - `revoke_list` - List of users and groups to revoke access from.
     ///
     /// # Errors
