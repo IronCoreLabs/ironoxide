@@ -1,4 +1,6 @@
 //! Group types
+//!
+//! See [GroupOps](trait.GroupOps.html) for group functions and key terms.
 
 pub use crate::internal::group_api::{
     GroupAccessEditErr, GroupAccessEditResult, GroupCreateResult, GroupGetResult, GroupId,
