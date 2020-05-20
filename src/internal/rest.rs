@@ -6,7 +6,8 @@ use crate::internal::{
 };
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use percent_encoding::SIMPLE_ENCODE_SET;
+use lazy_static::lazy_static;
+use percent_encoding::{define_encode_set, SIMPLE_ENCODE_SET};
 use reqwest::{
     header::{HeaderMap, HeaderValue, CONTENT_TYPE},
     Client, Method, Request, RequestBuilder, StatusCode, Url,
@@ -17,7 +18,7 @@ use serde::{
         fmt::{Display, Error},
         Formatter,
     },
-    Serialize,
+    Deserialize, Serialize,
 };
 use std::{borrow::BorrowMut, marker::PhantomData, ops::Deref};
 
@@ -846,6 +847,8 @@ impl From<(publicsuffix::errors::Error, RequestErrorCode)> for IronOxideErr {
 /// Common types for use across different internal apis
 pub mod json {
     use crate::internal::{self, IronOxideErr};
+    use base64_serde::base64_serde_type;
+    use serde::{Deserialize, Serialize};
     use std::convert::TryFrom;
 
     base64_serde_type!(pub Base64Standard, base64::STANDARD);
@@ -1030,7 +1033,11 @@ mod tests {
     use super::*;
     use crate::internal::tests::{contains, length};
     use chrono::TimeZone;
-    use galvanic_assert::matchers::{variant::*, *};
+    use galvanic_assert::{
+        matchers::{variant::*, *},
+        *,
+    };
+
     use recrypt::api::{Ed25519Signature, PublicSigningKey};
 
     #[test]

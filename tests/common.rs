@@ -1,11 +1,12 @@
 use ironoxide::prelude::*;
 use lazy_static::*;
+use serde::Deserialize;
 use std::{convert::TryInto, default::Default};
 use uuid::Uuid;
 
 pub const USER_PASSWORD: &str = "foo";
 
-#[derive(serde_derive::Deserialize)]
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Config {
     project_id: usize,

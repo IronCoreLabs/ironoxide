@@ -7,6 +7,7 @@ use crate::{
     internal::add_optional_timeout,
     Result, SdkOperation,
 };
+use async_trait::async_trait;
 use itertools::EitherOrBoth;
 
 #[async_trait]
