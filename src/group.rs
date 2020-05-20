@@ -19,9 +19,9 @@ use vec1::Vec1;
 /// Default values are provided with `GroupCreateOpts::default()`.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GroupCreateOpts {
-    /// Unique ID of a group within a segment. If `None`, the server will assign the ID.
+    /// ID of the group. If `None`, the server will assign the ID.
     id: Option<GroupId>,
-    /// Human-readable name of the group. Does not need to be unique.
+    /// Name of the group.
     name: Option<GroupName>,
     /// - `true` (default) - creating user will be added as an admin of the group.
     /// - `false` - creating user will not be added as an admin of the group.
@@ -161,7 +161,7 @@ impl Default for GroupCreateOpts {
 /// IronOxide Group Operations
 ///
 /// # Key Terms
-/// - ID     - The ID representing a group. It must be unique within the group's segment.
+/// - ID     - The ID representing a group. It must be unique within the group's segment and will **not** be encrypted.
 /// - Name   - The human-readable name of a group. It does not need to be unique and will **not** be encrypted.
 /// - Member - A user who is able to encrypt and decrypt data using the group.
 /// - Admin  - A user who is able to manage the group's member and admin lists. An admin cannot encrypt or decrypt data using the group
@@ -172,8 +172,8 @@ impl Default for GroupCreateOpts {
 pub trait GroupOps {
     /// Creates a group.
     ///
-    /// With default `GroupCreateOpts`, the creating user will become the owner of the group and the only
-    /// group member and administrator.
+    /// With default `GroupCreateOpts`, the group will be assigned an ID and have no name. The creating user will become the
+    /// owner of the group and the only group member and administrator.
     ///
     /// # Arguments
     /// `group_create_opts` - Group creation parameters. Default values are provided with `GroupCreateOpts::default()`.

@@ -60,11 +60,11 @@ impl GroupCreateOptsStd {
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct GroupId(pub(crate) String);
 impl GroupId {
-    /// Construct a `GroupId` with no validation. Useful for IDs coming back from the web service.
+    /// Constructs a `GroupId` with no validation. Useful for IDs coming back from the web service.
     pub fn unsafe_from_string(id: String) -> GroupId {
         GroupId(id)
     }
-    /// ID of the group.
+    /// ID of the group
     pub fn id(&self) -> &str {
         &self.0
     }
@@ -89,14 +89,14 @@ impl TryFrom<&str> for GroupId {
 
 /// Name of a group.
 ///
-/// The name should be human-readable and does not have to be unique. It can be validated from a `String` or `&str` using `GroupName::try_from`.
+/// The name can be validated from a `String` or `&str` using `GroupName::try_from`.
 ///
 /// # Requirements
 /// - Must be between 1 and 100 characters long.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct GroupName(pub(crate) String);
 impl GroupName {
-    /// Name of the group.
+    /// Name of the group
     pub fn name(&self) -> &String {
         &self.0
     }
@@ -349,11 +349,11 @@ pub struct GroupAccessEditResult {
 }
 
 impl GroupAccessEditResult {
-    /// Users whose access was successfully modified.
+    /// Users whose access was successfully modified
     pub fn succeeded(&self) -> &Vec<UserId> {
         &self.succeeded
     }
-    /// Errors resulting from failure to modify a user's access.
+    /// Errors resulting from failure to modify a user's access
     pub fn failed(&self) -> &Vec<GroupAccessEditErr> {
         &self.failed
     }
@@ -569,11 +569,11 @@ pub struct GroupUpdatePrivateKeyResult {
     needs_rotation: bool,
 }
 impl GroupUpdatePrivateKeyResult {
-    /// The ID of the group whose private key was rotated.
+    /// The ID of the group
     pub fn id(&self) -> &GroupId {
         &self.id
     }
-    /// `true` if this group's private key requires additional rotation.
+    /// `true` if this group's private key requires additional rotation
     pub fn needs_rotation(&self) -> bool {
         self.needs_rotation
     }
