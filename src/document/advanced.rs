@@ -23,8 +23,6 @@ use itertools::EitherOrBoth;
 pub trait DocumentAdvancedOps {
     /// Encrypts the provided document bytes without being managed by the IronCore service.
     ///
-    /// Returns the EDEKs instead of creating a document entry in the IronCore webservice.
-    ///
     /// The webservice is still needed for looking up public keys and evaluating policies, but no
     /// document is created and the EDEKs are not stored. An additional burden is put on the caller
     /// in that both the encrypted data and the EDEKs must be provided for decryption.

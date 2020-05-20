@@ -101,6 +101,12 @@ impl TryFrom<&str> for DocumentName {
         validate_name(name, "document_name").map(DocumentName)
     }
 }
+impl TryFrom<String> for DocumentName {
+    type Error = IronOxideErr;
+    fn try_from(doc_name: String) -> Result<Self, Self::Error> {
+        doc_name.as_str().try_into()
+    }
+}
 
 /// Binary version of the document header. Appropriate for using in edoc serialization.
 struct DocHeaderPacked(Vec<u8>);
@@ -337,7 +343,7 @@ impl DocumentEncryptUnmanagedResult {
     pub fn encrypted_data(&self) -> &[u8] {
         &self.encrypted_data
     }
-    /// Bytes of encrypted document encryption keys (EDEK) of users/groups that have been granted access to `encrypted_data`
+    /// Bytes of EDEKs of users/groups that have been granted access to `encrypted_data`
     pub fn encrypted_deks(&self) -> &[u8] {
         &self.encrypted_deks
     }
@@ -502,13 +508,15 @@ impl DocumentDecryptUnmanagedResult {
     pub fn access_via(&self) -> &UserOrGroup {
         &self.access_via
     }
-    /// Bytes of decrypt document data
+    /// Bytes of decrypted document data
     pub fn decrypted_data(&self) -> &[u8] {
         &self.decrypted_data.0
     }
 }
 
 /// A user or a group.
+///
+/// Can be created from `UserId`, `&UserId`, `GroupId`, or `&GroupId` with `UserOrGroup::from()`.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum UserOrGroup {
@@ -523,16 +531,6 @@ impl std::fmt::Display for UserOrGroup {
         }
     }
 }
-impl From<&UserId> for UserOrGroup {
-    fn from(u: &UserId) -> Self {
-        UserOrGroup::User { id: u.clone() }
-    }
-}
-impl From<&GroupId> for UserOrGroup {
-    fn from(g: &GroupId) -> Self {
-        UserOrGroup::Group { id: g.clone() }
-    }
-}
 impl From<UserId> for UserOrGroup {
     fn from(u: UserId) -> Self {
         UserOrGroup::User { id: u }
@@ -541,6 +539,16 @@ impl From<UserId> for UserOrGroup {
 impl From<GroupId> for UserOrGroup {
     fn from(g: GroupId) -> Self {
         UserOrGroup::Group { id: g }
+    }
+}
+impl From<&UserId> for UserOrGroup {
+    fn from(u: &UserId) -> Self {
+        u.to_owned().into()
+    }
+}
+impl From<&GroupId> for UserOrGroup {
+    fn from(g: &GroupId) -> Self {
+        g.to_owned().into()
     }
 }
 
