@@ -15,6 +15,7 @@ use crate::{
     },
 };
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
 use crate::internal::auth_v2::AuthV2Builder;
@@ -88,7 +89,7 @@ pub mod user_verify {
     mod tests {
         use super::*;
         use crate::internal;
-        use galvanic_assert::matchers::*;
+        use galvanic_assert::{matchers::*, *};
         use recrypt::prelude::*;
 
         #[test]

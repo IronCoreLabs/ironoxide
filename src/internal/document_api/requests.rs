@@ -12,6 +12,7 @@ use crate::internal::{
     IronOxideErr, RequestAuth, RequestErrorCode,
 };
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::convert::{TryFrom, TryInto};
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
@@ -353,6 +354,7 @@ pub mod document_access {
             group_api::GroupId,
             user_api::UserId,
         };
+        use serde::{Deserialize, Serialize};
 
         #[derive(Debug, Deserialize)]
         #[serde(rename_all = "camelCase")]

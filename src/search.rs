@@ -30,6 +30,7 @@ use rand::{
     RngCore, SeedableRng,
 };
 use rand_chacha::ChaChaCore;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
     convert::{TryFrom, TryInto},
@@ -175,6 +176,7 @@ impl BlindIndexSearch {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use galvanic_assert::*;
 
     #[test]
     fn try_from_works_for_correct_size() -> Result<()> {
