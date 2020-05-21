@@ -17,7 +17,7 @@ use vec1::Vec1;
 
 /// Options for group creation.
 ///
-/// Default values are provided with `GroupCreateOpts::default()`.
+/// Default values are provided with [GroupCreateOpts::default()](struct.GroupCreateOpts.html#method.default)
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GroupCreateOpts {
     /// ID of the group. If `None`, the server will assign the ID.
