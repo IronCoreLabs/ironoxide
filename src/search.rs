@@ -1,4 +1,4 @@
-//! Blind Index Search types
+//! Blind Index Search API
 //!
 //! This is a technique that allows you to hide the terms that have been indexed. This particular implementation uses tri-grams, which
 //! are salted and hashed to produce the list of tokens.

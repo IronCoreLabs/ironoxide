@@ -1,4 +1,4 @@
-//! Group types
+//! Group API
 //!
 //! See [GroupOps](trait.GroupOps.html) for group functions and key terms.
 
@@ -177,7 +177,8 @@ pub trait GroupOps {
     /// owner of the group and the only group member and administrator.
     ///
     /// # Arguments
-    /// `group_create_opts` - Group creation parameters. Default values are provided with `GroupCreateOpts::default()`.
+    /// `group_create_opts` - Group creation parameters. Default values are provided with
+    ///      [GroupCreateOpts::default()](struct.GroupCreateOpts.html#method.default)
     ///
     /// # Examples
     /// ```
@@ -233,7 +234,7 @@ pub trait GroupOps {
     ///
     /// # Arguments
     /// - `id` - ID of the group to update
-    /// - `name` - New name for the group. Provide a `Some` to update to a new name or a `None` to clear the group's name.
+    /// - `name` - New name for the group. Provide a `Some` to update to a new name or a `None` to clear the group's name
     ///
     /// # Examples
     /// ```
@@ -261,7 +262,7 @@ pub trait GroupOps {
     /// Note: You must be an administrator of a group in order to rotate its private key.
     ///
     /// # Arguments
-    /// `id` - ID of the group you wish to rotate the private key of
+    /// `id` - ID of the group whose private key should be rotated
     ///
     /// # Examples
     /// ```

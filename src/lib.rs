@@ -18,9 +18,10 @@
 //! # Group Operations
 //!
 //! Groups are one of the many differentiating features of the IronCore platform. Groups are collections of users who share access permissions.
-//! By encrypting data to a group instead of a single user, any member of the group is able to decrypt the data. Members can even be dynamically
-//! added and removed from the group without the need to re-encrypt the data! This allows for efficient and precise control over who has access to
-//! what information.
+//! Group members are able to encrypt and decrypt documents using the group, and group administrators are able to update the group and modify its membership.
+//! Members can be dynamically added and removed without the need to re-encrypt the data. This requires a series of cryptographic operations
+//! involving the administrator's keys, the group’s keys, and the new member’s public key. By making it simple to control group membership,
+//! we provide efficient and precise control over who has access to what information!
 //!
 //! This SDK allows for easy management of your cryptographic groups. Groups can be created, fetched, updated, and deleted using IronOxide's
 //! [GroupOps](group/trait.GroupOps.html).

@@ -1,4 +1,4 @@
-//! Document types
+//! Document API
 
 pub use crate::internal::document_api::{
     AssociationType, DocAccessEditErr, DocumentAccessResult, DocumentDecryptResult,
