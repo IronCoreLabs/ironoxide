@@ -1,4 +1,4 @@
-//! Advanced document types
+//! Advanced document API
 //!
 //! See [DocumentAdvancedOps](trait.DocumentAdvancedOps.html) for advanced document functions and key terms.
 
@@ -16,9 +16,8 @@ use itertools::EitherOrBoth;
 /// IronOxide Advanced Document Operations
 ///
 /// # Key Terms
-/// - ID     - The ID representing a document. It must be unique within the document's segment and will **not** be encrypted.
-/// - Name   - The human-readable name of a document. It does not need to be unique and will **not** be encrypted.
-/// - EDEKs  - Encrypted document encryption keys used by unmanaged document encryption and decryption.
+/// - EDEKs - Encrypted document encryption keys produced by unmanaged document encryption and required for unmanaged
+///      document decryption.
 #[async_trait]
 pub trait DocumentAdvancedOps {
     /// Encrypts the provided document bytes without being managed by the IronCore service.
@@ -29,7 +28,8 @@ pub trait DocumentAdvancedOps {
     ///
     /// # Arguments
     /// - `data` - Bytes of the document to encrypt
-    /// - `encrypt_opts` - Document encryption parameters. Default values are provided with `DocumentEncryptOpts::default()`.
+    /// - `encrypt_opts` - Document encryption parameters. Default values are provided with
+    ///      [DocumentEncryptOpts::default()](../struct.DocumentEncryptOpts.html#method.default).
     async fn document_encrypt_unmanaged(
         &self,
         data: &[u8],

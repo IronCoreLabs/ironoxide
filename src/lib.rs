@@ -92,7 +92,6 @@ include!(concat!(env!("OUT_DIR"), "/transform.rs"));
 #[cfg(feature = "beta")]
 pub mod search;
 
-/// SDK document operations
 pub mod document;
 
 /// SDK group operations

@@ -1,4 +1,4 @@
-//! Document types
+//! Document API
 //!
 //! See [DocumentOps](trait.DocumentOps.html) for document functions and key terms.
 
@@ -43,9 +43,10 @@ impl ExplicitGrant {
 /// Parameters that can be provided when encrypting a new document.
 ///
 /// Document IDs must be unique to the segment. If no ID is provided, one will be generated for it.
-/// If no name is provided, the document's name will be left empty.
+/// If no name is provided, the document's name will be left empty. Neither the document's ID nor name will
+/// be encrypted.
 ///
-/// Default values are provided with `DocumentEncryptOpts::default()`.
+/// Default values are provided with [DocumentEncryptOpts::default()](struct.DocumentEncryptOpts.html#method.default).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DocumentEncryptOpts {
     id: Option<DocumentId>,
@@ -143,7 +144,8 @@ pub trait DocumentOps {
     ///
     /// # Arguments
     /// - `document_data` - Bytes of the document to encrypt
-    /// - `encrypt_opts` - Document encryption parameters. Default values are provided with `DocumentEncryptOpts::default()`.
+    /// - `encrypt_opts` - Document encryption parameters. Default values are provided with
+    ///      [DocumentEncryptOpts::default()](struct.DocumentEncryptOpts.html#method.default).
     ///
     /// # Examples
     /// ```
