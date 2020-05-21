@@ -9,6 +9,7 @@ use crate::{
     internal::{add_optional_timeout, user_api, OUR_REQUEST},
     IronOxide, Result,
 };
+use async_trait::async_trait;
 use recrypt::api::Recrypt;
 use std::{collections::HashMap, convert::TryInto};
 
@@ -256,7 +257,7 @@ impl UserOps for IronOxide {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use galvanic_assert::matchers::*;
+    use galvanic_assert::{matchers::*, *};
 
     #[test]
     fn user_create_opts_defaults() {

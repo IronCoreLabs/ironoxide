@@ -11,6 +11,8 @@
 - [[#148](https://github.com/IronCoreLabs/ironoxide/pull/148)]
   - Add serde support for `EncryptedBlindSearchIndex`
   - Expose `transliterate_string` function
+- [[#155](https://github.com/IronCoreLabs/ironoxide/pull/155)]
+  - Upgrade dependencies
 
 ## 0.21.1
 

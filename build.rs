@@ -8,17 +8,17 @@ use std::{
 fn main() {
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR should exist");
     let name = "transform";
-    protobuf_codegen_pure::run(protobuf_codegen_pure::Args {
-        out_dir: out_dir.as_str(),
-        input: &[format!("proto/{}.proto", name).as_str()],
-        includes: &["proto"],
-        customize: protobuf_codegen_pure::Customize {
+    protobuf_codegen_pure::Codegen::new()
+        .out_dir(&out_dir)
+        .input(format!("proto/{}.proto", name))
+        .include("proto")
+        .customize(protobuf_codegen_pure::Customize {
             carllerche_bytes_for_bytes: Some(true),
             carllerche_bytes_for_string: Some(true),
             ..Default::default()
-        },
-    })
-    .expect("protoc");
+        })
+        .run()
+        .expect("protoc");
 
     // Work around from https://github.com/googlecartographer/point_cloud_viewer/blob/440d875f12e32dff6107233f24b5a02cf28776dc/point_viewer_proto_rust/build.rs#L33
     // https://github.com/stepancheg/rust-protobuf/issues/117

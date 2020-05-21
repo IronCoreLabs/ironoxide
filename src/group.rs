@@ -12,6 +12,7 @@ use crate::{
     user::UserId,
     IronOxideErr, Result,
 };
+use async_trait::async_trait;
 use vec1::Vec1;
 
 /// Options for group creation.

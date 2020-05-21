@@ -13,6 +13,7 @@ use crate::{
     user::UserId,
     Result,
 };
+use async_trait::async_trait;
 use itertools::{Either, EitherOrBoth, Itertools};
 
 /// Advanced document operations

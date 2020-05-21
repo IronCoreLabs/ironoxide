@@ -17,12 +17,14 @@ use core::convert::identity;
 use futures::try_join;
 use itertools::{Either, Itertools};
 use recrypt::{api::EncryptedValue, prelude::*};
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     convert::{TryFrom, TryInto},
     iter::FromIterator,
 };
 use vec1::Vec1;
+
 mod requests;
 
 pub enum GroupEntity {
@@ -923,6 +925,8 @@ fn generate_transform_for_keys<CR: rand::CryptoRng + rand::RngCore>(
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use galvanic_assert::*;
+    use vec1::vec1;
 
     pub fn create_group_meta_result(
         id: GroupId,
