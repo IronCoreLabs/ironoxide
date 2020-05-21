@@ -9,8 +9,10 @@ use crate::internal::{
 };
 use chrono::{DateTime, Utc};
 use futures::Future;
+use lazy_static::lazy_static;
 use log::error;
 use protobuf::{self, ProtobufError};
+use quick_error::quick_error;
 use recrypt::api::{
     CryptoOps, Ed25519, Hashable, KeyGenOps, Plaintext, PrivateKey as RecryptPrivateKey,
     PublicKey as RecryptPublicKey, RandomBytes, Recrypt, RecryptErr, Sha256,
@@ -824,9 +826,11 @@ pub async fn add_optional_timeout<F: Future>(
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use galvanic_assert::{matchers::*, MatchResultBuilder, Matcher};
+    use double::*;
+    use galvanic_assert::{matchers::*, *};
     use std::fmt::Debug;
     use tokio::time::Duration;
+    use vec1::vec1;
 
     /// String contains matcher to assert that the provided substring exists in the provided value
     pub fn contains<'a>(expected: &'a str) -> Box<dyn Matcher<String> + 'a> {

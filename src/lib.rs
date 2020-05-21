@@ -62,28 +62,10 @@
 // required by quick_error or IronOxideErr
 #![recursion_limit = "128"]
 
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate base64_serde;
-#[macro_use]
-extern crate quick_error;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate vec1;
-#[cfg(test)]
-#[macro_use]
-extern crate galvanic_assert;
-#[cfg(test)]
-#[macro_use]
-extern crate double;
-#[macro_use]
-extern crate async_trait;
-#[macro_use]
-extern crate percent_encoding;
-
-mod crypto;
+mod crypto {
+    pub mod aes;
+    pub mod transform;
+}
 mod internal;
 
 // include generated proto code as a proto module
@@ -147,6 +129,7 @@ pub mod common {
 
 /// IronOxide SDK configuration
 pub mod config {
+    use serde::{Deserialize, Serialize};
     use std::time::Duration;
 
     /// Top-level configuration object for IronOxide.

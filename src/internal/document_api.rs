@@ -32,6 +32,7 @@ use requests::{
     policy_get::PolicyResponse,
     DocumentMetaApiResponse,
 };
+use serde::{Deserialize, Serialize};
 use std::{
     convert::{TryFrom, TryInto},
     fmt::Formatter,
@@ -1355,7 +1356,10 @@ fn process_policy(
 mod tests {
     use crate::internal::tests::contains;
     use base64::decode;
-    use galvanic_assert::matchers::{collection::*, *};
+    use galvanic_assert::{
+        matchers::{collection::*, *},
+        *,
+    };
 
     use super::*;
     use crate::internal::RequestErrorCode;
