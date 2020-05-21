@@ -280,7 +280,7 @@ pub trait GroupOps {
 
     /// Adds members to a group.
     ///
-    /// Returns lists of successful and failed additions.
+    /// Returns successful and failed additions.
     ///
     /// # Arguments
     /// - `id` - ID of the group to add members to
@@ -312,7 +312,7 @@ pub trait GroupOps {
 
     /// Removes members from a group.
     ///
-    /// Returns lists of successful and failed removals.
+    /// Returns successful and failed removals.
     ///
     /// # Arguments
     /// - `id` - ID of the group to remove members from
@@ -344,7 +344,7 @@ pub trait GroupOps {
 
     /// Adds administrators to a group.
     ///
-    /// Returns lists of successful and failed additions.
+    /// Returns successful and failed additions.
     ///
     /// # Arguments
     /// - `id` - ID of the group to add administrators to
@@ -376,7 +376,7 @@ pub trait GroupOps {
 
     /// Removes administrators from a group.
     ///
-    /// Returns lists of successful and failed removals.
+    /// Returns successful and failed removals.
     ///
     /// # Arguments
     /// - `id` - ID of the group to remove administrators from
