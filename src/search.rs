@@ -6,6 +6,9 @@
 //! ## BlindIndexSearch
 //!
 //! The BlindIndexSearch gives the ability to generate queries as well as create the search entries to store.
+//!
+//! # Optional
+//! This requires the optional `beta` feature to be enabled.
 
 #[cfg(feature = "blocking")]
 use crate::blocking::BlockingIronOxide;
