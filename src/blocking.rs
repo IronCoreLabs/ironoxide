@@ -1,9 +1,8 @@
-//!
-//! A blocking version of the SDK.
+//! Blocking variant of IronOxide
 //!
 //! These synchronous functions will block the current thread to execute instead
 //! of returning futures that need to be executed on a runtime. In every other way,
-//! they are identitical to their asynchronous counterparts.
+//! they are identical to their asynchronous counterparts.
 //!
 //! # Optional
 //! This requires the optional `blocking` feature to be enabled.

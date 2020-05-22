@@ -17,14 +17,38 @@
 //!
 //! # Group Operations
 //!
-//! Groups are one of the many differentiating features of the IronCore platform. This SDK allows for easy management of your cryptographic
-//! groups. Groups can be created, updated, and deleted along with management of a group's administrators and members.
+//! Groups are one of the many differentiating features of the DataControl platform. Groups are collections of users who share access permissions.
+//! Group members are able to encrypt and decrypt documents using the group, and group administrators are able to update the group and modify its membership.
+//! Members can be dynamically added and removed without the need to re-encrypt the data. This requires a series of cryptographic operations
+//! involving the administrator's keys, the group’s keys, and the new member’s public key. By making it simple to control group membership,
+//! we provide efficient and precise control over who has access to what information!
+//!
+//! This SDK allows for easy management of your cryptographic groups. Groups can be created, fetched, updated, and deleted using IronOxide's
+//! [GroupOps](group/trait.GroupOps.html).
+//!
+//! ### Creating a Group
+//!
+//! For simple group creation, the [group_create](group/trait.GroupOps.html#tymethod.group_create) function can be
+//! called with default values.
+//!
+//! ```
+//! # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+//! # use ironoxide::prelude::*;
+//! # let sdk: IronOxide = unimplemented!();
+//! use ironoxide::group::GroupCreateOpts;
+//! let group_result = sdk.group_create(&GroupCreateOpts::default()).await?;
+//! // Group ID used for future calls to this group
+//! let group_id: &GroupId = group_result.id();
+//! # Ok(())
+//! # }
+//! ```
 //!
 //! # Document Operations
 //!
 //! All secret data that is encrypted using the IronCore platform are referred to as documents. Documents wrap the raw bytes of
 //! secret data to encrypt along with various metadata that helps convey access information to that data. Documents can be encrypted,
-//! decrypted, updated, granted to users and groups, and revoked from users and groups.
+//! decrypted, updated, granted to users and groups, and revoked from users and groups using IronOxide's
+//! [DocumentOps](document/trait.DocumentOps.html).
 //!
 //! ### Encrypting a Document
 //!
@@ -62,35 +86,26 @@
 // required by quick_error or IronOxideErr
 #![recursion_limit = "128"]
 
+// include generated proto code as a proto module
+include!(concat!(env!("OUT_DIR"), "/transform.rs"));
+
 mod crypto {
     pub mod aes;
     pub mod transform;
 }
 mod internal;
 
-// include generated proto code as a proto module
-include!(concat!(env!("OUT_DIR"), "/transform.rs"));
+pub mod document;
+pub mod group;
+pub mod policy;
+pub mod prelude;
+pub mod user;
 
 #[cfg(feature = "beta")]
 pub mod search;
 
-pub mod document;
-
-/// SDK group operations
-pub mod group;
-
-/// SDK user operations
-pub mod user;
-
-/// Blocking SDK operations
 #[cfg(feature = "blocking")]
 pub mod blocking;
-
-/// Policy types
-pub mod policy;
-
-/// Convenience re-export of essential IronOxide types
-pub mod prelude;
 
 pub use crate::internal::IronOxideErr;
 
@@ -120,7 +135,7 @@ type PolicyCache = DashMap<PolicyGrant, Vec<WithKey<UserOrGroup>>>;
 
 // This is where we export structs that don't fit into a single module.
 // They were previously exported at the top level, but added clutter to the docs landing page.
-/// Types that are useful in multiple modules
+/// Types useful in multiple modules
 pub mod common {
     pub use crate::internal::{
         DeviceContext, DeviceSigningKeyPair, PrivateKey, PublicKey, SdkOperation,
@@ -132,7 +147,7 @@ pub mod config {
     use serde::{Deserialize, Serialize};
     use std::time::Duration;
 
-    /// Top-level configuration object for IronOxide.
+    /// Top-level configuration object for IronOxide
     #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
     pub struct IronOxideConfig {
         /// See [PolicyCachingConfig](struct.PolicyCachingConfig.html)
@@ -150,7 +165,9 @@ pub mod config {
         }
     }
 
-    /// Policy evaluation caching config. Lifetime of the cache is the lifetime of the `IronOxide` struct.
+    /// Policy evaluation caching config
+    ///
+    /// The lifetime of the cache is the lifetime of the `IronOxide` struct.
     ///
     /// Since policies are evaluated by the webservice, caching the result can greatly speed
     /// up encrypting a document with a [PolicyGrant](../policy/struct.PolicyGrant.html). There is no expiration of the cache, so
@@ -169,6 +186,8 @@ pub mod config {
     }
 }
 
+/// Primary SDK Object
+///
 /// Struct that is used to make authenticated requests to the IronCore API. Instantiated with the details
 /// of an account's various ids, device, and signing keys. Once instantiated all operations will be
 /// performed in the context of the account provided.
@@ -248,8 +267,10 @@ impl PrivateKeyRotationCheckResult {
     }
 }
 
-/// Initialize the IronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
-/// keys are valid and exist for the provided account. If successful returns an instance of the IronOxide SDK
+/// Initializes the IronOxide SDK with a device
+///
+/// Verifies that the provided user/segment exists and the provided device keys are valid and
+/// exist for the provided account.
 pub async fn initialize(
     device_context: &DeviceContext,
     config: &IronOxideConfig,
@@ -292,9 +313,10 @@ fn check_groups_and_collect_rotation<T>(
     }
 }
 
-/// Initialize the IronOxide SDK and check to see if the user that owns this `DeviceContext` is
-/// marked for private key rotation, or if any of the groups that the user is an admin of are marked
-/// for private key rotation.
+/// Initializes the IronOxide SDK with a device and checks for necessary private key rotations
+///
+/// Checks to see if the user that owns this `DeviceContext` is marked for private key rotation,
+/// or if any of the groups that the user is an admin of are marked for private key rotation.
 pub async fn initialize_check_rotation(
     device_context: &DeviceContext,
     config: &IronOxideConfig,
