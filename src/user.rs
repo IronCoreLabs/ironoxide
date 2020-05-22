@@ -1,3 +1,5 @@
+//! User API
+
 pub use crate::internal::user_api::{
     DeviceAddResult, DeviceId, DeviceName, EncryptedPrivateKey, KeyPair, UserCreateResult,
     UserDevice, UserDeviceListResult, UserId, UserResult, UserUpdatePrivateKeyResult,
@@ -56,6 +58,7 @@ impl Default for UserCreateOpts {
     }
 }
 
+/// IronOxide User Operations
 #[async_trait]
 pub trait UserOps {
     /// Sync a new user within the IronCore system.

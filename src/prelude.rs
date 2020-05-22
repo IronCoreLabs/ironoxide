@@ -1,3 +1,5 @@
+//! Convenience re-export of essential types
+
 #[doc(no_inline)]
 pub use crate::{
     common::*, config::*, document::advanced::*, document::*, group::*, policy::*, user::*,

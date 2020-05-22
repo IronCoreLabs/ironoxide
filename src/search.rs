@@ -1,15 +1,15 @@
-//! BlindIndexSearch - Search SDK for working with Blind Indexes.
+//! Blind Index Search API
 //!
 //! This is a technique that allows you to hide the terms that have been indexed. This particular implementation uses tri-grams, which
 //! are salted and hashed to produce the list of tokens.
 //!
-//! ## [BlindIndexSearch](BlindIndexSearch.html)
+//! ## BlindIndexSearch
 //!
 //! The BlindIndexSearch gives the ability to generate queries as well as create the search entries to store.
-//!
 
 #[cfg(feature = "blocking")]
 use crate::blocking::BlockingIronOxide;
+
 use crate::{
     document::{
         advanced::{DocumentAdvancedOps, DocumentEncryptUnmanagedResult},
