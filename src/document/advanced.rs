@@ -1,3 +1,7 @@
+//! Advanced document API
+//!
+//! See [DocumentAdvancedOps](trait.DocumentAdvancedOps.html) for advanced document functions and key terms.
+
 pub use crate::internal::document_api::{
     DocumentDecryptUnmanagedResult, DocumentEncryptUnmanagedResult,
 };
@@ -10,37 +14,39 @@ use crate::{
 use async_trait::async_trait;
 use itertools::EitherOrBoth;
 
+/// IronOxide Advanced Document Operations
+///
+/// # Key Terms
+/// - EDEKs - Encrypted document encryption keys produced by unmanaged document encryption and required for unmanaged
+///      document decryption.
 #[async_trait]
 pub trait DocumentAdvancedOps {
-    /// (Advanced) Encrypt the provided document bytes. Return the encrypted document encryption keys (EDEKs)
-    /// instead of creating a document entry in the IronCore webservice.
+    /// Encrypts the provided document bytes without being managed by the IronCore service.
     ///
     /// The webservice is still needed for looking up public keys and evaluating policies, but no
-    /// document is created and the edeks are not stored. An additional burden is put on the caller
-    /// in that the encrypted data AND the edeks need to be provided for decryption.
+    /// document is created and the EDEKs are not stored. An additional burden is put on the caller
+    /// in that both the encrypted data and the EDEKs must be provided for decryption.
     ///
     /// # Arguments
-    /// - `document_data` - Bytes of the document to encrypt
-    /// - `encrypt_opts` - Optional document encrypt parameters. Includes
-    ///       `id` - Unique ID to use for the document. Document ID will be stored unencrypted and must be unique per segment.
-    ///       `name` - (Ignored) - Any name provided will be ignored
-    ///       `grant_to_author` - Flag determining whether to encrypt to the calling user or not. If set to false at least one value must be present in the `grants` list.
-    ///       `grants` - List of users/groups to grant access to this document once encrypted
+    /// - `data` - Bytes of the document to encrypt
+    /// - `encrypt_opts` - Document encryption parameters. Default values are provided with
+    ///      [DocumentEncryptOpts::default()](../struct.DocumentEncryptOpts.html#method.default).
     async fn document_encrypt_unmanaged(
         &self,
         data: &[u8],
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptUnmanagedResult>;
 
-    /// (Advanced) Decrypt a document not managed by the ironcore service. Both the encrypted
-    /// data and the encrypted deks need to be provided.
+    /// Decrypts a document not managed by the IronCore service.
     ///
-    /// The webservice is still needed to transform a chosen encrypted dek so it can be decrypted
-    /// by the caller's private key.
+    /// Requires the encrypted data and EDEKs returned from
+    /// [document_encrypt_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged).
+    ///
+    /// The webservice is still needed to transform a chosen EDEK so it can be decrypted by the caller's private key.
     ///
     /// # Arguments
-    /// - `encrypted_data` - Encrypted document
-    /// - `encrypted_deks` - Associated encrypted DEKs for the `encrypted_data`
+    /// - `encrypted_data` - Bytes of the encrypted document
+    /// - `encrypted_deks` - EDEKs associated with the encrypted document
     async fn document_decrypt_unmanaged(
         &self,
         encrypted_data: &[u8],

@@ -46,10 +46,17 @@ const DOC_VERSION_HEADER_LENGTH: usize = 1;
 const HEADER_META_LENGTH_LENGTH: usize = 2;
 const CURRENT_DOCUMENT_ID_VERSION: u8 = 2;
 
-/// Document ID. Unique within the segment. Must match the regex `^[a-zA-Z0-9_.$#|@/:;=+'-]+$`
+/// ID of a document.
+///
+/// The ID can be validated from a `String` or `&str` using `DocumentId::try_from`.
+///
+/// # Requirements
+/// - Must be unique within the document's segment.
+/// - Must match the regex `^[a-zA-Z0-9_.$#|@/:;=+'-]+$`.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct DocumentId(pub(crate) String);
 impl DocumentId {
+    /// ID of the document.
     pub fn id(&self) -> &str {
         &self.0
     }
@@ -74,10 +81,17 @@ impl TryFrom<String> for DocumentId {
     }
 }
 
-/// (unencrypted) name of a document. Construct via `try_from(&str)`
+/// Name of a document.
+///
+/// The name should be human-readable and does not have to be unique.
+/// It can be validated from a `String` or `&str` using `DocumentName::try_from`.
+///
+/// # Requirements
+/// - Must be between 1 and 100 characters long.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct DocumentName(pub(crate) String);
 impl DocumentName {
+    /// Name of the document.
     pub fn name(&self) -> &String {
         &self.0
     }
@@ -86,6 +100,12 @@ impl TryFrom<&str> for DocumentName {
     type Error = IronOxideErr;
     fn try_from(name: &str) -> Result<Self, Self::Error> {
         validate_name(name, "document_name").map(DocumentName)
+    }
+}
+impl TryFrom<String> for DocumentName {
+    type Error = IronOxideErr;
+    fn try_from(doc_name: String) -> Result<Self, Self::Error> {
+        doc_name.as_str().try_into()
     }
 }
 
@@ -100,7 +120,6 @@ struct DocumentHeader {
     #[serde(rename = "_sid_")]
     segment_id: usize,
 }
-
 impl DocumentHeader {
     fn new(document_id: DocumentId, segment_id: usize) -> DocumentHeader {
         DocumentHeader {
@@ -161,119 +180,138 @@ fn parse_document_parts(
     }
 }
 
-/// Represents the reason a document can be viewed by the requesting user.
+/// The reason a document can be viewed by the requesting user.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum AssociationType {
-    /// User created the document
+    /// User created the document.
     Owner,
-    /// User directly granted access to the document
+    /// User was directly granted access to the document.
     FromUser,
-    /// User granted access to the document via a group they are a member of
+    /// User was granted access to the document via a group they are a member of.
     FromGroup,
 }
 
-/// Represents a User struct which is returned from doc get to show the IDs of users the document is visible to
+/// User who is able to access a document.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct VisibleUser {
     id: UserId,
 }
 impl VisibleUser {
+    /// ID of the user
     pub fn id(&self) -> &UserId {
         &self.id
     }
 }
 
-/// Represents a Group struct which is returned from doc get to show the IDs and names of groups the document is visible to
+/// Group that is able to access a document.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct VisibleGroup {
     id: GroupId,
     name: Option<GroupName>,
 }
 impl VisibleGroup {
+    /// ID of the group
     pub fn id(&self) -> &GroupId {
         &self.id
     }
+    /// Name of the group
     pub fn name(&self) -> Option<&GroupName> {
         self.name.as_ref()
     }
 }
 
-/// Single document's (abbreviated) metadata. Returned as part of a `DocumentListResult`.
+/// Abbreviated document metadata.
 ///
-/// If you want full metadata for a document, see `DocumentMetadataResult`
+/// Result from [DocumentListResult.result()](struct.DocumentListResult.html#method.result).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DocumentListMeta(DocumentListApiResponseItem);
 impl DocumentListMeta {
+    /// ID of the document
     pub fn id(&self) -> &DocumentId {
         &self.0.id
     }
+    /// Name of the document
     pub fn name(&self) -> Option<&DocumentName> {
         self.0.name.as_ref()
     }
+    /// How the requesting user has access to the document
     pub fn association_type(&self) -> &AssociationType {
         &self.0.association.typ
     }
+    /// Date and time of when the document was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.0.created
     }
+    /// Date and time of when the document was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.0.updated
     }
 }
 
-/// Metadata for each of the documents that the current user has access to decrypt.
+/// Metadata for each document the current user has access to.
+///
+/// Result from [document_list](trait.DocumentOps.html#tymethod.document_list).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DocumentListResult {
     result: Vec<DocumentListMeta>,
 }
 impl DocumentListResult {
+    /// Metadata for each document the current user has access to
     pub fn result(&self) -> &Vec<DocumentListMeta> {
         &self.result
     }
 }
 
 /// Full metadata for a document.
+///
+/// Result from [document_get_metadata](trait.DocumentOps.html#tymethod.document_get_metadata) and
+/// [document_update_name](trait.DocumentOps.html#tymethod.document_update_name).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DocumentMetadataResult(DocumentMetaApiResponse);
 impl DocumentMetadataResult {
+    /// ID of the document
     pub fn id(&self) -> &DocumentId {
         &self.0.id
     }
+    /// Name of the document
     pub fn name(&self) -> Option<&DocumentName> {
         self.0.name.as_ref()
     }
+    /// Date and time of when the document was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.0.created
     }
+    /// Date and time of when the document was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.0.updated
     }
+    /// How the requesting user has access to the document
     pub fn association_type(&self) -> &AssociationType {
         &self.0.association.typ
     }
+    /// List of users who have access to the document
     pub fn visible_to_users(&self) -> &Vec<VisibleUser> {
         &self.0.visible_to.users
     }
+    /// List of groups that have access to the document
     pub fn visible_to_groups(&self) -> &Vec<VisibleGroup> {
         &self.0.visible_to.groups
     }
 
-    pub(crate) fn to_encrypted_symmetric_key(
-        &self,
-    ) -> Result<recrypt::api::EncryptedValue, IronOxideErr> {
+    // Not exposed outside of the crate
+    fn to_encrypted_symmetric_key(&self) -> Result<recrypt::api::EncryptedValue, IronOxideErr> {
         self.0.encrypted_symmetric_key.clone().try_into()
     }
 }
 
-/// Result for encrypt operations that do not store document access information with the webservice,
-/// but rather return the access information as `encrypted_deks`. Both the `encrypted_data` and
-/// `encrypted_deks` must be used to decrypt. See `document_edek_decrypt`
+/// Encrypted document bytes and metadata.
 ///
-/// - `id` - Unique (within the segment) id of the document
-/// - `encrypted_data` - Bytes of encrypted document content
-/// - `encrypted_deks` - List of encrypted document encryption keys (EDEK) of users/groups that have been granted access to `encrypted_data`
-/// - `access_errs` - Users and groups that could not be granted access
+/// Unmanaged encryption does not store document access information with the webservice,
+/// but rather returns the access information as `encrypted_deks`. Both the `encrypted_data` and
+/// `encrypted_deks` must be used to decrypt the document.
+///
+/// Result from [document_encrypt_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DocumentEncryptUnmanagedResult {
     id: DocumentId,
@@ -282,14 +320,12 @@ pub struct DocumentEncryptUnmanagedResult {
     grants: Vec<UserOrGroup>,
     access_errs: Vec<DocAccessEditErr>,
 }
-
 impl DocumentEncryptUnmanagedResult {
     fn new(
         encryption_result: EncryptedDoc,
         access_errs: Vec<DocAccessEditErr>,
     ) -> Result<Self, IronOxideErr> {
         let edek_bytes = encryption_result.edek_bytes()?;
-
         Ok(DocumentEncryptUnmanagedResult {
             id: encryption_result.header.document_id.clone(),
             access_errs,
@@ -304,32 +340,32 @@ impl DocumentEncryptUnmanagedResult {
         })
     }
 
-    pub fn id(&self) -> &DocumentId {
-        &self.id
-    }
+    /// Bytes of encrypted document data
     pub fn encrypted_data(&self) -> &[u8] {
         &self.encrypted_data
     }
+    /// Bytes of EDEKs of users/groups that have been granted access to `encrypted_data`
     pub fn encrypted_deks(&self) -> &[u8] {
         &self.encrypted_deks
     }
-    pub fn access_errs(&self) -> &[DocAccessEditErr] {
-        &self.access_errs
+    /// ID of the document
+    pub fn id(&self) -> &DocumentId {
+        &self.id
     }
+    /// Users and groups the document was successfully encrypted to
     pub fn grants(&self) -> &[UserOrGroup] {
         &self.grants
     }
+    /// Errors resulting from failure to encrypt
+    pub fn access_errs(&self) -> &[DocAccessEditErr] {
+        &self.access_errs
+    }
 }
 
-/// Result for encrypt operations.
+/// Encrypted document bytes and metadata.
 ///
-/// - `id` - Unique (within the segment) id of the document
-/// - `name` Non-unique document name. The document name is *not* encrypted.
-/// - `updated` - When the document was last updated
-/// - `created` - When the document was created
-/// - `encrypted_data` - Bytes of encrypted document content
-/// - `grants` - Users and groups that have access to decrypt the `encrypted_data`
-/// - `access_errs` - Users and groups that could not be granted access
+/// Result from [document_encrypt](trait.DocumentOps.html#tymethod.document_encrypt) and
+/// [document_update_bytes](trait.DocumentOps.html#tymethod.document_update_bytes).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DocumentEncryptResult {
     id: DocumentId,
@@ -341,29 +377,38 @@ pub struct DocumentEncryptResult {
     access_errs: Vec<DocAccessEditErr>,
 }
 impl DocumentEncryptResult {
-    pub fn id(&self) -> &DocumentId {
-        &self.id
-    }
-    pub fn name(&self) -> Option<&DocumentName> {
-        self.name.as_ref()
-    }
-    pub fn created(&self) -> &DateTime<Utc> {
-        &self.created
-    }
-    pub fn last_updated(&self) -> &DateTime<Utc> {
-        &self.updated
-    }
+    /// Bytes of encrypted document data
     pub fn encrypted_data(&self) -> &[u8] {
         &self.encrypted_data
     }
+    /// ID of the document
+    pub fn id(&self) -> &DocumentId {
+        &self.id
+    }
+    /// Name of the document
+    pub fn name(&self) -> Option<&DocumentName> {
+        self.name.as_ref()
+    }
+    /// Date and time of when the document was created
+    pub fn created(&self) -> &DateTime<Utc> {
+        &self.created
+    }
+    /// Date and time of when the document was last updated
+    pub fn last_updated(&self) -> &DateTime<Utc> {
+        &self.updated
+    }
+    /// Users and groups the document was successfully encrypted to
     pub fn grants(&self) -> &[UserOrGroup] {
         &self.grants
     }
+    /// Errors resulting from failure to encrypt
     pub fn access_errs(&self) -> &[DocAccessEditErr] {
         &self.access_errs
     }
 }
-/// Result of decrypting a document. Includes minimal metadata as well as the decrypted bytes.
+/// Decrypted document bytes and metadata.
+///
+/// Result from [document_decrypt](trait.DocumentOps.html#tymethod.document_decrypt).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DocumentDecryptResult {
     id: DocumentId,
@@ -373,32 +418,36 @@ pub struct DocumentDecryptResult {
     decrypted_data: Vec<u8>,
 }
 impl DocumentDecryptResult {
-    pub fn id(&self) -> &DocumentId {
-        &self.id
-    }
-    pub fn name(&self) -> Option<&DocumentName> {
-        self.name.as_ref()
-    }
-    pub fn created(&self) -> &DateTime<Utc> {
-        &self.created
-    }
-    pub fn last_updated(&self) -> &DateTime<Utc> {
-        &self.updated
-    }
+    /// Bytes of decrypted document data
     pub fn decrypted_data(&self) -> &[u8] {
         &self.decrypted_data
     }
+    /// ID of the document
+    pub fn id(&self) -> &DocumentId {
+        &self.id
+    }
+    /// Name of the document
+    pub fn name(&self) -> Option<&DocumentName> {
+        self.name.as_ref()
+    }
+    /// Date and time of when the document was created
+    pub fn created(&self) -> &DateTime<Utc> {
+        &self.created
+    }
+    /// Date and time of when the document was last updated
+    pub fn last_updated(&self) -> &DateTime<Utc> {
+        &self.updated
+    }
 }
 
-/// A failure to edit the access list of a document.
+/// Failure to edit a document's access list.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DocAccessEditErr {
-    /// User or group whose access was to be granted/revoked
+    /// User or group that was unable to have access granted/revoked.
     pub user_or_group: UserOrGroup,
-    /// Reason for failure
+    /// The error encountered when attempting to grant/revoke access.
     pub err: String,
 }
-
 impl DocAccessEditErr {
     pub(crate) fn new(user_or_group: UserOrGroup, err_msg: String) -> DocAccessEditErr {
         DocAccessEditErr {
@@ -408,14 +457,17 @@ impl DocAccessEditErr {
     }
 }
 
-/// Result of granting or revoking access to a document. Both grant and revoke support partial
-/// success.
+/// Successful and failed changes to a document's access list.
+///
+/// Both grant and revoke support partial success.
+///
+/// Result from [document_grant_access](trait.DocumentOps.html#tymethod.document_grant_access) and
+/// [document_revoke_access](trait.DocumentOps.html#tymethod.document_revoke_access).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DocumentAccessResult {
     succeeded: Vec<UserOrGroup>,
     failed: Vec<DocAccessEditErr>,
 }
-
 impl DocumentAccessResult {
     pub(crate) fn new(
         succeeded: Vec<UserOrGroup>,
@@ -424,12 +476,12 @@ impl DocumentAccessResult {
         DocumentAccessResult { succeeded, failed }
     }
 
-    /// Users whose access was successfully changed.
+    /// Users and groups whose access was successfully changed.
     pub fn succeeded(&self) -> &[UserOrGroup] {
         &self.succeeded
     }
 
-    /// Users whose access was not changed.
+    /// Users and groups whose access failed to be changed.
     pub fn failed(&self) -> &[DocAccessEditErr] {
         &self.failed
     }
@@ -437,39 +489,41 @@ impl DocumentAccessResult {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 struct DecryptedData(Vec<u8>);
 
-/// Result of successful unmanaged decryption
+/// Decrypted document bytes and metadata.
+///
+/// Result from [document_decrypt_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_decrypt_unmanaged).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DocumentDecryptUnmanagedResult {
     id: DocumentId,
     access_via: UserOrGroup,
     decrypted_data: DecryptedData,
 }
-
 impl DocumentDecryptUnmanagedResult {
+    /// ID of the document
     pub fn id(&self) -> &DocumentId {
         &self.id
     }
-
-    /// user/group that granted access to the encrypted data. More specifically, the
-    /// user/group associated with the EDEK that was chosen and transformed by the webservice
+    /// User or group that granted access to the encrypted data
+    ///
+    /// More specifically, the user or group associated with the EDEK that was chosen and transformed by the webservice
     pub fn access_via(&self) -> &UserOrGroup {
         &self.access_via
     }
-
-    /// plaintext user data
+    /// Bytes of decrypted document data
     pub fn decrypted_data(&self) -> &[u8] {
         &self.decrypted_data.0
     }
 }
 
-/// Either a user or a group. Allows for containing both.
+/// A user or a group.
+///
+/// Can be created from `UserId`, `&UserId`, `GroupId`, or `&GroupId` with `UserOrGroup::from()`.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum UserOrGroup {
     User { id: UserId },
     Group { id: GroupId },
 }
-
 impl std::fmt::Display for UserOrGroup {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
@@ -478,16 +532,24 @@ impl std::fmt::Display for UserOrGroup {
         }
     }
 }
-
-impl From<&UserId> for UserOrGroup {
-    fn from(u: &UserId) -> Self {
-        UserOrGroup::User { id: u.clone() }
+impl From<UserId> for UserOrGroup {
+    fn from(u: UserId) -> Self {
+        UserOrGroup::User { id: u }
     }
 }
-
+impl From<GroupId> for UserOrGroup {
+    fn from(g: GroupId) -> Self {
+        UserOrGroup::Group { id: g }
+    }
+}
+impl From<&UserId> for UserOrGroup {
+    fn from(u: &UserId) -> Self {
+        u.to_owned().into()
+    }
+}
 impl From<&GroupId> for UserOrGroup {
     fn from(g: &GroupId) -> Self {
-        UserOrGroup::Group { id: g.clone() }
+        g.to_owned().into()
     }
 }
 
@@ -1798,7 +1860,7 @@ mod tests {
         )?
         .into_edoc(DocumentHeader::new(doc_id.clone(), seg_id));
 
-        // create an unmanged result, which does the proto serialization
+        // create an unmanaged result, which does the proto serialization
         let doc_encrypt_unmanaged_result =
             DocumentEncryptUnmanagedResult::new(encryption_result, vec![])?;
 
