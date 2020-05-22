@@ -13,6 +13,8 @@
   - Expose `transliterate_string` function
 - [[#155](https://github.com/IronCoreLabs/ironoxide/pull/155)]
   - Upgrade dependencies
+- [[#156](https://github.com/IronCoreLabs/ironoxide/pull/156)]
+  - `proto` module is no longer `pub` as it is only used internally
 
 ## 0.21.1
 

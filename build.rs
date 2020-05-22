@@ -32,7 +32,7 @@ fn main() {
         .unwrap()
         .read_to_string(&mut contents)
         .unwrap();
-    let new_contents = format!("pub mod proto {{pub mod {} {{ \n{}\n}}}}", name, contents);
+    let new_contents = format!("mod proto {{pub mod {} {{ \n{}\n}}}}", name, contents);
 
     File::create(&proto_path)
         .unwrap()
