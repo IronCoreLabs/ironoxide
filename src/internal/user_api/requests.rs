@@ -341,7 +341,7 @@ pub mod device_add {
         pub updated: DateTime<Utc>,
     }
 
-    pub async fn user_device_add(
+    pub(crate) async fn user_device_add(
         jwt: &Jwt,
         device_add: &DeviceAdd,
         name: &Option<DeviceName>,

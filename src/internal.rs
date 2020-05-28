@@ -323,7 +323,6 @@ pub struct RequestAuth {
     #[serde(skip_serializing, skip_deserializing)]
     pub(crate) request: IronCoreRequest,
 }
-
 impl RequestAuth {
     pub fn create_signature_v2<'a>(
         &'a self,
@@ -356,7 +355,11 @@ impl RequestAuth {
     }
 }
 
-/// Account's device context. Needed to initialize the Sdk with a set of device keys. See `IronOxide.initialize()`
+/// Data for a user's device.
+///
+/// Required to initialize the SDK with a set of device keys. See [ironoxide::initialize](../fn.initialize.html).
+///
+/// Can be created from a `DeviceAddResult` using `DeviceContext::from`.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceContext {
@@ -365,11 +368,8 @@ pub struct DeviceContext {
     /// The private key which was generated for a particular device for the user. Not the user's master private key.
     device_private_key: PrivateKey,
 }
-
 impl DeviceContext {
-    /// Create a new DeviceContext to get an SDK instance for the provided context. Takes an account's UserID,
-    /// segment id, private device keys, and signing keys. An instance of this structure can be created
-    /// from the result of the `IronOxide.generate_new_device()` method.
+    /// Constructs a new `DeviceContext`.
     pub fn new(
         account_id: UserId,
         segment_id: usize,
@@ -390,19 +390,19 @@ impl DeviceContext {
     pub(crate) fn auth(&self) -> &RequestAuth {
         &self.auth
     }
-
+    /// ID of the device's owner
     pub fn account_id(&self) -> &UserId {
         &self.auth.account_id
     }
-
+    /// ID of the segment
     pub fn segment_id(&self) -> usize {
         self.auth.segment_id
     }
-
+    /// Signing private key of the device
     pub fn signing_private_key(&self) -> &DeviceSigningKeyPair {
         &self.auth.signing_private_key
     }
-
+    /// Private key of the device
     pub fn device_private_key(&self) -> &PrivateKey {
         &self.device_private_key
     }
@@ -416,7 +416,6 @@ impl From<recrypt::api::TransformKey> for TransformKey {
         TransformKey(tk)
     }
 }
-
 impl Hashable for TransformKey {
     fn to_bytes(&self) -> Vec<u8> {
         self.0.to_bytes()
@@ -431,24 +430,36 @@ impl From<recrypt::api::SchnorrSignature> for SchnorrSignature {
         SchnorrSignature(s)
     }
 }
-
 impl From<SchnorrSignature> for Vec<u8> {
     fn from(sig: SchnorrSignature) -> Self {
         sig.0.bytes().to_vec()
     }
 }
 
-/// Represents an asymmetric public key that wraps the underlying bytes
-/// of the key.
+/// Asymmetric public key.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct PublicKey(RecryptPublicKey);
-
+impl PublicKey {
+    fn to_bytes_x_y(&self) -> (Vec<u8>, Vec<u8>) {
+        let (x, y) = self.0.bytes_x_y();
+        (x.to_vec(), y.to_vec())
+    }
+    pub fn new_from_slice(bytes: (&[u8], &[u8])) -> Result<Self, IronOxideErr> {
+        let re_pub = RecryptPublicKey::new_from_slice(bytes)?;
+        Ok(PublicKey(re_pub))
+    }
+    /// Bytes of the public key
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let (mut x, mut y) = self.to_bytes_x_y();
+        x.append(&mut y);
+        x
+    }
+}
 impl From<RecryptPublicKey> for PublicKey {
     fn from(recrypt_pub: RecryptPublicKey) -> Self {
         PublicKey(recrypt_pub)
     }
 }
-
 impl From<PublicKey> for RecryptPublicKey {
     fn from(public_key: PublicKey) -> Self {
         public_key.0
@@ -480,33 +491,51 @@ impl TryFrom<&[u8]> for PublicKey {
         }
     }
 }
-impl PublicKey {
-    fn to_bytes_x_y(&self) -> (Vec<u8>, Vec<u8>) {
-        let (x, y) = self.0.bytes_x_y();
-        (x.to_vec(), y.to_vec())
-    }
-    pub fn new_from_slice(bytes: (&[u8], &[u8])) -> Result<Self, IronOxideErr> {
-        let re_pub = RecryptPublicKey::new_from_slice(bytes)?;
-        Ok(PublicKey(re_pub))
-    }
-    pub fn as_bytes(&self) -> Vec<u8> {
-        let (mut x, mut y) = self.to_bytes_x_y();
-        x.append(&mut y);
-        x
-    }
-}
 
-/// Represents an asymmetric private key that wraps the underlying bytes
-/// of the key.
+/// Asymmetric private key.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct PrivateKey(RecryptPrivateKey);
 impl PrivateKey {
     const BYTES_SIZE: usize = RecryptPrivateKey::ENCODED_SIZE_BYTES;
+    /// Bytes of the private key
     pub fn as_bytes(&self) -> &[u8; PrivateKey::BYTES_SIZE] {
         self.0.bytes()
     }
     fn recrypt_key(&self) -> &RecryptPrivateKey {
         &self.0
+    }
+    /// Augment this private key with another, producing a new PrivateKey
+    fn augment<F: FnOnce(String) -> IronOxideErr>(
+        &self,
+        augmenting_key: &AugmentationFactor,
+        error_fn: F,
+    ) -> Result<PrivateKey, IronOxideErr> {
+        let zero: RecryptPrivateKey = RecryptPrivateKey::new([0u8; 32]);
+        if RecryptPrivateKey::from(augmenting_key.clone()) == zero {
+            Err(error_fn("Augmenting key cannot be zero".into()))
+        } else if RecryptPrivateKey::from(augmenting_key.clone()) == self.0 {
+            Err(error_fn(
+                "PrivateKey augmentation failed with a zero value".into(),
+            ))
+        } else {
+            // this subtraction needs to be the additive inverse of what the service is doing
+            let augmented_key = self.0.augment_minus(&augmenting_key.clone().into());
+            Ok(augmented_key.into())
+        }
+    }
+    /// A convenience function to pass a user rotation error to `augment()`
+    fn augment_user(
+        &self,
+        augmenting_key: &AugmentationFactor,
+    ) -> Result<PrivateKey, IronOxideErr> {
+        self.augment(augmenting_key, IronOxideErr::UserPrivateKeyRotationError)
+    }
+    /// A convenience function to pass a user rotation error to `augment()`
+    fn augment_group(
+        &self,
+        augmenting_key: &AugmentationFactor,
+    ) -> Result<PrivateKey, IronOxideErr> {
+        self.augment(augmenting_key, IronOxideErr::GroupPrivateKeyRotationError)
     }
 }
 impl From<RecryptPrivateKey> for PrivateKey {
@@ -532,7 +561,6 @@ impl TryFrom<&[u8]> for PrivateKey {
             .map_err(|e| e.into())
     }
 }
-
 impl Serialize for PrivateKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -541,7 +569,6 @@ impl Serialize for PrivateKey {
         serializer.serialize_str(&base64::encode(&self.0.bytes().to_vec()))
     }
 }
-
 impl<'de> Deserialize<'de> for PrivateKey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -554,48 +581,9 @@ impl<'de> Deserialize<'de> for PrivateKey {
     }
 }
 
-impl PrivateKey {
-    /// Augment this private key with another, producing a new PrivateKey
-    fn augment<F: FnOnce(String) -> IronOxideErr>(
-        &self,
-        augmenting_key: &AugmentationFactor,
-        error_fn: F,
-    ) -> Result<PrivateKey, IronOxideErr> {
-        let zero: RecryptPrivateKey = RecryptPrivateKey::new([0u8; 32]);
-        if RecryptPrivateKey::from(augmenting_key.clone()) == zero {
-            Err(error_fn("Augmenting key cannot be zero".into()))
-        } else if RecryptPrivateKey::from(augmenting_key.clone()) == self.0 {
-            Err(error_fn(
-                "PrivateKey augmentation failed with a zero value".into(),
-            ))
-        } else {
-            // this subtraction needs to be the additive inverse of what the service is doing
-            let augmented_key = self.0.augment_minus(&augmenting_key.clone().into());
-            Ok(augmented_key.into())
-        }
-    }
-
-    /// A convenience function to pass a user rotation error to `augment()`
-    fn augment_user(
-        &self,
-        augmenting_key: &AugmentationFactor,
-    ) -> Result<PrivateKey, IronOxideErr> {
-        self.augment(augmenting_key, IronOxideErr::UserPrivateKeyRotationError)
-    }
-
-    /// A convenience function to pass a user rotation error to `augment()`
-    fn augment_group(
-        &self,
-        augmenting_key: &AugmentationFactor,
-    ) -> Result<PrivateKey, IronOxideErr> {
-        self.augment(augmenting_key, IronOxideErr::GroupPrivateKeyRotationError)
-    }
-}
-
 /// Private key used to augment another PrivateKey
 #[derive(Clone, Debug)]
 pub(crate) struct AugmentationFactor(PrivateKey);
-
 impl AugmentationFactor {
     /// Use recrypt to generate a new AugmentationFactor
     pub fn generate_new<R: KeyGenOps>(recrypt: &R) -> AugmentationFactor {
@@ -606,17 +594,27 @@ impl AugmentationFactor {
         self.0.as_bytes()
     }
 }
-
 impl From<AugmentationFactor> for RecryptPrivateKey {
     fn from(aug: AugmentationFactor) -> Self {
         (aug.0).0
     }
 }
 
-/// Signing keypair specific to a device. Used to sign all requests to the IronCore API
-/// endpoints. Needed to create a `DeviceContext`.
+/// Keypair used to sign all requests to the IronCore API endpoints.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DeviceSigningKeyPair(RecryptSigningKeypair);
+impl DeviceSigningKeyPair {
+    pub fn sign(&self, payload: &[u8]) -> [u8; 64] {
+        self.0.sign(&payload).into()
+    }
+    /// Bytes of the signing key pair
+    pub fn as_bytes(&self) -> &[u8; 64] {
+        self.0.bytes()
+    }
+    pub fn public_key(&self) -> [u8; 32] {
+        self.0.public_key().into()
+    }
+}
 impl From<&DeviceSigningKeyPair> for RecryptSigningKeypair {
     fn from(dsk: &DeviceSigningKeyPair) -> RecryptSigningKeypair {
         dsk.0.clone()
@@ -637,7 +635,6 @@ impl TryFrom<&[u8]> for DeviceSigningKeyPair {
             })
     }
 }
-
 impl Serialize for DeviceSigningKeyPair {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -647,7 +644,6 @@ impl Serialize for DeviceSigningKeyPair {
         serializer.serialize_str(&base64)
     }
 }
-
 impl<'de> Deserialize<'de> for DeviceSigningKeyPair {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -657,18 +653,6 @@ impl<'de> Deserialize<'de> for DeviceSigningKeyPair {
         let s = String::deserialize(deserializer)?;
         let keys_bytes = base64::decode(&s).map_err(|e| Error::custom(e.to_string()))?;
         DeviceSigningKeyPair::try_from(&keys_bytes[..]).map_err(|e| Error::custom(e.to_string()))
-    }
-}
-
-impl DeviceSigningKeyPair {
-    pub fn sign(&self, payload: &[u8]) -> [u8; 64] {
-        self.0.sign(&payload).into()
-    }
-    pub fn as_bytes(&self) -> &[u8; 64] {
-        self.0.bytes()
-    }
-    pub fn public_key(&self) -> [u8; 32] {
-        self.0.public_key().into()
     }
 }
 

@@ -185,7 +185,7 @@ impl GroupMetaResult {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 /// Full metadata for a newly created group.
 ///
-/// Result from [group_create](trait.GroupOps.html#tymethod.group_create)
+/// Result from [group_create](trait.GroupOps.html#tymethod.group_create).
 pub struct GroupCreateResult {
     id: GroupId,
     name: Option<GroupName>,
