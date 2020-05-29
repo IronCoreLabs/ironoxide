@@ -49,6 +49,7 @@ uuid = { version = "~0.8", features = ["v4"], default-features = false }
 double = "~0.2.4"
 criterion = "~0.3"
 tokio = {version = "~0.2.0", features = ["macros"]}
+mut_static = "~5.0"
 
 [build-dependencies]
 protobuf-codegen-pure = "~2.14"
@@ -85,6 +86,9 @@ debug = true
 opt-level = 3
 debug = false
 lto = true
+
+[[example]]
+name = "enc-search-sample"
 
 [[bench]]
 name = "ironoxide_bench"
