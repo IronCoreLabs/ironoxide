@@ -90,11 +90,11 @@ async fn main() -> Result<()> {
 
     // Add some test customers to the "server store"
     let cust1 = encrypt_customer(&sdk, 1, &"Gumby", &"", &group_id).await?;
-    save_customer(&cust1, &vec![]);
+    save_customer(&cust1, &vec![], &vec![]);
     let cust2 = encrypt_customer(&sdk, 2, &"Æ neid 北亰", &"", &group_id).await?;
-    save_customer(&cust2, &vec![]);
+    save_customer(&cust2, &vec![], &vec![]);
     let cust3 = encrypt_customer(&sdk, 3, &"aeneid bei jing", &"", &group_id).await?;
-    save_customer(&cust3, &vec![]);
+    save_customer(&cust3, &vec![], &vec![]);
 
     // Allow the user to enter additional customers
     let mut next_id = 4;
@@ -112,7 +112,7 @@ async fn main() -> Result<()> {
             email = email.trim().to_string();
 
             let cust = encrypt_customer(&sdk, next_id, &name, &email, &group_id).await?;
-            save_customer(&cust, &vec![]);
+            save_customer(&cust, &vec![], &vec![]);
         }
         next_id = next_id + 1;
     }
@@ -142,7 +142,7 @@ async fn main() -> Result<()> {
     // Replace name with encoded encrypted version. Also need to store EDEKs to decrypt name.
     customer.name = base64::encode(&enc_name.encrypted_data());
     customer.name_keys = base64::encode(&enc_name.encrypted_deks());
-    save_customer(&customer, &name_tokens);
+    save_customer(&customer, &name_tokens, &vec![]);
     // end-snippet{indexData}
 
     // Now ask the user for a query string, ask the server for matching records,
@@ -151,6 +151,38 @@ async fn main() -> Result<()> {
     let query_str = get_search_query();
     display_matching_customers(&sdk, &blind_index, &query_str).await?;
     // end-snippet{executeSearch}
+
+    // Now create a second blind index to use for the email address fields.
+    // start-snippet{createSecondIndex}
+    let encrypted_salt2 = sdk.create_blind_index(&salt_group_id).await?;
+    let blind_index2 = encrypted_salt2.initialize_search(&sdk).await?;
+    // end-snippet{createSecondIndex}
+
+    let mut customer2 = Customer {
+        id: 24,
+        name: "Pokey".to_string(),
+        name_keys: "".to_string(),
+        email: "pokey@gumby.io".to_string(),
+        email_keys: "".to_string(),
+    };
+
+    // start-snippet{useSecondIndex}
+    // Generate the index tokens for the customer name and email address, then encrypt them
+    let name_tokens = blind_index.tokenize_data(&customer2.name, None)?.into_iter().collect::<Vec<u32>>();
+    let email_tokens = blind_index2.tokenize_data(&customer2.email, None)?.into_iter().collect::<Vec<u32>>();
+    let enc_name = sdk
+        .document_encrypt_unmanaged(&customer2.name.as_bytes(), &encrypt_opts)
+        .await?;
+    let enc_email = sdk
+        .document_encrypt_unmanaged(&customer2.email.as_bytes(), &encrypt_opts)
+        .await?;
+    // Replace name and email with encoded encrypted versions. Also need to store EDEKs to decrypt both.
+    customer2.name = base64::encode(&enc_name.encrypted_data());
+    customer2.name_keys = base64::encode(&enc_name.encrypted_deks());
+    customer2.email = base64::encode(&enc_email.encrypted_data());
+    customer2.email_keys = base64::encode(&enc_email.encrypted_deks());
+    save_customer(&customer, &name_tokens, &email_tokens);
+    // end-snippet{useSecondIndex}
 
     Ok(())
 }
@@ -192,14 +224,14 @@ async fn create_group(
     name: &String,
 ) -> Result<()> {
     let opts = GroupCreateOpts::new(
-        Some(group_id.clone()), // ID
-        Some(GroupName::try_from(name.clone())?),             // name
-        true,                   // add as admin
-        true,                   // add as user
-        None,                   // owner - defaults to caller
-        vec![],                 // additional admins
-        vec![],                 // additional users
-        false,                  // needs rotation
+        Some(group_id.clone()),                    // ID
+        Some(GroupName::try_from(name.clone())?),  // name
+        true,                                      // add as admin
+        true,                                      // add as user
+        None,                                      // owner - defaults to caller
+        vec![],                                    // additional admins
+        vec![],                                    // additional users
+        false,                                     // needs rotation
     );
     sdk.group_create(&opts).await?;
     Ok(())
@@ -319,7 +351,7 @@ fn get_encrypted_salt_from_app_server() -> String {
 }
 
 // For now, we ignore the tokens associated with each customer rec
-fn save_customer(customer: &Customer, _name_tokens: &Vec<u32>) -> () {
+fn save_customer(customer: &Customer, _name_tokens: &Vec<u32>, _email_tokens: &Vec<u32>) -> () {
     let cust_vec = &mut GLOBAL_STATE.write().unwrap().customers;
     cust_vec.push(customer.clone());
     ()
