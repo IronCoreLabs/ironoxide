@@ -5,9 +5,9 @@
 // To execute this program, you need to provide a file that contains a device
 // context. This file can be generated using the ironoxide-cli utility. You can
 // download this from https://github.com/IronCoreLabs/ironoxide-cli/releases;
-// if a compiled verion for your platform or architecture is not available, you
+// if a compiled version for your platform or architecture is not available, you
 // can use cargo to build and install it. The program assumes the device
-// context file is named "exampple.devcon" in the current directory.
+// context file is named "example.devcon" in the current directory.
 //
 // Also note that this program creates two different groups - in order to avoid
 // errors when executing the program multiple times, it appends the current
@@ -16,25 +16,14 @@
 // Copyright (c) 2020  IronCore Labs, Inc.
 // =============================================================================
 
-#[macro_use]
-extern crate lazy_static;
-extern crate mut_static;
-
-use ironoxide::{
-    common::DeviceContext,
-    document::advanced::DocumentAdvancedOps,
-    document::{DocumentEncryptOpts, UserOrGroup},
-    group::{GroupCreateOpts, GroupId, GroupName, GroupOps},
-    search::{BlindIndexSearchInitialize, BlindIndexSearch, EncryptedBlindIndexSalt},
-    IronOxide, IronOxideErr,
-};
+use ironoxide::prelude::*;
+use lazy_static::lazy_static;
 use mut_static::MutStatic;
 use std::{
     convert::TryFrom,
     fmt,
     fs::File,
     path::PathBuf,
-    str,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -59,15 +48,11 @@ async fn main() -> Result<()> {
     // Create a group to use to protect the blind search index that will
     // be used on the customer names, then create an index using that group
     // start-snippet{createIndex}
-    let salt_group_id = get_group_id(&"indexedSearchGroup".to_string())?;
-    create_group(
-        &sdk,
-        &salt_group_id,
-        &"PII Search".to_string()
-    ).await?;
+    let salt_group_id = create_group_id("indexedSearchGroup")?;
+    create_group(&sdk, &salt_group_id, "PII Search").await?;
     let encrypted_salt = sdk.create_blind_index(&salt_group_id).await?;
     let encrypted_salt_str = serde_json::to_string(&encrypted_salt)?;
-    save_encrypted_salt_to_app_server(&encrypted_salt_str);
+    save_encrypted_salt_to_app_server(encrypted_salt_str);
     // end-snippet{createIndex}
 
     // Initialize the new index so it can be used for indexing and search
@@ -81,40 +66,40 @@ async fn main() -> Result<()> {
     // Note this is not the same as the group that was used to secure
     // the blind index, but anyone that needs to be able to search for
     // customers by name will need to belong to both groups.
-    let group_id = get_group_id(&"customerService".to_string())?;
-    create_group(
-        &sdk,
-        &group_id,
-        &"Customer Service".to_string()
-    ).await?;
+    let group_id = create_group_id("customerService")?;
+    create_group(&sdk, &group_id, "Customer Service").await?;
 
     // Add some test customers to the "server store"
-    let cust1 = encrypt_customer(&sdk, 1, &"Gumby", &"", &group_id).await?;
-    save_customer(&cust1, &vec![], &vec![]);
-    let cust2 = encrypt_customer(&sdk, 2, &"Æ neid 北亰", &"", &group_id).await?;
-    save_customer(&cust2, &vec![], &vec![]);
-    let cust3 = encrypt_customer(&sdk, 3, &"aeneid bei jing", &"", &group_id).await?;
-    save_customer(&cust3, &vec![], &vec![]);
+    let cust1 = encrypt_customer(&sdk, 1, "Gumby", "", &group_id).await?;
+    save_customer(cust1, &[], &[]);
+    let cust2 = encrypt_customer(&sdk, 2, "Æ neid 北亰", "", &group_id).await?;
+    save_customer(cust2, &[], &[]);
+    let cust3 = encrypt_customer(&sdk, 3, "aeneid bei jing", "", &group_id).await?;
+    save_customer(cust3, &[], &[]);
 
     // Allow the user to enter additional customers
     let mut next_id = 4;
     loop {
         let mut name = String::new();
         println!("Enter next customer name, or blank line to quit");
-        std::io::stdin().read_line(&mut name).expect("error: couldn't read input");
+        std::io::stdin()
+            .read_line(&mut name)
+            .expect("error: couldn't read input");
         name = name.trim().to_string();
-        if name == "".to_string() {
+        if &name == "" {
             break;
         } else {
             let mut email = String::new();
             println!("Enter customer's email");
-            std::io::stdin().read_line(&mut email).expect("error: couldn't read input");
+            std::io::stdin()
+                .read_line(&mut email)
+                .expect("error: couldn't read input");
             email = email.trim().to_string();
 
             let cust = encrypt_customer(&sdk, next_id, &name, &email, &group_id).await?;
-            save_customer(&cust, &vec![], &vec![]);
+            save_customer(cust, &[], &[]);
         }
-        next_id = next_id + 1;
+        next_id += 1;
     }
 
     // now create a new customer record to index
@@ -128,21 +113,24 @@ async fn main() -> Result<()> {
 
     // Generate the index tokens for the customer name, then encrypt it
     // begin-snippet{indexData}
-    let name_tokens = blind_index.tokenize_data(&customer.name, None)?.into_iter().collect::<Vec<u32>>();
-    let group_id = get_group_id(&"customerService".to_string())?;
+    let name_tokens = blind_index
+        .tokenize_data(&customer.name, None)?
+        .into_iter()
+        .collect::<Vec<u32>>();
+    let group_id = create_group_id("customerService")?;
     let encrypt_opts = DocumentEncryptOpts::with_explicit_grants(
-        None,                     // document ID - create unique
-        None,                     // document name
-        false,                    // don't encrypt to self
-        vec![(&group_id).into()], // users and groups to which to grant access
+        None,                  // document ID - create unique
+        None,                  // document name
+        false,                 // don't encrypt to self
+        vec![group_id.into()], // users and groups to which to grant access
     );
     let enc_name = sdk
-        .document_encrypt_unmanaged(&customer.name.as_bytes(), &encrypt_opts)
+        .document_encrypt_unmanaged(customer.name.as_bytes(), &encrypt_opts)
         .await?;
     // Replace name with encoded encrypted version. Also need to store EDEKs to decrypt name.
-    customer.name = base64::encode(&enc_name.encrypted_data());
-    customer.name_keys = base64::encode(&enc_name.encrypted_deks());
-    save_customer(&customer, &name_tokens, &vec![]);
+    customer.name = base64::encode(enc_name.encrypted_data());
+    customer.name_keys = base64::encode(enc_name.encrypted_deks());
+    save_customer(customer.clone(), &name_tokens, &[]);
     // end-snippet{indexData}
 
     // Now ask the user for a query string, ask the server for matching records,
@@ -168,8 +156,14 @@ async fn main() -> Result<()> {
 
     // start-snippet{useSecondIndex}
     // Generate the index tokens for the customer name and email address, then encrypt them
-    let name_tokens = blind_index.tokenize_data(&customer2.name, None)?.into_iter().collect::<Vec<u32>>();
-    let email_tokens = blind_index2.tokenize_data(&customer2.email, None)?.into_iter().collect::<Vec<u32>>();
+    let name_tokens = blind_index
+        .tokenize_data(&customer2.name, None)?
+        .into_iter()
+        .collect::<Vec<u32>>();
+    let email_tokens = blind_index2
+        .tokenize_data(&customer2.email, None)?
+        .into_iter()
+        .collect::<Vec<u32>>();
     let enc_name = sdk
         .document_encrypt_unmanaged(&customer2.name.as_bytes(), &encrypt_opts)
         .await?;
@@ -177,11 +171,11 @@ async fn main() -> Result<()> {
         .document_encrypt_unmanaged(&customer2.email.as_bytes(), &encrypt_opts)
         .await?;
     // Replace name and email with encoded encrypted versions. Also need to store EDEKs to decrypt both.
-    customer2.name = base64::encode(&enc_name.encrypted_data());
-    customer2.name_keys = base64::encode(&enc_name.encrypted_deks());
-    customer2.email = base64::encode(&enc_email.encrypted_data());
-    customer2.email_keys = base64::encode(&enc_email.encrypted_deks());
-    save_customer(&customer, &name_tokens, &email_tokens);
+    customer2.name = base64::encode(enc_name.encrypted_data());
+    customer2.name_keys = base64::encode(enc_name.encrypted_deks());
+    customer2.email = base64::encode(enc_email.encrypted_data());
+    customer2.email_keys = base64::encode(enc_email.encrypted_deks());
+    save_customer(customer, &name_tokens, &email_tokens);
     // end-snippet{useSecondIndex}
 
     Ok(())
@@ -193,14 +187,14 @@ async fn initialize_sdk_from_file(device_path: &PathBuf) -> Result<IronOxide> {
         let device_context_file = File::open(&device_path)?;
         let device_context: DeviceContext = serde_json::from_reader(device_context_file)?;
         println!("Found DeviceContext in \"{}\"", device_path.display());
-        Ok(ironoxide::initialize(
-            &device_context,
-            &Default::default(),
-        ).await?)
+        Ok(ironoxide::initialize(&device_context, &Default::default()).await?)
     } else {
         Err(AppErr(
-            format!("Couldn't open file {} containing DeviceContext", device_path.display())
-                .to_string(),
+            format!(
+                "Couldn't open file {} containing DeviceContext",
+                device_path.display()
+            )
+            .to_string(),
         ))
     }
 }
@@ -208,33 +202,33 @@ async fn initialize_sdk_from_file(device_path: &PathBuf) -> Result<IronOxide> {
 // Add the program start time to the end of the specified string to
 // form a unique id string, then create a GroupId from it
 // start-snippet{getGroupId}
-fn get_group_id(id_str: &String) -> Result<GroupId> {
-    let stime = GLOBAL_STATE.read().unwrap().start_time.clone();
-    let gid = id_str.to_owned() + &stime;
+fn create_group_id(id_str: &str) -> Result<GroupId> {
+    let stime = &GLOBAL_STATE.read().unwrap().start_time;
+    let gid = id_str.to_owned() + stime;
     Ok(GroupId::try_from(gid)?)
 }
 // end-snippet{getGroupId}
 
 // Create a group with the specified ID and name, assuming the current user
-// should be a member and and admin
+// should be a member and an admin
 // start-snippet{createGroup}
 async fn create_group(
     sdk: &IronOxide,
     group_id: &GroupId,
-    name: &String,
-) -> Result<()> {
+    name: &str,
+) -> Result<GroupCreateResult> {
     let opts = GroupCreateOpts::new(
-        Some(group_id.clone()),                    // ID
-        Some(GroupName::try_from(name.clone())?),  // name
-        true,                                      // add as admin
-        true,                                      // add as user
-        None,                                      // owner - defaults to caller
-        vec![],                                    // additional admins
-        vec![],                                    // additional users
-        false,                                     // needs rotation
+        Some(group_id.to_owned()),                   // ID
+        Some(GroupName::try_from(name.to_owned())?), // name
+        true,                                        // add as admin
+        true,                                        // add as user
+        None,                                        // owner - defaults to caller
+        vec![],                                      // additional admins
+        vec![],                                      // additional users
+        false,                                       // needs rotation
     );
-    sdk.group_create(&opts).await?;
-    Ok(())
+    let group = sdk.group_create(&opts).await?;
+    Ok(group)
 }
 // end-snippet{createGroup}
 
@@ -248,19 +242,19 @@ async fn encrypt_customer(
     group_id: &GroupId,
 ) -> Result<Customer> {
     let encrypt_opts = DocumentEncryptOpts::with_explicit_grants(
-        None,    // document ID
-        None,    // document name
-        true,    // encrypt to self
-        vec![UserOrGroup::Group {
-            id: group_id.clone(),
-        }],      // users and groups to which to grant access
+        None,                  // document ID
+        None,                  // document name
+        true,                  // encrypt to self
+        vec![group_id.into()], // users and groups to which to grant access
     );
-    let enc_result = sdk.document_encrypt_unmanaged(&name.as_bytes(), &encrypt_opts).await?;
-    let enc_name = base64::encode(&enc_result.encrypted_data());
-    let enc_name_keys = base64::encode(&enc_result.encrypted_deks());
+    let enc_result = sdk
+        .document_encrypt_unmanaged(name.as_bytes(), &encrypt_opts)
+        .await?;
+    let enc_name = base64::encode(enc_result.encrypted_data());
+    let enc_name_keys = base64::encode(enc_result.encrypted_deks());
 
     Ok(Customer {
-        id: id,
+        id,
         name: enc_name,
         name_keys: enc_name_keys,
         email: email.to_string(),
@@ -281,42 +275,50 @@ async fn filter_customer(
 ) -> Result<Option<String>> {
     let cust_enc_name = base64::decode(&cust.name)?;
     let cust_name_keys = base64::decode(&cust.name_keys)?;
-    let dec_result = sdk.document_decrypt_unmanaged(&cust_enc_name, &cust_name_keys).await?;
-    let dec_name = str::from_utf8(&dec_result.decrypted_data()).unwrap();
+    let dec_result = sdk
+        .document_decrypt_unmanaged(&cust_enc_name, &cust_name_keys)
+        .await?;
+    let dec_name = std::str::from_utf8(&dec_result.decrypted_data()).unwrap();
     let dec_name_trans = ironoxide::search::transliterate_string(&dec_name);
     if name_parts
         .iter()
-        .all(|&name_part| dec_name_trans.contains(name_part))
+        .all(|name_part| dec_name_trans.contains(name_part))
     {
-        Ok(Option::Some(dec_name.to_string()))
+        Ok(Some(dec_name.to_string()))
     } else {
-        Ok(Option::None)
+        Ok(None)
     }
 }
 // end-snippet{filterCust}
 
 // Given a query string, generate the set of index tokens and use this to
-// retrieve possible matches from the server. Transliterate the string, 
+// retrieve possible matches from the server. Transliterate the string,
 // break it into pieces on white space, and for each returned customer,
 // check to see if the customer name actually contains the words from the
 // query. If so, output the customer ID and name.
 // begin-snippet{displayCust}
-async fn display_matching_customers(sdk: &IronOxide, name_index: &BlindIndexSearch, query_str: &str) -> Result<()> {
-    let query_tokens: Vec<u32> = name_index.tokenize_query(query_str, Option::None)?.into_iter().collect::<Vec<u32>>();
-    let customer_recs = search_customers(&query_tokens)?;
+async fn display_matching_customers(
+    sdk: &IronOxide,
+    name_index: &BlindIndexSearch,
+    query_str: &str,
+) -> Result<()> {
+    let query_tokens = name_index
+        .tokenize_query(query_str, None)?
+        .into_iter()
+        .collect();
+    let customer_recs = search_customers(&query_tokens);
     let trans_query = ironoxide::search::transliterate_string(&query_str);
     let name_parts: Vec<&str> = trans_query.split_whitespace().collect();
     for cust in customer_recs.iter() {
         let result = filter_customer(&sdk, &cust, &name_parts).await?;
         match result {
-            Option::Some(decrypted_name) => println!("{} {} matched query", cust.id, decrypted_name),
-            Option::None  => println!("{} did not match query", cust.id),
+            Some(decrypted_name) => println!("{} {} matched query", cust.id, decrypted_name),
+            None => println!("{} did not match query", cust.id),
         }
-    };
+    }
     Ok(())
 }
 // end-snippet{displayCust}
-
 
 // Mock out some functions that would call the back-end service and return data in the real app
 // We use some mutable global state to persist things that the service usually would.
@@ -328,10 +330,14 @@ struct GlobalState {
 
 impl GlobalState {
     pub fn new() -> Self {
-        GlobalState{
+        GlobalState {
             encrypted_salt: "".to_string(),
             customers: vec![],
-            start_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs().to_string(),
+            start_time: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                .to_string(),
         }
     }
 }
@@ -340,10 +346,8 @@ lazy_static! {
     static ref GLOBAL_STATE: MutStatic<GlobalState> = MutStatic::new();
 }
 
-
-fn save_encrypted_salt_to_app_server(encrypted_salt: &String) -> () {
-    GLOBAL_STATE.write().unwrap().encrypted_salt = encrypted_salt.clone();
-    ()
+fn save_encrypted_salt_to_app_server(encrypted_salt: String) {
+    GLOBAL_STATE.write().unwrap().encrypted_salt = encrypted_salt;
 }
 
 fn get_encrypted_salt_from_app_server() -> String {
@@ -351,21 +355,21 @@ fn get_encrypted_salt_from_app_server() -> String {
 }
 
 // For now, we ignore the tokens associated with each customer rec
-fn save_customer(customer: &Customer, _name_tokens: &Vec<u32>, _email_tokens: &Vec<u32>) -> () {
-    let cust_vec = &mut GLOBAL_STATE.write().unwrap().customers;
-    cust_vec.push(customer.clone());
-    ()
+fn save_customer(customer: Customer, _name_tokens: &[u32], _email_tokens: &[u32]) {
+    GLOBAL_STATE.write().unwrap().customers.push(customer);
 }
 
 // Just return all the records that we have in the store for now
-fn search_customers(_tokens: &Vec<u32>) -> Result<Vec<Customer>> {
-    Ok(GLOBAL_STATE.read().unwrap().customers.clone())
+fn search_customers(_tokens: &Vec<u32>) -> Vec<Customer> {
+    GLOBAL_STATE.read().unwrap().customers.clone()
 }
 
 fn get_search_query() -> String {
     let mut query = String::new();
     println!("Enter query string");
-    std::io::stdin().read_line(&mut query).expect("error: couldn't read input");
+    std::io::stdin()
+        .read_line(&mut query)
+        .expect("error: couldn't read input");
     query.trim().to_string()
 }
 
@@ -377,7 +381,6 @@ impl fmt::Display for AppErr {
         write!(f, "{}", self.0)
     }
 }
-
 impl From<IronOxideErr> for AppErr {
     fn from(e: IronOxideErr) -> Self {
         match e {
