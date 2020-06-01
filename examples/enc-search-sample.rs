@@ -112,7 +112,7 @@ async fn main() -> Result<()> {
     };
 
     // Generate the index tokens for the customer name, then encrypt it
-    // begin-snippet{indexData}
+    // start-snippet{indexData}
     let name_tokens = blind_index
         .tokenize_data(&customer.name, None)?
         .into_iter()
@@ -135,7 +135,7 @@ async fn main() -> Result<()> {
 
     // Now ask the user for a query string, ask the server for matching records,
     // and display all matches to the user
-    // begin-snippet{executeSearch}
+    // start-snippet{executeSearch}
     let query_str = get_search_query();
     display_matching_customers(&sdk, &blind_index, &query_str).await?;
     // end-snippet{executeSearch}
@@ -201,13 +201,13 @@ async fn initialize_sdk_from_file(device_path: &PathBuf) -> Result<IronOxide> {
 
 // Add the program start time to the end of the specified string to
 // form a unique id string, then create a GroupId from it
-// start-snippet{getGroupId}
+// start-snippet{createGroupId}
 fn create_group_id(id_str: &str) -> Result<GroupId> {
     let stime = &GLOBAL_STATE.read().unwrap().start_time;
     let gid = id_str.to_owned() + stime;
     Ok(GroupId::try_from(gid)?)
 }
-// end-snippet{getGroupId}
+// end-snippet{createGroupId}
 
 // Create a group with the specified ID and name, assuming the current user
 // should be a member and an admin
@@ -267,7 +267,7 @@ async fn encrypt_customer(
 // decrypted name contains all of the word fragments from the query string.
 // If so, return the decrypted name. Otherwise, the record was a false positive,
 // so return None.
-// begin-snippet{filterCust}
+// start-snippet{filterCust}
 async fn filter_customer(
     sdk: &IronOxide,
     cust: &Customer,
@@ -296,7 +296,7 @@ async fn filter_customer(
 // break it into pieces on white space, and for each returned customer,
 // check to see if the customer name actually contains the words from the
 // query. If so, output the customer ID and name.
-// begin-snippet{displayCust}
+// start-snippet{displayCust}
 async fn display_matching_customers(
     sdk: &IronOxide,
     name_index: &BlindIndexSearch,
