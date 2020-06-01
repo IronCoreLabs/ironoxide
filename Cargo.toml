@@ -89,6 +89,7 @@ lto = true
 
 [[example]]
 name = "enc-search-sample"
+required-features = ["beta"]
 
 [[bench]]
 name = "ironoxide_bench"
