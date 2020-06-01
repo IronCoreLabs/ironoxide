@@ -13,3 +13,4 @@ java/scala/src/test/resources/service-keys.conf.local
 .vscode
 src/proto/transform.rs
 benches/data/*.json
+example.devcon
