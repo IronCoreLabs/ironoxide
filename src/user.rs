@@ -193,8 +193,11 @@ pub trait UserOps {
     /// # let sdk: IronOxide = unimplemented!();
     /// let user1 = UserId::try_from("colt")?;
     /// let user2 = UserId::try_from("fake_user")?;
+    /// let users = [user1, user2];
     /// // This will only return one entry, for user "colt"
-    /// let get_result = sdk.user_get_public_key(&[user1, user2]).await?;
+    /// let get_result = sdk.user_get_public_key(&users).await?;
+    /// let (valid_users, invalid_users): (Vec<&UserId>, Vec<&UserId>) =
+    ///     users.iter().partition(|u| get_result.contains_key(u));
     /// # Ok(())
     /// # }
     /// ```
