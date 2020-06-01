@@ -68,6 +68,8 @@ impl Default for UserCreateOpts {
 /// IronOxide User Operations
 ///
 /// # Key Terms
+/// - Device - The only entity in the Data Control Platform that can decrypt data. A device is authorized using a user’s private key,
+///     therefore a device is tightly bound to a user.
 /// - ID - The ID representing a user or device. It must be unique within its segment and will **not** be encrypted.
 /// - Password - The string used to encrypt and escrow a user's private key.
 /// - Rotation - Changing a user's private key while leaving their public key unchanged. The main use case for this is a workflow
@@ -91,7 +93,7 @@ pub trait UserOps {
     /// # use ironoxide::prelude::*;
     /// # let jwt = "";
     /// let password = "foobar";
-    /// let opts = UserCreateOpts::new(true);
+    /// let opts = UserCreateOpts::new(false);
     /// let user_result = IronOxide::user_create(jwt, password, &opts, None).await?;
     /// # Ok(())
     /// # }
@@ -136,7 +138,7 @@ pub trait UserOps {
         timeout: Option<std::time::Duration>,
     ) -> Result<DeviceAddResult>;
 
-    /// Verifies a user using a JWT for their user record.
+    /// Verifies the existence of a user using a JWT to identify their user record.
     ///
     /// Returns a `None` if the user could not be found.
     ///
