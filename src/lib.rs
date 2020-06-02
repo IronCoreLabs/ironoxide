@@ -39,7 +39,7 @@
 //! ### Generating a Device
 //!
 //! Generating a device with [IronOxide::generate_new_device](user/trait.UserOps.html#tymethod.generate_new_device) requires a valid IronCore or Auth0 JWT
-//! corresponding to the desired user, as well as the user's password for encrypting and escrowing the user's private key.
+//! corresponding to the desired user, as well as the user's password (needed to decrypt the user's escrowed private key).
 //!
 //! ```
 //! # fn get_jwt() -> &'static str {

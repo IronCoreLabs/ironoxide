@@ -162,11 +162,11 @@ impl GroupMetaResult {
     pub fn is_member(&self) -> bool {
         self.is_member
     }
-    /// Date and time of when the group was created
+    /// Date and time when the group was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
-    /// Date and time of when the group was last updated
+    /// Date and time when the group was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
     }
@@ -232,11 +232,11 @@ impl GroupCreateResult {
     pub fn members(&self) -> &Vec<UserId> {
         self.members.as_ref()
     }
-    /// Date and time of when the group was created
+    /// Date and time when the group was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
-    /// Date and time of when the group was last updated
+    /// Date and time when the group was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
     }
@@ -288,11 +288,11 @@ impl GroupGetResult {
     pub fn is_member(&self) -> bool {
         self.is_member
     }
-    /// Date and time of when the group was created
+    /// Date and time when the group was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
-    /// Date and time of when the group was last updated
+    /// Date and time when the group was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
     }

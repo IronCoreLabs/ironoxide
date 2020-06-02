@@ -243,11 +243,11 @@ impl UserDevice {
     pub fn name(&self) -> Option<&DeviceName> {
         self.name.as_ref()
     }
-    /// Date and time of when the device was created
+    /// Date and time when the device was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
-    /// Date and time of when the device was last updated
+    /// Date and time when the device was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.last_updated
     }

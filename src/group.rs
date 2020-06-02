@@ -169,6 +169,9 @@ impl Default for GroupCreateOpts {
 ///            unless they first add themselves as group members or are added by another admin.
 /// - Owner  - The user who owns the group. The owner has the same permissions as a group admin, but is protected from being removed as
 ///            a group admin.
+/// - Rotation - Changing a group's private key while leaving its public key unchanged. This can be accomplished by calling
+///     [`group_rotate_private_key`](trait.GroupOps.html#tymethod.group_rotate_private_key).
+
 #[async_trait]
 pub trait GroupOps {
     /// Creates a group.

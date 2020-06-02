@@ -17,7 +17,7 @@ pub fn generate_new_doc_key<CR: rand::CryptoRng + rand::RngCore>(
     (dek, symmetric_key)
 }
 
-/// Generate a plaintext and a keypair necessary to create a new group
+/// Generate a plaintext and a key pair necessary to create a new group
 pub fn gen_group_keys<R: CryptoOps + KeyGenOps>(
     recrypt: &R,
 ) -> Result<(Plaintext, PrivateKey, PublicKey), IronOxideErr> {
