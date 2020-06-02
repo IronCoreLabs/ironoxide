@@ -8,7 +8,7 @@
 //! # User Operations
 //!
 //! Users are the basis of IronOxide's functionality. Each user is a unique identity that has its own public/private key-pair. Users must always act
-//! through devices. A device is created using a user's private key and is therefore tightly bound to that user. Data can be never be encrypted
+//! through devices. A device is authorized using a user's private encryption key and is therefore tightly bound to that user. Data can be never be encrypted
 //! directly to a device, so devices can be considered ephemeral as there is no penalty for deleting a device and creating a new one.
 //!
 //! This SDK provides all the necessary functionality to manage users and devices. Users can be created, fetched, listed, and updated, while devices can be created

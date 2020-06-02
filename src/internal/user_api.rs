@@ -121,7 +121,7 @@ pub struct UserCreateResult {
 impl UserCreateResult {
     /// Public key for the user
     ///
-    /// For most use cases, this public key can be discarded as IronCore escrows the user's keys. The escrowed keys are unlocked
+    /// For most use cases, this public key can be discarded, as IronCore escrows the user's keys. The escrowed keys are unlocked
     /// by the provided password.
     pub fn user_public_key(&self) -> &PublicKey {
         &self.user_public_key
@@ -132,7 +132,7 @@ impl UserCreateResult {
     }
 }
 
-/// Public and private keypair used for document encryption and decryption.
+/// Public and private key pair used for document encryption and decryption.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct KeyPair {
     public_key: PublicKey,
@@ -162,9 +162,9 @@ pub(crate) struct DeviceAdd {
     user_public_key: PublicKey,
     /// Transform key from the user's private key to the device's public key
     transform_key: TransformKey,
-    /// Public/private keypair for the device
+    /// Public/private encryption key pair for the device
     device_keys: KeyPair,
-    /// Signing keypair for the device, used for authorized device requests
+    /// Signing key pair for the device, used for authorized device requests
     signing_keys: DeviceSigningKeyPair,
     /// Signature needed for authorized device requests
     signature: SchnorrSignature,
@@ -418,21 +418,21 @@ impl DeviceAddResult {
     pub fn segment_id(&self) -> usize {
         self.segment_id
     }
-    /// The signing keypair for the device
+    /// The signing key pair for the device
     pub fn signing_private_key(&self) -> &DeviceSigningKeyPair {
         &self.signing_private_key
     }
-    /// Private key of the device
+    /// Private encryption key of the device
     ///
     /// This is different from the user's private key.
     pub fn device_private_key(&self) -> &PrivateKey {
         &self.device_private_key
     }
-    /// The date and time of when the device was created
+    /// The date and time when the device was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
-    /// The date and time of when the device was last updated
+    /// The date and time when the device was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.last_updated
     }

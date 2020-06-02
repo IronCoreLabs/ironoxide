@@ -355,7 +355,7 @@ impl RequestAuth {
     }
 }
 
-/// Key-pair and metadata for a device.
+/// Signing and encryption key pairs and metadata for a device.
 ///
 /// Required to initialize the SDK with a set of device keys (see [ironoxide::initialize](../fn.initialize.html)).
 ///
@@ -402,11 +402,11 @@ impl DeviceContext {
     pub fn segment_id(&self) -> usize {
         self.auth.segment_id
     }
-    /// Signing private key of the device
+    /// Private signing key of the device
     pub fn signing_private_key(&self) -> &DeviceSigningKeyPair {
         &self.auth.signing_private_key
     }
-    /// Private key of the device
+    /// Private encryption key of the device
     pub fn device_private_key(&self) -> &PrivateKey {
         &self.device_private_key
     }
@@ -440,7 +440,7 @@ impl From<SchnorrSignature> for Vec<u8> {
     }
 }
 
-/// Asymmetric public key.
+/// Asymmetric public encryption key.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct PublicKey(RecryptPublicKey);
 impl PublicKey {
@@ -496,7 +496,7 @@ impl TryFrom<&[u8]> for PublicKey {
     }
 }
 
-/// Asymmetric private key.
+/// Asymmetric private encryption key.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct PrivateKey(RecryptPrivateKey);
 impl PrivateKey {
@@ -604,7 +604,7 @@ impl From<AugmentationFactor> for RecryptPrivateKey {
     }
 }
 
-/// Keypair used to sign all requests to the IronCore API endpoints.
+/// Key pair used to sign all requests to the IronCore API endpoints.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DeviceSigningKeyPair(RecryptSigningKeypair);
 impl DeviceSigningKeyPair {
