@@ -239,11 +239,11 @@ impl DocumentListMeta {
     pub fn association_type(&self) -> &AssociationType {
         &self.0.association.typ
     }
-    /// Date and time of when the document was created
+    /// Date and time when the document was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.0.created
     }
-    /// Date and time of when the document was last updated
+    /// Date and time when the document was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.0.updated
     }
@@ -278,11 +278,11 @@ impl DocumentMetadataResult {
     pub fn name(&self) -> Option<&DocumentName> {
         self.0.name.as_ref()
     }
-    /// Date and time of when the document was created
+    /// Date and time when the document was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.0.created
     }
-    /// Date and time of when the document was last updated
+    /// Date and time when the document was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.0.updated
     }
@@ -389,11 +389,11 @@ impl DocumentEncryptResult {
     pub fn name(&self) -> Option<&DocumentName> {
         self.name.as_ref()
     }
-    /// Date and time of when the document was created
+    /// Date and time when the document was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
-    /// Date and time of when the document was last updated
+    /// Date and time when the document was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
     }
@@ -430,11 +430,11 @@ impl DocumentDecryptResult {
     pub fn name(&self) -> Option<&DocumentName> {
         self.name.as_ref()
     }
-    /// Date and time of when the document was created
+    /// Date and time when the document was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
-    /// Date and time of when the document was last updated
+    /// Date and time when the document was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.updated
     }

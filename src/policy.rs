@@ -79,9 +79,11 @@
 //!
 use crate::{internal::user_api::UserId, IronOxideErr, Result};
 use regex::Regex;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 
-/// Document access granted by a policy. For use with [DocumentOps.document_encrypt](../document/trait.DocumentOps.html#tymethod.document_encrypt).
+/// Document access granted by a policy.
+///
+/// For use with [document_encrypt](../document/trait.DocumentOps.html#tymethod.document_encrypt).
 ///
 /// The triple (`category`, `sensitivity`, `data_subject`) maps to a single policy rule. Each policy
 /// rule may generate any number of users/groups.
@@ -125,7 +127,6 @@ impl PolicyGrant {
         self.substitute_user.as_ref()
     }
 }
-
 impl Default for PolicyGrant {
     fn default() -> Self {
         PolicyGrant {
@@ -144,12 +145,16 @@ macro_rules! policy_field {
 
         impl TryFrom<&str> for $t {
             type Error = IronOxideErr;
-
             fn try_from(value: &str) -> Result<Self> {
                 validate_simple_policy_field_value(value, $l).map(Self)
             }
         }
-
+        impl TryFrom<String> for $t {
+            type Error = IronOxideErr;
+            fn try_from(value: String) -> Result<Self> {
+                value.as_str().try_into()
+            }
+        }
         impl $t {
             pub(crate) const QUERY_PARAM: &'static str = $l;
 

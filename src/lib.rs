@@ -7,13 +7,75 @@
 //!
 //! # User Operations
 //!
-//! The IronOxide SDK [user methods](user/trait.UserOps.html) allow for multiple operations to manage your synced users/service accounts from your application
-//! into the IronCore platform:
+//! Users are the basis of IronOxide's functionality. Each user is a unique identity that has its own public/private key-pair. Users must always act
+//! through devices. A device is authorized using a user's private encryption key and is therefore tightly bound to that user. Data can be never be encrypted
+//! directly to a device, so devices can be considered ephemeral as there is no penalty for deleting a device and creating a new one.
 //!
-//! + Lookup existing synced users in the IronCore system given their unique account IDs
-//! + Sync and generate cryptographic keys for authenticated users from your application into IronCore
-//! + List, create, and delete cryptographic device keys for synced users
-//! + List a user's devices
+//! This SDK provides all the necessary functionality to manage users and devices. Users can be created, fetched, listed, and updated, while devices can be created
+//! and deleted all using IronOxide's [UserOps](user/trait.UserOps.html).
+//!
+//! ### Creating a User
+//!
+//! Creating a user with [IronOxide::user_create](user/trait.UserOps.html#tymethod.user_create) requires a valid IronCore or Auth0 JWT as well as
+//! the desired password that will be used to encrypt and escrow the user's private key.
+//!
+//! ```
+//! # fn get_jwt() -> &'static str {
+//! #     unimplemented!()
+//! # }
+//! # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+//! # use ironoxide::prelude::*;
+//! // Assuming an external function to get the jwt
+//! let jwt = get_jwt();
+//! let password = "foobar";
+//! let opts = UserCreateOpts::new(false);
+//! let user_result = IronOxide::user_create(jwt, password, &opts, None).await?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! Until they generate a device, this user will be unable to make any SDK calls.
+//!
+//! ### Generating a Device
+//!
+//! Generating a device with [IronOxide::generate_new_device](user/trait.UserOps.html#tymethod.generate_new_device) requires a valid IronCore or Auth0 JWT
+//! corresponding to the desired user, as well as the user's password (needed to decrypt the user's escrowed private key).
+//!
+//! ```
+//! # fn get_jwt() -> &'static str {
+//! #     unimplemented!()
+//! # }
+//! # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+//! # use ironoxide::prelude::*;
+//! // Assuming an external function to get the jwt
+//! let jwt = get_jwt();
+//! let password = "foobar";
+//! let opts = DeviceCreateOpts::new(None);
+//! let device_result = IronOxide::generate_new_device(jwt, password, &opts, None).await?;
+//! // A `DeviceAddResult` can be converted into a `DeviceContext` used to initialize the SDK
+//! let device_context: DeviceContext = device_result.into();
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! This `DeviceContext` can now be used to initialize the SDK.
+//!
+//! ### Initializing the SDK
+//!
+//! With [ironoxide::initialize](fn.initialize.html), you can use a `DeviceContext` to create an instance of the `IronOxide` SDK object
+//! that can be used to make calls using the provided device.
+//!
+//! ```
+//! # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+//! # use ironoxide::prelude::*;
+//! # let device_context: DeviceContext = unimplemented!();
+//! let config = IronOxideConfig::default();
+//! let sdk = ironoxide::initialize(&device_context, &config).await?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! All calls made with `sdk` will use the user's provided device.
 //!
 //! # Group Operations
 //!
@@ -267,7 +329,7 @@ impl PrivateKeyRotationCheckResult {
     }
 }
 
-/// Initializes the IronOxide SDK with a device
+/// Initializes the IronOxide SDK with a device.
 ///
 /// Verifies that the provided user/segment exists and the provided device keys are valid and
 /// exist for the provided account.
@@ -343,14 +405,14 @@ pub async fn initialize_check_rotation(
 }
 
 impl IronOxide {
-    /// Get the `DeviceContext` instance that was used to create this SDK instance
+    /// DeviceContext that was used to create this SDK instance
     pub fn device(&self) -> &DeviceContext {
         &self.device
     }
 
     /// Clears all entries from the policy cache.
-    /// # Returns
-    /// Number of entries cleared from the cache
+    ///
+    /// Returns the number of entries cleared from the cache.
     pub fn clear_policy_cache(&self) -> usize {
         let size = self.policy_eval_cache.len();
         self.policy_eval_cache.clear();

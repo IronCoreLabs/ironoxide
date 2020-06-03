@@ -16,17 +16,23 @@ use std::{
 /// private module that handles interaction with the IronCore webservice
 mod requests;
 
-/// ID of a user. Unique with in a segment. Must match the regex `^[a-zA-Z0-9_.$#|@/:;=+'-]+$`
+/// ID of a user.
+///
+/// The ID can be validated from a `String` or `&str` using `UserId::try_from`.
+///
+/// # Requirements
+/// - Must be unique within the user's segment.
+/// - Must match the regex `^[a-zA-Z0-9_.$#|@/:;=+'-]+$`.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct UserId(pub(crate) String);
 impl UserId {
-    pub fn id(&self) -> &str {
-        &self.0
-    }
-
-    /// Create a UserId from a string with no validation. Useful for ids coming back from the web service.
+    /// Constructs a `UserId` with no validation. Useful for IDs coming back from the web service.
     pub fn unsafe_from_string(id: String) -> UserId {
         UserId(id)
+    }
+    /// ID of the user
+    pub fn id(&self) -> &str {
+        &self.0
     }
 }
 impl TryFrom<String> for UserId {
@@ -42,10 +48,17 @@ impl TryFrom<&str> for UserId {
     }
 }
 
-/// Device ID type. Validates that the provided ID is greater than 0
+/// ID of a device.
+///
+/// The ID can be validated from a `u64` using `DeviceId::try_from`.
+///
+/// # Requirements
+/// - Must be greater than 0.
+/// - Must be less than or equal to `i64::max_value()`.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct DeviceId(pub(crate) u64);
 impl DeviceId {
+    /// ID of the device
     pub fn id(&self) -> &u64 {
         &self.0
     }
@@ -53,9 +66,9 @@ impl DeviceId {
 impl TryFrom<u64> for DeviceId {
     type Error = IronOxideErr;
     fn try_from(device_id: u64) -> Result<Self, Self::Error> {
-        //Validate the range of the device ID to always be positive, but also be
-        //less than i64 (i.e. no high bit set) for compatibility with other
-        //languages (i.e. Java)
+        // Validate the range of the device ID to always be positive, but also be
+        // less than i64 (i.e. no high bit set) for compatibility with other
+        // languages (i.e. Java)
         if device_id < 1 || device_id > (i64::max_value() as u64) {
             Err(IronOxideErr::ValidationError(
                 "device_id".to_string(),
@@ -67,12 +80,24 @@ impl TryFrom<u64> for DeviceId {
     }
 }
 
-/// Device name type. Validates that the provided name isn't an empty string
+/// Name of a device.
+///
+/// The name can be validated from a `String` or `&str` using `DeviceName::try_from`.
+///
+/// # Requirements
+/// - Must be between 1 and 100 characters long.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DeviceName(pub(crate) String);
 impl DeviceName {
+    /// Name of the device
     pub fn name(&self) -> &String {
         &self.0
+    }
+}
+impl TryFrom<String> for DeviceName {
+    type Error = IronOxideErr;
+    fn try_from(device_name: String) -> Result<Self, Self::Error> {
+        device_name.as_str().try_into()
     }
 }
 impl TryFrom<&str> for DeviceName {
@@ -82,66 +107,74 @@ impl TryFrom<&str> for DeviceName {
     }
 }
 
-/// Keypair for a newly created user
+/// Metadata for a newly created user.
+///
+/// Includes the user's public key and whether the user's private key needs rotation.
+///
+/// Result from [user_create](trait.UserOps.html#tymethod.user_create).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UserCreateResult {
     user_public_key: PublicKey,
-    // does the private key of this key pair need to be rotated?
     needs_rotation: bool,
 }
 
 impl UserCreateResult {
-    /// user's private key encrypted with the provided passphrase
+    /// Public key for the user
+    ///
+    /// For most use cases, this public key can be discarded, as IronCore escrows the user's keys. The escrowed keys are unlocked
+    /// by the provided password.
     pub fn user_public_key(&self) -> &PublicKey {
         &self.user_public_key
     }
-
-    /// True if the private key of the user's keypair needs to be rotated, else false.
+    /// Whether the user's private key needs to be rotated
     pub fn needs_rotation(&self) -> bool {
         self.needs_rotation
     }
 }
 
-/// Public/Private asymmetric keypair that is used for decryption/encryption.
+/// Public and private key pair used for document encryption and decryption.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct KeyPair {
     public_key: PublicKey,
     private_key: PrivateKey,
 }
 impl KeyPair {
+    /// Constructs a new `KeyPair` from the `recrypt` versions of the public and private keys.
     pub fn new(public_key: RecryptPublicKey, private_key: RecryptPrivateKey) -> Self {
         KeyPair {
             public_key: public_key.into(),
             private_key: private_key.into(),
         }
     }
-
+    /// Public key of the user
     pub fn public_key(&self) -> &PublicKey {
         &self.public_key
     }
-
+    /// Private key of the user
     pub fn private_key(&self) -> &PrivateKey {
         &self.private_key
     }
 }
 
 /// Bundle of information for adding a device
-pub struct DeviceAdd {
-    /// public key of the user
+pub(crate) struct DeviceAdd {
+    /// Public key of the user
     user_public_key: PublicKey,
-    /// transform key from user private key to the device public key
+    /// Transform key from the user's private key to the device's public key
     transform_key: TransformKey,
-    /// public/private keypair for the device
+    /// Public/private encryption key pair for the device
     device_keys: KeyPair,
-    /// signing keypair for the device, used for device auth'd requests
+    /// Signing key pair for the device, used for authorized device requests
     signing_keys: DeviceSigningKeyPair,
-    /// signature needed for device auth'd requests
+    /// Signature needed for authorized device requests
     signature: SchnorrSignature,
-    /// timestamp used in the schnorr signature
+    /// Timestamp used in the schnorr signature
     signature_ts: DateTime<Utc>,
 }
 
-/// IDs and public key for existing user on verify result
+/// Metadata for a user.
+///
+/// Result from [user_verify](trait.UserOps.html#tymethod.user_verify).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UserResult {
     account_id: UserId,
@@ -150,24 +183,29 @@ pub struct UserResult {
     needs_rotation: bool,
 }
 impl UserResult {
-    pub fn user_public_key(&self) -> &PublicKey {
-        &self.user_public_key
-    }
-
+    /// ID of the user
     pub fn account_id(&self) -> &UserId {
         &self.account_id
     }
-
+    /// Public key of the user
+    pub fn user_public_key(&self) -> &PublicKey {
+        &self.user_public_key
+    }
+    /// Segment ID for the user
     pub fn segment_id(&self) -> usize {
         self.segment_id
     }
-
+    /// Whether the user's private key needs rotation
     pub fn needs_rotation(&self) -> bool {
         self.needs_rotation
     }
 }
 
-/// Devices for a user, sorted by the device id
+/// Metadata for each device the user has authorized.
+///
+/// The results are sorted based on the device's ID.
+///
+/// Result from [user_list_devices](trait.UserOps.html#tymethod.user_list_devices).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UserDeviceListResult {
     result: Vec<UserDevice>,
@@ -176,13 +214,15 @@ impl UserDeviceListResult {
     fn new(result: Vec<UserDevice>) -> UserDeviceListResult {
         UserDeviceListResult { result }
     }
-
+    /// Metadata for each device the user has authorized
     pub fn result(&self) -> &Vec<UserDevice> {
         &self.result
     }
 }
 
-/// Metadata about a user device
+/// Metadata for a device.
+///
+/// Result from [`UserDeviceListResult.result()](struct.UserDeviceListResult.html#method.result).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UserDevice {
     id: DeviceId,
@@ -195,28 +235,28 @@ pub struct UserDevice {
     is_current_device: bool,
 }
 impl UserDevice {
-    /// Get the unique id for the device
+    /// ID of the device
     pub fn id(&self) -> &DeviceId {
         &self.id
     }
-    /// Get the devices optional non-unique readable name
+    /// Name of the device
     pub fn name(&self) -> Option<&DeviceName> {
         self.name.as_ref()
     }
-    /// Get the time the device was created
+    /// Date and time when the device was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
-    /// Get the time the device was last updated
+    /// Date and time when the device was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.last_updated
     }
-    /// Determine whether this device instance is the one that was used to make
-    /// the API request
+    /// Whether this is the device that was used to make the API request
     pub fn is_current_device(&self) -> bool {
         self.is_current_device
     }
 }
+
 /// Verify an existing user given a valid JWT.
 pub async fn user_verify(
     jwt: Jwt,
@@ -259,28 +299,30 @@ pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
     .try_into()
 }
 
+/// A user's encrypted private key.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct EncryptedPrivateKey(Vec<u8>);
-
 impl EncryptedPrivateKey {
+    /// The bytes of the user's encrypted private key
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
     }
 }
 
+/// Metadata from user private key rotation.
+///
+/// Result from [user_rotate_private_key](trait.UserOps.html#tymethod.user_rotate_private_key).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UserUpdatePrivateKeyResult {
     user_master_private_key: EncryptedPrivateKey,
     needs_rotation: bool,
 }
-
 impl UserUpdatePrivateKeyResult {
-    /// The updated encrypted user private key
+    /// Updated encrypted private key of the user
     pub fn user_master_private_key(&self) -> &EncryptedPrivateKey {
         &self.user_master_private_key
     }
-
-    /// True if this user's master key requires rotation
+    /// Whether this user's private key needs further rotation
     pub fn needs_rotation(&self) -> bool {
         self.needs_rotation
     }
@@ -343,53 +385,58 @@ pub async fn user_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
     .into())
 }
 
+/// Metadata for a newly created device.
+///
+/// Can be converted into a `DeviceContext` with `DeviceContext::from`.
+///
+/// Result from [generate_new_device](trait.UserOps.html#tymethod.generate_new_device).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DeviceAddResult {
-    /// The user's given id, which uniquely identifies them inside the segment.
     account_id: UserId,
-    /// The user's segment id
     segment_id: usize,
-    /// The private key which was generated for a particular device for the user. Not the user's master private key.
     device_private_key: PrivateKey,
-    /// The signing key which was generated for the device. “expanded private key” (both pub/priv)
     signing_private_key: DeviceSigningKeyPair,
-    /// The id of the device that was added
     device_id: DeviceId,
-    /// The name of the device that was added
     name: Option<DeviceName>,
-    /// The date and time that the device was created
     created: DateTime<Utc>,
-    /// The date and time that the device was last updated
     last_updated: DateTime<Utc>,
 }
-
 impl DeviceAddResult {
-    pub fn account_id(&self) -> &UserId {
-        &self.account_id
-    }
-    pub fn segment_id(&self) -> usize {
-        self.segment_id
-    }
-    pub fn signing_private_key(&self) -> &DeviceSigningKeyPair {
-        &self.signing_private_key
-    }
-    pub fn device_private_key(&self) -> &PrivateKey {
-        &self.device_private_key
-    }
+    /// ID of the device
     pub fn device_id(&self) -> &DeviceId {
         &self.device_id
     }
+    /// Name of the device
     pub fn name(&self) -> Option<&DeviceName> {
         self.name.as_ref()
     }
+    /// ID of the user who owns the device
+    pub fn account_id(&self) -> &UserId {
+        &self.account_id
+    }
+    /// Segment of the user
+    pub fn segment_id(&self) -> usize {
+        self.segment_id
+    }
+    /// The signing key pair for the device
+    pub fn signing_private_key(&self) -> &DeviceSigningKeyPair {
+        &self.signing_private_key
+    }
+    /// Private encryption key of the device
+    ///
+    /// This is different from the user's private key.
+    pub fn device_private_key(&self) -> &PrivateKey {
+        &self.device_private_key
+    }
+    /// The date and time when the device was created
     pub fn created(&self) -> &DateTime<Utc> {
         &self.created
     }
+    /// The date and time when the device was last updated
     pub fn last_updated(&self) -> &DateTime<Utc> {
         &self.last_updated
     }
 }
-
 impl From<DeviceAddResult> for DeviceContext {
     fn from(dar: DeviceAddResult) -> Self {
         DeviceContext::new(
