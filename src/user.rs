@@ -73,7 +73,7 @@ impl Default for UserCreateOpts {
 /// - ID - The ID representing a user or device. It must be unique within its segment and will **not** be encrypted.
 /// - Password - The string used to encrypt and escrow a user's private key.
 /// - Rotation - Changing a user's private key while leaving their public key unchanged. This can be accomplished by calling
-///     [`user_rotate_private_key`](trait.UserOps.html#tymethod.user_rotate_private_key).
+///     [user_rotate_private_key](trait.UserOps.html#tymethod.user_rotate_private_key).
 #[async_trait]
 pub trait UserOps {
     /// Creates a user.
@@ -181,7 +181,7 @@ pub trait UserOps {
     /// Only returns users whose keys were found in the IronCore system.
     ///
     /// # Arguments
-    /// - users - List of user IDs to check
+    /// - `users` - List of user IDs to check
     ///
     /// # Examples
     /// ```

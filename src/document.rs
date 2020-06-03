@@ -79,7 +79,7 @@ impl DocumentEncryptOpts {
     /// # Arguments
     /// - `id` - ID to use for the document.
     /// - `name` - Name to use for the document.
-    /// - `grant_to_author` - True if the calling user should have access to decrypt the document
+    /// - `grant_to_author` - `true` if the calling user should have access to decrypt the document
     /// - `grants` - List of users and groups that should have access to read and decrypt this document
     pub fn with_explicit_grants(
         id: Option<DocumentId>,

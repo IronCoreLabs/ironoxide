@@ -329,7 +329,7 @@ impl PrivateKeyRotationCheckResult {
     }
 }
 
-/// Initializes the IronOxide SDK with a device
+/// Initializes the IronOxide SDK with a device.
 ///
 /// Verifies that the provided user/segment exists and the provided device keys are valid and
 /// exist for the provided account.
