@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.22.0 (Unreleased)
+## 0.22.0
 
 - [[#142](https://github.com/IronCoreLabs/ironoxide/pull/142)]
   - Significant changes to organization of structs
@@ -15,6 +15,9 @@
   - Upgrade dependencies
 - [[#156](https://github.com/IronCoreLabs/ironoxide/pull/156)]
   - `proto` module is no longer `pub` as it is only used internally
+- [[#139](https://github.com/IronCoreLabs/ironoxide/pull/139)] [[#152](https://github.com/IronCoreLabs/ironoxide/pull/152)]
+  [[#154](https://github.com/IronCoreLabs/ironoxide/pull/154)] [[#158](https://github.com/IronCoreLabs/ironoxide/pull/158)]
+  - Improve documentation throughout crate
 
 ## 0.21.1
 
