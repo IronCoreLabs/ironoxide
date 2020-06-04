@@ -28,7 +28,7 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
-          target: { { matrix.target } }
+          target: ${{ matrix.target }}
           override: true
       - name: Generate Cargo.lock so we can cache from it
         run: cargo generate-lockfile
@@ -45,7 +45,7 @@ jobs:
         with:
           use-cross: true
           command: build
-          args: --target {{ matrix.target }} --features beta,blocking
+          args: --target ${{ matrix.target }} --features beta,blocking
 
   cargo-fmt:
     runs-on: ubuntu-18.04
