@@ -46,7 +46,7 @@ jobs:
         with:
           use-cross: false
           command: build
-          args: --target ${{ matrix.target }} --features beta,blocking
+          args: --target ${{ matrix.target }} --features beta,blocking,tls-rustls --no-default-features
 
   cargo-fmt:
     runs-on: ubuntu-18.04
