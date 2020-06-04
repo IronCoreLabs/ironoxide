@@ -10,6 +10,7 @@ on:
 jobs:
   cargo-test:
     runs-on: ubuntu-18.04
+    continue-on-error: true
     strategy:
       matrix:
         target:
@@ -38,9 +39,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ github.workflow }}-rust-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.workflow }}-rust-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ github.workflow }}-rust-
+            ${{ github.workflow }}-rust-${{ matrix.target }}-
       - uses: actions-rs/cargo@v1
         with:
           use-cross: true
