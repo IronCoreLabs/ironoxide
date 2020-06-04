@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - 133-github-actions
+  pull_request:
+
+jobs:
+  cargo-test:
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        target:
+          [
+            aarch64-apple-ios,
+            aarch64-linux-android,
+            armv7-linux-androideabi,
+            i686-linux-android,
+            x86_64-apple-darwin,
+            x86_64-linux-android,
+            x86_64-unknown-linux-gnu,
+          ]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: { { matrix.target } }
+          override: true
+      - name: Generate Cargo.lock so we can cache from it
+        run: cargo generate-lockfile
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ github.workflow }}-rust-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ github.workflow }}-rust-
+      - uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --target {{ matrix.target }} --features beta,blocking
+
+  cargo-fmt:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+      - name: Cancel workflow
+        if: failure()
+        uses: andymckay/cancel-action@0.2
