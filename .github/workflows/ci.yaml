@@ -20,11 +20,9 @@ jobs:
             i686-linux-android,
             x86_64-linux-android,
           ]
-        cross: [true]
         os: [ubuntu-18.04]
         include:
           - target: aarch64-apple-ios
-            cross: true
             os: macos-10.15
     steps:
       - uses: actions/checkout@v2
@@ -40,14 +38,43 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ github.workflow }}-rust-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.workflow }}-rust-build-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ github.workflow }}-rust-${{ matrix.target }}-
+            ${{ github.workflow }}-rust-build-${{ matrix.target }}-
       - uses: actions-rs/cargo@v1
         with:
-          use-cross: false
+          # cross won't work on aarch64-apple-ios, so it falls back to cargo in that case
+          use-cross: true
           command: build
-          args: --target ${{ matrix.target }} --features beta,blocking,tls-rustls --no-default-features
+          args: --target ${{ matrix.target }} --features "beta blocking tls-rustls" --no-default-features
+
+jobs:
+  cargo-test:
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, macos-10.15]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - name: Generate Cargo.lock so we can cache from it
+        run: cargo generate-lockfile
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ github.workflow }}-rust-test-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ github.workflow }}-rust-test-${{ matrix.os }}-
+      - name: Decrypt test keys
+        run: openssl aes-256-cbc -d -K ${{ secrets.OPENSSL_KEY }} -iv ${{ secrets.OPENSSL_IV }} -in tests/testkeys/iak-dev.pem.enc -out tests/testkeys/iak-dev.pem
+      - name: Cargo test
+        run: IRONCORE_ENV=dev cargo test --features "blocking beta"
 
   cargo-fmt:
     runs-on: ubuntu-18.04
