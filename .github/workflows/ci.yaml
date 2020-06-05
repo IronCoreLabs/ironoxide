@@ -9,7 +9,7 @@ on:
 
 jobs:
   cargo-build:
-    runs-on: ubuntu-18.04
+    runs-on: ${{ matrix.os }}
     continue-on-error: true
     strategy:
       matrix:
@@ -21,14 +21,17 @@ jobs:
             x86_64-linux-android,
           ]
         cross: [true]
+        os: [ubuntu-18.04]
         include:
           - target: aarch64-apple-ios
-            cross: false
+            cross: true
+            os: macos-10.15
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+          target: ${{ matrix.target }}
       - name: Generate Cargo.lock so we can cache from it
         run: cargo generate-lockfile
       - uses: actions/cache@v2
@@ -40,7 +43,6 @@ jobs:
           key: ${{ github.workflow }}-rust-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ github.workflow }}-rust-${{ matrix.target }}-
-      - run: rustup target add ${{ matrix.target }}
       - uses: actions-rs/cargo@v1
         with:
           use-cross: ${{ matrix.cross }}
