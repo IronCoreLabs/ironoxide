@@ -20,7 +20,7 @@ jobs:
             i686-linux-android,
             x86_64-linux-android,
           ]
-        cross: true
+        cross: [true]
         include:
           - target: aarch64-apple-ios
             cross: false
