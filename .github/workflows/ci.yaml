@@ -27,7 +27,6 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-          profile: minimal
           toolchain: stable
           target: ${{ matrix.target }}
           override: true
@@ -42,9 +41,13 @@ jobs:
           key: ${{ github.workflow }}-rust-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ github.workflow }}-rust-${{ matrix.target }}-
+      # - run: |
+      #     rustup target add "${{ matrix.target }}"
+      #     cross --version || cargo install cross
+      # - run: cross build --target "${{ matrix.target }}" --features beta,blocking,tls-rustls --no-default-features
       - uses: actions-rs/cargo@v1
         with:
-          use-cross: false
+          use-cross: true
           command: build
           args: --target ${{ matrix.target }} --features beta,blocking,tls-rustls --no-default-features
 
