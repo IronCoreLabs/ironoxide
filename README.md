@@ -1,6 +1,7 @@
 # IronOxide- IronCore Labs Rust SDK
 
-[![](https://img.shields.io/crates/v/ironoxide.svg)](https://crates.io/crates/ironoxide) [![](https://docs.rs/ironoxide/badge.svg)](https://docs.rs/ironoxide) ![CI](https://github.com/IronCoreLabs/ironoxide/workflows/CI/badge.svg)
+[![](https://img.shields.io/crates/v/ironoxide.svg)](https://crates.io/crates/ironoxide) [![](https://docs.rs/ironoxide/badge.svg)](https://docs.rs/ironoxide)
+[![](https://github.com/IronCoreLabs/ironoxide/workflows/CI/badge.svg)](https://github.com/IronCoreLabs/ironoxide/actions)
 
 IronOxide is an SDK for accessing IronCore's privacy platform. It is appropriate for both client and server applications.
 
@@ -10,7 +11,7 @@ To include IronOxide in your Rust application, see https://crates.io/crates/iron
 
 If you are not building a Rust application, you might be interested in one of these SDKs:
 
-- [ironoxide-java](https://github.com/IronCoreLabs/ironoxide-java) - Java bindings for ironoxide. Appropriate for all JVM langauges.
+- [ironoxide-java](https://github.com/IronCoreLabs/ironoxide-java) - Java bindings for ironoxide. Appropriate for all JVM languages.
 - [ironoxide-scala](https://github.com/IronCoreLabs/ironoxide-scala) - Scala wrappers around `ironoxide-java`.
 - [ironnode](https://github.com/IronCoreLabs/ironnode) - NodeJS implementation of IronCore's Privacy Platform.
 - [ironweb](https://github.com/IronCoreLabs/ironweb) - Javascript implementation of IronCore's Privacy Platform. Appropriate for all modern browsers.
