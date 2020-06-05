@@ -1,6 +1,6 @@
 # IronOxide- IronCore Labs Rust SDK
 
-[![](https://img.shields.io/crates/v/ironoxide.svg)](https://crates.io/crates/ironoxide) [![](https://docs.rs/ironoxide/badge.svg)](https://docs.rs/ironoxide) [![Build Status](https://travis-ci.org/IronCoreLabs/ironoxide.svg?branch=master)](https://travis-ci.org/IronCoreLabs/ironoxide)
+[![](https://img.shields.io/crates/v/ironoxide.svg)](https://crates.io/crates/ironoxide) [![](https://docs.rs/ironoxide/badge.svg)](https://docs.rs/ironoxide) ![CI](https://github.com/IronCoreLabs/ironoxide/workflows/CI/badge.svg)
 
 IronOxide is an SDK for accessing IronCore's privacy platform. It is appropriate for both client and server applications.
 

@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - 133-github-actions
+  pull_request:
+
+jobs:
+  cargo-test:
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, macos-10.15]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - name: Generate Cargo.lock so we can cache from it
+        run: cargo generate-lockfile
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ github.workflow }}-rust-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ github.workflow }}-rust-${{ matrix.os }}-
+      - name: Decrypt test keys
+        run: openssl aes-256-cbc -d -K ${{ secrets.OPENSSL_KEY }} -iv ${{ secrets.OPENSSL_IV }} -in tests/testkeys/iak-dev.pem.enc -out tests/testkeys/iak-dev.pem
+      - name: Cargo test (with one retry on failure)
+        uses: nick-invision/retry@v1
+        with:
+          timeout_minutes: 30
+          max_attempts: 2
+          command: IRONCORE_ENV=dev cargo test --features "blocking beta"
+
+  cargo-build:
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      matrix:
+        target:
+          [
+            aarch64-linux-android,
+            armv7-linux-androideabi,
+            i686-linux-android,
+            x86_64-linux-android,
+          ]
+        os: [ubuntu-18.04]
+        include:
+          - target: aarch64-apple-ios
+            os: macos-10.15
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+      - name: Generate Cargo.lock so we can cache from it
+        run: cargo generate-lockfile
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ github.workflow }}-rust-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ github.workflow }}-rust-${{ matrix.target }}-
+      - uses: actions-rs/cargo@v1
+        with:
+          # `cross` won't work on aarch64-apple-ios, so it falls back to `cargo` in that case
+          use-cross: true
+          command: build
+          args: --target ${{ matrix.target }} --features "beta blocking tls-rustls" --no-default-features
+
+  cargo-fmt:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+      - name: Cancel workflow
+        if: failure()
+        uses: andymckay/cancel-action@0.2
