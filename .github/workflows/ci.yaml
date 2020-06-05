@@ -8,43 +8,44 @@ on:
   pull_request:
 
 jobs:
-  cargo-test:
+  cargo-build:
     runs-on: ubuntu-18.04
     continue-on-error: true
     strategy:
       matrix:
-        target: [
-            # aarch64-apple-ios,
+        target:
+          [
             aarch64-linux-android,
             armv7-linux-androideabi,
             i686-linux-android,
             x86_64-linux-android,
           ]
+        cross: true
+        include:
+          - target: aarch64-apple-ios
+            cross: false
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          # target: ${{ matrix.target }}
-      # - name: Generate Cargo.lock so we can cache from it
-      #   run: cargo generate-lockfile
-      # - uses: actions/cache@v2
-      #   with:
-      #     path: |
-      #       ~/.cargo/registry
-      #       ~/.cargo/git
-      #       target
-      #     key: ${{ github.workflow }}-rust-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
-      #     restore-keys: |
-      #       ${{ github.workflow }}-rust-${{ matrix.target }}-
-      - run: rustup target add "${{ matrix.target }}"
-      #    cross --version || cargo install cross
-      - run: cargo build --target "${{ matrix.target }}" --features "beta blocking tls-rustls" --no-default-features
-      # - uses: actions-rs/cargo@v1
-      #   with:
-      #     use-cross: false
-      #     command: build
-      #     args: --target ${{ matrix.target }} --features beta,blocking,tls-rustls --no-default-features
+          target: ${{ matrix.target }}
+      - name: Generate Cargo.lock so we can cache from it
+        run: cargo generate-lockfile
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ github.workflow }}-rust-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ github.workflow }}-rust-${{ matrix.target }}-
+      - uses: actions-rs/cargo@v1
+        with:
+          use-cross: ${{ matrix.cross }}
+          command: build
+          args: --target ${{ matrix.target }} --features beta,blocking,tls-rustls --no-default-features
 
   cargo-fmt:
     runs-on: ubuntu-18.04
