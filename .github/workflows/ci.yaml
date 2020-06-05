@@ -45,7 +45,7 @@ jobs:
             ${{ github.workflow }}-rust-${{ matrix.target }}-
       - uses: actions-rs/cargo@v1
         with:
-          use-cross: ${{ matrix.cross }}
+          use-cross: false
           command: build
           args: --target ${{ matrix.target }} --features beta,blocking,tls-rustls --no-default-features
 
