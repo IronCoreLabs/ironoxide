@@ -1,0 +1,37 @@
+name: Security Audit
+
+# Run daily and also when Cargo.toml changes
+on:
+  schedule:
+    - cron: "0 8 * * *" # 8AM UTC, 3PM MST
+  push:
+    paths:
+      - "**/Cargo.toml"
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - name: Search for cargo-audit to get latest version
+        id: audit-search
+        run: echo ::set-output name=audit-version::$(cargo search cargo-audit --limit 1 | grep cargo-audit)
+      - name: Restore cargo-audit based on search result
+        id: cache
+        uses: actions/cache@v2
+        with:
+          path: ~/.cargo/bin
+          key: ${{ github.workflow }} ${{ steps.audit-search.outputs.audit-version }}
+      - name: Install cargo-audit if the cache missed
+        run: cargo install cargo-audit
+        if: steps.cache.outputs.cache-hit != 'true'
+      - name: Run audit checker
+        uses: actions-rs/audit-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
