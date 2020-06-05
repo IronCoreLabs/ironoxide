@@ -26,9 +26,8 @@ jobs:
         with:
           toolchain: stable
           # target: ${{ matrix.target }}
-          override: true
-      - name: Generate Cargo.lock so we can cache from it
-        run: cargo generate-lockfile
+      # - name: Generate Cargo.lock so we can cache from it
+      #   run: cargo generate-lockfile
       # - uses: actions/cache@v2
       #   with:
       #     path: |
@@ -38,10 +37,9 @@ jobs:
       #     key: ${{ github.workflow }}-rust-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
       #     restore-keys: |
       #       ${{ github.workflow }}-rust-${{ matrix.target }}-
-      - run: |
-          rustup target add "${{ matrix.target }}"
+      - run: rustup target add "${{ matrix.target }}"
       #    cross --version || cargo install cross
-      - run: cargo build --target "${{ matrix.target }}" --features beta,blocking,tls-rustls --no-default-features
+      - run: cargo build --target "${{ matrix.target }}" --features "beta blocking tls-rustls" --no-default-features
       # - uses: actions-rs/cargo@v1
       #   with:
       #     use-cross: false
