@@ -25,28 +25,28 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          target: ${{ matrix.target }}
+          # target: ${{ matrix.target }}
           override: true
       - name: Generate Cargo.lock so we can cache from it
         run: cargo generate-lockfile
-      - uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ github.workflow }}-rust-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ github.workflow }}-rust-${{ matrix.target }}-
-      # - run: |
-      #     rustup target add "${{ matrix.target }}"
-      #     cross --version || cargo install cross
-      # - run: cross build --target "${{ matrix.target }}" --features beta,blocking,tls-rustls --no-default-features
-      - uses: actions-rs/cargo@v1
-        with:
-          use-cross: false
-          command: build
-          args: --target ${{ matrix.target }} --features beta,blocking,tls-rustls --no-default-features
+      # - uses: actions/cache@v2
+      #   with:
+      #     path: |
+      #       ~/.cargo/registry
+      #       ~/.cargo/git
+      #       target
+      #     key: ${{ github.workflow }}-rust-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+      #     restore-keys: |
+      #       ${{ github.workflow }}-rust-${{ matrix.target }}-
+      - run: |
+          rustup target add "${{ matrix.target }}"
+      #    cross --version || cargo install cross
+      - run: cargo build --target "${{ matrix.target }}" --features beta,blocking,tls-rustls --no-default-features
+      # - uses: actions-rs/cargo@v1
+      #   with:
+      #     use-cross: false
+      #     command: build
+      #     args: --target ${{ matrix.target }} --features beta,blocking,tls-rustls --no-default-features
 
   cargo-fmt:
     runs-on: ubuntu-18.04
