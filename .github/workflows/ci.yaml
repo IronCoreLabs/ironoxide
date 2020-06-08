@@ -13,7 +13,6 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-18.04, macos-10.15]
-        features: null
         include:
           - os: ubuntu-18.04
             features: --features "blocking beta"
