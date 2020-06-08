@@ -13,6 +13,9 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-18.04, macos-10.15]
+        include:
+          os: ubuntu-18.04
+          features: --features "blocking beta"
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -36,7 +39,7 @@ jobs:
         with:
           timeout_minutes: 30
           max_attempts: 2
-          command: IRONCORE_ENV=dev cargo test --features "blocking beta"
+          command: IRONCORE_ENV=dev cargo test ${{ matrix.features }}
 
   cargo-build:
     runs-on: ${{ matrix.os }}
@@ -44,13 +47,12 @@ jobs:
     strategy:
       matrix:
         target:
-          [
-            aarch64-linux-android,
-            armv7-linux-androideabi,
-            i686-linux-android,
-            x86_64-linux-android,
-          ]
-        os: [ubuntu-18.04]
+          - aarch64-linux-android,
+          - armv7-linux-androideabi,
+          - i686-linux-android,
+          - x86_64-linux-android,
+        os:
+          - ubuntu-18.04
         include:
           - target: aarch64-apple-ios
             os: macos-10.15
