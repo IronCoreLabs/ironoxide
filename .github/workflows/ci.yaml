@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-18.04, macos-10.15, windows-2019]
-        features: [--features tls-rustls --no-default-features]
+        features: [--features tls-vendored-openssl --no-default-features]
         toolchain: [stable]
         include:
           # different features combinations
@@ -27,7 +27,7 @@ jobs:
             features: --features "blocking beta"
           # different openssl implementations
           - os: ubuntu-18.04
-            features: --features tls-vendored-openssl --no-default-features
+            features: --features tls-rustls --no-default-features
           - os: ubuntu-18.04
             features: --features tls-default --no-default-features
           # MSRV
