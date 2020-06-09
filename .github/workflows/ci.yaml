@@ -13,21 +13,28 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-18.04, macos-10.15, windows-2019]
-        features: [""]
-        toolchain: [stable]
         include:
+          # different features combinations
           - os: ubuntu-18.04
-            features: ["beta", "blocking", "blocking beta"]
-            toolchain: stable
+            features: --features beta
           - os: ubuntu-18.04
-            default-features: --no-default-features
-            features: [tls-vendored-openssl, tls-rustls, tls-default]
-            toolchain: stable
+            features: --features blocking
+          - os: ubuntu-18.04
+            features: --features "blocking beta"
+          # different openssl implementations
+          - os: ubuntu-18.04
+            features: --features tls-vendored-openssl --no-default-features
+          - os: ubuntu-18.04
+            features: --features tls-rustls --no-default-features
+          - os: ubuntu-18.04
+            features: --features tls-default --no-default-features
+          # MSRV
           - os: ubuntu-18.04
             toolchain: 1.39
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - if: matrix.toolchain != ''
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.toolchain }}
       - name: Generate Cargo.lock so we can cache from it
@@ -48,7 +55,7 @@ jobs:
         with:
           timeout_minutes: 30
           max_attempts: 2
-          command: IRONCORE_ENV=dev cargo test --features ${{ matrix.features }} ${{ matrix.default-features }}
+          command: IRONCORE_ENV=dev cargo test ${{ matrix.features }}
 
   cargo-build:
     runs-on: ${{ matrix.os }}
