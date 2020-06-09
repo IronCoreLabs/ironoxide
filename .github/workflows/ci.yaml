@@ -8,6 +8,8 @@ on:
 
 jobs:
   cargo-test:
+    env:
+      IRONCORE_ENV: dev
     runs-on: ${{ matrix.os }}
     continue-on-error: true
     strategy:
@@ -39,10 +41,6 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.toolchain }}
-      - if: matrix.toolchain == ''
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
       - name: Generate Cargo.lock so we can cache from it
         run: cargo generate-lockfile
       - uses: actions/cache@v2
@@ -61,7 +59,7 @@ jobs:
         with:
           timeout_minutes: 30
           max_attempts: 2
-          command: IRONCORE_ENV=dev cargo test ${{ matrix.features }}
+          command: cargo test ${{ matrix.features }}
 
   cargo-build:
     runs-on: ${{ matrix.os }}
