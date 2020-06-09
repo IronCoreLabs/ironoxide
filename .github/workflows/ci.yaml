@@ -11,11 +11,11 @@ jobs:
     env:
       IRONCORE_ENV: dev
     runs-on: ${{ matrix.os }}
-    continue-on-error: true
+    fail-fast: false
     strategy:
       matrix:
         os: [ubuntu-18.04, macos-10.15, windows-2019]
-        features: [--features ""]
+        features: [--features tls-rustls --no-default-features]
         toolchain: [stable]
         include:
           # different features combinations
@@ -28,8 +28,6 @@ jobs:
           # different openssl implementations
           - os: ubuntu-18.04
             features: --features tls-vendored-openssl --no-default-features
-          - os: ubuntu-18.04
-            features: --features tls-rustls --no-default-features
           - os: ubuntu-18.04
             features: --features tls-default --no-default-features
           # MSRV
