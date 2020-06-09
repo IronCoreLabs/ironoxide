@@ -48,9 +48,9 @@ jobs:
       matrix:
         target:
           - aarch64-linux-android
-          - armv7-linux-androideabi
           - i686-linux-android
           - x86_64-linux-android
+          - x86_64-unknown-linux-musl
         os:
           - ubuntu-18.04
         include:
@@ -75,7 +75,7 @@ jobs:
             ${{ github.workflow }}-rust-${{ matrix.target }}-
       - uses: actions-rs/cargo@v1
         with:
-          # `cross` won't work on aarch64-apple-ios, so it falls back to `cargo` in that case
+          # `cross` will work on all our targets except aarch64-apple-ios, so it will fall back to `cargo` in that case
           use-cross: true
           command: build
           args: --target ${{ matrix.target }} --features "beta blocking tls-rustls" --no-default-features
