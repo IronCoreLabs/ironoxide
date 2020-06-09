@@ -12,15 +12,24 @@ jobs:
     continue-on-error: true
     strategy:
       matrix:
-        os: [ubuntu-18.04, macos-10.15]
+        os: [ubuntu-18.04, macos-10.15, windows-2019]
+        features: [""]
+        toolchain: [stable]
         include:
           - os: ubuntu-18.04
-            features: --features "blocking beta"
+            features: ["beta", "blocking", "blocking beta"]
+            toolchain: stable
+          - os: ubuntu-18.04
+            default-features: --no-default-features
+            features: [tls-vendored-openssl, tls-rustls, tls-default]
+            toolchain: stable
+          - os: ubuntu-18.04
+            toolchain: 1.39
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: ${{ matrix.toolchain }}
       - name: Generate Cargo.lock so we can cache from it
         run: cargo generate-lockfile
       - uses: actions/cache@v2
@@ -39,7 +48,7 @@ jobs:
         with:
           timeout_minutes: 30
           max_attempts: 2
-          command: IRONCORE_ENV=dev cargo test ${{ matrix.features }}
+          command: IRONCORE_ENV=dev cargo test --features ${{ matrix.features }} ${{ matrix.default-features }}
 
   cargo-build:
     runs-on: ${{ matrix.os }}
@@ -48,6 +57,7 @@ jobs:
       matrix:
         target:
           - aarch64-linux-android
+          - armv7-linux-androideabi
           - i686-linux-android
           - x86_64-linux-android
           - x86_64-unknown-linux-musl
