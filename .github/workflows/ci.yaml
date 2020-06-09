@@ -13,6 +13,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-18.04, macos-10.15, windows-2019]
+        features: [--features ""]
+        toolchain: [stable]
         include:
           # different features combinations
           - os: ubuntu-18.04
