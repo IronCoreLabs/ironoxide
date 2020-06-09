@@ -32,13 +32,17 @@ jobs:
             features: --features tls-default --no-default-features
           # MSRV
           - os: ubuntu-18.04
-            toolchain: 1.39
+            toolchain: 1.39.0
     steps:
       - uses: actions/checkout@v2
       - if: matrix.toolchain != ''
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.toolchain }}
+      - if: matrix.toolchain == ''
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
       - name: Generate Cargo.lock so we can cache from it
         run: cargo generate-lockfile
       - uses: actions/cache@v2
