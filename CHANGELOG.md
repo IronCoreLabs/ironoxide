@@ -2,7 +2,7 @@
 
 ## 0.23.0 (Unreleased)
 
-- []
+- [[#164](https://github.com/IronCoreLabs/ironoxide/pull/164)]
   - Add `Jwt` struct that validates JWT algorithm and payload form
   - Change `user_create`, `user_verify`, and `generate_new_device` to use new `Jwt` struct
 
