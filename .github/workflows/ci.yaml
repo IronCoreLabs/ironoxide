@@ -94,7 +94,7 @@ jobs:
             ${{ github.workflow }}-rust-${{ matrix.target }}-
       - uses: actions-rs/cargo@v1
         with:
-          # `cross` will work on all our targets except aarch64-apple-ios, so it will fall back to `cargo` in that case
+          # `cross` will work on all our targets except aarch64-apple-ios. We can still use `cross` everywhere, because  it transparently falls back to `cargo`.
           use-cross: true
           command: build
           args: --target ${{ matrix.target }} --features "beta blocking tls-rustls" --no-default-features
