@@ -223,7 +223,7 @@ impl BlockingIronOxide {
     }
     /// See [ironoxide::user::UserOps::user_create](trait.UserOps.html#tymethod.user_create)
     pub fn user_create(
-        jwt: &str,
+        jwt: &Jwt,
         password: &str,
         user_create_opts: &UserCreateOpts,
         timeout: Option<std::time::Duration>,
@@ -245,7 +245,7 @@ impl BlockingIronOxide {
     }
     /// See [ironoxide::user::UserOps::generate_new_device](trait.UserOps.html#tymethod.generate_new_device)
     pub fn generate_new_device(
-        jwt: &str,
+        jwt: &Jwt,
         password: &str,
         device_create_options: &DeviceCreateOpts,
         timeout: Option<std::time::Duration>,
@@ -267,7 +267,7 @@ impl BlockingIronOxide {
     }
     /// See [ironoxide::user::UserOps::user_verify](trait.UserOps.html#tymethod.user_verify)
     pub fn user_verify(
-        jwt: &str,
+        jwt: &Jwt,
         timeout: Option<std::time::Duration>,
     ) -> Result<Option<UserResult>> {
         let rt = create_runtime();

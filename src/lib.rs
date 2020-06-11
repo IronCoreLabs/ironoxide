@@ -26,10 +26,11 @@
 //! # async fn run() -> Result<(), ironoxide::IronOxideErr> {
 //! # use ironoxide::prelude::*;
 //! // Assuming an external function to get the jwt
-//! let jwt = get_jwt();
+//! let jwt_str = get_jwt();
+//! let jwt = Jwt::new(jwt_str)?;
 //! let password = "foobar";
 //! let opts = UserCreateOpts::new(false);
-//! let user_result = IronOxide::user_create(jwt, password, &opts, None).await?;
+//! let user_result = IronOxide::user_create(&jwt, password, &opts, None).await?;
 //! # Ok(())
 //! # }
 //! ```
@@ -48,10 +49,11 @@
 //! # async fn run() -> Result<(), ironoxide::IronOxideErr> {
 //! # use ironoxide::prelude::*;
 //! // Assuming an external function to get the jwt
-//! let jwt = get_jwt();
+//! let jwt_str = get_jwt();
+//! let jwt = Jwt::new(jwt_str)?;
 //! let password = "foobar";
 //! let opts = DeviceCreateOpts::new(None);
-//! let device_result = IronOxide::generate_new_device(jwt, password, &opts, None).await?;
+//! let device_result = IronOxide::generate_new_device(&jwt, password, &opts, None).await?;
 //! // A `DeviceAddResult` can be converted into a `DeviceContext` used to initialize the SDK
 //! let device_context: DeviceContext = device_result.into();
 //! # Ok(())

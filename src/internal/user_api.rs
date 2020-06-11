@@ -4,6 +4,7 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use itertools::{Either, Itertools};
+use jsonwebtoken::Algorithm;
 use rand::rngs::OsRng;
 use recrypt::prelude::*;
 use std::{
@@ -257,9 +258,78 @@ impl UserDevice {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct Claims {
+    sub: String,
+    pid: usize,
+    sid: String,
+    kid: Option<usize>,
+    iat: u64,
+    exp: Option<u64>,
+}
+
+/// IronCore JWT.
+///
+/// Must be either ES256 or RS256 and have a payload similar to:
+/// ```
+/// struct Claims {
+///     sub: String,         // unique user ID
+///     pid: usize,          // project ID
+///     sid: String,         // segment ID
+///     kid: Option<String>, // service key ID
+///     iat: u64,            // issued time (seconds)
+///     exp: Option<u64>,    // expiration time (seconds)
+/// }
+/// ```
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+pub struct Jwt(pub(crate) String);
+impl Jwt {
+    pub fn new(jwt: &str) -> Result<Jwt, IronOxideErr> {
+        // This `dangerous_unsafe_decode` is safe because the server will do the actual
+        // signature verification and validation. We just want to do a little initial validation
+        // to catch issues earlier.
+        let token_data = jsonwebtoken::dangerous_unsafe_decode::<Claims>(jwt)
+            .map_err(|e| IronOxideErr::ValidationError("jwt".to_string(), e.to_string()))?;
+        let alg = token_data.header.alg;
+        if alg == Algorithm::ES256 || alg == Algorithm::RS256 {
+            Ok(Jwt(jwt.to_string()))
+        } else {
+            Err(IronOxideErr::ValidationError(
+                "jwt".to_string(),
+                "Unsupported JWT algorithm. Supported algorithms: ES256 and RS256.".to_string(),
+            ))
+        }
+    }
+
+    pub fn jwt(&self) -> &str {
+        self.0.as_str()
+    }
+
+    fn to_utf8(&self) -> Vec<u8> {
+        self.0.as_bytes().to_vec()
+    }
+}
+impl std::fmt::Display for Jwt {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl TryFrom<String> for Jwt {
+    type Error = IronOxideErr;
+    fn try_from(maybe_jwt: String) -> Result<Self, Self::Error> {
+        Jwt::new(&maybe_jwt)
+    }
+}
+impl TryFrom<&str> for Jwt {
+    type Error = IronOxideErr;
+    fn try_from(maybe_jwt: &str) -> Result<Self, Self::Error> {
+        Jwt::new(maybe_jwt)
+    }
+}
+
 /// Verify an existing user given a valid JWT.
 pub async fn user_verify(
-    jwt: Jwt,
+    jwt: &Jwt,
     request: IronCoreRequest,
 ) -> Result<Option<UserResult>, IronOxideErr> {
     requests::user_verify::user_verify(&jwt, &request)
@@ -271,7 +341,7 @@ pub async fn user_verify(
 /// Create a user
 pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
-    jwt: Jwt,
+    jwt: &Jwt,
     passphrase: Password,
     needs_rotation: bool,
     request: IronCoreRequest,
@@ -720,5 +790,23 @@ pub(crate) mod tests {
             &user_id.unwrap_err(),
             is_variant!(IronOxideErr::ValidationError)
         );
+    }
+
+    #[test]
+    fn invalid_jwt_non_ascii() {
+        let jwt = Jwt::try_from("❤️.💣.💝");
+        assert!(jwt.is_err())
+    }
+
+    #[test]
+    fn invalid_jwt_format() {
+        let jwt = Jwt::try_from("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ");
+        assert!(jwt.is_err())
+    }
+
+    #[test]
+    fn valid_jwt_construction() {
+        let jwt = Jwt::try_from("eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJhYmNBQkMwMTJfLiQjfEAvOjs9KyctZDEyMjZkMWItNGMzOS00OWRhLTkzM2MtNjQyZTIzYWMxOTQ1IiwicGlkIjo0MzgsInNpZCI6Imlyb25veGlkZS1kZXYxIiwia2lkIjo1OTMsImlhdCI6MTU5MTkwMTc0MCwiZXhwIjoxNTkxOTAxODYwfQ.wgs_tnh89SlKnIkoQHdlC0REjkxTl1P8qtDSQwWTFKwo8KQKXUQdpp4BfwqUqLcxA0BW6_XfVRlqMX5zcvCc6w");
+        assert!(jwt.is_ok())
     }
 }

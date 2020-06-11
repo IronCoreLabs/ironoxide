@@ -660,40 +660,6 @@ impl<'de> Deserialize<'de> for DeviceSigningKeyPair {
     }
 }
 
-/// IronCore JWT.
-/// Should be either ES256 or RS256 and have a payload similar to:
-///
-/// let jwt_payload = json!({
-///     "pid" : project_id,
-///     "sid" : seg_id,
-///     "kid" : service_key_id,
-///     "iat" : issued_time_seconds,
-///     "exp" : expire_time_seconds,
-///     "sub" : unique_user_id
-/// });
-///
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct Jwt(String);
-impl TryFrom<&str> for Jwt {
-    type Error = IronOxideErr;
-    fn try_from(maybe_jwt: &str) -> Result<Self, Self::Error> {
-        //Valid JWTs are base64 encoded and have 3 segments separated by periods
-        if maybe_jwt.is_ascii() && maybe_jwt.matches('.').count() == 2 {
-            Ok(Jwt(maybe_jwt.to_string()))
-        } else {
-            Err(IronOxideErr::ValidationError(
-                "JWT".to_string(),
-                "must be valid ascii and be formatted correctly".to_string(),
-            ))
-        }
-    }
-}
-impl Jwt {
-    pub fn to_utf8(&self) -> Vec<u8> {
-        self.0.as_bytes().to_vec()
-    }
-}
-
 /// Newtype wrapper around a string which represents the users master private key escrow password
 #[derive(Debug, PartialEq)]
 pub struct Password(String);
@@ -987,24 +953,6 @@ pub(crate) mod tests {
     fn passphrase_validation() {
         let result = Password::try_from("");
         assert!(result.is_err())
-    }
-
-    #[test]
-    fn invalid_jwt_non_ascii() {
-        let jwt = Jwt::try_from("❤️.💣.💝");
-        assert!(jwt.is_err())
-    }
-
-    #[test]
-    fn invalid_jwt_format() {
-        let jwt = Jwt::try_from("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ");
-        assert!(jwt.is_err())
-    }
-
-    #[test]
-    fn valid_jwt_construction() {
-        let jwt = Jwt::try_from("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c");
-        assert!(jwt.is_ok())
     }
 
     #[test]

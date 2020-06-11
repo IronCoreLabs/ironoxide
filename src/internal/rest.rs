@@ -1,8 +1,9 @@
 //! Helpers for talking to the ironcore service.
 
 use crate::internal::{
-    auth_v2::AuthV2Builder, user_api::UserId, DeviceSigningKeyPair, IronOxideErr, Jwt,
-    RequestErrorCode, OUR_REQUEST,
+    auth_v2::AuthV2Builder,
+    user_api::{Jwt, UserId},
+    DeviceSigningKeyPair, IronOxideErr, RequestErrorCode, OUR_REQUEST,
 };
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
