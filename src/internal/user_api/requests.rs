@@ -10,8 +10,8 @@ use crate::{
             json::{Base64Standard, PublicKey},
             Authorization, IronCoreRequest,
         },
-        user_api::{DeviceName, UserId},
-        IronOxideErr, Jwt, RequestAuth, RequestErrorCode,
+        user_api::{DeviceName, Jwt, UserId},
+        IronOxideErr, RequestAuth, RequestErrorCode,
     },
 };
 use chrono::{DateTime, Utc};
@@ -307,8 +307,7 @@ pub mod user_key_list {
 pub mod device_add {
     use crate::internal::{
         rest::json::TransformKey,
-        user_api::{requests::PublicKey, DeviceAdd, DeviceId},
-        Jwt,
+        user_api::{requests::PublicKey, DeviceAdd, DeviceId, Jwt},
     };
 
     use super::*;

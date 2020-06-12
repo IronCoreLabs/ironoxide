@@ -4,6 +4,7 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use itertools::{Either, Itertools};
+use jsonwebtoken::Algorithm;
 use rand::rngs::OsRng;
 use recrypt::prelude::*;
 use std::{
@@ -257,9 +258,98 @@ impl UserDevice {
     }
 }
 
+/// Claims required to form a valid [Jwt](struct.Jwt.html).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct JwtClaims {
+    /// Unique user ID
+    pub sub: String,
+    /// Project ID
+    pub pid: usize,
+    /// Segment ID
+    pub sid: String,
+    /// Service key ID
+    pub kid: usize,
+    /// Issued time (seconds)
+    pub iat: u64,
+    /// Expiration time (seconds)
+    pub exp: Option<u64>,
+}
+
+/// IronCore JWT.
+///
+/// Must be either ES256 or RS256 and have a payload similar to [JwtClaims](struct.JwtClaims.html), but could be
+/// generated from an external source.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Jwt {
+    jwt: String,
+    header: jsonwebtoken::Header,
+    claims: JwtClaims,
+}
+impl Jwt {
+    /// Constructs a new Jwt.
+    ///
+    /// Verifies that the provided jwt uses a compatible algorithm and contains the required claims.
+    pub fn new(jwt: &str) -> Result<Jwt, IronOxideErr> {
+        // This `dangerous_unsafe_decode` is safe because the server will do the actual
+        // signature verification and validation. We just want to do a little initial validation
+        // to catch issues earlier.
+        let token_data = jsonwebtoken::dangerous_unsafe_decode::<JwtClaims>(jwt)
+            .map_err(|e| IronOxideErr::ValidationError("jwt".to_string(), e.to_string()))?;
+        let alg = token_data.header.alg;
+        if alg == Algorithm::ES256 || alg == Algorithm::RS256 {
+            Ok(Jwt {
+                jwt: jwt.to_string(),
+                header: token_data.header,
+                claims: token_data.claims,
+            })
+        } else {
+            Err(IronOxideErr::ValidationError(
+                "jwt".to_string(),
+                "Unsupported JWT algorithm. Supported algorithms: ES256 and RS256.".to_string(),
+            ))
+        }
+    }
+
+    /// Raw JWT
+    pub fn jwt(&self) -> &str {
+        self.jwt.as_str()
+    }
+
+    /// JWT claims
+    pub fn claims(&self) -> &JwtClaims {
+        &self.claims
+    }
+
+    /// JWT header
+    pub fn header(&self) -> &jsonwebtoken::Header {
+        &self.header
+    }
+
+    fn to_utf8(&self) -> Vec<u8> {
+        self.jwt.as_bytes().to_vec()
+    }
+}
+impl std::fmt::Display for Jwt {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.jwt)
+    }
+}
+impl TryFrom<String> for Jwt {
+    type Error = IronOxideErr;
+    fn try_from(maybe_jwt: String) -> Result<Self, Self::Error> {
+        Jwt::new(&maybe_jwt)
+    }
+}
+impl TryFrom<&str> for Jwt {
+    type Error = IronOxideErr;
+    fn try_from(maybe_jwt: &str) -> Result<Self, Self::Error> {
+        Jwt::new(maybe_jwt)
+    }
+}
+
 /// Verify an existing user given a valid JWT.
 pub async fn user_verify(
-    jwt: Jwt,
+    jwt: &Jwt,
     request: IronCoreRequest,
 ) -> Result<Option<UserResult>, IronOxideErr> {
     requests::user_verify::user_verify(&jwt, &request)
@@ -271,7 +361,7 @@ pub async fn user_verify(
 /// Create a user
 pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
-    jwt: Jwt,
+    jwt: &Jwt,
     passphrase: Password,
     needs_rotation: bool,
     request: IronCoreRequest,
@@ -720,5 +810,23 @@ pub(crate) mod tests {
             &user_id.unwrap_err(),
             is_variant!(IronOxideErr::ValidationError)
         );
+    }
+
+    #[test]
+    fn invalid_jwt_non_ascii() {
+        let jwt = Jwt::try_from("❤️.💣.💝");
+        assert!(jwt.is_err())
+    }
+
+    #[test]
+    fn invalid_jwt_format() {
+        let jwt = Jwt::try_from("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ");
+        assert!(jwt.is_err())
+    }
+
+    #[test]
+    fn valid_jwt_construction() {
+        let jwt = Jwt::try_from("eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJhYmNBQkMwMTJfLiQjfEAvOjs9KyctZDEyMjZkMWItNGMzOS00OWRhLTkzM2MtNjQyZTIzYWMxOTQ1IiwicGlkIjo0MzgsInNpZCI6Imlyb25veGlkZS1kZXYxIiwia2lkIjo1OTMsImlhdCI6MTU5MTkwMTc0MCwiZXhwIjoxNTkxOTAxODYwfQ.wgs_tnh89SlKnIkoQHdlC0REjkxTl1P8qtDSQwWTFKwo8KQKXUQdpp4BfwqUqLcxA0BW6_XfVRlqMX5zcvCc6w");
+        assert!(jwt.is_ok())
     }
 }

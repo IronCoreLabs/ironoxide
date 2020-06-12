@@ -3,8 +3,9 @@
 //! See [UserOps](trait.UserOps.html) for user functions and key terms.
 
 pub use crate::internal::user_api::{
-    DeviceAddResult, DeviceId, DeviceName, EncryptedPrivateKey, KeyPair, UserCreateResult,
-    UserDevice, UserDeviceListResult, UserId, UserResult, UserUpdatePrivateKeyResult,
+    DeviceAddResult, DeviceId, DeviceName, EncryptedPrivateKey, Jwt, JwtClaims, KeyPair,
+    UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserResult,
+    UserUpdatePrivateKeyResult,
 };
 use crate::{
     common::{PublicKey, SdkOperation},
@@ -89,15 +90,16 @@ pub trait UserOps {
     /// ```
     /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
     /// # use ironoxide::prelude::*;
-    /// # let jwt = "";
+    /// # let jwt_str = "";
+    /// let jwt = Jwt::new(jwt_str)?;
     /// let password = "foobar";
     /// let opts = UserCreateOpts::new(false);
-    /// let user_result = IronOxide::user_create(jwt, password, &opts, None).await?;
+    /// let user_result = IronOxide::user_create(&jwt, password, &opts, None).await?;
     /// # Ok(())
     /// # }
     /// ```
     async fn user_create(
-        jwt: &str,
+        jwt: &Jwt,
         password: &str,
         user_create_opts: &UserCreateOpts,
         timeout: Option<std::time::Duration>,
@@ -120,17 +122,18 @@ pub trait UserOps {
     /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
     /// # use ironoxide::prelude::*;
     /// # use std::convert::TryFrom;
-    /// # let jwt = "";
+    /// # let jwt_str = "";
+    /// let jwt = Jwt::new(jwt_str)?;
     /// let password = "foobar";
     /// let device_name = DeviceName::try_from("primary_device")?;
     /// let opts = DeviceCreateOpts::new(Some(device_name));
-    /// let device_result = IronOxide::generate_new_device(jwt, password, &opts, None).await?;
+    /// let device_result = IronOxide::generate_new_device(&jwt, password, &opts, None).await?;
     /// let device_id: &DeviceId = device_result.device_id();
     /// # Ok(())
     /// # }
     /// ```
     async fn generate_new_device(
-        jwt: &str,
+        jwt: &Jwt,
         password: &str,
         device_create_options: &DeviceCreateOpts,
         timeout: Option<std::time::Duration>,
@@ -148,14 +151,15 @@ pub trait UserOps {
     /// ```
     /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
     /// # use ironoxide::prelude::*;
-    /// # let jwt = "";
-    /// let verify_result = IronOxide::user_verify(jwt, None).await?;
+    /// # let jwt_str = "";
+    /// let jwt = Jwt::new(jwt_str)?;
+    /// let verify_result = IronOxide::user_verify(&jwt, None).await?;
     /// let user_id = verify_result.expect("User not found!").account_id();
     /// # Ok(())
     /// # }
     /// ```
     async fn user_verify(
-        jwt: &str,
+        jwt: &Jwt,
         timeout: Option<std::time::Duration>,
     ) -> Result<Option<UserResult>>;
 
@@ -251,7 +255,7 @@ pub trait UserOps {
 #[async_trait]
 impl UserOps for IronOxide {
     async fn user_create(
-        jwt: &str,
+        jwt: &Jwt,
         password: &str,
         user_create_opts: &UserCreateOpts,
         timeout: Option<std::time::Duration>,
@@ -260,7 +264,7 @@ impl UserOps for IronOxide {
         add_optional_timeout(
             user_api::user_create(
                 &recrypt,
-                jwt.try_into()?,
+                jwt,
                 password.try_into()?,
                 user_create_opts.needs_rotation,
                 *OUR_REQUEST,
@@ -272,7 +276,7 @@ impl UserOps for IronOxide {
     }
 
     async fn generate_new_device(
-        jwt: &str,
+        jwt: &Jwt,
         password: &str,
         device_create_options: &DeviceCreateOpts,
         timeout: Option<std::time::Duration>,
@@ -284,7 +288,7 @@ impl UserOps for IronOxide {
         add_optional_timeout(
             user_api::generate_device_key(
                 &recrypt,
-                &jwt.try_into()?,
+                jwt,
                 password.try_into()?,
                 device_create_options.device_name,
                 &std::time::SystemTime::now().into(),
@@ -297,11 +301,11 @@ impl UserOps for IronOxide {
     }
 
     async fn user_verify(
-        jwt: &str,
+        jwt: &Jwt,
         timeout: Option<std::time::Duration>,
     ) -> Result<Option<UserResult>> {
         add_optional_timeout(
-            user_api::user_verify(jwt.try_into()?, *OUR_REQUEST),
+            user_api::user_verify(jwt, *OUR_REQUEST),
             timeout,
             SdkOperation::UserVerify,
         )

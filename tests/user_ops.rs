@@ -165,7 +165,7 @@ async fn user_create_with_needs_rotation() -> Result<(), IronOxideErr> {
 #[tokio::test]
 async fn generate_device_with_timeout() -> Result<(), IronOxideErr> {
     let result = IronOxide::generate_new_device(
-        common::gen_jwt(None).0.as_str(),
+        &common::gen_jwt(None).0,
         "pass",
         &Default::default(),
         Some(std::time::Duration::from_millis(1)),

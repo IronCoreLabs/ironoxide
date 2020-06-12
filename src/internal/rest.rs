@@ -1,8 +1,9 @@
 //! Helpers for talking to the ironcore service.
 
 use crate::internal::{
-    auth_v2::AuthV2Builder, user_api::UserId, DeviceSigningKeyPair, IronOxideErr, Jwt,
-    RequestErrorCode, OUR_REQUEST,
+    auth_v2::AuthV2Builder,
+    user_api::{Jwt, UserId},
+    DeviceSigningKeyPair, IronOxideErr, RequestErrorCode, OUR_REQUEST,
 };
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -121,7 +122,7 @@ impl<'a> Authorization<'a> {
     const VERSION_NUM: u8 = 2;
     pub fn to_auth_header(&self) -> HeaderMap {
         let auth_value = match self {
-            Authorization::JwtAuth(jwt) => format!("jwt {}", jwt.0)
+            Authorization::JwtAuth(jwt) => format!("jwt {}", jwt.jwt())
                 .parse()
                 .expect("IronCore JWTs should be ASCII"),
             Authorization::Version2 {

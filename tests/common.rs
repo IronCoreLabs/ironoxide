@@ -65,31 +65,30 @@ lazy_static! {
     };
 }
 
-pub fn gen_jwt(account_id: Option<&str>) -> (String, String) {
+pub fn gen_jwt(account_id: Option<&str>) -> (Jwt, String) {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header};
     use std::time::{SystemTime, UNIX_EPOCH};
     let start = SystemTime::now();
     let iat_seconds = start
         .duration_since(UNIX_EPOCH)
         .expect("Time before epoch? Something's wrong.")
         .as_secs();
-    let jwt_header = serde_json::json!({});
     let default_account_id = Uuid::new_v4().to_string();
     let sub = account_id.unwrap_or(&default_account_id);
-    let jwt_payload = serde_json::json!({
-        "pid" : CONFIG.project_id,
-        "sid" : CONFIG.segment_id,
-        "kid" : CONFIG.identity_assertion_key_id,
-        "iat" : iat_seconds,
-        "exp" : iat_seconds + 120,
-        "sub" : sub
-    });
-    let jwt = frank_jwt::encode(
-        jwt_header,
-        &KEYPATH.1.to_path_buf(),
-        &jwt_payload,
-        frank_jwt::Algorithm::ES256,
-    )
-    .unwrap_or_else(|_| panic!("Error with {}: You don't appear to have the proper service private key to sign the test JWT.", KEYPATH.0));
+    let my_claims = JwtClaims {
+        sub: sub.to_string(),
+        pid: CONFIG.project_id,
+        sid: CONFIG.segment_id.clone(),
+        kid: CONFIG.identity_assertion_key_id,
+        iat: iat_seconds,
+        exp: Some(iat_seconds + 120),
+    };
+    let header = Header::new(Algorithm::ES256);
+    let pem = std::fs::read_to_string(&KEYPATH.1).expect("Failed to open PEM file.");
+    let key = EncodingKey::from_ec_pem(pem.as_bytes()).expect("Invalid PEM file.");
+    let jwt_str = jsonwebtoken::encode(&header, &my_claims, &key).expect("Failed to encode JWT.");
+    let jwt = Jwt::new(&jwt_str).expect("Error creating IronCore JWT.");
+
     (jwt, sub.to_string())
 }
 
