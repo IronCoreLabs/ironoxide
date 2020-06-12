@@ -258,41 +258,50 @@ impl UserDevice {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct Claims {
-    sub: String,
-    pid: usize,
-    sid: String,
-    kid: Option<usize>,
-    iat: u64,
-    exp: Option<u64>,
+/// Claims required to form a valid [Jwt](struct.Jwt.html).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct JwtClaims {
+    /// Unique user ID
+    pub sub: String,
+    /// Project ID
+    pub pid: usize,
+    /// Segment ID
+    pub sid: String,
+    /// Service key ID
+    pub kid: usize,
+    /// Issued time (seconds)
+    pub iat: u64,
+    /// Expiration time (seconds)
+    pub exp: Option<u64>,
 }
 
 /// IronCore JWT.
 ///
-/// Must be either ES256 or RS256 and have a payload similar to:
-/// ```
-/// struct Claims {
-///     sub: String,         // unique user ID
-///     pid: usize,          // project ID
-///     sid: String,         // segment ID
-///     kid: Option<String>, // service key ID
-///     iat: u64,            // issued time (seconds)
-///     exp: Option<u64>,    // expiration time (seconds)
-/// }
-/// ```
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
-pub struct Jwt(pub(crate) String);
+/// Must be either ES256 or RS256 and have a payload similar to [JwtClaims](struct.JwtClaims.html), but could be
+/// generated from an external source.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Jwt {
+    jwt: String,
+    header: jsonwebtoken::Header,
+    claims: JwtClaims,
+}
 impl Jwt {
+    /// Constructs a new Jwt.
+    ///
+    /// Verifies that the provided jwt uses a compatible algorithm and contains the required claims.
     pub fn new(jwt: &str) -> Result<Jwt, IronOxideErr> {
         // This `dangerous_unsafe_decode` is safe because the server will do the actual
         // signature verification and validation. We just want to do a little initial validation
         // to catch issues earlier.
-        let token_data = jsonwebtoken::dangerous_unsafe_decode::<Claims>(jwt)
+        let token_data = jsonwebtoken::dangerous_unsafe_decode::<JwtClaims>(jwt)
             .map_err(|e| IronOxideErr::ValidationError("jwt".to_string(), e.to_string()))?;
         let alg = token_data.header.alg;
         if alg == Algorithm::ES256 || alg == Algorithm::RS256 {
-            Ok(Jwt(jwt.to_string()))
+            Ok(Jwt {
+                jwt: jwt.to_string(),
+                header: token_data.header,
+                claims: token_data.claims,
+            })
         } else {
             Err(IronOxideErr::ValidationError(
                 "jwt".to_string(),
@@ -301,17 +310,28 @@ impl Jwt {
         }
     }
 
+    /// Raw JWT
     pub fn jwt(&self) -> &str {
-        self.0.as_str()
+        self.jwt.as_str()
+    }
+
+    /// JWT claims
+    pub fn claims(&self) -> &JwtClaims {
+        &self.claims
+    }
+
+    /// JWT header
+    pub fn header(&self) -> &jsonwebtoken::Header {
+        &self.header
     }
 
     fn to_utf8(&self) -> Vec<u8> {
-        self.0.as_bytes().to_vec()
+        self.jwt.as_bytes().to_vec()
     }
 }
 impl std::fmt::Display for Jwt {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.jwt)
     }
 }
 impl TryFrom<String> for Jwt {

@@ -3,8 +3,9 @@
 //! See [UserOps](trait.UserOps.html) for user functions and key terms.
 
 pub use crate::internal::user_api::{
-    DeviceAddResult, DeviceId, DeviceName, EncryptedPrivateKey, Jwt, KeyPair, UserCreateResult,
-    UserDevice, UserDeviceListResult, UserId, UserResult, UserUpdatePrivateKeyResult,
+    DeviceAddResult, DeviceId, DeviceName, EncryptedPrivateKey, Jwt, JwtClaims, KeyPair,
+    UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserResult,
+    UserUpdatePrivateKeyResult,
 };
 use crate::{
     common::{PublicKey, SdkOperation},

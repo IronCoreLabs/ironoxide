@@ -1,6 +1,6 @@
 use ironoxide::prelude::*;
 use lazy_static::*;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::{convert::TryInto, default::Default};
 use uuid::Uuid;
 
@@ -65,16 +65,6 @@ lazy_static! {
     };
 }
 
-#[derive(Serialize, Deserialize)]
-struct Claims {
-    sub: String,
-    pid: usize,
-    sid: String,
-    kid: usize,
-    iat: u64,
-    exp: u64,
-}
-
 pub fn gen_jwt(account_id: Option<&str>) -> (Jwt, String) {
     use jsonwebtoken::{Algorithm, EncodingKey, Header};
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -85,13 +75,13 @@ pub fn gen_jwt(account_id: Option<&str>) -> (Jwt, String) {
         .as_secs();
     let default_account_id = Uuid::new_v4().to_string();
     let sub = account_id.unwrap_or(&default_account_id);
-    let my_claims = Claims {
+    let my_claims = JwtClaims {
         sub: sub.to_string(),
         pid: CONFIG.project_id,
         sid: CONFIG.segment_id.clone(),
         kid: CONFIG.identity_assertion_key_id,
         iat: iat_seconds,
-        exp: iat_seconds + 120,
+        exp: Some(iat_seconds + 120),
     };
     let header = Header::new(Algorithm::ES256);
     let pem = std::fs::read_to_string(&KEYPATH.1).expect("Failed to open PEM file.");

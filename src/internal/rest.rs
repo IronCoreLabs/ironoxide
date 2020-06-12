@@ -122,7 +122,7 @@ impl<'a> Authorization<'a> {
     const VERSION_NUM: u8 = 2;
     pub fn to_auth_header(&self) -> HeaderMap {
         let auth_value = match self {
-            Authorization::JwtAuth(jwt) => format!("jwt {}", jwt.0)
+            Authorization::JwtAuth(jwt) => format!("jwt {}", jwt.jwt())
                 .parse()
                 .expect("IronCore JWTs should be ASCII"),
             Authorization::Version2 {
