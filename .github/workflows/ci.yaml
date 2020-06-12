@@ -14,6 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # different operating systems
         os: [ubuntu-18.04, macos-10.15, windows-2019]
         features: [--features ""]
         toolchain: [stable]
@@ -25,7 +26,7 @@ jobs:
             features: --features blocking
           - os: ubuntu-18.04
             features: --features "blocking beta"
-          # different openssl implementations
+          # different tls implementations
           - os: ubuntu-18.04
             features: --features tls-rustls --no-default-features
           - os: ubuntu-18.04
