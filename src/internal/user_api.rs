@@ -272,7 +272,10 @@ pub struct JwtClaims {
     /// Issued time (seconds)
     pub iat: u64,
     /// Expiration time (seconds)
-    pub exp: Option<u64>,
+    ///
+    /// We recommend it be set to `iat + 120`. The IronCore server will not use the value,
+    /// and it will automatically reject JWTs that are received more than 120 seconds past `iat`.
+    pub exp: u64,
 }
 
 /// IronCore JWT.
