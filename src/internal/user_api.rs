@@ -259,7 +259,7 @@ impl UserDevice {
 }
 
 /// Claims required to form a valid [Jwt](struct.Jwt.html).
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct JwtClaims {
     /// Unique user ID
     pub sub: String,
@@ -282,7 +282,7 @@ pub struct JwtClaims {
 ///
 /// Must be either ES256 or RS256 and have a payload similar to [JwtClaims](struct.JwtClaims.html), but could be
 /// generated from an external source.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Hash, Serialize, Deserialize)]
 pub struct Jwt {
     jwt: String,
     header: jsonwebtoken::Header,
@@ -332,11 +332,6 @@ impl Jwt {
         self.jwt.as_bytes().to_vec()
     }
 }
-impl std::fmt::Display for Jwt {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.jwt)
-    }
-}
 impl TryFrom<String> for Jwt {
     type Error = IronOxideErr;
     fn try_from(maybe_jwt: String) -> Result<Self, Self::Error> {
@@ -347,6 +342,11 @@ impl TryFrom<&str> for Jwt {
     type Error = IronOxideErr;
     fn try_from(maybe_jwt: &str) -> Result<Self, Self::Error> {
         Jwt::new(maybe_jwt)
+    }
+}
+impl std::fmt::Display for Jwt {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.jwt)
     }
 }
 
