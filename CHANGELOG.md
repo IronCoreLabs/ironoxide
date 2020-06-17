@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.23.0 (Unreleased)
+## 0.23.0
 
 - [[#164](https://github.com/IronCoreLabs/ironoxide/pull/164)] [[#168](https://github.com/IronCoreLabs/ironoxide/pull/168)]
   - Add `Jwt` struct that validates JWT algorithm and payload form
