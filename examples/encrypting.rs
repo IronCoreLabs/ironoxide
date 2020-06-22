@@ -12,7 +12,7 @@ async fn main() -> Result<()> {
     encrypt_to_user(&sdk, device_context.account_id()).await?;
     Ok(())
 }
-///Create a random group and encrypt the super secret message to it.
+/// Create a group, asking the SDK to generate a unique ID for it.
 async fn encrypt_to_group(sdk: &IronOxide) -> Result<DocumentId> {
     // start-snippet{encryptToGroup}
     let group_id = create_group(sdk).await?;
