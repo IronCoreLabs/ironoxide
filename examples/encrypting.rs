@@ -7,7 +7,7 @@ use std::{fs::File, path::PathBuf};
 #[tokio::main]
 async fn main() -> Result<()> {
     let (device_context, sdk) =
-        initialize_sdk_from_file(&PathBuf::from("examples/example-ironoxide-user.json")).await?;
+        initialize_sdk_from_file(&PathBuf::from("examples/example-ironoxide-device.json")).await?;
     encrypt_to_group(&sdk).await?;
     encrypt_to_user(&sdk, device_context.account_id()).await?;
     Ok(())
