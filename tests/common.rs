@@ -9,9 +9,9 @@ pub const USER_PASSWORD: &str = "foo";
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Config {
-    project_id: usize,
+    project_id: u32,
     segment_id: String,
-    identity_assertion_key_id: usize,
+    identity_assertion_key_id: u32,
 }
 
 lazy_static! {
@@ -77,11 +77,12 @@ pub fn gen_jwt(account_id: Option<&str>) -> (Jwt, String) {
     let sub = account_id.unwrap_or(&default_account_id);
     let my_claims = JwtClaims {
         sub: sub.to_string(),
+        iat: iat_seconds,
+        exp: iat_seconds + 120,
         pid: CONFIG.project_id,
         sid: CONFIG.segment_id.clone(),
         kid: CONFIG.identity_assertion_key_id,
-        iat: iat_seconds,
-        exp: iat_seconds + 120,
+        uid: None,
     };
     let header = Header::new(Algorithm::ES256);
     let pem = std::fs::read_to_string(&KEYPATH.1).expect("Failed to open PEM file.");
