@@ -264,6 +264,11 @@ impl UserDevice {
 /// and private claims (pid, sid, kid, uid). The private claims can be protected from
 /// collision by prefixing the claim names with "http://ironcore/". Some JWT generators
 /// such as Auth0 require a namespace on private claims.
+/// Note that the uid claim is a claim that is added by Auth0 - the sub claim is populated
+/// by the identity provider (if Auth0 is doing authentication via GitHub or another IDP),
+/// and the user's ID (email address) is placed in the uid claim. The Identity service
+/// currently looks for the uid claim, and if it is present, uses that instead of the sub
+/// claim as the source of the user's provided ID.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct JwtClaims {
     /// Unique user ID
