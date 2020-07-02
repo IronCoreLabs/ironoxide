@@ -52,11 +52,10 @@ async fn initialize_sdk_from_file(device_path: &PathBuf) -> Result<(DeviceContex
         let ironoxide = ironoxide::initialize(&device_context, &Default::default()).await?;
         Ok((device_context, ironoxide))
     } else {
-        panic!(format!(
+        panic!(
             "Couldn't open file {} containing DeviceContext",
             device_path.display()
         )
-        .to_string(),)
     }
 }
 

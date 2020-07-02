@@ -90,6 +90,9 @@ lto = true
 [[example]]
 name = "encrypting"
 
+[[example]]
+name = "decrypting"
+
 [[bench]]
 name = "ironoxide_bench"
 harness = false
