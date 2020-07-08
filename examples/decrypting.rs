@@ -57,7 +57,7 @@ async fn decrypt_as_needed(sdk: &IronOxide, documents: Vec<DocumentEncryptResult
     documents
         .iter()
         .enumerate()
-        .for_each(|(i, doc)| println!("#{}: {}", i + 1, doc.id().id()));
+        .for_each(|(offset, doc)| println!("#{}: {}", offset + 1, doc.id().id()));
     let doc_index = read_usize("\nDocument # to decrypt: ")? - 1;
     // start-snippet{decryptAsNeeded}
     let encrypted_doc = documents.get(doc_index).expect("Index out of range.");
@@ -74,10 +74,10 @@ async fn decrypt_in_pages(sdk: &IronOxide, documents: Vec<DocumentEncryptResult>
     let page_size = read_page_size(documents.len())?;
     // start-snippet{decryptInPages}
     let pages: Vec<_> = documents.chunks(page_size).collect();
-    let mut current_page = 0;
+    let mut maybe_current_page = Some(0);
     let mut previous_page = 1;
     let mut decrypted_documents = vec![];
-    while current_page != usize::MAX {
+    while let Some(current_page) = maybe_current_page {
         if current_page == previous_page {
             println!("Page did not change, so the documents are already decrypted.")
         } else {
@@ -89,12 +89,9 @@ async fn decrypt_in_pages(sdk: &IronOxide, documents: Vec<DocumentEncryptResult>
             )
             .await?;
         }
-        println!("\nDecrypted documents:");
-        decrypted_documents.iter().enumerate().for_each(|(i, doc)| {
-            let doc_number = current_page * page_size + i + 1;
-            println!("#{}: {}", doc_number, doc.id().id())
-        });
-        current_page = read_page_input(current_page, page_size, pages.len(), &decrypted_documents)?;
+        print_document_list(&decrypted_documents, current_page * page_size);
+        maybe_current_page =
+            read_page_input(current_page, page_size, pages.len(), &decrypted_documents)?;
     }
     // end-snippet{decryptInPages}
     Ok(())
@@ -108,11 +105,7 @@ async fn decrypt_in_bulk(sdk: &IronOxide, documents: Vec<DocumentEncryptResult>)
     let decrypted_documents =
         futures::future::try_join_all(documents.iter().map(|doc| decrypt_document(sdk, doc)))
             .await?;
-    println!("\nDecrypted Documents:");
-    documents
-        .iter()
-        .enumerate()
-        .for_each(|(i, doc)| println!("#{}: {}", i + 1, doc.id().id()));
+    print_document_list(&decrypted_documents, 0);
     let doc_index = read_usize("\nDocument # to view: ")?;
     let decrypted_doc = &decrypted_documents[doc_index - 1];
     // end-snippet{decryptInPages}
@@ -139,6 +132,20 @@ fn print_decrypted_document(document: &DocumentDecryptResult) -> Result<()> {
     Ok(())
 }
 
+/// From a list of documents, prints out every document's number and ID.
+/// If a document's number should be increased due to what page it's on, set `page_offset` to the
+/// current page number * the page size, otherwise set it to 0.
+fn print_document_list(decrypted_documents: &[DocumentDecryptResult], page_offset: usize) {
+    println!("\nDecrypted documents:");
+    decrypted_documents
+        .iter()
+        .enumerate()
+        .for_each(|(offset, doc)| {
+            let doc_number = page_offset + offset + 1;
+            println!("#{}: {}", doc_number, doc.id().id())
+        });
+}
+
 /// Reads a usize from stdin with the given prompt.
 fn read_usize(text: &str) -> Result<usize> {
     Ok(read_stdin(text)?.trim().parse()?)
@@ -153,8 +160,8 @@ fn read_stdin(text: &str) -> Result<String> {
     Ok(input)
 }
 
-/// Reads page/document inputs from the user. Returns the number of the page the user wishes to view,
-/// or usize::MAX to signal an exit from the loop.
+/// Reads page/document inputs from the user. Returns a `Some` with the number of the page the user wishes to view,
+/// or `None` to signal an exit from the loop.
 ///
 /// Can go to next page, previous page, view a document on the current page, or quit.
 fn read_page_input(
@@ -162,43 +169,41 @@ fn read_page_input(
     page_size: usize,
     pages_len: usize,
     decrypted_documents: &[DocumentDecryptResult],
-) -> Result<usize> {
+) -> Result<Option<usize>> {
     let input = read_stdin(
         "\nDocument # to decrypt, 'n' for next page, 'p' for previous page, or 'q' to quit: ",
     )?;
-    println!("");
-    let current_min = current_page * page_size + 1;
-    let current_max = current_min + decrypted_documents.len() - 1;
+    println!();
     Ok(match input.trim().parse::<usize>() {
         // User entered a number
-        Ok(num) => match num {
-            // Number corresponds to a document in the current page
-            n if (n >= current_min && n <= current_max) => {
-                let doc = &decrypted_documents[n - current_min];
+        Ok(num) => {
+            let current_min = current_page * page_size + 1;
+            let current_max = current_min + decrypted_documents.len() - 1;
+
+            // Number corresponds to a document on the current page
+            if num >= current_min && num <= current_max {
+                let doc = &decrypted_documents[num - current_min];
                 print_decrypted_document(&doc)?;
-                usize::MAX
+                None
             }
             // Number is not on the current page
-            _ => {
+            else {
                 println!("Invalid selection");
-                current_page
+                Some(current_page)
             }
-        },
+        }
         // User entered a string
         Err(_) => match input.trim() {
             // Next page (without going over the max)
-            "n" => std::cmp::min(current_page + 1, pages_len - 1),
+            "n" => Some(std::cmp::min(current_page + 1, pages_len - 1)),
             // Previous page (without going below zero)
-            "p" => match current_page.checked_sub(1) {
-                Some(n) => n,
-                None => 0,
-            },
+            "p" => current_page.checked_sub(1).or(Some(0)),
             // Quit
-            "q" => usize::MAX,
+            "q" => None,
             // Invalid
             _ => {
                 println!("Invalid selection");
-                current_page
+                Some(current_page)
             }
         },
     })
@@ -212,6 +217,6 @@ fn read_page_size(max_size: usize) -> Result<usize> {
         n if n > max_size => max_size,
         _ => page_size_input,
     };
-    println!("");
+    println!();
     Ok(page_size)
 }
