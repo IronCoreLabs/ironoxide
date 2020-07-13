@@ -70,7 +70,7 @@
 //! ```
 //! Example:
 //! If the current user of the sdk is "alice@ironcorelabs" and the following PolicyGrant is evaluated,
-//! `PolicyGrant::new("PII".try_from()?, "INTERNAL".try_from()?, None, None)` will match the second-to-last rule
+//! `PolicyGrant::new(Some(Category::try_from("PII")?), Some(Sensitivity::try_from("INTERNAL")?), None, None)` will match the second-to-last rule
 //! in the example policy, above and will return users: [joe@ironcorelabs, alice@ironcorelabs] and
 //! groups [group_alice@ironcorelabs, data_recovery"]
 //!
