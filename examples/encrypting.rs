@@ -11,7 +11,7 @@ async fn main() -> Result<()> {
         initialize_sdk_from_file(&"examples/example-ironoxide-device.json".into()).await?;
     encrypt_to_group(&sdk).await?;
     encrypt_to_user(&sdk, device_context.account_id()).await?;
-    encrypt_to_policy(&sdk).await?;
+    encrypt_with_policy(&sdk).await?;
     Ok(())
 }
 /// Create a group, asking the SDK to generate a unique ID for it.
@@ -45,8 +45,8 @@ async fn encrypt_to_user(sdk: &IronOxide, user_id: &UserId) -> Result<DocumentId
     Ok(encrypted_result.id().clone())
 }
 
-async fn encrypt_to_policy(sdk: &IronOxide) -> Result<DocumentId> {
-    // start-snippet{encryptToPolicy}
+async fn encrypt_with_policy(sdk: &IronOxide) -> Result<DocumentId> {
+    // start-snippet{encrypt_with_policy}
     let message = "this is my secret which has some labels.";
     let data_labels = PolicyGrant::new(
         Some(Category::try_from("PII")?),
@@ -60,8 +60,8 @@ async fn encrypt_to_policy(sdk: &IronOxide) -> Result<DocumentId> {
             &DocumentEncryptOpts::with_policy_grants(None, None, data_labels),
         )
         .await?;
-    //end-snippet{encryptToPolicy}
-    println!("Encrypted to policy with labels PRIVATE/PII");
+    //end-snippet{encrypt_with_policy}
+    println!("Encrypted with policy with labels PRIVATE/PII");
     Ok(encrypted_result.id().clone())
 }
 
