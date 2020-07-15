@@ -69,12 +69,19 @@
 //! }
 //! ```
 //! Example:
-//! If the current user of the sdk is "alice@ironcorelabs" and the following PolicyGrant is evaluated,
-//! `PolicyGrant::new(Some(Category::try_from("PII")?), Some(Sensitivity::try_from("INTERNAL")?), None, None)` will match the second-to-last rule
-//! in the example policy, above and will return users: [joe@ironcorelabs, alice@ironcorelabs] and
+//! ```
+//! # use ironoxide::prelude::*;
+//! # fn run() -> Result<(), IronOxideErr> {
+//! # use std::convert::TryInto;
+//! PolicyGrant::new(Some("PII".try_into()?), Some("INTERNAL".try_into()?), None, None);
+//! # Ok(())
+//! # }
+//! ```
+//! If the current user of the sdk is "alice@ironcorelabs" and the PolicyGrant above is evaluated, it will match the
+//! second-to-last rule in the example policy above and will return users: [joe@ironcorelabs, alice@ironcorelabs] and
 //! groups [group_alice@ironcorelabs, data_recovery"]
 //!
-//! `PolicyGrant::new(None, None, None, None)` will match the last rule in the example and will return
+//! The PolicyGrant `PolicyGrant::new(None, None, None, None)` will match the last rule in the example and will return
 //! the group \[data_recovery\]
 //!
 use crate::{internal::user_api::UserId, IronOxideErr, Result};
