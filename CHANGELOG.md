@@ -1,5 +1,12 @@
 # Changelog
 
+## (Unreleased)
+
+- [[#170](https://github.com/IronCoreLabs/ironoxide/pull/170)]
+  - Update `JwtClaims` struct to handle "http://ironcore/" namespace prefix on private claims
+  - Add optional `uid` claim that is added by Auth0
+  - Change type of `pid` and `kid` fields in claims from `usize` to `u32`
+
 ## 0.23.0
 
 - [[#164](https://github.com/IronCoreLabs/ironoxide/pull/164)] [[#168](https://github.com/IronCoreLabs/ironoxide/pull/168)]
