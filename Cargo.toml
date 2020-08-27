@@ -41,7 +41,7 @@ vec1 = "~1.6.0"
 tokio = { version = "~0.2.0", features = ["time", "rt-threaded"] }
 dashmap = "3.4.0"
 ironcore-search-helpers = { version = "~0.1.2", optional = true }
-jsonwebtoken = "~7.0"
+jsonwebtoken = "~7.2"
 
 [dev-dependencies]
 galvanic-assert = "~0.8"
