@@ -312,7 +312,7 @@ impl Jwt {
         // This `dangerous_unsafe_decode` is safe because the server will do the actual
         // signature verification and validation. We just want to do a little initial validation
         // to catch issues earlier.
-        let token_data = jsonwebtoken::dangerous_unsafe_decode::<JwtClaims>(jwt)
+        let token_data = jsonwebtoken::dangerous_insecure_decode::<JwtClaims>(jwt)
             .map_err(|e| IronOxideErr::ValidationError("jwt".to_string(), e.to_string()))?;
         let alg = token_data.header.alg;
         if alg == Algorithm::ES256 || alg == Algorithm::RS256 {
