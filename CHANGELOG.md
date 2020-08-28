@@ -1,11 +1,16 @@
 # Changelog
 
-## (Unreleased)
+## Unreleased
+
+## 0.23.1
 
 - [[#170](https://github.com/IronCoreLabs/ironoxide/pull/170)]
   - Update `JwtClaims` struct to handle "http://ironcore/" namespace prefix on private claims
   - Add optional `uid` claim that is added by Auth0
   - Change type of `pid` and `kid` fields in claims from `usize` to `u32`
+- [[#177](https://github.com/IronCoreLabs/ironoxide/pull/177)]
+  - Add explicit `type_length_limit` because as of Rust 1.46.0, the default wasn't sufficient
+  - Update dependencies
 
 ## 0.23.0
 

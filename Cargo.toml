@@ -36,12 +36,12 @@ chrono = { version = "~0.4", features = ["serde"] }
 percent-encoding="~2.1"
 log = "~0.4"
 protobuf = { version = "~2.14", features = ["with-bytes"] }
-vec1 = "~1.4.0"
+vec1 = "~1.6.0"
 # ironoxide requires rt-threaded at runtime, but not at compile time
 tokio = { version = "~0.2.0", features = ["time", "rt-threaded"] }
 dashmap = "3.4.0"
 ironcore-search-helpers = { version = "~0.1.2", optional = true }
-jsonwebtoken = "~7.1.2"
+jsonwebtoken = "~7.2"
 
 [dev-dependencies]
 galvanic-assert = "~0.8"
