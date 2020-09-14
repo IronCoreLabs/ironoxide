@@ -77,7 +77,10 @@ async fn main() -> Result<()> {
     // Capture the time when the program starts as a string, for use as a suffix
     // to create (hopefully) unique group IDs.
     let start_time = SystemTime::now()
-        .duration_since(UNIX_EPOCH).unwrap().as_secs().to_string();
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        .to_string();
 
     // Create a group to use to protect the blind search index that will
     // be used on the customer names, then create an index using that group
@@ -102,13 +105,29 @@ async fn main() -> Result<()> {
     create_group(&sdk, &group_id, "Customer Service").await?;
 
     // Add some test customers to the "server store"
-    let cust1 = Customer { id: 1, name: "Gumby".to_string(), email: "gumby@gumby.io".to_string() };
+    let cust1 = Customer {
+        id: 1,
+        name: "Gumby".to_string(),
+        email: "gumby@gumby.io".to_string(),
+    };
     save_customer(&cust1, &group_id, &sdk, &blind_index).await?;
-    let cust2 = Customer { id: 2, name: "Æ neid 北亰".to_string(), email: "".to_string() };
+    let cust2 = Customer {
+        id: 2,
+        name: "Æ neid 北亰".to_string(),
+        email: "".to_string(),
+    };
     save_customer(&cust2, &group_id, &sdk, &blind_index).await?;
-    let cust3 = Customer { id: 3, name: "aeneid bei jing".to_string(), email: "".to_string() };
+    let cust3 = Customer {
+        id: 3,
+        name: "aeneid bei jing".to_string(),
+        email: "".to_string(),
+    };
     save_customer(&cust3, &group_id, &sdk, &blind_index).await?;
-    let cust4 = Customer { id: 4, name: "J. Fred Muggs".to_string(), email: "j.fred.muggs@nowhere.com".to_string() };
+    let cust4 = Customer {
+        id: 4,
+        name: "J. Fred Muggs".to_string(),
+        email: "j.fred.muggs@nowhere.com".to_string(),
+    };
     save_customer(&cust4, &group_id, &sdk, &blind_index).await?;
 
     // Allow the user to enter additional customers
@@ -133,8 +152,12 @@ async fn main() -> Result<()> {
     // end-snippet{createSecondIndex}
 
     // Now save customers using both blind indices
-    let cust24 = Customer { id: 24, name: "Pokey".to_string(), email: "pokey@gumby.io".to_string() };
-    save_customer2(&cust24, &group_id, &sdk, &blind_index, &blind_index2).await?;
+    let cust24 = Customer {
+        id: 24,
+        name: "Pokey".to_string(),
+        email: "pokey@gumby.io".to_string(),
+    };
+    save_customer_with_2_indices(&cust24, &group_id, &sdk, &blind_index, &blind_index2).await?;
 
     Ok(())
 }
@@ -144,8 +167,8 @@ async fn add_customers(
     last_id: &u32,
     group_id: &ironoxide::group::GroupId,
     sdk: &ironoxide::IronOxide,
-    blind_index: &ironoxide::search::BlindIndexSearch) -> Result<()> {
-
+    blind_index: &ironoxide::search::BlindIndexSearch,
+) -> Result<()> {
     let mut next_id = last_id + 1;
     loop {
         let mut name = String::new();
@@ -164,7 +187,11 @@ async fn add_customers(
                 .expect("error: couldn't read input");
             email = email.trim().to_string();
 
-            let cust = Customer { id: next_id, name: name, email: email };
+            let cust = Customer {
+                id: next_id,
+                name: name,
+                email: email,
+            };
             save_customer(&cust, &group_id, &sdk, &blind_index).await?;
         }
         next_id += 1;
@@ -173,12 +200,15 @@ async fn add_customers(
     Ok(())
 }
 
+// Given a customer record and the context for encrypting and indexing the customer's name
+// field, generate the index tokens for the name, encrypt the name and email, and save the
+// customer record with the index tokens to the server.
 async fn save_customer(
     cust: &Customer,
     group_id: &ironoxide::group::GroupId,
     sdk: &ironoxide::IronOxide,
-    blind_index: &ironoxide::search::BlindIndexSearch) -> Result<()>
-{
+    blind_index: &ironoxide::search::BlindIndexSearch,
+) -> Result<()> {
     // start-snippet{indexData}
     // Generate tokens need to search for matching customer names
     let name_tokens = blind_index
@@ -202,11 +232,11 @@ async fn save_customer(
         .await?;
 
     let enc_cust = EncryptedCustomer {
-        id : cust.id,
+        id: cust.id,
         enc_name: enc_name.encrypted_data().to_vec(),
         name_keys: enc_name.encrypted_deks().to_vec(),
         enc_email: enc_email.encrypted_data().to_vec(),
-        email_keys: enc_email.encrypted_deks().to_vec()
+        email_keys: enc_email.encrypted_deks().to_vec(),
     };
     save_customer_to_app_server(enc_cust, name_tokens, vec![]);
     // end-snippet{indexData}
@@ -214,13 +244,16 @@ async fn save_customer(
     Ok(())
 }
 
-async fn save_customer2(
+// Given a customer record and the context for encrypting and indexing the customer's name
+// and email fields, generate the index tokens for the name and for the email, encrypt the
+// name and email, and save the customer record with both sets of index tokens to the server.
+async fn save_customer_with_2_indices(
     cust: &Customer,
     group_id: &ironoxide::group::GroupId,
     sdk: &ironoxide::IronOxide,
     name_blind_index: &ironoxide::search::BlindIndexSearch,
-    email_blind_index: &ironoxide::search::BlindIndexSearch) -> Result<()>
-{
+    email_blind_index: &ironoxide::search::BlindIndexSearch,
+) -> Result<()> {
     // start-snippet{useSecondIndex}
     // Generate the index tokens for the customer name and email address
     let name_tokens = name_blind_index
@@ -231,7 +264,7 @@ async fn save_customer2(
         .tokenize_data(&cust.email, None)?
         .into_iter()
         .collect::<Vec<u32>>();
-    
+
     // Encrypt the name and email addresses to protect privacy. Also need to store EDEKs
     // to decrypt them.
     let encrypt_opts = DocumentEncryptOpts::with_explicit_grants(
@@ -248,11 +281,11 @@ async fn save_customer2(
         .await?;
 
     let enc_cust = EncryptedCustomer {
-        id : cust.id,
+        id: cust.id,
         enc_name: enc_name.encrypted_data().to_vec(),
         name_keys: enc_name.encrypted_deks().to_vec(),
         enc_email: enc_email.encrypted_data().to_vec(),
-        email_keys: enc_email.encrypted_deks().to_vec()
+        email_keys: enc_email.encrypted_deks().to_vec(),
     };
     save_customer_to_app_server(enc_cust, name_tokens, email_tokens);
     // end-snippet{useSecondIndex}
@@ -269,10 +302,9 @@ async fn initialize_sdk_from_file(device_path: &PathBuf) -> Result<IronOxide> {
         Ok(ironoxide::initialize(&device_context, &Default::default()).await?)
     } else {
         Err(anyhow!(
-                "Couldn't open file {} containing DeviceContext",
-                device_path.display()
-            )
-        )
+            "Couldn't open file {} containing DeviceContext",
+            device_path.display()
+        ))
     }
 }
 
@@ -383,7 +415,8 @@ impl Default for AppServerMock {
 }
 
 lazy_static! {
-    static ref MOCK_APP_SERVER: MutStatic<AppServerMock> = MutStatic::from(AppServerMock::default());
+    static ref MOCK_APP_SERVER: MutStatic<AppServerMock> =
+        MutStatic::from(AppServerMock::default());
 }
 
 fn save_name_salt_to_app_server(encrypted_salt: EncryptedBlindIndexSalt) {
@@ -402,19 +435,33 @@ fn get_email_salt_from_app_server() -> EncryptedBlindIndexSalt {
     MOCK_APP_SERVER.read().unwrap().email_salt.clone().unwrap()
 }
 
-fn save_customer_to_app_server(customer: EncryptedCustomer, name_tokens: Vec<u32>, email_tokens: Vec<u32>) {
+fn save_customer_to_app_server(
+    customer: EncryptedCustomer,
+    name_tokens: Vec<u32>,
+    email_tokens: Vec<u32>,
+) {
     let name_set = HashSet::from_iter(name_tokens);
     let email_set = HashSet::from_iter(email_tokens);
-    MOCK_APP_SERVER.write().unwrap().customers.push((name_set, email_set, customer));
+    MOCK_APP_SERVER
+        .write()
+        .unwrap()
+        .customers
+        .push((name_set, email_set, customer));
 }
 
 // Find any customers whose set of name tokens contains the set of query tokens as a subset.
 fn search_customers_by_name(tokens: Vec<u32>) -> Vec<EncryptedCustomer> {
     let name_query = HashSet::from_iter(tokens);
     let cust_list = &MOCK_APP_SERVER.read().unwrap().customers;
-    let matching_cust: Vec<(HashSet<u32>, HashSet<u32>, EncryptedCustomer)> =
-        cust_list.iter().filter(|(name_set, _email_set, _cust)| name_query.is_subset(&name_set)).cloned().collect();
-    matching_cust.iter().map(|(_name_tokens, _email_tokens, cust)| cust.clone()).collect()
+    let matching_cust: Vec<(HashSet<u32>, HashSet<u32>, EncryptedCustomer)> = cust_list
+        .iter()
+        .filter(|(name_set, _email_set, _cust)| name_query.is_subset(&name_set))
+        .cloned()
+        .collect();
+    matching_cust
+        .iter()
+        .map(|(_name_tokens, _email_tokens, cust)| cust.clone())
+        .collect()
 }
 
 fn get_search_query() -> String {
