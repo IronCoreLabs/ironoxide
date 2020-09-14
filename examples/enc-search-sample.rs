@@ -36,14 +36,15 @@
 // Copyright (c) 2020  IronCore Labs, Inc.
 // =============================================================================
 
-use anyhow::{ Result, anyhow };
+use anyhow::{anyhow, Result};
 use ironoxide::prelude::*;
 use lazy_static::lazy_static;
 use mut_static::MutStatic;
 use std::{
+    collections::HashSet,
     convert::TryFrom,
-//    fmt,
     fs::File,
+    iter::FromIterator,
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -59,16 +60,14 @@ struct Customer {
 
 // This is a corresponding struct that is generated after the customer has been
 // processed to secure the sensitive fields and to generate search tokens for each
-// of those fields. Note that we are simulating storage of this struct in a data store
-// that might not support binary data, so we will base64 encode the byte vectors into
-// Strings.
+// of those fields.
 #[derive(Clone)]
 struct EncryptedCustomer {
     id: u32,
-    enc_name: String,
-    name_keys: String,
-    enc_email: String,
-    email_keys: String,
+    enc_name: Vec<u8>,
+    name_keys: Vec<u8>,
+    enc_email: Vec<u8>,
+    email_keys: Vec<u8>,
 }
 
 #[tokio::main]
@@ -79,10 +78,6 @@ async fn main() -> Result<()> {
     // to create (hopefully) unique group IDs.
     let start_time = SystemTime::now()
         .duration_since(UNIX_EPOCH).unwrap().as_secs().to_string();
-
-    // Initialize the GLOBAL_STATE that emulates the service our app
-    // would normally use.
-    GLOBAL_STATE.set(GlobalState::new())?;
 
     // Create a group to use to protect the blind search index that will
     // be used on the customer names, then create an index using that group
@@ -123,7 +118,7 @@ async fn main() -> Result<()> {
     // and display all matches to the user
     // start-snippet{executeSearch}
     let query_str = get_search_query();
-    display_matching_customers(&sdk, &blind_index, &query_str).await?;
+    display_customer_matches_by_name(&sdk, &blind_index, &query_str).await?;
     // end-snippet{executeSearch}
 
     // Now suppose that we decided the application should allow searches by the email address
@@ -208,10 +203,10 @@ async fn save_customer(
 
     let enc_cust = EncryptedCustomer {
         id : cust.id,
-        enc_name: base64::encode(enc_name.encrypted_data()),
-        name_keys: base64::encode(enc_name.encrypted_deks()),
-        enc_email: base64::encode(enc_email.encrypted_data()),
-        email_keys: base64::encode(enc_email.encrypted_deks())
+        enc_name: enc_name.encrypted_data().to_vec(),
+        name_keys: enc_name.encrypted_deks().to_vec(),
+        enc_email: enc_email.encrypted_data().to_vec(),
+        email_keys: enc_email.encrypted_deks().to_vec()
     };
     save_customer_to_app_server(enc_cust, name_tokens, vec![]);
     // end-snippet{indexData}
@@ -254,10 +249,10 @@ async fn save_customer2(
 
     let enc_cust = EncryptedCustomer {
         id : cust.id,
-        enc_name: base64::encode(enc_name.encrypted_data()),
-        name_keys: base64::encode(enc_name.encrypted_deks()),
-        enc_email: base64::encode(enc_email.encrypted_data()),
-        email_keys: base64::encode(enc_email.encrypted_deks())
+        enc_name: enc_name.encrypted_data().to_vec(),
+        name_keys: enc_name.encrypted_deks().to_vec(),
+        enc_email: enc_email.encrypted_data().to_vec(),
+        email_keys: enc_email.encrypted_deks().to_vec()
     };
     save_customer_to_app_server(enc_cust, name_tokens, email_tokens);
     // end-snippet{useSecondIndex}
@@ -273,7 +268,11 @@ async fn initialize_sdk_from_file(device_path: &PathBuf) -> Result<IronOxide> {
         println!("Found DeviceContext in \"{}\"", device_path.display());
         Ok(ironoxide::initialize(&device_context, &Default::default()).await?)
     } else {
-        Err(anyhow!("Couldn't open file {} containing DeviceContext", device_path.display()))
+        Err(anyhow!(
+                "Couldn't open file {} containing DeviceContext",
+                device_path.display()
+            )
+        )
     }
 }
 
@@ -309,38 +308,6 @@ async fn create_group(
 }
 // end-snippet{createGroup}
 
-// Given a customer's data, encrypt the PII and create a Customer struct
-// containing the encrypted data and DEKs
-/*
-async fn encrypt_customer(
-    sdk: &IronOxide,
-    id: u32,
-    name: &str,
-    email: &str,
-    group_id: &ironoxide::group::GroupId,
-) -> Result<Customer> {
-    let encrypt_opts = DocumentEncryptOpts::with_explicit_grants(
-        None,                  // document ID
-        None,                  // document name
-        true,                  // encrypt to self
-        vec![group_id.into()], // users and groups to which to grant access
-    );
-    let enc_result = sdk
-        .document_encrypt_unmanaged(name.as_bytes(), &encrypt_opts)
-        .await?;
-    let enc_name = base64::encode(enc_result.encrypted_data());
-    let enc_name_keys = base64::encode(enc_result.encrypted_deks());
-
-    Ok(Customer {
-        id,
-        name: enc_name,
-        name_keys: enc_name_keys,
-        email: email.to_string(),
-        email_keys: "".to_string(),
-    })
-}
-*/
-
 // Given a customer record and the transliterated query string, broken into
 // words, decrypt the name in the customer record, then check whether the
 // decrypted name contains all of the word fragments from the query string.
@@ -352,10 +319,8 @@ async fn filter_customer(
     cust: &EncryptedCustomer,
     name_parts: &Vec<&str>,
 ) -> Result<Option<String>> {
-    let cust_enc_name = base64::decode(&cust.enc_name)?;
-    let cust_name_keys = base64::decode(&cust.name_keys)?;
     let dec_result = sdk
-        .document_decrypt_unmanaged(&cust_enc_name, &cust_name_keys)
+        .document_decrypt_unmanaged(&cust.enc_name, &cust.name_keys)
         .await?;
     let dec_name = std::str::from_utf8(&dec_result.decrypted_data()).unwrap();
     let dec_name_trans = ironoxide::search::transliterate_string(&dec_name);
@@ -376,7 +341,7 @@ async fn filter_customer(
 // check to see if the customer name actually contains the words from the
 // query. If so, output the customer ID and name.
 // start-snippet{displayCust}
-async fn display_matching_customers(
+async fn display_customer_matches_by_name(
     sdk: &IronOxide,
     name_index: &BlindIndexSearch,
     query_str: &str,
@@ -385,7 +350,7 @@ async fn display_matching_customers(
         .tokenize_query(query_str, None)?
         .into_iter()
         .collect();
-    let customer_recs = search_customers(&query_tokens);
+    let customer_recs = search_customers_by_name(query_tokens);
     let trans_query = ironoxide::search::transliterate_string(&query_str);
     let name_parts: Vec<&str> = trans_query.split_whitespace().collect();
     for cust in customer_recs.iter() {
@@ -401,15 +366,15 @@ async fn display_matching_customers(
 
 // Mock out some functions that would call the back-end service and return data in the real app
 // We use some mutable global state to persist things that the service usually would.
-struct GlobalState {
+struct AppServerMock {
     pub name_salt: Option<EncryptedBlindIndexSalt>,
     pub email_salt: Option<EncryptedBlindIndexSalt>,
-    pub customers: Vec<EncryptedCustomer>,
+    pub customers: Vec<(HashSet<u32>, HashSet<u32>, EncryptedCustomer)>,
 }
 
-impl GlobalState {
-    pub fn new() -> Self {
-        GlobalState {
+impl Default for AppServerMock {
+    fn default() -> Self {
+        AppServerMock {
             name_salt: None,
             email_salt: None,
             customers: vec![],
@@ -418,32 +383,38 @@ impl GlobalState {
 }
 
 lazy_static! {
-    static ref GLOBAL_STATE: MutStatic<GlobalState> = MutStatic::new();
+    static ref MOCK_APP_SERVER: MutStatic<AppServerMock> = MutStatic::from(AppServerMock::default());
 }
 
 fn save_name_salt_to_app_server(encrypted_salt: EncryptedBlindIndexSalt) {
-    GLOBAL_STATE.write().unwrap().name_salt = Some(encrypted_salt);
+    MOCK_APP_SERVER.write().unwrap().name_salt = Some(encrypted_salt);
 }
 
 fn get_name_salt_from_app_server() -> EncryptedBlindIndexSalt {
-    GLOBAL_STATE.read().unwrap().name_salt.clone().unwrap()
+    MOCK_APP_SERVER.read().unwrap().name_salt.clone().unwrap()
 }
 
 fn save_email_salt_to_app_server(encrypted_salt: EncryptedBlindIndexSalt) {
-    GLOBAL_STATE.write().unwrap().email_salt = Some(encrypted_salt);
+    MOCK_APP_SERVER.write().unwrap().email_salt = Some(encrypted_salt);
 }
 
 fn get_email_salt_from_app_server() -> EncryptedBlindIndexSalt {
-    GLOBAL_STATE.read().unwrap().email_salt.clone().unwrap()
+    MOCK_APP_SERVER.read().unwrap().email_salt.clone().unwrap()
 }
 
-fn save_customer_to_app_server(customer: EncryptedCustomer, _name_tokens: Vec<u32>, _email_tokens: Vec<u32>) {
-    GLOBAL_STATE.write().unwrap().customers.push(customer);
+fn save_customer_to_app_server(customer: EncryptedCustomer, name_tokens: Vec<u32>, email_tokens: Vec<u32>) {
+    let name_set = HashSet::from_iter(name_tokens);
+    let email_set = HashSet::from_iter(email_tokens);
+    MOCK_APP_SERVER.write().unwrap().customers.push((name_set, email_set, customer));
 }
 
-// Just return all the records that we have in the store for now
-fn search_customers(_tokens: &Vec<u32>) -> Vec<EncryptedCustomer> {
-    GLOBAL_STATE.read().unwrap().customers.clone()
+// Find any customers whose set of name tokens contains the set of query tokens as a subset.
+fn search_customers_by_name(tokens: Vec<u32>) -> Vec<EncryptedCustomer> {
+    let name_query = HashSet::from_iter(tokens);
+    let cust_list = &MOCK_APP_SERVER.read().unwrap().customers;
+    let matching_cust: Vec<(HashSet<u32>, HashSet<u32>, EncryptedCustomer)> =
+        cust_list.iter().filter(|(name_set, _email_set, _cust)| name_query.is_subset(&name_set)).cloned().collect();
+    matching_cust.iter().map(|(_name_tokens, _email_tokens, cust)| cust.clone()).collect()
 }
 
 fn get_search_query() -> String {
@@ -454,53 +425,3 @@ fn get_search_query() -> String {
         .expect("error: couldn't read input");
     query.trim().to_string()
 }
-
-/* **** WILL REMOVE ONCE I FIGURE OUT anyhow Errors ****
-
-// Set up an error type that is used to report different errors
-struct AppErr(String);
-
-impl fmt::Display for AppErr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-impl From<IronOxideErr> for AppErr {
-    fn from(e: IronOxideErr) -> Self {
-        match e {
-            IronOxideErr::AesError(_) => {
-                Self("There was an error with the provided password.".to_string())
-            }
-            _ => Self(e.to_string()),
-        }
-    }
-}
-impl From<serde_json::Error> for AppErr {
-    fn from(e: serde_json::Error) -> Self {
-        Self(e.to_string())
-    }
-}
-impl From<std::io::Error> for AppErr {
-    fn from(e: std::io::Error) -> Self {
-        Self(e.to_string())
-    }
-}
-impl From<base64::DecodeError> for AppErr {
-    fn from(e: base64::DecodeError) -> Self {
-        Self(e.to_string())
-    }
-}
-impl From<mut_static::Error> for AppErr {
-    fn from(e: mut_static::Error) -> Self {
-        Self(e.to_string())
-    }
-}
-
-// Whenever an AppError happens, the default derived debug output is ugly and convoluted,
-// so using the Display for the internal String is cleaner and easier to understand
-impl fmt::Debug for AppErr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-*/
