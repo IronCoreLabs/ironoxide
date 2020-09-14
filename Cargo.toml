@@ -49,6 +49,7 @@ uuid = { version = "~0.8", features = ["v4"], default-features = false }
 double = "~0.2.4"
 criterion = "~0.3"
 tokio = { version = "~0.2.0", features = ["macros"] }
+mut_static = "~5.0"
 anyhow = "~1.0.31"
 
 [build-dependencies]
@@ -86,6 +87,10 @@ debug = true
 opt-level = 3
 debug = false
 lto = true
+
+[[example]]
+name = "enc-search-sample"
+required-features = ["beta"]
 
 [[example]]
 name = "encrypting"
