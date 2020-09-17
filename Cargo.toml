@@ -53,7 +53,7 @@ mut_static = "~5.0"
 anyhow = "~1.0.31"
 
 [build-dependencies]
-protobuf-codegen-pure = "~2.14"
+protobuf-codegen-pure = "~2.17"
 
 [package.metadata.docs.rs]
 all-features = true
