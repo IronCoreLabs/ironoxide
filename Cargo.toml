@@ -35,7 +35,7 @@ lazy_static = "~1.4"
 chrono = { version = "~0.4", features = ["serde"] }
 percent-encoding="~2.1"
 log = "~0.4"
-protobuf = { version = "~2.14", features = ["with-bytes"] }
+protobuf = { version = "~2.17", features = ["with-bytes"] }
 vec1 = "~1.6.0"
 # ironoxide requires rt-threaded at runtime, but not at compile time
 tokio = { version = "~0.2.0", features = ["time", "rt-threaded"] }
@@ -53,7 +53,8 @@ mut_static = "~5.0"
 anyhow = "~1.0.31"
 
 [build-dependencies]
-protobuf-codegen-pure = "~2.14"
+protobuf-codegen-pure = "~2.17"
+itertools = "0.9.0"
 
 [package.metadata.docs.rs]
 all-features = true
