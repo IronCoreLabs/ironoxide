@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.24 (Unreleased)
+- TBD
+  - Update to rust-protobuf 2.17. Any downstream consumers that also use rust-protobuf will also need to update.
+
+
 
 ## 0.23.1
 
