@@ -1,9 +1,9 @@
 # Changelog
 
 ## 0.24 (Unreleased)
-- TBD
+- [[#183](https://github.com/IronCoreLabs/ironoxide/pull/183)]
   - Update to rust-protobuf 2.17. Any downstream consumers that also use rust-protobuf will also need to update.
-
+- Lots of non-breaking dependency updates. (TODO List PRs here)
 
 
 ## 0.23.1

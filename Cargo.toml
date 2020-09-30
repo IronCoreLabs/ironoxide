@@ -54,7 +54,7 @@ anyhow = "~1.0.31"
 
 [build-dependencies]
 protobuf-codegen-pure = "~2.17"
-itertools = "0.9.0"
+itertools = "~0.9.0"
 
 [package.metadata.docs.rs]
 all-features = true
