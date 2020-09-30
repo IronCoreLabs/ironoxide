@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::{
     env,
     fs::File,
@@ -32,7 +33,16 @@ fn main() {
         .unwrap()
         .read_to_string(&mut contents)
         .unwrap();
-    let new_contents = format!("mod proto {{pub mod {} {{ \n{}\n}}}}", name, contents);
+
+    // Work around for https://github.com/rust-lang/rust/issues/54726
+    // Introduced in rust-protobuf https://github.com/stepancheg/rust-protobuf/pull/495
+    // More discussion: https://github.com/stepancheg/rust-protobuf/pull/523#issuecomment-701026992
+    let filtered: String = contents
+        .lines()
+        .filter(|line| line.trim() != "#![rustfmt::skip]")
+        .join("\n");
+
+    let new_contents = format!("mod proto {{pub mod {} {{ \n{}\n}}}}", name, filtered);
 
     File::create(&proto_path)
         .unwrap()
