@@ -34,7 +34,7 @@ fn main() {
         .read_to_string(&mut contents)
         .unwrap();
 
-    // Work around for https://github.com/rust-lang/rust/issues/5472
+    // Work around for https://github.com/rust-lang/rust/issues/54726
     // Introduced in rust-protobuf https://github.com/stepancheg/rust-protobuf/pull/495
     // More discussion: https://github.com/stepancheg/rust-protobuf/pull/523#issuecomment-701026992
     let filtered: String = contents
