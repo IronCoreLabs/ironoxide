@@ -134,7 +134,7 @@ quick_error! {
             display("Key generation failed")
         }
         AesError(err: ring::error::Unspecified) {
-            cause(err)
+            source(err)
         }
         AesEncryptedDocSizeError{
             display("Provided document is not long enough to be an encrypted document.")
@@ -174,7 +174,7 @@ quick_error! {
         }
         /// Protobuf encode/decode error
         ProtobufSerdeError(err: protobuf::ProtobufError) {
-            cause(err)
+            source(err)
         }
         /// Protobuf decode succeeded, but the result is not valid
         ProtobufValidationError(msg: String) {
