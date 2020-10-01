@@ -13,8 +13,8 @@ edition = "2018"
 
 [dependencies]
 async-trait = "0.1.21"
-base64 = "~0.12.1"
-base64-serde = "~0.5.1"
+base64 = "~0.13.0"
+base64-serde = "~0.6.1"
 bytes = "~0.5"
 serde = { version = "~1.0", features = ["derive"] }
 serde_json = "~1.0"
