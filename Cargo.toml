@@ -53,7 +53,7 @@ mut_static = "~5.0"
 anyhow = "~1.0.31"
 
 [build-dependencies]
-protobuf-codegen-pure = "~2.17"
+protobuf-codegen-pure = "~2.18"
 itertools = "~0.9.0"
 
 [package.metadata.docs.rs]
