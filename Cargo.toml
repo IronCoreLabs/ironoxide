@@ -38,7 +38,7 @@ log = "~0.4"
 protobuf = { version = "~2.17", features = ["with-bytes"] }
 vec1 = "~1.6.0"
 # ironoxide requires rt-threaded at runtime, but not at compile time
-tokio = { version = "~0.2.0", features = ["time", "rt-threaded"] }
+tokio = { version = "~0.3.1", features = ["time", "rt-threaded"] }
 dashmap = "3.4.0"
 ironcore-search-helpers = { version = "~0.1.2", optional = true }
 jsonwebtoken = "~7.2"
@@ -48,7 +48,7 @@ galvanic-assert = "~0.8"
 uuid = { version = "~0.8", features = ["v4"], default-features = false }
 double = "~0.2.4"
 criterion = "~0.3"
-tokio = { version = "~0.2.0", features = ["macros"] }
+tokio = { version = "~0.3.1", features = ["macros"] }
 mut_static = "~5.0"
 anyhow = "~1.0.31"
 
