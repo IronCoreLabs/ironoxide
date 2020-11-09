@@ -41,13 +41,20 @@ fn criterion_benchmark(c: &mut Criterion) {
             .group_create(&Default::default())
             .await
             .expect("group creation failed");
-        let group = group_result.id();
+        let group1 = group_result.id();
+
+        // another group to encrypt to
+        let group_result2 = io
+            .group_create(&Default::default())
+            .await
+            .expect("group creation failed");
+        let group2 = group_result2.id();
 
         // data encrypted to a group to decrypt
         let group_enc_result = io
             .document_encrypt_unmanaged(
                 &data,
-                &DocumentEncryptOpts::with_explicit_grants(None, None, false, vec![group.into()]),
+                &DocumentEncryptOpts::with_explicit_grants(None, None, false, vec![group1.into()]),
             )
             .await
             .expect("encrypt to group failed");
@@ -55,6 +62,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             group_enc_result.encrypted_data().to_vec(),
             group_enc_result.encrypted_deks().to_vec(),
         );
+
         (
             io,
             data,
@@ -64,6 +72,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             enc_deks_unmanaged,
             group_enc_data,
             group_enc_deks,
+            group1.clone(),
+            group2.clone(),
         )
     };
     let (
@@ -75,6 +85,8 @@ fn criterion_benchmark(c: &mut Criterion) {
         enc_deks_unmanaged,
         group_enc_data,
         group_enc_deks,
+        group1,
+        group2,
     ) = rt.enter(|| block_on(f));
 
     c.bench_function("document get metadata", |b| {
@@ -89,6 +101,34 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             rt.enter(|| {
                 block_on(io.document_encrypt_unmanaged(black_box(&data), &Default::default()))
+            })
+        })
+    });
+
+    c.bench_function("document encrypt [self, group]", |b| {
+        b.iter(|| {
+            rt.enter(|| {
+                let opts = DocumentEncryptOpts::with_explicit_grants(
+                    None,
+                    None,
+                    true,
+                    vec![group1.clone().into()],
+                );
+                block_on(io.document_encrypt(black_box(&data), &opts))
+            })
+        })
+    });
+
+    c.bench_function("document encrypt [self, group x 2]", |b| {
+        b.iter(|| {
+            rt.enter(|| {
+                let opts = DocumentEncryptOpts::with_explicit_grants(
+                    None,
+                    None,
+                    true,
+                    vec![group1.clone().into(), group2.clone().into()],
+                );
+                block_on(io.document_encrypt(black_box(&data), &opts))
             })
         })
     });
