@@ -1,22 +1,54 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use futures::executor::block_on;
 use ironoxide::prelude::*;
+use lazy_static::*;
 use tokio::runtime::Runtime;
 
-/// Setup for dev1 environment
-async fn setup_dev() -> IronOxide {
-    let device_string = std::fs::read_to_string("benches/data/dev1-device1.json")
-        .expect("device missing. Did you decrypt the .iron file?");
-    let d: DeviceContext = serde_json::from_str(&device_string).expect("DeviceContext invalid");
+lazy_static! {
+    /// The ICL environment to run benchmarks against.
+    ///
+    /// Reads from the environment variable IRONCORE_ENV. Supports `dev`, `stage`, and `prod`.
+    /// An unset environment variable will be interpreted as `dev`.
+    /// An invalid environment variable will result in a panic.
+    pub static ref ENV: String = match std::env::var("IRONCORE_ENV") {
+        Ok(url) => match url.to_lowercase().as_str() {
+            "dev" => "dev",
+            "stage" => "stage",
+            "prod" => "prod",
+            _ => panic!("IRONCORE_ENV can only be set to `dev`, `stage`, or `prod` when running the benchmarks.")
+        },
+        _ => "dev",
+    }
+    .to_string();
+}
+
+/// Setup for environment
+async fn setup_env() -> IronOxide {
+    let filename = format!("benches/data/{}-device1.json", *ENV);
+    let device_string = std::fs::read_to_string(filename.clone()).expect(
+        format!(
+            "Device missing for {}. Did you decrypt the .iron file?",
+            *ENV
+        )
+        .as_str(),
+    );
+    let d: DeviceContext = serde_json::from_str(&device_string)
+        .expect(format!("Invalid DeviceContext in {}.", filename).as_str());
     ironoxide::initialize(&d, &IronOxideConfig::default())
         .await
-        .expect("ironoxide init failed. Are you using IRONCORE_ENV=dev ?")
+        .expect(
+            format!(
+                "Failed to initialize IronOxide using the device in {}.",
+                filename
+            )
+            .as_str(),
+        )
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
     let rt = Runtime::new().expect("Tokio Runtime init failed");
     let f = async {
-        let io = setup_dev().await;
+        let io = setup_env().await;
         let data = [43u8; 100 * 1024]; //100KB of data
 
         // encrypted data to user to decrypt
