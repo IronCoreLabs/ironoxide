@@ -1,13 +1,13 @@
 [package]
 name = "ironoxide"
 version = "0.23.1"
-authors = ["IronCore Labs <info@ironcorelabs.com>"]
+authors = [ "IronCore Labs <info@ironcorelabs.com>" ]
 readme = "README.md"
 license = "AGPL-3.0-only"
 repository = "https://github.com/IronCoreLabs/ironoxide"
 documentation = "https://docs.rs/ironoxide"
-categories = ["cryptography"]
-keywords = ["cryptography", "proxy-re-encryption", "PRE", "ECC", "transform-encryption"]
+categories = [ "cryptography" ]
+keywords = [ "cryptography", "proxy-re-encryption", "PRE", "ECC", "transform-encryption" ]
 description = "A pure-Rust SDK for accessing IronCore's privacy platform"
 edition = "2018"
 
@@ -16,65 +16,60 @@ async-trait = "0.1.21"
 base64 = "~0.13.0"
 base64-serde = "~0.6.1"
 bytes = "~0.5"
-serde = { version = "~1.0", features = ["derive"] }
-serde_json = "~1.0"
+chrono = { version = "~0.4", features = [ "serde" ] }
+dashmap = "3.4.0"
+futures = "~0.3.1"
+hex = "~0.4"
+ironcore-search-helpers = { version = "~0.1.2", optional = true }
+itertools = "~0.9.0"
+jsonwebtoken = "~7.2"
+lazy_static = "~1.4"
+log = "~0.4"
+percent-encoding = "~2.1"
+protobuf = { version = "^2.0", features = [ "with-bytes" ] }
 # default features force a dependency on openssl-sys, which we want to avoid for embedded applications
 publicsuffix = { version = "~1.5.4", default-features = false }
+quick-error = "~2.0"
 rand = "~0.7"
 rand_chacha = "~0.2.2"
-regex = "~1.4"
-ring = { version = "~0.16", features = ["std"] }
 recrypt = "~0.11"
-url= "~2.1.0"
-reqwest = { version = "~0.10.0", features = ["json"], default-features = false }
-hex = "~0.4"
-itertools = "~0.9.0"
-futures = "~0.3.1"
-quick-error = "~2.0"
-lazy_static = "~1.4"
-chrono = { version = "~0.4", features = ["serde"] }
-percent-encoding="~2.1"
-log = "~0.4"
-protobuf = { version = "^2.0", features = ["with-bytes"] }
-vec1 = "~1.6.0"
+regex = "~1.4"
+reqwest = { version = "~0.10.0", features = [ "json" ], default-features = false }
+ring = { version = "~0.16", features = [ "std" ] }
+serde = { version = "~1.0", features = [ "derive" ] }
+serde_json = "~1.0"
 # ironoxide requires rt-threaded at runtime, but not at compile time
-tokio = { version = "~0.2.0", features = ["time", "rt-threaded"] }
-dashmap = "3.4.0"
-ironcore-search-helpers = { version = "~0.1.2", optional = true }
-jsonwebtoken = "~7.2"
+tokio = { version = "~0.2.0", features = [ "time", "rt-threaded" ] }
+url = "~2.1.0"
+vec1 = "~1.6.0"
 
 [dev-dependencies]
-galvanic-assert = "~0.8"
-uuid = { version = "~0.8", features = ["v4"], default-features = false }
-double = "~0.2.4"
-criterion = "~0.3"
-tokio = { version = "~0.2.0", features = ["macros"] }
-mut_static = "~5.0"
 anyhow = "~1.0.31"
+criterion = "~0.3"
+double = "~0.2.4"
+galvanic-assert = "~0.8"
+mut_static = "~5.0"
+tokio = { version = "~0.2.0", features = [ "macros" ] }
+uuid = { version = "~0.8", features = [ "v4" ], default-features = false }
 
 [build-dependencies]
-protobuf-codegen-pure = "^2.0"
 itertools = "~0.9.0"
-
-[package.metadata.docs.rs]
-all-features = true
+protobuf-codegen-pure = "^2.0"
 
 [features]
-beta = ["ironcore-search-helpers"]
-blocking = []
+beta = [ "ironcore-search-helpers" ]
+blocking = [ ]
 
 # NOTE: ironoxide requires a TLS implementation. Choose one of the following
 
 # enable to use statically compiled openssl on supported OpenSSL platforms; use with 'default-features = false'
-tls-vendored-openssl = ["reqwest/native-tls-vendored"]
-
+tls-vendored-openssl = [ "reqwest/native-tls-vendored" ]
 # enable to use rustls-tls; use with 'default-features = false'
-tls-rustls = ["reqwest/rustls-tls"]
-
+tls-rustls = [ "reqwest/rustls-tls" ]
 # dynamically use the target platform's native TLS
-tls-default = ["reqwest/default-tls"]
+tls-default = [ "reqwest/default-tls" ]
 
-default = ["tls-default"]
+default = [ "tls-default" ]
 
 [profile.dev]
 opt-level = 2
@@ -91,7 +86,7 @@ lto = true
 
 [[example]]
 name = "enc-search-sample"
-required-features = ["beta"]
+required-features = [ "beta" ]
 
 [[example]]
 name = "encrypting"
@@ -102,3 +97,6 @@ name = "decrypting"
 [[bench]]
 name = "ironoxide_bench"
 harness = false
+
+[package.metadata.docs.rs]
+all-features = true
