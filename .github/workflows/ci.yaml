@@ -90,9 +90,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ github.workflow }}-rust-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ github.workflow }}-rust-arch-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ github.workflow }}-rust-${{ matrix.target }}-
+            ${{ github.workflow }}-rust-arch-${{ matrix.target }}-
       - uses: actions-rs/cargo@v1
         with:
           # `cross` will work on all our targets except aarch64-apple-ios. We can still use `cross` everywhere, because  it transparently falls back to `cargo`.
@@ -100,7 +100,7 @@ jobs:
           command: build
           args: --target ${{ matrix.target }} --features "beta blocking tls-rustls" --no-default-features
 
-  cargo-fmt:
+  format:
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
@@ -110,7 +110,13 @@ jobs:
           toolchain: stable
           override: true
           components: rustfmt
+      - uses: actions-rs/install@v0.1
+        with:
+          crate: cargo-sort-ck
+          version: latest
+          use-tool-cache: true
       - run: cargo fmt --all -- --check
+      - run: cargo-sort-ck
       - name: Cancel workflow
         if: failure()
         uses: andymckay/cancel-action@0.2

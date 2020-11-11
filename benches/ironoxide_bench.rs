@@ -1,22 +1,54 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use futures::executor::block_on;
 use ironoxide::prelude::*;
+use lazy_static::*;
 use tokio::runtime::Runtime;
 
-/// Setup for dev1 environment
-async fn setup_dev() -> IronOxide {
-    let device_string = std::fs::read_to_string("benches/data/dev1-device1.json")
-        .expect("device missing. Did you decrypt the .iron file?");
-    let d: DeviceContext = serde_json::from_str(&device_string).expect("DeviceContext invalid");
+lazy_static! {
+    /// The ICL environment to run benchmarks against.
+    ///
+    /// Reads from the environment variable IRONCORE_ENV. Supports `dev`, `stage`, and `prod`.
+    /// An unset environment variable will be interpreted as `dev`.
+    /// An invalid environment variable will result in a panic.
+    pub static ref ENV: String = match std::env::var("IRONCORE_ENV") {
+        Ok(url) => match url.to_lowercase().as_str() {
+            "dev" => "dev",
+            "stage" => "stage",
+            "prod" => "prod",
+            _ => panic!("IRONCORE_ENV can only be set to `dev`, `stage`, or `prod` when running the benchmarks.")
+        },
+        _ => "dev",
+    }
+    .to_string();
+}
+
+/// Setup for environment
+async fn setup_env() -> IronOxide {
+    let filename = format!("benches/data/{}-device1.json", *ENV);
+    let device_string = std::fs::read_to_string(filename.clone()).expect(
+        format!(
+            "Device missing for {}. Did you decrypt the .iron file?",
+            *ENV
+        )
+        .as_str(),
+    );
+    let d: DeviceContext = serde_json::from_str(&device_string)
+        .expect(format!("Invalid DeviceContext in {}.", filename).as_str());
     ironoxide::initialize(&d, &IronOxideConfig::default())
         .await
-        .expect("ironoxide init failed. Are you using IRONCORE_ENV=dev ?")
+        .expect(
+            format!(
+                "Failed to initialize IronOxide using the device in {}.",
+                filename
+            )
+            .as_str(),
+        )
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
     let rt = Runtime::new().expect("Tokio Runtime init failed");
     let f = async {
-        let io = setup_dev().await;
+        let io = setup_env().await;
         let data = [43u8; 100 * 1024]; //100KB of data
 
         // encrypted data to user to decrypt
@@ -41,13 +73,20 @@ fn criterion_benchmark(c: &mut Criterion) {
             .group_create(&Default::default())
             .await
             .expect("group creation failed");
-        let group = group_result.id();
+        let group1 = group_result.id();
+
+        // another group to encrypt to
+        let group_result2 = io
+            .group_create(&Default::default())
+            .await
+            .expect("group creation failed");
+        let group2 = group_result2.id();
 
         // data encrypted to a group to decrypt
         let group_enc_result = io
             .document_encrypt_unmanaged(
                 &data,
-                &DocumentEncryptOpts::with_explicit_grants(None, None, false, vec![group.into()]),
+                &DocumentEncryptOpts::with_explicit_grants(None, None, false, vec![group1.into()]),
             )
             .await
             .expect("encrypt to group failed");
@@ -55,6 +94,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             group_enc_result.encrypted_data().to_vec(),
             group_enc_result.encrypted_deks().to_vec(),
         );
+
         (
             io,
             data,
@@ -64,6 +104,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             enc_deks_unmanaged,
             group_enc_data,
             group_enc_deks,
+            group1.clone(),
+            group2.clone(),
         )
     };
     let (
@@ -75,6 +117,8 @@ fn criterion_benchmark(c: &mut Criterion) {
         enc_deks_unmanaged,
         group_enc_data,
         group_enc_deks,
+        group1,
+        group2,
     ) = rt.enter(|| block_on(f));
 
     c.bench_function("document get metadata", |b| {
@@ -89,6 +133,34 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             rt.enter(|| {
                 block_on(io.document_encrypt_unmanaged(black_box(&data), &Default::default()))
+            })
+        })
+    });
+
+    c.bench_function("document encrypt [self, group]", |b| {
+        b.iter(|| {
+            rt.enter(|| {
+                let opts = DocumentEncryptOpts::with_explicit_grants(
+                    None,
+                    None,
+                    true,
+                    vec![group1.clone().into()],
+                );
+                block_on(io.document_encrypt(black_box(&data), &opts))
+            })
+        })
+    });
+
+    c.bench_function("document encrypt [self, group x 2]", |b| {
+        b.iter(|| {
+            rt.enter(|| {
+                let opts = DocumentEncryptOpts::with_explicit_grants(
+                    None,
+                    None,
+                    true,
+                    vec![group1.clone().into(), group2.clone().into()],
+                );
+                block_on(io.document_encrypt(black_box(&data), &opts))
             })
         })
     });
