@@ -56,7 +56,7 @@ jobs:
       - name: Decrypt test keys
         run: openssl aes-256-cbc -d -K ${{ secrets.OPENSSL_KEY }} -iv ${{ secrets.OPENSSL_IV }} -in tests/testkeys/iak-dev.pem.enc -out tests/testkeys/iak-dev.pem
       - name: Cargo test (with one retry on failure)
-        uses: nick-invision/retry@v1
+        uses: nick-invision/retry@v2.2.0
         with:
           timeout_minutes: 30
           max_attempts: 2
