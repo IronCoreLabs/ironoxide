@@ -1,9 +1,16 @@
 # Changelog
 
-## 0.24 (Unreleased)
+## Unreleased
+- 
+
+## 0.24.0
 - [[#183](https://github.com/IronCoreLabs/ironoxide/pull/183)]
-  - Update to rust-protobuf 2.17. Any downstream consumers that also use rust-protobuf will also need to update.
-- Lots of non-breaking dependency updates. (TODO List PRs here)
+  - Update to rust-protobuf 2.17
+- [[#193](https://github.com/IronCoreLabs/ironoxide/pull/193)]
+  - Relax rust-protobuf dependency requirement. This should allow downstream consumers more freedom in what rust-protobuf version they are using.
+- [[#196](https://github.com/IronCoreLabs/ironoxide/pull/196)]
+  - Add group encrypt benchmarks
+- Various non-breaking dependency updates
 
 
 ## 0.23.1
