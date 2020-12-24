@@ -30,7 +30,7 @@ protobuf = { version = "^2.0", features = [ "with-bytes" ] }
 # default features force a dependency on openssl-sys, which we want to avoid for embedded applications
 publicsuffix = { version = "~1.5.4", default-features = false }
 quick-error = "~2.0"
-rand = "~0.7"
+rand = "~0.8"
 rand_chacha = "~0.2.2"
 recrypt = "~0.11"
 regex = "~1.4"
