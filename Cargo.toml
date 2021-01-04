@@ -17,7 +17,7 @@ base64 = "~0.13.0"
 base64-serde = "~0.6.1"
 bytes = "~0.5"
 chrono = { version = "~0.4", features = [ "serde" ] }
-dashmap = "3.4.0"
+dashmap = "4.0.1"
 futures = "~0.3.1"
 hex = "~0.4"
 ironcore-search-helpers = { version = "~0.1.2", optional = true }
