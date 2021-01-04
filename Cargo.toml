@@ -15,7 +15,7 @@ edition = "2018"
 async-trait = "0.1.21"
 base64 = "~0.13.0"
 base64-serde = "~0.6.1"
-bytes = "~0.5"
+bytes = "~1.0"
 chrono = { version = "~0.4", features = [ "serde" ] }
 dashmap = "4.0.1"
 futures = "~0.3.1"
