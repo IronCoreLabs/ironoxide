@@ -650,17 +650,15 @@ impl IronCoreRequest {
             //Map the generic error from reqwest to our error type.
             IronCoreRequest::create_request_err(err.to_string(), error_code, err.status())
         })?;
-        // Converts from the Bytes v1 returned by reqwest to a Bytes v0.6 we use (and need to use until rust-protobuf updates theirs)
-        let server_resp_bytes = Bytes::copy_from_slice(server_resp.as_ref());
         //If the status code is a 5xx, return a fixed error code message
         if status.is_server_error() || status.is_client_error() {
             Err(IronCoreRequest::request_failure_to_error(
                 status,
                 error_code,
-                &server_resp_bytes,
+                &server_resp,
             ))
         } else {
-            resp_handler(&server_resp_bytes)
+            resp_handler(&server_resp)
         }
     }
     async fn send_req_with_builder<B, F>(
@@ -682,17 +680,15 @@ impl IronCoreRequest {
 
             IronCoreRequest::create_request_err(err.to_string(), error_code, err.status())
         })?;
-        // Converts from the Bytes v1 returned by reqwest to a Bytes v0.6 we use (and need to use until rust-protobuf updates theirs)
-        let server_resp_bytes = Bytes::copy_from_slice(server_resp.as_ref());
         //If the status code is a 5xx, return a fixed error code message
         if status.is_server_error() || status.is_client_error() {
             Err(IronCoreRequest::request_failure_to_error(
                 status,
                 error_code,
-                &server_resp_bytes,
+                &server_resp,
             ))
         } else {
-            resp_handler(&server_resp_bytes)
+            resp_handler(&server_resp)
         }
     }
 

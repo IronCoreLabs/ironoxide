@@ -1,5 +1,4 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use futures::executor::block_on;
 use ironoxide::prelude::*;
 use lazy_static::*;
 use tokio::runtime::Runtime;
@@ -119,80 +118,70 @@ fn criterion_benchmark(c: &mut Criterion) {
         group_enc_deks,
         group1,
         group2,
-    ) = rt.enter(|| block_on(f));
+    ) = rt.block_on(f);
 
     c.bench_function("document get metadata", |b| {
-        b.iter(|| rt.enter(|| block_on(io.document_get_metadata(black_box(enc_result.id())))))
+        b.iter(|| rt.block_on(io.document_get_metadata(black_box(enc_result.id()))))
     });
 
     c.bench_function("document encrypt [self]", |b| {
-        b.iter(|| rt.enter(|| block_on(io.document_encrypt(black_box(&data), &Default::default()))))
+        b.iter(|| rt.block_on(io.document_encrypt(black_box(&data), &Default::default())))
     });
 
     c.bench_function("document encrypt (unmanaged) [self]", |b| {
-        b.iter(|| {
-            rt.enter(|| {
-                block_on(io.document_encrypt_unmanaged(black_box(&data), &Default::default()))
-            })
-        })
+        b.iter(|| rt.block_on(io.document_encrypt_unmanaged(black_box(&data), &Default::default())))
     });
 
     c.bench_function("document encrypt [self, group]", |b| {
         b.iter(|| {
-            rt.enter(|| {
-                let opts = DocumentEncryptOpts::with_explicit_grants(
-                    None,
-                    None,
-                    true,
-                    vec![group1.clone().into()],
-                );
-                block_on(io.document_encrypt(black_box(&data), &opts))
-            })
+            let opts = DocumentEncryptOpts::with_explicit_grants(
+                None,
+                None,
+                true,
+                vec![group1.clone().into()],
+            );
+            rt.block_on(io.document_encrypt(black_box(&data), &opts))
         })
     });
 
     c.bench_function("document encrypt [self, group x 2]", |b| {
         b.iter(|| {
-            rt.enter(|| {
-                let opts = DocumentEncryptOpts::with_explicit_grants(
-                    None,
-                    None,
-                    true,
-                    vec![group1.clone().into(), group2.clone().into()],
-                );
-                block_on(io.document_encrypt(black_box(&data), &opts))
-            })
+            let opts = DocumentEncryptOpts::with_explicit_grants(
+                None,
+                None,
+                true,
+                vec![group1.clone().into(), group2.clone().into()],
+            );
+            rt.block_on(io.document_encrypt(black_box(&data), &opts))
         })
     });
 
     c.bench_function("document decrypt [user]", |b| {
-        b.iter(|| rt.enter(|| block_on(io.document_decrypt(black_box(&enc_data)))))
+        b.iter(|| rt.block_on(io.document_decrypt(black_box(&enc_data))))
     });
 
     c.bench_function("document decrypt (unmanaged) [group]", |b| {
         b.iter(|| {
-            rt.enter(|| {
-                block_on(io.document_decrypt_unmanaged(
+            rt.block_on(
+                io.document_decrypt_unmanaged(
                     black_box(&group_enc_data),
                     black_box(&group_enc_deks),
-                ))
-            })
+                ),
+            )
         })
     });
 
     c.bench_function("document decrypt (unmanaged) [user]", |b| {
         b.iter(|| {
-            rt.enter(|| {
-                block_on(io.document_decrypt_unmanaged(
-                    black_box(&enc_data_unmanaged),
-                    black_box(&enc_deks_unmanaged),
-                ))
-            })
+            rt.block_on(io.document_decrypt_unmanaged(
+                black_box(&enc_data_unmanaged),
+                black_box(&enc_deks_unmanaged),
+            ))
         })
     });
 
     c.bench_function("group create", |b| {
-        b.iter(|| rt.enter(|| block_on(io.group_create(black_box(&Default::default())))))
+        b.iter(|| rt.block_on(io.group_create(black_box(&Default::default()))))
     });
 }
 
