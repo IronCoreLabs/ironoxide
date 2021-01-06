@@ -27,7 +27,6 @@ use std::{
     result::Result,
     sync::{Mutex, MutexGuard},
 };
-use tokio::time::Elapsed;
 
 pub mod document_api;
 pub mod group_api;
@@ -762,7 +761,7 @@ pub async fn add_optional_timeout<F: Future>(
     let result = match timeout {
         Some(d) => {
             tokio::time::timeout(d, f)
-                .map_err(|_: Elapsed| IronOxideErr::OperationTimedOut {
+                .map_err(|_| IronOxideErr::OperationTimedOut {
                     operation: op,
                     duration: d,
                 })
@@ -1229,7 +1228,7 @@ pub(crate) mod tests {
     #[tokio::test]
     async fn run_maybe_timed_sdk_op_no_timeout() -> Result<(), IronOxideErr> {
         async fn get_42() -> u8 {
-            tokio::time::delay_for(Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(100)).await;
             42
         }
         let forty_two = get_42();
@@ -1247,7 +1246,7 @@ pub(crate) mod tests {
         assert_eq!(result, 42);
 
         async fn get_err() -> Result<(), IronOxideErr> {
-            tokio::time::delay_for(Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(100)).await;
             Err(IronOxideErr::MissingTransformBlocks)
         }
 
@@ -1280,7 +1279,7 @@ pub(crate) mod tests {
         async fn get_42() -> u8 {
             // allow other futures to run, like the timer
             // without this the future will run to completion, regardless of the timer
-            tokio::time::delay_for(Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(100)).await;
             42
         }
 
@@ -1298,7 +1297,7 @@ pub(crate) mod tests {
         );
 
         async fn get_err() -> Result<u8, IronOxideErr> {
-            tokio::time::delay_for(Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(100)).await;
             Err(IronOxideErr::MissingTransformBlocks)
         }
 

@@ -1096,7 +1096,7 @@ pub async fn decrypt_document_unmanaged<CR: rand::CryptoRng + rand::RngCore>(
     let ((proto_edeks, (doc_meta, mut aes_encrypted_value)), transform_resp) = try_join!(
         async {
             Ok((
-                protobuf::parse_from_bytes::<EncryptedDeksP>(encrypted_deks)
+                EncryptedDeksP::parse_from_bytes(encrypted_deks)
                     .map_err(IronOxideErr::from)?,
                 parse_document_parts(encrypted_doc)?,
             ))
@@ -1865,8 +1865,7 @@ mod tests {
             DocumentEncryptUnmanagedResult::new(encryption_result, vec![])?;
 
         // then deserialize and extract the user/groups from the edeks
-        let proto_edeks: EncryptedDeksP =
-            protobuf::parse_from_bytes(doc_encrypt_unmanaged_result.encrypted_deks())?;
+        let proto_edeks = EncryptedDeksP::parse_from_bytes(doc_encrypt_unmanaged_result.encrypted_deks())?;
         let result: Result<Vec<UserOrGroup>, IronOxideErr> = proto_edeks
             .edeks
             .as_slice()
@@ -1962,7 +1961,7 @@ mod tests {
 
         // test non matching doc ids
         {
-            let proto_edeks = protobuf::parse_from_bytes::<EncryptedDeksP>(&edek2_bytes)
+            let proto_edeks = EncryptedDeksP::parse_from_bytes(&edek2_bytes)
                 .map_err(IronOxideErr::from)?;
             let (doc_meta, _) = parse_document_parts(&edoc1_bytes)?;
             let err = edeks_and_header_match_or_err(&proto_edeks, &doc_meta).unwrap_err();
@@ -1984,7 +1983,7 @@ mod tests {
 
         // test non matching seg ids
         {
-            let proto_edeks = protobuf::parse_from_bytes::<EncryptedDeksP>(&edek3_bytes)
+            let proto_edeks = EncryptedDeksP::parse_from_bytes(&edek3_bytes)
                 .map_err(IronOxideErr::from)?;
             let (doc_meta, _) = parse_document_parts(&edoc1_bytes)?;
             let err = edeks_and_header_match_or_err(&proto_edeks, &doc_meta).unwrap_err();
