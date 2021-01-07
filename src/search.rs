@@ -64,8 +64,7 @@ impl EncryptedBlindIndexSalt {
 
     #[cfg(feature = "blocking")]
     pub fn initialize_search_blocking(&self, bio: &BlockingIronOxide) -> Result<BlindIndexSearch> {
-        bio.runtime
-            .enter(|| futures::executor::block_on(self.initialize_search(&bio.ironoxide)))
+        bio.runtime.block_on(self.initialize_search(&bio.ironoxide))
     }
 }
 
