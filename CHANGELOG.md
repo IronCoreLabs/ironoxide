@@ -1,9 +1,15 @@
 # Changelog
 
 ## Unreleased
-- 
+
+- [[#213](https://github.com/IronCoreLabs/ironoxide/pull/213)]
+  - Update to tokio 1.0
+  - Update to reqwest 0.11.0
+  - Update to bytes 1.0
+  - Require minimum protobuf of 2.20.0
 
 ## 0.24.0
+
 - [[#183](https://github.com/IronCoreLabs/ironoxide/pull/183)]
   - Update to rust-protobuf 2.17
 - [[#193](https://github.com/IronCoreLabs/ironoxide/pull/193)]
@@ -11,7 +17,6 @@
 - [[#196](https://github.com/IronCoreLabs/ironoxide/pull/196)]
   - Add group encrypt benchmarks
 - Various non-breaking dependency updates
-
 
 ## 0.23.1
 
