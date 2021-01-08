@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.25.0
 
+- [[#209](https://github.com/IronCoreLabs/ironoxide/pull/209)] Update to itertools 0.10.0
+- [[#211](https://github.com/IronCoreLabs/ironoxide/pull/211)] Update to dashmap 4.0.1
 - [[#213](https://github.com/IronCoreLabs/ironoxide/pull/213)]
   - Update to tokio 1.0
   - Update to reqwest 0.11.0
