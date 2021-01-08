@@ -33,7 +33,7 @@ jobs:
             features: --features tls-vendored-openssl --no-default-features
           # MSRV
           - os: ubuntu-18.04
-            toolchain: 1.39.0
+            toolchain: 1.41.1
     steps:
       - uses: actions/checkout@v2
       - if: matrix.toolchain != ''
