@@ -7,6 +7,7 @@
   - Update to reqwest 0.11.0
   - Update to bytes 1.0
   - Require minimum protobuf of 2.20.0
+- [[#215](https://github.com/IronCoreLabs/ironoxide/pull/215)] Update to recrypt 0.12.0
 
 ## 0.24.0
 
