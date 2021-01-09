@@ -16,6 +16,7 @@ jobs:
       matrix:
         # different operating systems
         os: [ubuntu-18.04, macos-10.15, windows-2019]
+        features: [-v] # GitHub requires us to have something in this flag
         toolchain: [stable]
         include:
           # different features combinations
