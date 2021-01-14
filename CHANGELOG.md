@@ -17,6 +17,11 @@
   - Update to recrypt 0.12.0
   - Bump MSRV to 1.41.1
 
+## 0.24.1
+
+- Fix compatibility with serde 1.0.119
+- Locked to protobuf 2.17.0 (relaxed in later releases)
+
 ## 0.24.0
 
 - [[#183](https://github.com/IronCoreLabs/ironoxide/pull/183)]
