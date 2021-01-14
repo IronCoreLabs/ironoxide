@@ -1,9 +1,12 @@
 # Changelog
 
-## Unreleased
-- 
+## 0.24.1
+
+- Fix compatibility with serde 1.0.119
+- Locked to protobuf 2.17.0 (relaxed in later releases)
 
 ## 0.24.0
+
 - [[#183](https://github.com/IronCoreLabs/ironoxide/pull/183)]
   - Update to rust-protobuf 2.17
 - [[#193](https://github.com/IronCoreLabs/ironoxide/pull/193)]
@@ -11,7 +14,6 @@
 - [[#196](https://github.com/IronCoreLabs/ironoxide/pull/196)]
   - Add group encrypt benchmarks
 - Various non-breaking dependency updates
-
 
 ## 0.23.1
 
