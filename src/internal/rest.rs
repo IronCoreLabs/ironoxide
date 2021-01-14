@@ -13,15 +13,13 @@ use reqwest::{
     header::{HeaderMap, HeaderValue, CONTENT_TYPE},
     Client, Method, Request, RequestBuilder, StatusCode, Url,
 };
-use serde::{
-    de::DeserializeOwned,
-    export::{
-        fmt::{Display, Error},
-        Formatter,
-    },
-    Deserialize, Serialize,
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::{
+    borrow::BorrowMut,
+    fmt::{Display, Error, Formatter},
+    marker::PhantomData,
+    ops::Deref,
 };
-use std::{borrow::BorrowMut, marker::PhantomData, ops::Deref};
 
 lazy_static! {
     static ref DEFAULT_HEADERS: HeaderMap = {
