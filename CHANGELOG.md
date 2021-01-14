@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.25.1
+
+- [[#216](https://github.com/IronCoreLabs/ironoxide/pull/216)] Fix compatibility with serde 1.0.119
+
 ## 0.25.0
 
 - [[#209](https://github.com/IronCoreLabs/ironoxide/pull/209)] Update to itertools 0.10.0
