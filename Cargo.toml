@@ -1,6 +1,6 @@
 [package]
 name = "ironoxide"
-version = "0.24.0"
+version = "0.24.1"
 authors = [ "IronCore Labs <info@ironcorelabs.com>" ]
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -26,7 +26,7 @@ jsonwebtoken = "~7.2"
 lazy_static = "~1.4"
 log = "~0.4"
 percent-encoding = "~2.1"
-protobuf = { version = "^2.0", features = [ "with-bytes" ] }
+protobuf = { version = "=2.18.0", features = [ "with-bytes" ] }
 # default features force a dependency on openssl-sys, which we want to avoid for embedded applications
 publicsuffix = { version = "~1.5.4", default-features = false }
 quick-error = "~2.0"
@@ -54,7 +54,7 @@ uuid = { version = "~0.8", features = [ "v4" ], default-features = false }
 
 [build-dependencies]
 itertools = "~0.9.0"
-protobuf-codegen-pure = "^2.0"
+protobuf-codegen-pure = "=2.18.0"
 
 [features]
 beta = [ "ironcore-search-helpers" ]
