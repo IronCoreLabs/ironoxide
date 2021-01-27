@@ -84,6 +84,10 @@ jobs:
         with:
           toolchain: stable
           target: ${{ matrix.target }}
+      - uses: actions-rs/install@v0.1
+        with:
+          crate: cargo-sccache
+          version: latest
       # This was disabled because of intermittent failures after a cache hit in macos-10.15
       #
       # - name: Generate Cargo.lock so we can cache from it
@@ -98,6 +102,12 @@ jobs:
       #     restore-keys: |
       #       ${{ github.workflow }}-rust-arch-${{ matrix.target }}-
       - uses: actions-rs/cargo@v1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          SCCACHE_BUCKET: ${{ secrets.SCCACHE_BUCKET }}
+          SCCACHE_S3_USE_SSL: ${{ secrets.SCCACHE_S3_USE_SSL }}
+          RUSTC_WRAPPER: ~/.cargo/bin/sccache
         with:
           # `cross` will work on all our targets except aarch64-apple-ios. We can still use `cross` everywhere, because  it transparently falls back to `cargo`.
           use-cross: true
