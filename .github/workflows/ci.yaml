@@ -86,7 +86,7 @@ jobs:
           target: ${{ matrix.target }}
       - uses: actions-rs/install@v0.1
         with:
-          crate: cargo-sccache
+          crate: sccache
           version: latest
       # This was disabled because of intermittent failures after a cache hit in macos-10.15
       #
