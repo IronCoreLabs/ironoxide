@@ -24,7 +24,7 @@ jobs:
         run: echo ::set-output name=audit-version::$(cargo search cargo-audit --limit 1 | grep cargo-audit)
       - name: Restore cargo-audit based on search result
         id: cache
-        uses: actions/cache@v2
+        uses: actions/cache@v2.1.4
         with:
           path: ~/.cargo/bin
           key: ${{ github.workflow }} ${{ steps.audit-search.outputs.audit-version }}
