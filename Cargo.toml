@@ -13,47 +13,47 @@ edition = "2018"
 
 [dependencies]
 async-trait = "0.1.21"
-base64 = "~0.13.0"
-base64-serde = "~0.6.1"
-bytes = "~1.0"
-chrono = { version = "~0.4", features = [ "serde" ] }
+base64 = "0.13.0"
+base64-serde = "0.6.1"
+bytes = "1.0"
+chrono = { version = "0.4", features = [ "serde" ] }
 dashmap = "4.0.1"
-futures = "~0.3.1"
-hex = "~0.4"
-ironcore-search-helpers = { version = "~0.1.2", optional = true }
-itertools = "~0.10.0"
-jsonwebtoken = "~7.2"
-lazy_static = "~1.4"
-log = "~0.4"
-percent-encoding = "~2.1"
-protobuf = { version = "^2.20", features = [ "with-bytes" ] }
+futures = "0.3.1"
+hex = "0.4"
+ironcore-search-helpers = { version = "0.1.2", optional = true }
+itertools = "0.10.0"
+jsonwebtoken = "7.2"
+lazy_static = "1.4"
+log = "0.4"
+percent-encoding = "2.1"
+protobuf = { version = "2.20", features = [ "with-bytes" ] }
 # default features force a dependency on openssl-sys, which we want to avoid for embedded applications
-publicsuffix = { version = "~1.5.4", default-features = false }
-quick-error = "~2.0"
-rand = "~0.7"
-rand_chacha = "~0.2.2"
-recrypt = "~0.12"
-regex = "~1.4"
-reqwest = { version = "~0.11.0", features = [ "json" ], default-features = false }
-ring = { version = "~0.16", features = [ "std" ] }
-serde = { version = "~1.0", features = [ "derive" ] }
-serde_json = "~1.0"
-tokio = { version = "~1.2", features = [ "time" ] }
-url = "~2.2.0"
-vec1 = "~1.6.0"
+publicsuffix = { version = "1.5.4", default-features = false }
+quick-error = "2.0"
+rand = "0.7"
+rand_chacha = "0.2.2"
+recrypt = "0.12"
+regex = "1.4"
+reqwest = { version = "0.11.0", features = [ "json" ], default-features = false }
+ring = { version = "0.16", features = [ "std" ] }
+serde = { version = "1.0", features = [ "derive" ] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = [ "time" ] }
+url = "2.2.0"
+vec1 = "1.6.0"
 
 [dev-dependencies]
-anyhow = "~1.0.31"
-criterion = "~0.3"
-double = "~0.2.4"
-galvanic-assert = "~0.8"
-mut_static = "~5.0"
-tokio = { version = "~1.2", features = [ "macros", "rt-multi-thread" ] }
-uuid = { version = "~0.8", features = [ "v4" ], default-features = false }
+anyhow = "1.0.31"
+criterion = "0.3"
+double = "0.2.4"
+galvanic-assert = "0.8"
+mut_static = "5.0"
+tokio = { version = "1.2", features = [ "macros", "rt-multi-thread" ] }
+uuid = { version = "0.8", features = [ "v4" ], default-features = false }
 
 [build-dependencies]
-itertools = "~0.10.0"
-protobuf-codegen-pure = "^2.20"
+itertools = "0.10.0"
+protobuf-codegen-pure = "2.20"
 
 [features]
 beta = [ "ironcore-search-helpers" ]
