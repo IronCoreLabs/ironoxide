@@ -36,7 +36,7 @@ recrypt = "0.12"
 regex = "1.4"
 reqwest = { version = "0.11", features = [ "json" ], default-features = false }
 ring = { version = "0.16", features = [ "std" ] }
-serde = { version = "1", features = [ "derive" ] }
+serde = { version = "1.0.123", features = [ "derive" ] }
 serde_json = "1"
 tokio = { version = "1.2", features = [ "time" ] }
 url = "2.2"
