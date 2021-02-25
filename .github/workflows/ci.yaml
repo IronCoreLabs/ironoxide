@@ -123,7 +123,6 @@ jobs:
         with:
           crate: cargo-sort-ck
           version: latest
-          use-tool-cache: true
       - run: cargo fmt --all -- --check
       - run: cargo-sort-ck
       - name: Cancel workflow
