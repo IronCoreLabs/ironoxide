@@ -34,6 +34,7 @@ jobs:
           # MSRV
           - os: ubuntu-18.04
             toolchain: 1.41.1
+            features: default
     steps:
       - uses: actions/checkout@v2
       - if: matrix.toolchain != ''
