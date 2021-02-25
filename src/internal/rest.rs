@@ -1370,4 +1370,20 @@ mod tests {
         //it changes. `'` is being encoded in this case, but should not be according to the spec we have for v2 signatures.
         assert_eq!(req.url().query(), Some("id=!%22%23%24%25%26%27()*%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"))
     }
+
+    #[test]
+    fn empty_query_params_encoded_correctly() {
+        use publicsuffix::IntoUrl;
+
+        let icl_req = IronCoreRequest::new("https://example.com");
+        let mut req = Request::new(
+            Method::GET,
+            format!("{}/{}", icl_req.base_url(), "policies")
+                .into_url()
+                .unwrap(),
+        );
+        IronCoreRequest::req_add_query(&mut req, &[]);
+        assert_eq!(req.url().query(), None);
+        assert_eq!(req.url().as_str(), "https://example.com/policies")
+    }
 }
