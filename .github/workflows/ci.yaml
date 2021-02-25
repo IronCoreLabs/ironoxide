@@ -15,22 +15,22 @@ jobs:
       fail-fast: false
       matrix:
         # different operating systems
-        os: [ubuntu-18.04, macos-10.15, windows-2019]
-        features: [--features default]
+        os: [ubuntu-18.04, ubuntu-20.04, macos-10.15, macos-11.0, windows-2019]
+        features: [default]
         toolchain: [stable]
         include:
           # different features combinations
           - os: ubuntu-18.04
-            features: --features beta
+            features: beta
           - os: ubuntu-18.04
-            features: --features blocking
+            features: blocking
           - os: ubuntu-18.04
-            features: --features "blocking beta"
+            features: "blocking beta"
           # different tls implementations
           - os: ubuntu-18.04
-            features: --features tls-rustls --no-default-features
+            features: tls-rustls --no-default-features
           - os: ubuntu-18.04
-            features: --features tls-vendored-openssl --no-default-features
+            features: tls-vendored-openssl --no-default-features
           # MSRV
           - os: ubuntu-18.04
             toolchain: 1.41.1
@@ -55,12 +55,16 @@ jobs:
       #       ${{ github.workflow }}-rust-${{ matrix.os }}-
       - name: Decrypt test keys
         run: openssl aes-256-cbc -d -K ${{ secrets.OPENSSL_KEY }} -iv ${{ secrets.OPENSSL_IV }} -in tests/testkeys/iak-dev.pem.enc -out tests/testkeys/iak-dev.pem
-      - name: Cargo test (with one retry on failure)
-        uses: nick-invision/retry@v2.4.0
+      # Generate the Cargo.lock that will be used for the tests so we can upload it as an artifact
+      - name: Generate lockfile
+        run: cargo generate-lockfile
+      - name: Upload Cargo.lock
+        uses: actions/upload-artifact@v2
         with:
-          timeout_minutes: 30
-          max_attempts: 2
-          command: cargo test ${{ matrix.features }}
+          name: ${{ matrix.os }}-${{ matrix.features }}-${{ matrix.toolchain }}-Cargo.lock
+          path: Cargo.lock
+      - name: Cargo test
+        run: cargo test --features ${{ matrix.features }}
 
   cargo-build:
     runs-on: ${{ matrix.os }}
@@ -99,7 +103,7 @@ jobs:
       #       ${{ github.workflow }}-rust-arch-${{ matrix.target }}-
       - uses: actions-rs/cargo@v1
         with:
-          # `cross` will work on all our targets except aarch64-apple-ios. We can still use `cross` everywhere, because  it transparently falls back to `cargo`.
+          # `cross` will work on all our targets except aarch64-apple-ios. We can still use `cross` everywhere, because it transparently falls back to `cargo`.
           use-cross: true
           command: build
           args: --target ${{ matrix.target }} --features "beta blocking tls-rustls" --no-default-features
