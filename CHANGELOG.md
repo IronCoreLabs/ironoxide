@@ -2,7 +2,7 @@
 
 ## 0.25.2 (Unreleased)
 
-- [[#225](https://github.com/IronCoreLabs/ironoxide/pull/216)] Fix bug causing requests with empty policies to fail.
+- [[#225](https://github.com/IronCoreLabs/ironoxide/pull/225)] Fix bug causing requests with empty policies to fail.
 
 ## 0.25.1
 
