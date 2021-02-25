@@ -619,14 +619,16 @@ impl IronCoreRequest {
 
     fn req_add_query(req: &mut Request, query_params: &[(String, PercentEncodedString)]) {
         // side-effect to the stars!
-        // can't use serde_urlencoded here as we need a custom percent encoding
-        let query_string: String = query_params
-            .iter()
-            .map(|(k, v)| format!("{}={}", k, v.0))
-            .collect::<Vec<_>>()
-            .join("&");
+        if !query_params.is_empty() {
+            // can't use serde_urlencoded here as we need a custom percent encoding
+            let query_string: String = query_params
+                .iter()
+                .map(|(k, v)| format!("{}={}", k, v.0))
+                .collect::<Vec<_>>()
+                .join("&");
 
-        req.url_mut().set_query(Some(&query_string));
+            req.url_mut().set_query(Some(&query_string));
+        }
     }
 
     async fn send_req<B, F>(
@@ -1367,5 +1369,21 @@ mod tests {
         //NOTE: This is not the same as SignatureUrlString's encoding, but is being documented here so we know if
         //it changes. `'` is being encoded in this case, but should not be according to the spec we have for v2 signatures.
         assert_eq!(req.url().query(), Some("id=!%22%23%24%25%26%27()*%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"))
+    }
+
+    #[test]
+    fn empty_query_params_encoded_correctly() {
+        use publicsuffix::IntoUrl;
+
+        let icl_req = IronCoreRequest::new("https://example.com");
+        let mut req = Request::new(
+            Method::GET,
+            format!("{}/{}", icl_req.base_url(), "policies")
+                .into_url()
+                .unwrap(),
+        );
+        IronCoreRequest::req_add_query(&mut req, &[]);
+        assert_eq!(req.url().query(), None);
+        assert_eq!(req.url().as_str(), "https://example.com/policies")
     }
 }
