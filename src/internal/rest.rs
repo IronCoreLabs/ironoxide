@@ -619,14 +619,16 @@ impl IronCoreRequest {
 
     fn req_add_query(req: &mut Request, query_params: &[(String, PercentEncodedString)]) {
         // side-effect to the stars!
-        // can't use serde_urlencoded here as we need a custom percent encoding
-        let query_string: String = query_params
-            .iter()
-            .map(|(k, v)| format!("{}={}", k, v.0))
-            .collect::<Vec<_>>()
-            .join("&");
+        if !query_params.is_empty() {
+            // can't use serde_urlencoded here as we need a custom percent encoding
+            let query_string: String = query_params
+                .iter()
+                .map(|(k, v)| format!("{}={}", k, v.0))
+                .collect::<Vec<_>>()
+                .join("&");
 
-        req.url_mut().set_query(Some(&query_string));
+            req.url_mut().set_query(Some(&query_string));
+        }
     }
 
     async fn send_req<B, F>(

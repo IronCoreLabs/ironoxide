@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.25.2 (Unreleased)
+
+- [[#225](https://github.com/IronCoreLabs/ironoxide/pull/216)] Fix bug causing requests with empty policies to fail.
+
 ## 0.25.1
 
 - [[#216](https://github.com/IronCoreLabs/ironoxide/pull/216)] Fix compatibility with serde 1.0.119
