@@ -69,7 +69,7 @@ jobs:
       - name: Cargo test
         run: cargo test --features ${{ matrix.features }}
       - name: Post to Slack on failure in main
-        if: failure() && github.ref == 'refs/heads/main'
+        if: failure() && github.event_name == 'schedule'
         run: |
           curl -L -X POST '${{ secrets.SLACK_WEBHOOK }}' \
           -F "payload={\"text\": \"Failed a run of <$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID|$GITHUB_REPOSITORY>.\"}"
@@ -116,7 +116,7 @@ jobs:
           command: build
           args: --target ${{ matrix.target }} --features "beta blocking tls-rustls" --no-default-features
       - name: Post to Slack on failure in main
-        if: failure() && github.ref == 'refs/heads/main'
+        if: failure() && github.event_name == 'schedule'
         run: |
           curl -L -X POST '${{ secrets.SLACK_WEBHOOK }}' \
           -F "payload={\"text\": \"Failed a run of <$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID|$GITHUB_REPOSITORY>.\"}"
