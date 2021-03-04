@@ -5,9 +5,10 @@ on:
   schedule:
     - cron: "0 8 * * *" # 8AM UTC
   push:
-    branches: daily-test-hack-day
-    paths:
-      - "**/Cargo.toml"
+    branches:
+      - daily-test-hack-day
+    # paths:
+    #   - "**/Cargo.toml"
   workflow_dispatch:
 
 jobs:
