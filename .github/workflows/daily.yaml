@@ -5,11 +5,8 @@ on:
   schedule:
     - cron: "0 14 * * *" # Daily at 2pm UTC
   push:
-    branches:
-      - daily-test-hack-day
-    # paths:
-    #   - "**/Cargo.toml"
-  workflow_dispatch:
+    paths:
+      - "**/Cargo.toml"
 
 jobs:
   security-audit:
@@ -25,6 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      # Generate the Cargo.lock that will be used for the tests so we can upload it as an artifact
+      - run: cargo generate-lockfile
+      - uses: actions/upload-artifact@v2
+        with:
+          path: Cargo.lock
       - name: Decrypt test keys
         run: openssl aes-256-cbc -d -K ${{ secrets.OPENSSL_KEY }} -iv ${{ secrets.OPENSSL_IV }} -in tests/testkeys/iak-dev.pem.enc -out tests/testkeys/iak-dev.pem
       - run: cargo test --all-features
