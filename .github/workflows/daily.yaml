@@ -32,7 +32,7 @@ jobs:
       - run: cargo test --all-features
         env:
           IRONCORE_ENV: dev
-      - name: Post to Slack
+      - name: Post to Slack on failure
         if: failure()
         run: |
           curl -L -X POST '${{ secrets.SLACK_WEBHOOK }}' \
