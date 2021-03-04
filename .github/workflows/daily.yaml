@@ -3,7 +3,7 @@ name: Daily runs
 # Run daily and also when Cargo.toml changes
 on:
   schedule:
-    - cron: "0 8 * * *" # Daily at 8am UTC
+    - cron: "0 14 * * *" # Daily at 2pm UTC
   push:
     branches:
       - daily-test-hack-day
@@ -33,3 +33,5 @@ jobs:
         run: |
           curl -L -X POST '${{ secrets.SLACK_WEBHOOK }}' \
           -F "payload={\"text\": \"Failed a run of <$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID|$GITHUB_REPOSITORY>.\"}"
+        env:
+          IRONCORE_ENV: dev
