@@ -33,4 +33,4 @@ jobs:
         if: failure()
         run: |
           curl -L -X POST '${{ secrets.SLACK_WEBHOOK }}' \
-          -F 'payload="{\"text\": \"Failed a run of <${{env.GITHUB_SERVER_URL}}/${{env.GITHUB_REPOSITORY}}/actions/runs/${{env.GITHUB_RUN_ID}}|${{env.GITHUB_REPOSITORY}}>.\"}"'
+          -F "payload={\"text\": \"Failed a run of <$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID|$GITHUB_REPOSITORY>.\"}"
