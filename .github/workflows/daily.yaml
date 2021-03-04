@@ -1,0 +1,31 @@
+name: Daily runs
+
+# Run daily and also when Cargo.toml changes
+on:
+  schedule:
+    - cron: "0 8 * * *" # 8AM UTC
+  push:
+    paths:
+      - "**/Cargo.toml"
+  workflow_dispatch:
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run audit checker
+        uses: actions-rs/audit-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: cargo test --all-features
+      - name: Post to Slack
+        if: always()
+        run: |
+          curl -L -X POST '${{ secrets.SLACK_WEBHOOK }}' \
+          -F 'payload="{\"text\": \"Failed a run of <$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID|$GITHUB_REPOSITORY>.\"}"'
