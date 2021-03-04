@@ -3,7 +3,7 @@ name: Daily runs
 # Run daily and also when Cargo.toml changes
 on:
   schedule:
-    - cron: "0 8 * * *" # 8AM UTC
+    - cron: "0 8 * * *" # Daily at 8am UTC
   push:
     branches:
       - daily-test-hack-day
@@ -25,8 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      # - name: Decrypt test keys
-      # run: openssl aes-256-cbc -d -K ${{ secrets.OPENSSL_KEY }} -iv ${{ secrets.OPENSSL_IV }} -in tests/testkeys/iak-dev.pem.enc -out tests/testkeys/iak-dev.pem
+      - name: Decrypt test keys
+      run: openssl aes-256-cbc -d -K ${{ secrets.OPENSSL_KEY }} -iv ${{ secrets.OPENSSL_IV }} -in tests/testkeys/iak-dev.pem.enc -out tests/testkeys/iak-dev.pem
       - run: cargo test --all-features
       - name: Post to Slack
         if: failure()

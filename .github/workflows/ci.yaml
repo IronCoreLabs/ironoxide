@@ -5,6 +5,8 @@ on:
     branches:
       - master
   pull_request:
+  schedule:
+    - cron: "0 15 * * 1" # Mondays at 3pm UTC
 
 jobs:
   cargo-test:
