@@ -1,0 +1,39 @@
+name: Daily runs
+
+# Run daily and also when Cargo.toml changes
+on:
+  schedule:
+    - cron: "0 14 * * *" # Daily at 2pm UTC
+  push:
+    paths:
+      - "**/Cargo.toml"
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run audit checker
+        uses: actions-rs/audit-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      # Generate the Cargo.lock that will be used for the tests so we can upload it as an artifact
+      - run: cargo generate-lockfile
+      - uses: actions/upload-artifact@v2
+        with:
+          path: Cargo.lock
+      - name: Decrypt test keys
+        run: openssl aes-256-cbc -d -K ${{ secrets.OPENSSL_KEY }} -iv ${{ secrets.OPENSSL_IV }} -in tests/testkeys/iak-dev.pem.enc -out tests/testkeys/iak-dev.pem
+      - run: cargo test --features beta
+        env:
+          IRONCORE_ENV: dev
+      - name: Post to Slack on failure
+        if: failure()
+        run: |
+          curl -L -X POST '${{ secrets.SLACK_WEBHOOK }}' \
+          -F "payload={\"text\": \"Failed a run of <$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID|$GITHUB_REPOSITORY>.\"}"

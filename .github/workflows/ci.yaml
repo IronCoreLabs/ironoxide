@@ -5,6 +5,8 @@ on:
     branches:
       - main
   pull_request:
+  schedule:
+    - cron: "0 14 * * 1" # Mondays at 2pm UTC
 
 jobs:
   cargo-test:
@@ -31,6 +33,9 @@ jobs:
             features: tls-rustls --no-default-features
           - os: ubuntu-18.04
             features: tls-vendored-openssl --no-default-features
+          - os: ubuntu-18.04
+            toolchain: beta
+            features: default
           # MSRV
           - os: ubuntu-18.04
             toolchain: 1.41.1
@@ -66,6 +71,11 @@ jobs:
           path: Cargo.lock
       - name: Cargo test
         run: cargo test --features ${{ matrix.features }}
+      - name: Post to Slack on failure of scheduled run
+        if: failure() && github.event_name == 'schedule'
+        run: |
+          curl -L -X POST '${{ secrets.SLACK_WEBHOOK }}' \
+          -F "payload={\"text\": \"Failed a run of <$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID|$GITHUB_REPOSITORY>.\"}"
 
   cargo-build:
     runs-on: ${{ matrix.os }}
@@ -108,6 +118,11 @@ jobs:
           use-cross: true
           command: build
           args: --target ${{ matrix.target }} --features "beta blocking tls-rustls" --no-default-features
+      - name: Post to Slack on failure of scheduled run
+        if: failure() && github.event_name == 'schedule'
+        run: |
+          curl -L -X POST '${{ secrets.SLACK_WEBHOOK }}' \
+          -F "payload={\"text\": \"Failed a run of <$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID|$GITHUB_REPOSITORY>.\"}"
 
   format:
     runs-on: ubuntu-18.04
