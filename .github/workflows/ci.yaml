@@ -68,7 +68,7 @@ jobs:
           path: Cargo.lock
       - name: Cargo test
         run: cargo test --features ${{ matrix.features }}
-      - name: Post to Slack on failure in main
+      - name: Post to Slack on failure of scheduled run
         if: failure() && github.event_name == 'schedule'
         run: |
           curl -L -X POST '${{ secrets.SLACK_WEBHOOK }}' \
@@ -115,7 +115,7 @@ jobs:
           use-cross: true
           command: build
           args: --target ${{ matrix.target }} --features "beta blocking tls-rustls" --no-default-features
-      - name: Post to Slack on failure in main
+      - name: Post to Slack on failure of scheduled run
         if: failure() && github.event_name == 'schedule'
         run: |
           curl -L -X POST '${{ secrets.SLACK_WEBHOOK }}' \
