@@ -33,6 +33,9 @@ jobs:
             features: tls-rustls --no-default-features
           - os: ubuntu-18.04
             features: tls-vendored-openssl --no-default-features
+          - os: ubuntu-18.04
+            toolchain: beta
+            features: default
           # MSRV
           - os: ubuntu-18.04
             toolchain: 1.41.1
