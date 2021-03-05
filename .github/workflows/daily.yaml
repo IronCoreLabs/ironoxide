@@ -29,7 +29,7 @@ jobs:
           path: Cargo.lock
       - name: Decrypt test keys
         run: openssl aes-256-cbc -d -K ${{ secrets.OPENSSL_KEY }} -iv ${{ secrets.OPENSSL_IV }} -in tests/testkeys/iak-dev.pem.enc -out tests/testkeys/iak-dev.pem
-      - run: cargo test --all-features
+      - run: cargo test --features beta
         env:
           IRONCORE_ENV: dev
       - name: Post to Slack on failure
