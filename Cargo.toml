@@ -27,8 +27,6 @@ lazy_static = "1.4"
 log = "0.4"
 percent-encoding = "2.1"
 protobuf = { version = "2.20", features = [ "with-bytes" ] }
-# default features force a dependency on openssl-sys, which we want to avoid for embedded applications
-publicsuffix = { version = "1.5", default-features = false }
 quick-error = "2"
 rand = "0.7"
 rand_chacha = "0.2.2"

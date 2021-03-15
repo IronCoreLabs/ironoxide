@@ -362,14 +362,11 @@ impl IronCoreRequest {
         error_code: RequestErrorCode,
         auth_b: AuthV2Builder<'_>,
     ) -> Result<B, IronOxideErr> {
-        use publicsuffix::IntoUrl;
-
         let (mut req, body_bytes) = Result::<_, IronOxideErr>::Ok({
             // build up a request...
             let mut req = Request::new(
                 Method::POST,
-                format!("{}{}", self.base_url(), relative_url)
-                    .into_url()
+                url::Url::parse(&format!("{}{}", self.base_url(), relative_url))
                     .map_err(|e| IronOxideErr::from((e, error_code)))?,
             );
             *req.body_mut() = Some(body.to_vec().into());
@@ -564,13 +561,11 @@ impl IronCoreRequest {
         B: DeserializeOwned,
         F: FnOnce(&Bytes) -> Result<B, IronOxideErr>,
     {
-        use publicsuffix::IntoUrl;
         let (mut req, body_bytes) = Result::<_, IronOxideErr>::Ok({
             // build up a request...
             let mut req = Request::new(
                 method,
-                format!("{}{}", self.base_url(), relative_url)
-                    .into_url()
+                url::Url::parse(&format!("{}{}", self.base_url(), relative_url))
                     .map_err(|e| IronOxideErr::from((e, error_code)))?,
             );
 
@@ -824,16 +819,6 @@ impl From<(reqwest::Error, RequestErrorCode)> for IronOxideErr {
 
 impl From<(url::ParseError, RequestErrorCode)> for IronOxideErr {
     fn from((e, code): (url::ParseError, RequestErrorCode)) -> Self {
-        IronOxideErr::RequestError {
-            message: e.to_string(),
-            code,
-            http_status: None,
-        }
-    }
-}
-
-impl From<(publicsuffix::errors::Error, RequestErrorCode)> for IronOxideErr {
-    fn from((e, code): (publicsuffix::errors::Error, RequestErrorCode)) -> Self {
         IronOxideErr::RequestError {
             message: e.to_string(),
             code,
@@ -1355,14 +1340,10 @@ mod tests {
 
     #[test]
     fn query_params_encoded_correctly() {
-        use publicsuffix::IntoUrl;
-
         let icl_req = IronCoreRequest::new("https://example.com");
         let mut req = Request::new(
             Method::GET,
-            format!("{}/{}", icl_req.base_url(), "users")
-                .into_url()
-                .unwrap(),
+            url::Url::parse(&format!("{}/{}", icl_req.base_url(), "users")).unwrap(),
         );
         let q = "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
         IronCoreRequest::req_add_query(&mut req, &[("id".to_string(), url_encode(q))]);
@@ -1373,14 +1354,10 @@ mod tests {
 
     #[test]
     fn empty_query_params_encoded_correctly() {
-        use publicsuffix::IntoUrl;
-
         let icl_req = IronCoreRequest::new("https://example.com");
         let mut req = Request::new(
             Method::GET,
-            format!("{}/{}", icl_req.base_url(), "policies")
-                .into_url()
-                .unwrap(),
+            url::Url::parse(&format!("{}/{}", icl_req.base_url(), "policies")).unwrap(),
         );
         IronCoreRequest::req_add_query(&mut req, &[]);
         assert_eq!(req.url().query(), None);
