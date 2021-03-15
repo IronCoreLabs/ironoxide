@@ -3,6 +3,7 @@
 ## 0.25.2 (Unreleased)
 
 - [[#225](https://github.com/IronCoreLabs/ironoxide/pull/225)] Fix bug causing requests with empty policies to fail.
+- [[#232](https://github.com/IronCoreLabs/ironoxide/pull/232)] Remove dependency on publicsuffix.
 
 ## 0.25.1
 
