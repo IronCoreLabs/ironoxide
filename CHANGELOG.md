@@ -1,7 +1,8 @@
 # Changelog
 
-## 0.25.2 (Unreleased)
+## 0.25.2
 
+- [[#222](https://github.com/IronCoreLabs/ironoxide/pull/222)] Loosen version requirements for dependencies.
 - [[#225](https://github.com/IronCoreLabs/ironoxide/pull/225)] Fix bug causing requests with empty policies to fail.
 - [[#232](https://github.com/IronCoreLabs/ironoxide/pull/232)] Remove dependency on publicsuffix.
 
