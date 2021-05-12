@@ -112,7 +112,7 @@ jobs:
       #     key: ${{ github.workflow }}-rust-arch-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
       #     restore-keys: |
       #       ${{ github.workflow }}-rust-arch-${{ matrix.target }}-
-      - uses: actions-rs/cargo@v1
+      - uses: actions-rs/cargo@v1.0.3
         with:
           # `cross` will work on all our targets except aarch64-apple-ios. We can still use `cross` everywhere, because it transparently falls back to `cargo`.
           use-cross: true
