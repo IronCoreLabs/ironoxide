@@ -43,7 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - if: matrix.toolchain != ''
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@v1.0.7
         with:
           toolchain: ${{ matrix.toolchain }}
       # This was disabled because of intermittent failures after a cache hit in macos-10.15
@@ -95,7 +95,7 @@ jobs:
             os: macos-10.15
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions-rs/toolchain@v1.0.7
         with:
           toolchain: stable
           target: ${{ matrix.target }}
@@ -128,7 +128,7 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions-rs/toolchain@v1.0.7
         with:
           profile: minimal
           toolchain: stable
