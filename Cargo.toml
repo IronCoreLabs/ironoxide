@@ -29,7 +29,7 @@ percent-encoding = "2.1"
 protobuf = { version = "2.20", features = [ "with-bytes" ] }
 quick-error = "2"
 rand = "0.7"
-rand_chacha = "0.2.2"
+rand_chacha = "0.3.1"
 recrypt = "0.12"
 regex = "1.4"
 reqwest = { version = "0.11", features = [ "json" ], default-features = false }
