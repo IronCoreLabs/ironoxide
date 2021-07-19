@@ -573,23 +573,17 @@ async fn doc_create_and_adjust_name() -> Result<(), IronOxideErr> {
     Ok(())
 }
 
-async fn split_future_results<T, E>(
-    (mut good, mut bad): (Vec<T>, Vec<E>),
-    result: Result<T, E>,
-) -> (Vec<T>, Vec<E>) {
-    match result {
-        Ok(dc) => good.push(dc),
-        Err(msg) => bad.push(msg),
-    }
-    (good, bad)
-}
-
 #[tokio::test]
 async fn doc_encrypt_decrypt_roundtrip() -> Result<(), IronOxideErr> {
-    let sdk = initialize_sdk().await?;
+    let (id, sdk) = init_sdk_get_user().await;
+    let sdk2 = initialize_sdk().await?;
+    let group_opts = GroupCreateOpts::new(None, None, true, true, None, vec![], vec![id], false);
+    let group = sdk2.group_create(&group_opts).await?;
 
     let doc = [43u8; 64];
-    let encrypted_doc = sdk.document_encrypt(&doc, &Default::default()).await?;
+    let doc_opts =
+        DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![group.id().into()]);
+    let encrypted_doc = sdk2.document_encrypt(&doc, &doc_opts).await?;
 
     let decrypt_max_concurrent = 50;
     let mut futures = stream::repeat(encrypted_doc.encrypted_data())
@@ -608,7 +602,6 @@ async fn doc_encrypt_decrypt_roundtrip() -> Result<(), IronOxideErr> {
     println!("{} succeeded.", good.len());
     println!("{} failed", bad.len());
 
-    // assert_eq!(doc.to_vec(), decrypted.decrypted_data());
     Ok(())
 }
 
