@@ -2,7 +2,10 @@ mod common;
 
 use crate::common::init_sdk_with_config;
 use common::{create_id_all_classes, create_second_user, init_sdk_get_user, initialize_sdk};
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{
+    stream::{self},
+    StreamExt,
+};
 use galvanic_assert::{
     matchers::{collection::contains_in_any_order, eq},
     *,
@@ -587,18 +590,21 @@ async fn doc_encrypt_decrypt_roundtrip() -> Result<(), IronOxideErr> {
 
     let doc = [43u8; 64];
     let encrypted_doc = sdk.document_encrypt(&doc, &Default::default()).await?;
-    let encrypted_doc2 = sdk.document_encrypt(&doc, &Default::default()).await?;
 
-    let decrypt_iter1 = (0..200).map(|_| sdk.document_decrypt(&encrypted_doc.encrypted_data()));
+    let decrypt_max_concurrent = 50;
+    let mut futures = stream::repeat(encrypted_doc.encrypted_data())
+        .map(|data| sdk.document_decrypt(data))
+        .take(1000)
+        .buffer_unordered(decrypt_max_concurrent);
 
-    let decrypt_iter2 = (0..200).map(|_| sdk.document_decrypt(&encrypted_doc2.encrypted_data()));
+    let (mut good, mut bad) = (vec![], vec![]);
+    while let Some(result) = futures.next().await {
+        match result {
+            Ok(dc) => good.push(dc),
+            Err(msg) => bad.push(msg),
+        }
+    }
 
-    let final_futures = decrypt_iter1
-        .chain(decrypt_iter2)
-        .collect::<FuturesUnordered<_>>()
-        .fold((Vec::new(), Vec::new()), split_future_results);
-
-    let (good, bad) = final_futures.await;
     println!("{} succeeded.", good.len());
     println!("{} failed", bad.len());
 
