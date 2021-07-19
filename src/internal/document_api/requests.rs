@@ -512,7 +512,8 @@ mod tests {
         let result = serde_json::to_string(&item).unwrap();
         assert!(
             result.contains("\"fromGroup\""),
-            format!("{} should contain fromGroup", result)
+            "{} should contain fromGroup",
+            result
         );
         let de_result = serde_json::from_str(&result).unwrap();
         assert_eq!(item, de_result)

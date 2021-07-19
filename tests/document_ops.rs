@@ -12,7 +12,10 @@ use galvanic_assert::{
 };
 use ironoxide::prelude::*;
 use itertools::EitherOrBoth;
-use std::convert::{TryFrom, TryInto};
+use std::{
+    convert::{TryFrom, TryInto},
+    thread::sleep,
+};
 
 #[tokio::test]
 async fn doc_list() -> Result<(), IronOxideErr> {
@@ -573,7 +576,7 @@ async fn doc_create_and_adjust_name() -> Result<(), IronOxideErr> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 6)]
 async fn doc_encrypt_decrypt_roundtrip() -> Result<(), IronOxideErr> {
     let (id, sdk) = init_sdk_get_user().await;
     let sdk2 = initialize_sdk().await?;
@@ -585,7 +588,11 @@ async fn doc_encrypt_decrypt_roundtrip() -> Result<(), IronOxideErr> {
         DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![group.id().into()]);
     let encrypted_doc = sdk2.document_encrypt(&doc, &doc_opts).await?;
 
-    let decrypt_max_concurrent = 50;
+    // let decrypt_max_concurrent = 25;
+    let decrypt_max_concurrent = std::env::var("CONCURRENT")
+        .ok()
+        .and_then(|var| var.parse().ok())
+        .unwrap_or(50);
     let mut futures = stream::repeat(encrypted_doc.encrypted_data())
         .map(|data| sdk.document_decrypt(data))
         .take(1000)
@@ -603,6 +610,25 @@ async fn doc_encrypt_decrypt_roundtrip() -> Result<(), IronOxideErr> {
     println!("{} failed", bad.len());
 
     Ok(())
+}
+
+async fn sleeper(number: u64, n: u64) -> u64 {
+    sleep(std::time::Duration::from_millis(n * 100));
+    number
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn foo() -> () {
+    let concurrent = std::env::var("CONCURRENT")
+        .ok()
+        .and_then(|var| var.parse().ok())
+        .unwrap_or(3);
+    let mut futures = stream::iter(1..10)
+        .map(|i| sleeper(10 - i, i))
+        .buffer_unordered(concurrent);
+    while let Some(result) = futures.next().await {
+        println!("{:?}", result);
+    }
 }
 
 #[tokio::test]

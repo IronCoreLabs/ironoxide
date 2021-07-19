@@ -732,7 +732,7 @@ fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
         transform_key: &'a TransformKey,
         jwt: &'a Jwt,
         user_public_key: &'a PublicKey,
-    };
+    }
 
     impl<'a> recrypt::api::Hashable for SignedMessage<'a> {
         fn to_bytes(&self) -> Vec<u8> {

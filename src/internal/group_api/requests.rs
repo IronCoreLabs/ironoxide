@@ -522,11 +522,13 @@ mod tests {
         let result = serde_json::to_string(&item).unwrap();
         assert!(
             result.contains("\"admin\""),
-            format!("{} should contain admin", result)
+            "{} should contain admin",
+            result
         );
         assert!(
             result.contains("\"member\""),
-            format!("{} should contain member", result)
+            "{} should contain member",
+            result
         );
         let de_result = serde_json::from_str(&result).unwrap();
         assert_eq!(item, de_result)

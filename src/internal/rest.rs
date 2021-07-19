@@ -33,6 +33,7 @@ lazy_static! {
         headers.append("Content-Type", "application/octet-stream".parse().unwrap());
         headers
     };
+    static ref CLIENT: Client = Client::builder().http2_prior_knowledge().build().unwrap();
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -525,8 +526,7 @@ impl IronCoreRequest {
         Q: Serialize + ?Sized,
         F: FnOnce(&Bytes) -> Result<B, IronOxideErr>,
     {
-        let client = Client::new();
-        let mut builder = client.request(
+        let mut builder = CLIENT.request(
             method,
             format!("{}{}", self.base_url, relative_url).as_str(),
         );
@@ -635,8 +635,7 @@ impl IronCoreRequest {
         B: DeserializeOwned,
         F: FnOnce(&Bytes) -> Result<B, IronOxideErr>,
     {
-        let client = Client::new();
-        let server_res = client.execute(req).await;
+        let server_res = CLIENT.execute(req).await;
         let res = server_res.map_err(|e| (e, error_code))?;
         //Parse the body content into bytes
         let status = res.status();
