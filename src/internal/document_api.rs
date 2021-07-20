@@ -1066,7 +1066,7 @@ pub async fn decrypt_document<CR: rand::CryptoRng + rand::RngCore + Send + Sync 
     let device_private_key = device_private_key.clone();
     tokio::task::spawn_blocking(move || {
         let sym_key = transform::decrypt_as_symmetric_key(
-            &(*recrypt.clone()),
+            &recrypt,
             doc_meta.0.encrypted_symmetric_key.clone().try_into()?,
             device_private_key.recrypt_key(),
         )?;
