@@ -418,7 +418,7 @@ impl DocumentOps for crate::IronOxide {
         add_optional_timeout(
             document_api::decrypt_document(
                 self.device.auth(),
-                &self.recrypt,
+                self.recrypt.clone(),
                 self.device.device_private_key(),
                 encrypted_document,
             ),

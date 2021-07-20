@@ -195,6 +195,9 @@ quick_error! {
         OperationTimedOut{operation: SdkOperation, duration: std::time::Duration} {
             display("Operation {} timed out after {}ms", operation, duration.as_millis())
         }
+        JoinError(err: tokio::task::JoinError) {
+            source(err)
+        }
     }
 }
 
@@ -227,6 +230,12 @@ impl From<ProtobufError> for IronOxideErr {
 impl From<recrypt::nonemptyvec::NonEmptyVecError> for IronOxideErr {
     fn from(_: recrypt::nonemptyvec::NonEmptyVecError) -> Self {
         IronOxideErr::MissingTransformBlocks
+    }
+}
+
+impl From<tokio::task::JoinError> for IronOxideErr {
+    fn from(e: tokio::task::JoinError) -> Self {
+        IronOxideErr::JoinError(e)
     }
 }
 
