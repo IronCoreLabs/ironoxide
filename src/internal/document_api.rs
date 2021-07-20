@@ -1055,31 +1055,35 @@ pub async fn document_update_bytes<
 
 /// Decrypt the provided document with the provided device private key. Return metadata about the document
 /// that was decrypted along with its decrypted bytes.
-pub async fn decrypt_document<CR: rand::CryptoRng + rand::RngCore>(
+pub async fn decrypt_document<CR: rand::CryptoRng + rand::RngCore + Send + Sync + 'static>(
     auth: &RequestAuth,
-    recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
+    recrypt: std::sync::Arc<Recrypt<Sha256, Ed25519, RandomBytes<CR>>>,
     device_private_key: &PrivateKey,
     encrypted_doc: &[u8],
 ) -> Result<DocumentDecryptResult, IronOxideErr> {
     let (doc_header, mut enc_doc) = parse_document_parts(encrypted_doc)?;
     let doc_meta = document_get_metadata(auth, &doc_header.document_id).await?;
-    let sym_key = transform::decrypt_as_symmetric_key(
-        recrypt,
-        doc_meta.0.encrypted_symmetric_key.clone().try_into()?,
-        device_private_key.recrypt_key(),
-    )?;
+    let device_private_key = device_private_key.clone();
+    tokio::task::spawn_blocking(move || {
+        let sym_key = transform::decrypt_as_symmetric_key(
+            &recrypt,
+            doc_meta.0.encrypted_symmetric_key.clone().try_into()?,
+            device_private_key.recrypt_key(),
+        )?;
 
-    Ok(
-        aes::decrypt(&mut enc_doc, *sym_key.bytes()).map(move |decrypted_doc| {
-            DocumentDecryptResult {
-                id: doc_meta.0.id,
-                name: doc_meta.0.name,
-                created: doc_meta.0.created,
-                updated: doc_meta.0.updated,
-                decrypted_data: decrypted_doc.to_vec(),
-            }
-        })?,
-    )
+        Ok(
+            aes::decrypt(&mut enc_doc, *sym_key.bytes()).map(move |decrypted_doc| {
+                DocumentDecryptResult {
+                    id: doc_meta.0.id,
+                    name: doc_meta.0.name,
+                    created: doc_meta.0.created,
+                    updated: doc_meta.0.updated,
+                    decrypted_data: decrypted_doc.to_vec(),
+                }
+            })?,
+        )
+    })
+    .await?
 }
 
 /// Decrypt the unmanaged document. The caller must provide both the encrypted data as well as the

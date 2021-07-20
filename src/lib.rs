@@ -192,7 +192,11 @@ use rand::{
 };
 use rand_chacha::ChaChaCore;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
-use std::{convert::TryInto, fmt, sync::Mutex};
+use std::{
+    convert::TryInto,
+    fmt,
+    sync::{Arc, Mutex},
+};
 use vec1::Vec1;
 
 /// A `Result` alias where the Err case is `IronOxideErr`
@@ -259,7 +263,7 @@ pub mod config {
 /// performed in the context of the account provided.
 pub struct IronOxide {
     pub(crate) config: IronOxideConfig,
-    pub(crate) recrypt: Recrypt<Sha256, Ed25519, RandomBytes<recrypt::api::DefaultRng>>,
+    pub(crate) recrypt: Arc<Recrypt<Sha256, Ed25519, RandomBytes<recrypt::api::DefaultRng>>>,
     /// Master public key for the user identified by `account_id`
     pub(crate) user_master_pub_key: PublicKey,
     pub(crate) device: DeviceContext,
@@ -431,7 +435,7 @@ impl IronOxide {
     ) -> IronOxide {
         IronOxide {
             config: config.clone(),
-            recrypt: Recrypt::new(),
+            recrypt: Arc::new(Recrypt::new()),
             device: device_context.clone(),
             user_master_pub_key: curr_user.user_public_key().to_owned(),
             rng: Mutex::new(ReseedingRng::new(

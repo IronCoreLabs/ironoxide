@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.26.0
+
+- [[#243](https://github.com/IronCoreLabs/ironoxide/pull/243)] Add `#[non_exhaustive]` to IronOxideErr.
+- [[#243](https://github.com/IronCoreLabs/ironoxide/pull/243)] Increase throughput of document decrypt calls.
+
 ## 0.25.2
 
 - [[#222](https://github.com/IronCoreLabs/ironoxide/pull/222)] Loosen version requirements for dependencies.
