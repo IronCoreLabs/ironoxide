@@ -354,7 +354,7 @@ pub async fn initialize(
 /// Finds the groups that the caller is an admin of that need rotation and
 /// forms an InitAndRotationCheck from the user/groups needing rotation.
 fn check_groups_and_collect_rotation<T>(
-    groups: &Vec<internal::group_api::GroupMetaResult>,
+    groups: &[internal::group_api::GroupMetaResult],
     user_needs_rotation: bool,
     account_id: UserId,
     ironoxide: T,

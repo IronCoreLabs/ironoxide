@@ -1,14 +1,15 @@
 use anyhow::Result;
 use ironoxide::prelude::*;
 use std::convert::TryFrom;
-use std::{fs::File, path::PathBuf};
+use std::fs::File;
+use std::path::Path;
 
 /// This is a very basic example of encrypting to a user_id and a group_id.
 /// The group that's encrypted to is created each run, but the user is just the current user.
 #[tokio::main]
 async fn main() -> Result<()> {
     let (device_context, sdk) =
-        initialize_sdk_from_file(&"examples/example-ironoxide-device.json".into()).await?;
+        initialize_sdk_from_file(Path::new("examples/example-ironoxide-device.json")).await?;
     encrypt_to_group(&sdk).await?;
     encrypt_to_user(&sdk, device_context.account_id()).await?;
     encrypt_with_policy(&sdk).await?;
@@ -67,7 +68,7 @@ async fn encrypt_with_policy(sdk: &IronOxide) -> Result<DocumentId> {
 
 /// Load the device context and use it to initialize ironoxide.
 /// If the file cannot be found, this function will panic.
-async fn initialize_sdk_from_file(device_path: &PathBuf) -> Result<(DeviceContext, IronOxide)> {
+async fn initialize_sdk_from_file(device_path: &Path) -> Result<(DeviceContext, IronOxide)> {
     if device_path.is_file() {
         let device_context_file = File::open(&device_path)?;
         let device_context: DeviceContext = serde_json::from_reader(device_context_file)?;

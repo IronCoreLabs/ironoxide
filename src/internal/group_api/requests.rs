@@ -195,7 +195,7 @@ pub mod group_list {
     //List a specific set of groups given a list of group IDs
     pub async fn group_limited_list_request(
         auth: &RequestAuth,
-        groups: &Vec<GroupId>,
+        groups: &[GroupId],
     ) -> Result<GroupListResponse, IronOxideErr> {
         let group_ids: Vec<&str> = groups.iter().map(GroupId::id).collect();
         auth.request
@@ -317,8 +317,8 @@ pub mod group_update_private_key {
                     group_key_id
                 ),
                 &GroupUpdatePrivateKeyRequest {
-                    augmentation_factor,
                     admins,
+                    augmentation_factor,
                 },
                 RequestErrorCode::GroupKeyUpdate,
                 AuthV2Builder::new(auth, Utc::now()),
@@ -462,7 +462,7 @@ pub mod group_remove_entity {
     pub async fn remove_entity_request(
         auth: &RequestAuth,
         group_id: &GroupId,
-        user_ids: &Vec<UserId>,
+        user_ids: &[UserId],
         entity_type: GroupEntity,
     ) -> Result<GroupUserEditResponse, IronOxideErr> {
         let removed_users = user_ids
@@ -522,11 +522,13 @@ mod tests {
         let result = serde_json::to_string(&item).unwrap();
         assert!(
             result.contains("\"admin\""),
-            format!("{} should contain admin", result)
+            "{} should contain admin",
+            result
         );
         assert!(
             result.contains("\"member\""),
-            format!("{} should contain member", result)
+            "{} should contain member",
+            result
         );
         let de_result = serde_json::from_str(&result).unwrap();
         assert_eq!(item, de_result)

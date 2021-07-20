@@ -45,7 +45,7 @@ use std::{
     convert::TryFrom,
     fs::File,
     iter::FromIterator,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -177,7 +177,7 @@ async fn add_customers(
             .read_line(&mut name)
             .expect("error: couldn't read input");
         name = name.trim().to_string();
-        if &name == "" {
+        if name.is_empty() {
             break;
         } else {
             let mut email = String::new();
@@ -189,8 +189,8 @@ async fn add_customers(
 
             let cust = Customer {
                 id: next_id,
-                name: name,
-                email: email,
+                name,
+                email,
             };
             save_customer(&cust, &group_id, &sdk, &blind_index).await?;
         }
@@ -294,7 +294,7 @@ async fn save_customer_with_2_indices(
 }
 
 // Load the device context and use it to initialize ironoxide
-async fn initialize_sdk_from_file(device_path: &PathBuf) -> Result<IronOxide> {
+async fn initialize_sdk_from_file(device_path: &Path) -> Result<IronOxide> {
     if device_path.is_file() {
         let device_context_file = File::open(&device_path)?;
         let device_context: DeviceContext = serde_json::from_reader(device_context_file)?;
@@ -311,7 +311,7 @@ async fn initialize_sdk_from_file(device_path: &PathBuf) -> Result<IronOxide> {
 // Add the program start time to the end of the specified string to
 // form a unique id string, then create a GroupId from it
 // start-snippet{createGroupId}
-fn create_group_id(id_str: &str, start_time: &String) -> Result<ironoxide::group::GroupId> {
+fn create_group_id(id_str: &str, start_time: &str) -> Result<ironoxide::group::GroupId> {
     let gid = id_str.to_owned() + start_time;
     Ok(ironoxide::group::GroupId::try_from(gid)?)
 }
@@ -349,7 +349,7 @@ async fn create_group(
 async fn filter_customer(
     sdk: &IronOxide,
     cust: &EncryptedCustomer,
-    name_parts: &Vec<&str>,
+    name_parts: &[&str],
 ) -> Result<Option<String>> {
     let dec_result = sdk
         .document_decrypt_unmanaged(&cust.enc_name, &cust.name_keys)

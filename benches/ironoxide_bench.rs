@@ -24,24 +24,22 @@ lazy_static! {
 /// Setup for environment
 async fn setup_env() -> IronOxide {
     let filename = format!("benches/data/{}-device1.json", *ENV);
-    let device_string = std::fs::read_to_string(filename.clone()).expect(
-        format!(
+    let device_string = std::fs::read_to_string(filename.clone()).unwrap_or_else(|_| {
+        panic!(
             "Device missing for {}. Did you decrypt the .iron file?",
             *ENV
         )
-        .as_str(),
-    );
+    });
     let d: DeviceContext = serde_json::from_str(&device_string)
-        .expect(format!("Invalid DeviceContext in {}.", filename).as_str());
+        .unwrap_or_else(|_| panic!("Invalid DeviceContext in {}.", filename));
     ironoxide::initialize(&d, &IronOxideConfig::default())
         .await
-        .expect(
-            format!(
+        .unwrap_or_else(|_| {
+            panic!(
                 "Failed to initialize IronOxide using the device in {}.",
                 filename
             )
-            .as_str(),
-        )
+        })
 }
 
 fn criterion_benchmark(c: &mut Criterion) {

@@ -125,7 +125,7 @@ async fn group_rotate_private_key() -> Result<(), IronOxideErr> {
     let group_rotate = creator_sdk
         .group_rotate_private_key(group_create.id())
         .await?;
-    assert_eq!(group_rotate.needs_rotation(), false);
+    assert!(!group_rotate.needs_rotation());
 
     creator_sdk
         .group_add_members(group_create.id(), &[member])

@@ -8,7 +8,7 @@ use uuid::Uuid;
 #[tokio::test]
 async fn user_verify_non_existing_user() -> Result<(), IronOxideErr> {
     let option_result = IronOxide::user_verify(&gen_jwt(None).0, None).await?;
-    assert_eq!(true, option_result.is_none());
+    assert!(option_result.is_none());
     Ok(())
 }
 
@@ -24,7 +24,7 @@ async fn user_verify_existing_user() -> Result<(), IronOxideErr> {
     .await?;
 
     let result = IronOxide::user_verify(&gen_jwt(Some(account_id.id())).0, None).await?;
-    assert_eq!(true, result.is_some());
+    assert!(result.is_some());
     let verify_resp = result.unwrap();
 
     assert_eq!(&account_id, verify_resp.account_id());
@@ -82,7 +82,7 @@ async fn user_private_key_rotation() -> Result<(), IronOxideErr> {
     let io = initialize_sdk().await?;
 
     let result1 = io.user_rotate_private_key(common::USER_PASSWORD).await?;
-    assert_eq!(result1.needs_rotation(), false);
+    assert!(!result1.needs_rotation());
 
     let result2 = io.user_rotate_private_key(common::USER_PASSWORD).await?;
     assert_ne!(
@@ -103,7 +103,7 @@ async fn sdk_init_with_private_key_rotation() -> Result<(), IronOxideErr> {
         InitAndRotationCheck::RotationNeeded(io, rotation_check) => {
             assert_eq!(rotation_check.user_rotation_needed(), Some(&user_id));
             let rotation_result = io.user_rotate_private_key(common::USER_PASSWORD).await?;
-            assert_eq!(rotation_result.needs_rotation(), false);
+            assert!(!rotation_result.needs_rotation());
             io
         }
     };

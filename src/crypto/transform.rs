@@ -79,11 +79,10 @@ pub fn encrypt_to_with_key<T, CR: rand::CryptoRng + rand::RngCore>(
 }
 impl From<(WithKey<UserOrGroup>, RecryptErr)> for DocAccessEditErr {
     fn from((user_or_group, err): (WithKey<UserOrGroup>, RecryptErr)) -> Self {
-        match user_or_group {
-            WithKey { id, .. } => DocAccessEditErr::new(
-                id,
-                format!("Access grant failed with error {}", err.to_string()),
-            ),
-        }
+        let WithKey { id, .. } = user_or_group;
+        DocAccessEditErr::new(
+            id,
+            format!("Access grant failed with error {}", err.to_string()),
+        )
     }
 }

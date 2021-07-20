@@ -110,7 +110,7 @@ impl BlockingIronOxide {
     pub fn document_grant_access(
         &self,
         id: &DocumentId,
-        grant_list: &Vec<UserOrGroup>,
+        grant_list: &[UserOrGroup],
     ) -> Result<DocumentAccessResult> {
         self.runtime
             .block_on(self.ironoxide.document_grant_access(id, grant_list))
@@ -119,7 +119,7 @@ impl BlockingIronOxide {
     pub fn document_revoke_access(
         &self,
         id: &DocumentId,
-        revoke_list: &Vec<UserOrGroup>,
+        revoke_list: &[UserOrGroup],
     ) -> Result<DocumentAccessResult> {
         self.runtime
             .block_on(self.ironoxide.document_revoke_access(id, revoke_list))

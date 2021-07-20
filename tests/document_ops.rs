@@ -33,7 +33,8 @@ async fn doc_roundtrip_empty_data() -> Result<(), IronOxideErr> {
     let doc_result = sdk.document_encrypt(&doc, &Default::default()).await?;
     let decrypted_result = sdk.document_decrypt(doc_result.encrypted_data()).await?;
 
-    Ok(assert_eq!(&doc, decrypted_result.decrypted_data()))
+    assert_eq!(&doc, decrypted_result.decrypted_data());
+    Ok(())
 }
 
 #[tokio::test]

@@ -709,7 +709,7 @@ pub(crate) fn take_lock<T>(m: &Mutex<T>) -> MutexGuard<T> {
     m.lock().unwrap_or_else(|e| {
         let error = format!("Error when acquiring lock: {}", e);
         error!("{}", error);
-        panic!(error);
+        panic!("{}", error);
     })
 }
 
@@ -1008,7 +1008,7 @@ pub(crate) mod tests {
         let p1 = gen_priv_key();
         let p2 = gen_priv_key();
 
-        let p3 = p1.clone().0.augment_minus(&p2.clone().0);
+        let p3 = p1.0.augment_minus(&p2.0);
 
         let aug_p = p1.augment_user(&AugmentationFactor(p2)).unwrap();
         assert_eq!(aug_p.0, p3)
