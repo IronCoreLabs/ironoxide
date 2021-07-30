@@ -19,7 +19,7 @@ use recrypt::api::{
     SigningKeypair as RecryptSigningKeypair,
 };
 use regex::Regex;
-use reqwest::Method;
+use reqwest::{Client, Method};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     convert::{TryFrom, TryInto},
@@ -719,7 +719,7 @@ pub(crate) fn take_lock<T>(m: &Mutex<T>) -> MutexGuard<T> {
     m.lock().unwrap_or_else(|e| {
         let error = format!("Error when acquiring lock: {}", e);
         error!("{}", error);
-        panic!(error);
+        panic!("{}", error);
     })
 }
 
@@ -1214,7 +1214,7 @@ pub(crate) mod tests {
         let de: DeviceContext = serde_json::from_str(de_json).unwrap();
         let user_id = UserId::try_from("account_id")?;
         let user = create_user_result(user_id.clone(), 22, pub_key.into(), true);
-        let io = IronOxide::create(&user, &de, &Default::default());
+        let io = IronOxide::create(&user, &de, &Default::default(), Client::new());
 
         let good_group_id = GroupId::try_from("group")?;
         let gmr_vec = vec![

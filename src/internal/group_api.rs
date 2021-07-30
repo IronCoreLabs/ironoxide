@@ -17,6 +17,7 @@ use core::convert::identity;
 use futures::try_join;
 use itertools::{Either, Itertools};
 use recrypt::{api::EncryptedValue, prelude::*};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
@@ -365,10 +366,13 @@ impl GroupAccessEditResult {
 pub async fn list(
     auth: &RequestAuth,
     ids: Option<&Vec<GroupId>>,
+    client: &Client,
 ) -> Result<GroupListResult, IronOxideErr> {
     let GroupListResponse { result } = match ids {
-        Some(group_ids) => requests::group_list::group_limited_list_request(auth, group_ids).await,
-        None => requests::group_list::group_list_request(auth).await,
+        Some(group_ids) => {
+            requests::group_list::group_limited_list_request(auth, group_ids, client).await
+        }
+        None => requests::group_list::group_list_request(auth, client).await,
     }?;
     let group_list = result
         .into_iter()
@@ -383,6 +387,7 @@ pub async fn list(
 pub(crate) async fn get_group_keys(
     auth: &RequestAuth,
     groups: &Vec<GroupId>,
+    client: &Client,
 ) -> Result<(Vec<GroupId>, Vec<WithKey<GroupId>>), IronOxideErr> {
     // if there aren't any groups in the list, just return with empty results
     if groups.is_empty() {
@@ -390,7 +395,7 @@ pub(crate) async fn get_group_keys(
     }
 
     let cloned_groups: Vec<GroupId> = groups.clone();
-    let GroupListResult { result } = list(auth, Some(groups)).await?;
+    let GroupListResult { result } = list(auth, Some(groups), client).await?;
     let ids_with_keys =
         result
             .iter()
@@ -496,8 +501,9 @@ pub async fn group_create<CR: rand::CryptoRng + rand::RngCore>(
     members: Vec<UserId>,
     users_to_lookup: &Vec<UserId>,
     needs_rotation: bool,
+    client: &Client,
 ) -> Result<GroupCreateResult, IronOxideErr> {
-    let user_ids_and_keys = user_api::user_key_list(auth, users_to_lookup).await?;
+    let user_ids_and_keys = user_api::user_key_list(auth, users_to_lookup, client).await?;
     // this will occur when one of the UserIds cannot be found
     let user_ids_and_keys = check_user_mismatch(users_to_lookup, user_ids_and_keys)?;
     let (plaintext, group_priv_key, group_pub_key) = transform::gen_group_keys(recrypt)?;
@@ -556,6 +562,7 @@ pub async fn group_create<CR: rand::CryptoRng + rand::RngCore>(
         group_admins,
         maybe_group_members,
         needs_rotation,
+        client,
     )
     .await?;
 
@@ -645,15 +652,16 @@ pub async fn group_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
     auth: &RequestAuth,
     group_id: &GroupId,
     device_private_key: &PrivateKey,
+    client: &Client,
 ) -> Result<GroupUpdatePrivateKeyResult, IronOxideErr> {
-    let group_info = group_get_request(auth, group_id).await?;
+    let group_info = group_get_request(auth, group_id, client).await?;
     let encrypted_group_key = group_info
         .encrypted_private_key
         .ok_or_else(|| IronOxideErr::NotGroupAdmin(group_id.to_owned()))?;
     let admins = group_info
         .admin_ids
         .ok_or_else(|| IronOxideErr::NotGroupAdmin(group_id.to_owned()))?;
-    let found_admins = user_api::user_key_list(auth, &admins).await?;
+    let found_admins = user_api::user_key_list(auth, &admins, client).await?;
     let admin_info = check_user_mismatch(&admins, found_admins)?;
     let (aug_factor, updated_group_admins) = generate_aug_and_admins(
         recrypt,
@@ -670,6 +678,7 @@ pub async fn group_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
         group_info.current_key_id,
         request_admins,
         aug_factor,
+        client,
     )
     .await
     .map(|resp| resp.into())
@@ -679,14 +688,19 @@ pub async fn group_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
 pub async fn get_metadata(
     auth: &RequestAuth,
     id: &GroupId,
+    client: &Client,
 ) -> Result<GroupGetResult, IronOxideErr> {
-    let resp = requests::group_get::group_get_request(auth, id).await?;
+    let resp = requests::group_get::group_get_request(auth, id, client).await?;
     resp.try_into()
 }
 
 ///Delete the provided group given its ID
-pub async fn group_delete(auth: &RequestAuth, group_id: &GroupId) -> Result<GroupId, IronOxideErr> {
-    requests::group_delete::group_delete_request(auth, group_id)
+pub async fn group_delete(
+    auth: &RequestAuth,
+    group_id: &GroupId,
+    client: &Client,
+) -> Result<GroupId, IronOxideErr> {
+    requests::group_delete::group_delete_request(auth, group_id, client)
         .await
         .map(|resp| resp.id)
 }
@@ -708,9 +722,12 @@ pub async fn group_add_members<CR: rand::CryptoRng + rand::RngCore>(
     device_private_key: &PrivateKey,
     group_id: &GroupId,
     users: &Vec<UserId>,
+    client: &Client,
 ) -> Result<GroupAccessEditResult, IronOxideErr> {
-    let (group_get, (mut acc_fails, successes)) =
-        try_join!(get_metadata(auth, group_id), get_user_keys(auth, users))?;
+    let (group_get, (mut acc_fails, successes)) = try_join!(
+        get_metadata(auth, group_id, client),
+        get_user_keys(auth, users, client)
+    )?;
     //At this point the acc_fails list is just the key fetch failures. We append to it as we go.
     let encrypted_group_key = group_get
         .encrypted_private_key
@@ -748,6 +765,7 @@ pub async fn group_add_members<CR: rand::CryptoRng + rand::RngCore>(
             .map(|(user_id, pub_key, transform)| (user_id, pub_key.into(), transform.into()))
             .collect(),
         schnorr_sig,
+        client,
     )
     .await
     .map(|response| group_access_api_response_to_result(acc_fails, response))
@@ -770,9 +788,12 @@ pub async fn group_add_admins<CR: rand::CryptoRng + rand::RngCore>(
     device_private_key: &PrivateKey,
     group_id: &GroupId,
     users: &Vec<UserId>,
+    client: &Client,
 ) -> Result<GroupAccessEditResult, IronOxideErr> {
-    let (group_get, (mut acc_fails, successes)) =
-        try_join!(get_metadata(auth, group_id), get_user_keys(auth, users))?;
+    let (group_get, (mut acc_fails, successes)) = try_join!(
+        get_metadata(auth, group_id, client),
+        get_user_keys(auth, users, client)
+    )?;
     //At this point the acc_fails list is just the key fetch failures. We append to it as we go.
     let encrypted_group_key = group_get
         .encrypted_private_key
@@ -813,6 +834,7 @@ pub async fn group_add_admins<CR: rand::CryptoRng + rand::RngCore>(
         group_id,
         collect_group_admin_keys(admin_keys_to_send)?,
         schnorr_sig,
+        client,
     )
     .await
     .map(|response| group_access_api_response_to_result(acc_fails, response))
@@ -822,8 +844,9 @@ pub async fn group_add_admins<CR: rand::CryptoRng + rand::RngCore>(
 async fn get_user_keys(
     auth: &RequestAuth,
     users: &Vec<UserId>,
+    client: &Client,
 ) -> Result<(Vec<GroupAccessEditErr>, Vec<WithKey<UserId>>), IronOxideErr> {
-    let (failed_ids, succeeded_ids) = user_api::get_user_keys(auth, users).await?;
+    let (failed_ids, succeeded_ids) = user_api::get_user_keys(auth, users, client).await?;
     let failed_ids_result = failed_ids
         .into_iter()
         .map(|user| GroupAccessEditErr::new(user, "User does not exist".to_string()))
@@ -858,8 +881,9 @@ pub async fn update_group_name(
     auth: &RequestAuth,
     id: &GroupId,
     name: Option<&GroupName>,
+    client: &Client,
 ) -> Result<GroupMetaResult, IronOxideErr> {
-    let resp = requests::group_update::group_update_request(auth, id, name).await?;
+    let resp = requests::group_update::group_update_request(auth, id, name, client).await?;
     resp.try_into()
 }
 
@@ -870,11 +894,13 @@ pub async fn group_remove_entity(
     id: &GroupId,
     users: &Vec<UserId>,
     entity_type: GroupEntity,
+    client: &Client,
 ) -> Result<GroupAccessEditResult, IronOxideErr> {
     let GroupUserEditResponse {
         succeeded_ids,
         failed_ids,
-    } = requests::group_remove_entity::remove_entity_request(auth, id, users, entity_type).await?;
+    } = requests::group_remove_entity::remove_entity_request(auth, id, users, entity_type, client)
+        .await?;
     Ok(GroupAccessEditResult {
         succeeded: succeeded_ids.into_iter().map(|user| user.user_id).collect(),
         failed: failed_ids

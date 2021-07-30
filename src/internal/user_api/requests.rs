@@ -15,6 +15,7 @@ use crate::{
     },
 };
 use chrono::{DateTime, Utc};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
@@ -43,10 +44,9 @@ impl TryFrom<EncryptedPrivateKey> for EncryptedMasterKey {
 }
 
 pub mod user_verify {
+    use super::*;
     use crate::internal::user_api::UserResult;
     use std::convert::TryInto;
-
-    use super::*;
 
     #[derive(Debug, PartialEq, Deserialize)]
     #[serde(rename_all = "camelCase")]
@@ -62,12 +62,14 @@ pub mod user_verify {
     pub async fn user_verify(
         jwt: &Jwt,
         request: &IronCoreRequest,
+        client: &Client,
     ) -> Result<Option<UserVerifyResponse>, IronOxideErr> {
         request
             .get_with_empty_result_jwt_auth(
                 "users/verify?returnKeys=true",
                 RequestErrorCode::UserVerify,
                 &Authorization::JwtAuth(jwt),
+                client,
             )
             .await
     }
@@ -147,12 +149,16 @@ pub mod user_get {
         pub(in crate::internal) groups_needing_rotation: Vec<GroupId>,
     }
 
-    pub async fn get_curr_user(auth: &RequestAuth) -> Result<CurrentUserResponse, IronOxideErr> {
+    pub async fn get_curr_user(
+        auth: &RequestAuth,
+        client: &Client,
+    ) -> Result<CurrentUserResponse, IronOxideErr> {
         auth.request
             .get(
                 "users/current",
                 RequestErrorCode::UserGetCurrent,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -194,6 +200,7 @@ pub mod user_update_private_key {
         user_key_id: u64,
         new_encrypted_private_key: EncryptedPrivateKey,
         augmenting_key: AugmentationFactor,
+        client: &Client,
     ) -> Result<UserUpdatePrivateKeyResponse, IronOxideErr> {
         auth.request
             .put(
@@ -208,15 +215,15 @@ pub mod user_update_private_key {
                 },
                 RequestErrorCode::UserKeyUpdate,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
 }
 
 pub mod user_create {
-    use crate::internal::{user_api::UserCreateResult, TryInto};
-
     use super::*;
+    use crate::internal::{user_api::UserCreateResult, TryInto};
 
     #[derive(Debug, PartialEq, Deserialize)]
     #[serde(rename_all = "camelCase")]
@@ -243,6 +250,7 @@ pub mod user_create {
         encrypted_user_private_key: EncryptedPrivateKey,
         needs_rotation: bool,
         request: IronCoreRequest,
+        client: &Client,
     ) -> Result<UserCreateResponse, IronOxideErr> {
         let req_body = UserCreateReq {
             user_private_key: encrypted_user_private_key,
@@ -255,6 +263,7 @@ pub mod user_create {
                 &req_body,
                 RequestErrorCode::UserCreate,
                 &Authorization::JwtAuth(jwt),
+                client,
             )
             .await
     }
@@ -287,6 +296,7 @@ pub mod user_key_list {
     pub async fn user_key_list_request(
         auth: &RequestAuth,
         users: &Vec<UserId>,
+        client: &Client,
     ) -> Result<UserKeyListResponse, IronOxideErr> {
         let user_ids: Vec<&str> = users.iter().map(UserId::id).collect();
         if !user_ids.is_empty() {
@@ -296,6 +306,7 @@ pub mod user_key_list {
                     &[("id".into(), rest::url_encode(&user_ids.join(",")))],
                     RequestErrorCode::UserKeyList,
                     AuthV2Builder::new(auth, Utc::now()),
+                    client,
                 )
                 .await
         } else {
@@ -305,12 +316,11 @@ pub mod user_key_list {
 }
 
 pub mod device_add {
+    use super::*;
     use crate::internal::{
         rest::json::TransformKey,
         user_api::{requests::PublicKey, DeviceAdd, DeviceId, Jwt},
     };
-
-    use super::*;
 
     #[derive(Debug, Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -345,6 +355,7 @@ pub mod device_add {
         device_add: &DeviceAdd,
         name: &Option<DeviceName>,
         request: &IronCoreRequest,
+        client: &Client,
     ) -> Result<DeviceAddResponse, IronOxideErr> {
         let req_body: DeviceAddReq = DeviceAddReq {
             timestamp: device_add.signature_ts.timestamp_millis() as u64,
@@ -361,17 +372,16 @@ pub mod device_add {
                 &req_body,
                 RequestErrorCode::UserDeviceAdd,
                 &Authorization::JwtAuth(jwt),
+                client,
             )
             .await
     }
 }
 
 pub mod device_list {
-    use chrono::{DateTime, Utc};
-
-    use crate::internal::user_api::{DeviceId, DeviceName, UserDevice};
-
     use super::*;
+    use crate::internal::user_api::{DeviceId, DeviceName, UserDevice};
+    use chrono::{DateTime, Utc};
 
     #[derive(Debug, PartialEq, Deserialize)]
     #[serde(rename_all = "camelCase")]
@@ -389,12 +399,16 @@ pub mod device_list {
         pub(in crate::internal) result: Vec<DeviceListItem>,
     }
 
-    pub async fn device_list(auth: &RequestAuth) -> Result<DeviceListResponse, IronOxideErr> {
+    pub async fn device_list(
+        auth: &RequestAuth,
+        client: &Client,
+    ) -> Result<DeviceListResponse, IronOxideErr> {
         auth.request
             .get(
                 &format!("users/{}/devices", rest::url_encode(&auth.account_id().0)),
                 RequestErrorCode::UserDeviceList,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -424,6 +438,7 @@ pub mod device_delete {
     pub async fn device_delete(
         auth: &RequestAuth,
         device_id: &DeviceId,
+        client: &Client,
     ) -> Result<DeviceDeleteResponse, IronOxideErr> {
         auth.request
             .delete_with_no_body(
@@ -434,12 +449,14 @@ pub mod device_delete {
                 ),
                 RequestErrorCode::UserDeviceDelete,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
 
     pub async fn device_delete_current(
         auth: &RequestAuth,
+        client: &Client,
     ) -> Result<DeviceDeleteResponse, IronOxideErr> {
         auth.request
             .delete_with_no_body(
@@ -449,6 +466,7 @@ pub mod device_delete {
                 ),
                 RequestErrorCode::UserDeviceDelete,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }

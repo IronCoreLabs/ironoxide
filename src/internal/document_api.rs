@@ -32,6 +32,7 @@ use requests::{
     policy_get::PolicyResponse,
     DocumentMetaApiResponse,
 };
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{
     convert::{TryFrom, TryInto},
@@ -555,9 +556,12 @@ impl From<&GroupId> for UserOrGroup {
 
 /// List all documents that the current user has the ability to see. Either documents that are encrypted
 /// to them directly (owner) or documents shared to them via user (fromUser) or group (fromGroup).
-pub async fn document_list(auth: &RequestAuth) -> Result<DocumentListResult, IronOxideErr> {
+pub async fn document_list(
+    auth: &RequestAuth,
+    client: &Client,
+) -> Result<DocumentListResult, IronOxideErr> {
     let DocumentListApiResponse { result } =
-        requests::document_list::document_list_request(auth).await?;
+        requests::document_list::document_list_request(auth, client).await?;
     Ok(DocumentListResult {
         result: result.into_iter().map(DocumentListMeta).collect(),
     })
@@ -567,9 +571,10 @@ pub async fn document_list(auth: &RequestAuth) -> Result<DocumentListResult, Iro
 pub async fn document_get_metadata(
     auth: &RequestAuth,
     id: &DocumentId,
+    client: &Client,
 ) -> Result<DocumentMetadataResult, IronOxideErr> {
     Ok(DocumentMetadataResult(
-        requests::document_get::document_get_request(auth, id).await?,
+        requests::document_get::document_get_request(auth, id, client).await?,
     ))
 }
 
@@ -596,6 +601,7 @@ pub async fn encrypt_document<
     group_grants: &Vec<GroupId>,
     policy_grant: Option<&PolicyGrant>,
     policy_cache: &PolicyCache,
+    client: &Client,
 ) -> Result<DocumentEncryptResult, IronOxideErr> {
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
     let doc_id = document_id.unwrap_or_else(|| DocumentId::goo_id(rng));
@@ -614,7 +620,8 @@ pub async fn encrypt_document<
             } else {
                 None
             },
-            policy_cache
+            policy_cache,
+            client
         )
     )?;
     let r = recrypt_document(
@@ -632,6 +639,7 @@ pub async fn encrypt_document<
         doc_id,
         &document_name,
         [key_errs, encryption_errs].concat(),
+        client,
     )
     .await
 }
@@ -659,12 +667,13 @@ async fn resolve_keys_for_grants(
     policy_grant: Option<&PolicyGrant>,
     maybe_user_master_pub_key: Option<&UserMasterPublicKey>,
     policy_cache: &PolicyCache,
+    client: &Client,
 ) -> Result<(Vec<WithKey<UserOrGroup>>, Vec<DocAccessEditErr>), IronOxideErr> {
-    let get_user_keys_f = internal::user_api::get_user_keys(auth, user_grants);
-    let get_group_keys_f = internal::group_api::get_group_keys(auth, group_grants);
+    let get_user_keys_f = internal::user_api::get_user_keys(auth, user_grants, client);
+    let get_group_keys_f = internal::group_api::get_group_keys(auth, group_grants, client);
 
     let maybe_policy_grants_f =
-        policy_grant.map(|p| (p, requests::policy_get::policy_get_request(auth, p)));
+        policy_grant.map(|p| (p, requests::policy_get::policy_get_request(auth, p, client)));
 
     let policy_grants_f = async {
         if let Some((p, policy_eval_f)) = maybe_policy_grants_f {
@@ -753,6 +762,7 @@ pub async fn encrypt_document_unmanaged<R1, R2>(
     user_grants: &Vec<UserId>,
     group_grants: &Vec<GroupId>,
     policy_grant: Option<&PolicyGrant>,
+    client: &Client,
 ) -> Result<DocumentEncryptUnmanagedResult, IronOxideErr>
 where
     R1: rand::CryptoRng + rand::RngCore,
@@ -778,7 +788,8 @@ where
             } else {
                 None
             },
-            &policy_cache
+            &policy_cache,
+            client
         )
     )?;
     let r = recrypt_document(
@@ -996,12 +1007,14 @@ async fn document_create(
     doc_id: DocumentId,
     doc_name: &Option<DocumentName>,
     accum_errs: Vec<DocAccessEditErr>,
+    client: &Client,
 ) -> Result<DocumentEncryptResult, IronOxideErr> {
     let api_resp = document_create::document_create_request(
         auth,
         doc_id.clone(),
         doc_name.clone(),
         edoc.edek_vec(),
+        client,
     )
     .await?;
 
@@ -1028,8 +1041,9 @@ pub async fn document_update_bytes<
     rng: &Mutex<R2>,
     document_id: &DocumentId,
     plaintext: &[u8],
+    client: &Client,
 ) -> Result<DocumentEncryptResult, IronOxideErr> {
-    let doc_meta = document_get_metadata(auth, document_id).await?;
+    let doc_meta = document_get_metadata(auth, document_id, client).await?;
     let sym_key = transform::decrypt_as_symmetric_key(
         recrypt,
         doc_meta.0.encrypted_symmetric_key.clone().try_into()?,
@@ -1060,9 +1074,10 @@ pub async fn decrypt_document<CR: rand::CryptoRng + rand::RngCore + Send + Sync 
     recrypt: std::sync::Arc<Recrypt<Sha256, Ed25519, RandomBytes<CR>>>,
     device_private_key: &PrivateKey,
     encrypted_doc: &[u8],
+    client: &Client,
 ) -> Result<DocumentDecryptResult, IronOxideErr> {
     let (doc_header, mut enc_doc) = parse_document_parts(encrypted_doc)?;
-    let doc_meta = document_get_metadata(auth, &doc_header.document_id).await?;
+    let doc_meta = document_get_metadata(auth, &doc_header.document_id, client).await?;
     let device_private_key = device_private_key.clone();
     tokio::task::spawn_blocking(move || {
         let sym_key = transform::decrypt_as_symmetric_key(
@@ -1094,6 +1109,7 @@ pub async fn decrypt_document_unmanaged<CR: rand::CryptoRng + rand::RngCore>(
     device_private_key: &PrivateKey,
     encrypted_doc: &[u8],
     encrypted_deks: &[u8],
+    client: &Client,
 ) -> Result<DocumentDecryptUnmanagedResult, IronOxideErr> {
     // attempt to parse the proto as fail-fast validation. If it fails decrypt will fail
 
@@ -1104,7 +1120,7 @@ pub async fn decrypt_document_unmanaged<CR: rand::CryptoRng + rand::RngCore>(
                 parse_document_parts(encrypted_doc)?,
             ))
         },
-        requests::edek_transform::edek_transform(&auth, encrypted_deks,)
+        requests::edek_transform::edek_transform(&auth, encrypted_deks, client)
     )?;
 
     edeks_and_header_match_or_err(&proto_edeks, &doc_meta)?;
@@ -1152,8 +1168,9 @@ pub async fn update_document_name(
     auth: &RequestAuth,
     id: &DocumentId,
     name: Option<&DocumentName>,
+    client: &Client,
 ) -> Result<DocumentMetadataResult, IronOxideErr> {
-    requests::document_update::document_update_request(auth, id, name)
+    requests::document_update::document_update_request(auth, id, name, client)
         .await
         .map(DocumentMetadataResult)
 }
@@ -1166,12 +1183,13 @@ pub async fn document_grant_access<CR: rand::CryptoRng + rand::RngCore>(
     priv_device_key: &PrivateKey,
     user_grants: &Vec<UserId>,
     group_grants: &Vec<GroupId>,
+    client: &Client,
 ) -> Result<DocumentAccessResult, IronOxideErr> {
     let (doc_meta, users, groups) = try_join!(
-        document_get_metadata(auth, id),
+        document_get_metadata(auth, id, client),
         // and the public keys for the users and groups
-        internal::user_api::get_user_keys(auth, user_grants),
-        internal::group_api::get_group_keys(auth, group_grants),
+        internal::user_api::get_user_keys(auth, user_grants, client),
+        internal::group_api::get_group_keys(auth, group_grants, client),
     )?;
     let (grants, other_errs) = {
         // decrypt the dek
@@ -1201,9 +1219,14 @@ pub async fn document_grant_access<CR: rand::CryptoRng + rand::RngCore>(
         (grants, other_errs)
     };
 
-    let resp =
-        requests::document_access::grant_access_request(auth, id, user_master_pub_key, grants)
-            .await?;
+    let resp = requests::document_access::grant_access_request(
+        auth,
+        id,
+        user_master_pub_key,
+        grants,
+        client,
+    )
+    .await?;
     Ok(requests::document_access::resp::document_access_api_resp_to_result(resp, other_errs))
 }
 
@@ -1212,6 +1235,7 @@ pub async fn document_revoke_access(
     auth: &RequestAuth,
     id: &DocumentId,
     revoke_list: &Vec<UserOrGroup>,
+    client: &Client,
 ) -> Result<DocumentAccessResult, IronOxideErr> {
     use requests::document_access::{self, resp};
 
@@ -1223,7 +1247,8 @@ pub async fn document_revoke_access(
         })
         .collect();
 
-    let resp = document_access::revoke_access_request(auth, id, revoke_request_list).await?;
+    let resp =
+        document_access::revoke_access_request(auth, id, revoke_request_list, client).await?;
     Ok(resp::document_access_api_resp_to_result(resp, vec![]))
 }
 

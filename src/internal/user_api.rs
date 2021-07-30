@@ -370,8 +370,9 @@ impl std::fmt::Display for Jwt {
 pub async fn user_verify(
     jwt: &Jwt,
     request: IronCoreRequest,
+    client: &Client,
 ) -> Result<Option<UserResult>, IronOxideErr> {
-    requests::user_verify::user_verify(&jwt, &request)
+    requests::user_verify::user_verify(&jwt, &request, client)
         .await?
         .map(|resp| resp.try_into())
         .transpose()
@@ -384,6 +385,7 @@ pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
     passphrase: Password,
     needs_rotation: bool,
     request: IronCoreRequest,
+    client: &Client,
 ) -> Result<UserCreateResult, IronOxideErr> {
     let (encrypted_priv_key, recrypt_pub) = recrypt
         .generate_key_pair()
@@ -403,6 +405,7 @@ pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
         encrypted_priv_key.into(),
         needs_rotation,
         request,
+        client,
     )
     .await?
     .try_into()
@@ -438,8 +441,11 @@ impl UserUpdatePrivateKeyResult {
 }
 
 /// Get metadata about the current user
-pub async fn user_get_current(auth: &RequestAuth) -> Result<UserResult, IronOxideErr> {
-    requests::user_get::get_curr_user(auth)
+pub async fn user_get_current(
+    auth: &RequestAuth,
+    client: &Client,
+) -> Result<UserResult, IronOxideErr> {
+    requests::user_get::get_curr_user(auth, client)
         .await
         .and_then(|result| {
             Ok(UserResult {
@@ -456,13 +462,14 @@ pub async fn user_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     password: Password,
     auth: &RequestAuth,
+    client: &Client,
 ) -> Result<UserUpdatePrivateKeyResult, IronOxideErr> {
     let requests::user_get::CurrentUserResponse {
         user_private_key: encrypted_priv_key,
         current_key_id,
         id: curr_user_id,
         ..
-    } = requests::user_get::get_curr_user(auth).await?;
+    } = requests::user_get::get_curr_user(auth, client).await?;
     let (user_id, curr_key_id, new_encrypted_priv_key, aug_factor) = {
         let priv_key: PrivateKey = aes::decrypt_user_master_key(
             &password.0,
@@ -489,6 +496,7 @@ pub async fn user_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
         curr_key_id,
         new_encrypted_priv_key.into(),
         aug_factor.into(),
+        client,
     )
     .await?
     .into())
@@ -565,6 +573,7 @@ pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
     device_name: Option<DeviceName>,
     signing_ts: &DateTime<Utc>,
     request: &IronCoreRequest,
+    client: &Client,
 ) -> Result<DeviceAddResult, IronOxideErr> {
     // verify that this user exists
     let requests::user_verify::UserVerifyResponse {
@@ -573,7 +582,7 @@ pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
         id: account_id,
         segment_id,
         ..
-    } = requests::user_verify::user_verify(jwt, request)
+    } = requests::user_verify::user_verify(jwt, request, client)
         .await?
         .ok_or_else(|| {
             IronOxideErr::UserDoesNotExist(
@@ -601,7 +610,8 @@ pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
 
     // call device_add
     let device_add_response =
-        requests::device_add::user_device_add(jwt, &device_add, &device_name, request).await?;
+        requests::device_add::user_device_add(jwt, &device_add, &device_name, request, client)
+            .await?;
     // on successful response, assemble a DeviceContext for the caller
     Ok(DeviceAddResult {
         account_id,
@@ -615,8 +625,11 @@ pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
     })
 }
 
-pub async fn device_list(auth: &RequestAuth) -> Result<UserDeviceListResult, IronOxideErr> {
-    let resp = requests::device_list::device_list(auth).await?;
+pub async fn device_list(
+    auth: &RequestAuth,
+    client: &Client,
+) -> Result<UserDeviceListResult, IronOxideErr> {
+    let resp = requests::device_list::device_list(auth, client).await?;
     let devices = {
         let mut vec: Vec<UserDevice> = resp.result.into_iter().map(UserDevice::from).collect();
         // sort the devices by device_id
@@ -629,10 +642,11 @@ pub async fn device_list(auth: &RequestAuth) -> Result<UserDeviceListResult, Iro
 pub async fn device_delete(
     auth: &RequestAuth,
     device_id: Option<&DeviceId>,
+    client: &Client,
 ) -> Result<DeviceId, IronOxideErr> {
     match device_id {
-        Some(device_id) => requests::device_delete::device_delete(auth, device_id).await,
-        None => requests::device_delete::device_delete_current(auth).await,
+        Some(device_id) => requests::device_delete::device_delete(auth, device_id, client).await,
+        None => requests::device_delete::device_delete_current(auth, client).await,
     }
     .map(|resp| resp.id)
 }
@@ -641,8 +655,9 @@ pub async fn device_delete(
 pub async fn user_key_list(
     auth: &RequestAuth,
     user_ids: &Vec<UserId>,
+    client: &Client,
 ) -> Result<HashMap<UserId, PublicKey>, IronOxideErr> {
-    requests::user_key_list::user_key_list_request(auth, user_ids)
+    requests::user_key_list::user_key_list_request(auth, user_ids, client)
         .await
         .map(
             move |requests::user_key_list::UserKeyListResponse { result }| {
@@ -667,12 +682,13 @@ pub async fn user_key_list(
 pub(crate) async fn get_user_keys(
     auth: &RequestAuth,
     users: &Vec<UserId>,
+    client: &Client,
 ) -> Result<(Vec<UserId>, Vec<WithKey<UserId>>), IronOxideErr> {
     // if there aren't any users in the list, just return with empty results
     if users.is_empty() {
         Ok((vec![], vec![]))
     } else {
-        user_api::user_key_list(auth, users)
+        user_api::user_key_list(auth, users, client)
             .await
             .map(|ids_with_keys| {
                 users.clone().into_iter().partition_map(|user_id| {
@@ -732,7 +748,7 @@ fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
         transform_key: &'a TransformKey,
         jwt: &'a Jwt,
         user_public_key: &'a PublicKey,
-    };
+    }
 
     impl<'a> recrypt::api::Hashable for SignedMessage<'a> {
         fn to_bytes(&self) -> Vec<u8> {

@@ -192,6 +192,7 @@ use rand::{
 };
 use rand_chacha::ChaChaCore;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
+use reqwest::Client;
 use std::{
     convert::TryInto,
     fmt,
@@ -269,6 +270,7 @@ pub struct IronOxide {
     pub(crate) device: DeviceContext,
     pub(crate) rng: Mutex<ReseedingRng<ChaChaCore, OsRng>>,
     pub(crate) policy_eval_cache: PolicyCache,
+    pub(crate) client: Client,
 }
 
 /// Manual implementation of Debug without the `recrypt` or `rng` fields
@@ -345,13 +347,14 @@ pub async fn initialize(
     device_context: &DeviceContext,
     config: &IronOxideConfig,
 ) -> Result<IronOxide> {
+    let client = Client::new();
     internal::add_optional_timeout(
-        internal::user_api::user_get_current(device_context.auth()),
+        internal::user_api::user_get_current(device_context.auth(), &client),
         config.sdk_operation_timeout,
         SdkOperation::InitializeSdk,
     )
     .await?
-    .map(|current_user| IronOxide::create(&current_user, device_context, config))
+    .map(|current_user| IronOxide::create(&current_user, device_context, config, client))
     .map_err(|e: IronOxideErr| IronOxideErr::InitializeError(e.to_string()))
 }
 
@@ -391,17 +394,18 @@ pub async fn initialize_check_rotation(
     device_context: &DeviceContext,
     config: &IronOxideConfig,
 ) -> Result<InitAndRotationCheck<IronOxide>> {
+    let client = Client::new();
     let (curr_user, group_list_result) = add_optional_timeout(
         futures::future::try_join(
-            internal::user_api::user_get_current(device_context.auth()),
-            internal::group_api::list(device_context.auth(), None),
+            internal::user_api::user_get_current(device_context.auth(), &client),
+            internal::group_api::list(device_context.auth(), None, &client),
         ),
         config.sdk_operation_timeout,
         SdkOperation::InitializeSdkCheckRotation,
     )
     .await??;
 
-    let ironoxide = IronOxide::create(&curr_user, device_context, config);
+    let ironoxide = IronOxide::create(&curr_user, device_context, config, client);
     let user_groups = group_list_result.result();
 
     Ok(check_groups_and_collect_rotation(
@@ -432,6 +436,7 @@ impl IronOxide {
         curr_user: &UserResult,
         device_context: &DeviceContext,
         config: &IronOxideConfig,
+        client: Client,
     ) -> IronOxide {
         IronOxide {
             config: config.clone(),
@@ -444,6 +449,7 @@ impl IronOxide {
                 OsRng::default(),
             )),
             policy_eval_cache: DashMap::new(),
+            client,
         }
     }
 
@@ -472,6 +478,7 @@ impl IronOxide {
                 &self.recrypt,
                 valid_password,
                 self.device().auth(),
+                &self.client,
             )
         });
         let group_futures = rotations.group_rotation_needed().map(|groups| {
@@ -483,6 +490,7 @@ impl IronOxide {
                         self.device().auth(),
                         group_id,
                         self.device().device_private_key(),
+                        &self.client,
                     )
                 })
                 .collect::<Vec<_>>();

@@ -13,6 +13,7 @@ use crate::internal::{
     IronOxideErr, RequestAuth, RequestErrorCode, SchnorrSignature,
 };
 use chrono::{DateTime, Utc};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
@@ -182,12 +183,16 @@ pub mod group_list {
     }
 
     ///List all the groups that the user is in or is an admin of.
-    pub async fn group_list_request(auth: &RequestAuth) -> Result<GroupListResponse, IronOxideErr> {
+    pub async fn group_list_request(
+        auth: &RequestAuth,
+        client: &Client,
+    ) -> Result<GroupListResponse, IronOxideErr> {
         auth.request
             .get(
                 "groups",
                 RequestErrorCode::GroupList,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -196,6 +201,7 @@ pub mod group_list {
     pub async fn group_limited_list_request(
         auth: &RequestAuth,
         groups: &Vec<GroupId>,
+        client: &Client,
     ) -> Result<GroupListResponse, IronOxideErr> {
         let group_ids: Vec<&str> = groups.iter().map(GroupId::id).collect();
         auth.request
@@ -204,6 +210,7 @@ pub mod group_list {
                 &[("id".into(), rest::url_encode(&group_ids.join(",")))],
                 RequestErrorCode::GroupList,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -233,6 +240,7 @@ pub mod group_create {
         admins: Vec<GroupAdmin>,
         members: Option<Vec<GroupMember>>,
         needs_rotation: bool,
+        client: &Client,
     ) -> Result<GroupCreateApiResponse, IronOxideErr> {
         let req = GroupCreateReq {
             id,
@@ -250,6 +258,7 @@ pub mod group_create {
                 &req,
                 RequestErrorCode::GroupCreate,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -261,12 +270,14 @@ pub mod group_get {
     pub async fn group_get_request(
         auth: &RequestAuth,
         id: &GroupId,
+        client: &Client,
     ) -> Result<GroupGetApiResponse, IronOxideErr> {
         auth.request
             .get(
                 &format!("groups/{}", rest::url_encode(&id.0)),
                 RequestErrorCode::GroupGet,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -308,6 +319,7 @@ pub mod group_update_private_key {
         group_key_id: u64,
         admins: Vec<GroupAdmin>,
         augmentation_factor: AugmentationFactor,
+        client: &Client,
     ) -> Result<GroupUpdatePrivateKeyResponse, IronOxideErr> {
         auth.request
             .put(
@@ -322,6 +334,7 @@ pub mod group_update_private_key {
                 },
                 RequestErrorCode::GroupKeyUpdate,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -338,12 +351,14 @@ pub mod group_delete {
     pub async fn group_delete_request(
         auth: &RequestAuth,
         id: &GroupId,
+        client: &Client,
     ) -> Result<GroupDeleteApiResponse, IronOxideErr> {
         auth.request
             .delete_with_no_body(
                 &format!("groups/{}", rest::url_encode(&id.0)),
                 RequestErrorCode::GroupDelete,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -361,6 +376,7 @@ pub mod group_update {
         auth: &RequestAuth,
         id: &GroupId,
         name: Option<&GroupName>,
+        client: &Client,
     ) -> Result<GroupBasicApiResponse, IronOxideErr> {
         auth.request
             .put(
@@ -368,6 +384,7 @@ pub mod group_update {
                 &GroupUpdateRequest { name },
                 RequestErrorCode::GroupUpdate,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -389,6 +406,7 @@ pub mod group_add_member {
         id: &GroupId,
         users: Vec<(UserId, PublicKey, TransformKey)>,
         signature: SchnorrSignature,
+        client: &Client,
     ) -> Result<GroupUserEditResponse, IronOxideErr> {
         let encoded_id = rest::url_encode(&id.0).to_string();
         let users = users
@@ -408,6 +426,7 @@ pub mod group_add_member {
                 },
                 RequestErrorCode::GroupAddMember,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -429,6 +448,7 @@ pub mod group_add_admin {
         id: &GroupId,
         admins: Vec<GroupAdmin>,
         signature: SchnorrSignature,
+        client: &Client,
     ) -> Result<GroupUserEditResponse, IronOxideErr> {
         let encoded_id = rest::url_encode(&id.0).to_string();
         auth.request
@@ -440,6 +460,7 @@ pub mod group_add_admin {
                 },
                 RequestErrorCode::GroupAddMember,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -464,6 +485,7 @@ pub mod group_remove_entity {
         group_id: &GroupId,
         user_ids: &Vec<UserId>,
         entity_type: GroupEntity,
+        client: &Client,
     ) -> Result<GroupUserEditResponse, IronOxideErr> {
         let removed_users = user_ids
             .iter()
@@ -485,6 +507,7 @@ pub mod group_remove_entity {
                 },
                 error_code,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -492,9 +515,8 @@ pub mod group_remove_entity {
 
 #[cfg(test)]
 mod tests {
-    use chrono::TimeZone;
-
     use super::*;
+    use chrono::TimeZone;
     use recrypt::api::KeyGenOps;
 
     ///This test is to ensure our lowercase admin and member permissions are handled correctly.
@@ -522,11 +544,13 @@ mod tests {
         let result = serde_json::to_string(&item).unwrap();
         assert!(
             result.contains("\"admin\""),
-            format!("{} should contain admin", result)
+            "{} should contain admin",
+            result
         );
         assert!(
             result.contains("\"member\""),
-            format!("{} should contain member", result)
+            "{} should contain member",
+            result
         );
         let de_result = serde_json::from_str(&result).unwrap();
         assert_eq!(item, de_result)

@@ -14,6 +14,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use recrypt::api::Recrypt;
+use reqwest::Client;
 use std::{collections::HashMap, convert::TryInto};
 
 /// Options for device creation.
@@ -261,6 +262,7 @@ impl UserOps for IronOxide {
         timeout: Option<std::time::Duration>,
     ) -> Result<UserCreateResult> {
         let recrypt = Recrypt::new();
+        let client = Client::new();
         add_optional_timeout(
             user_api::user_create(
                 &recrypt,
@@ -268,6 +270,7 @@ impl UserOps for IronOxide {
                 password.try_into()?,
                 user_create_opts.needs_rotation,
                 *OUR_REQUEST,
+                &client,
             ),
             timeout,
             SdkOperation::UserCreate,
@@ -282,6 +285,7 @@ impl UserOps for IronOxide {
         timeout: Option<std::time::Duration>,
     ) -> Result<DeviceAddResult> {
         let recrypt = Recrypt::new();
+        let client = Client::new();
 
         let device_create_options = device_create_options.clone();
 
@@ -293,6 +297,7 @@ impl UserOps for IronOxide {
                 device_create_options.device_name,
                 &std::time::SystemTime::now().into(),
                 &OUR_REQUEST,
+                &client,
             ),
             timeout,
             SdkOperation::GenerateNewDevice,
@@ -304,8 +309,9 @@ impl UserOps for IronOxide {
         jwt: &Jwt,
         timeout: Option<std::time::Duration>,
     ) -> Result<Option<UserResult>> {
+        let client = Client::new();
         add_optional_timeout(
-            user_api::user_verify(jwt, *OUR_REQUEST),
+            user_api::user_verify(jwt, *OUR_REQUEST, &client),
             timeout,
             SdkOperation::UserVerify,
         )
@@ -314,7 +320,7 @@ impl UserOps for IronOxide {
 
     async fn user_list_devices(&self) -> Result<UserDeviceListResult> {
         add_optional_timeout(
-            user_api::device_list(self.device.auth()),
+            user_api::device_list(self.device.auth(), &self.client),
             self.config.sdk_operation_timeout,
             SdkOperation::UserListDevices,
         )
@@ -323,7 +329,7 @@ impl UserOps for IronOxide {
 
     async fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {
         add_optional_timeout(
-            user_api::user_key_list(self.device.auth(), &users.to_vec()),
+            user_api::user_key_list(self.device.auth(), &users.to_vec(), &self.client),
             self.config.sdk_operation_timeout,
             SdkOperation::UserGetPublicKey,
         )
@@ -336,6 +342,7 @@ impl UserOps for IronOxide {
                 &self.recrypt,
                 password.try_into()?,
                 self.device().auth(),
+                &self.client,
             ),
             self.config.sdk_operation_timeout,
             SdkOperation::UserRotatePrivateKey,
@@ -345,7 +352,7 @@ impl UserOps for IronOxide {
 
     async fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId> {
         add_optional_timeout(
-            user_api::device_delete(self.device.auth(), device_id),
+            user_api::device_delete(self.device.auth(), device_id, &self.client),
             self.config.sdk_operation_timeout,
             SdkOperation::UserDeleteDevice,
         )

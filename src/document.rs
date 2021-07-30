@@ -407,6 +407,7 @@ impl DocumentOps for crate::IronOxide {
                 &explicit_groups,
                 policy_grants.as_ref(),
                 &self.policy_eval_cache,
+                &self.client,
             ),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentEncrypt,
@@ -421,6 +422,7 @@ impl DocumentOps for crate::IronOxide {
                 self.recrypt.clone(),
                 self.device.device_private_key(),
                 encrypted_document,
+                &self.client,
             ),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentDecrypt,
@@ -430,7 +432,7 @@ impl DocumentOps for crate::IronOxide {
 
     async fn document_list(&self) -> Result<DocumentListResult> {
         add_optional_timeout(
-            document_api::document_list(self.device.auth()),
+            document_api::document_list(self.device.auth(), &self.client),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentList,
         )
@@ -439,7 +441,7 @@ impl DocumentOps for crate::IronOxide {
 
     async fn document_get_metadata(&self, id: &DocumentId) -> Result<DocumentMetadataResult> {
         add_optional_timeout(
-            document_api::document_get_metadata(self.device.auth(), id),
+            document_api::document_get_metadata(self.device.auth(), id, &self.client),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentGetMetadata,
         )
@@ -463,6 +465,7 @@ impl DocumentOps for crate::IronOxide {
                 &self.rng,
                 id,
                 new_document_data,
+                &self.client,
             ),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentUpdateBytes,
@@ -476,7 +479,7 @@ impl DocumentOps for crate::IronOxide {
         name: Option<&DocumentName>,
     ) -> Result<DocumentMetadataResult> {
         add_optional_timeout(
-            document_api::update_document_name(self.device.auth(), id, name),
+            document_api::update_document_name(self.device.auth(), id, name, &self.client),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentUpdateName,
         )
@@ -499,6 +502,7 @@ impl DocumentOps for crate::IronOxide {
                 self.device.device_private_key(),
                 &users,
                 &groups,
+                &self.client,
             ),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentGrantAccess,
@@ -512,7 +516,7 @@ impl DocumentOps for crate::IronOxide {
         revoke_list: &Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult> {
         add_optional_timeout(
-            document_api::document_revoke_access(self.device.auth(), id, revoke_list),
+            document_api::document_revoke_access(self.device.auth(), id, revoke_list, &self.client),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentRevokeAccess,
         )

@@ -12,6 +12,7 @@ use crate::internal::{
     IronOxideErr, RequestAuth, RequestErrorCode,
 };
 use chrono::{DateTime, Utc};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::convert::{TryFrom, TryInto};
 
@@ -154,12 +155,14 @@ pub mod document_list {
     /// Make GET request to document list endpoint for the current user/device context
     pub async fn document_list_request(
         auth: &RequestAuth,
+        client: &Client,
     ) -> Result<DocumentListApiResponse, IronOxideErr> {
         auth.request
             .get(
                 "documents",
                 RequestErrorCode::DocumentList,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -171,12 +174,14 @@ pub mod document_get {
     pub async fn document_get_request(
         auth: &RequestAuth,
         id: &DocumentId,
+        client: &Client,
     ) -> Result<DocumentMetaApiResponse, IronOxideErr> {
         auth.request
             .get(
                 &format!("documents/{}", rest::url_encode(&id.0)),
                 RequestErrorCode::DocumentGet,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -188,6 +193,7 @@ pub mod edek_transform {
     pub async fn edek_transform(
         auth: &RequestAuth,
         edek_bytes: &[u8],
+        client: &Client,
     ) -> Result<EdekTransformResponse, IronOxideErr> {
         auth.request
             .post_raw(
@@ -195,6 +201,7 @@ pub mod edek_transform {
                 edek_bytes,
                 RequestErrorCode::EdekTransform,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -243,6 +250,7 @@ pub mod document_create {
         id: DocumentId,
         name: Option<DocumentName>,
         grants: Vec<EncryptedDek>,
+        client: &Client,
     ) -> Result<DocumentCreateResponse, IronOxideErr> {
         let maybe_req_grants: Result<Vec<_>, _> =
             grants.into_iter().map(|g| g.try_into()).collect();
@@ -260,6 +268,7 @@ pub mod document_create {
                 &req,
                 RequestErrorCode::DocumentCreate,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -284,6 +293,7 @@ pub mod policy_get {
     pub async fn policy_get_request(
         auth: &RequestAuth,
         policy_grant: &PolicyGrant,
+        client: &Client,
     ) -> Result<PolicyResponse, IronOxideErr> {
         let query_params: Vec<(String, PercentEncodedString)> = [
             // all query params here are just letters, so no need to percent encode
@@ -311,6 +321,7 @@ pub mod policy_get {
                 &query_params,
                 RequestErrorCode::PolicyGet,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -328,6 +339,7 @@ pub mod document_update {
         auth: &RequestAuth,
         id: &DocumentId,
         name: Option<&DocumentName>,
+        client: &Client,
     ) -> Result<DocumentMetaApiResponse, IronOxideErr> {
         auth.request
             .put(
@@ -335,6 +347,7 @@ pub mod document_update {
                 &DocumentUpdateRequest { name },
                 RequestErrorCode::DocumentUpdate,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -451,6 +464,7 @@ pub mod document_access {
         id: &DocumentId,
         from_pub_key: &internal::PublicKey,
         grants: Vec<(WithKey<UserOrGroup>, recrypt::api::EncryptedValue)>,
+        client: &Client,
     ) -> Result<DocumentAccessResponse, IronOxideErr> {
         let maybe_req_grants: Result<Vec<_>, _> =
             grants.into_iter().map(|g| g.try_into()).collect();
@@ -465,6 +479,7 @@ pub mod document_access {
                 &req,
                 RequestErrorCode::DocumentGrantAccess,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -473,6 +488,7 @@ pub mod document_access {
         auth: &RequestAuth,
         doc_id: &DocumentId,
         revoke_list: Vec<UserOrGroupAccess>,
+        client: &Client,
     ) -> Result<DocumentAccessResponse, IronOxideErr> {
         auth.request
             .delete(
@@ -482,6 +498,7 @@ pub mod document_access {
                 },
                 RequestErrorCode::DocumentRevokeAccess,
                 AuthV2Builder::new(auth, Utc::now()),
+                client,
             )
             .await
     }
@@ -489,9 +506,8 @@ pub mod document_access {
 
 #[cfg(test)]
 mod tests {
-    use chrono::TimeZone;
-
     use super::*;
+    use chrono::TimeZone;
 
     ///This test is to ensure our lowercase doc associations are handled correctly.
     #[test]
@@ -512,7 +528,8 @@ mod tests {
         let result = serde_json::to_string(&item).unwrap();
         assert!(
             result.contains("\"fromGroup\""),
-            format!("{} should contain fromGroup", result)
+            "{} should contain fromGroup",
+            result
         );
         let de_result = serde_json::from_str(&result).unwrap();
         assert_eq!(item, de_result)

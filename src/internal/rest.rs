@@ -322,6 +322,7 @@ impl IronCoreRequest {
         body: &A,
         error_code: RequestErrorCode,
         auth: &Authorization<'_>,
+        client: &Client,
     ) -> Result<B, IronOxideErr> {
         self.request::<A, _, String, _>(
             relative_url,
@@ -330,6 +331,7 @@ impl IronCoreRequest {
             None,
             error_code,
             auth.to_auth_header(),
+            client,
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
         .await
@@ -343,6 +345,7 @@ impl IronCoreRequest {
         body: &A,
         error_code: RequestErrorCode,
         auth_b: crate::internal::auth_v2::AuthV2Builder<'_>,
+        client: &Client,
     ) -> Result<B, IronOxideErr> {
         self.request_ironcore_auth::<A, _, _>(
             relative_url,
@@ -351,6 +354,7 @@ impl IronCoreRequest {
             None,
             error_code,
             auth_b,
+            client,
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
         .await
@@ -361,6 +365,7 @@ impl IronCoreRequest {
         body: &[u8],
         error_code: RequestErrorCode,
         auth_b: AuthV2Builder<'_>,
+        client: &Client,
     ) -> Result<B, IronOxideErr> {
         let (mut req, body_bytes) = Result::<_, IronOxideErr>::Ok({
             // build up a request...
@@ -389,7 +394,7 @@ impl IronCoreRequest {
             replace_headers(req.headers_mut(), auth.to_auth_header());
             replace_headers(req.headers_mut(), request_sig.to_header());
 
-            Self::send_req(req, error_code, move |server_resp| {
+            Self::send_req(req, error_code, client, move |server_resp| {
                 IronCoreRequest::deserialize_body(server_resp, error_code)
             })
             .await
@@ -405,6 +410,7 @@ impl IronCoreRequest {
         body: &A,
         error_code: RequestErrorCode,
         auth_b: AuthV2Builder<'_>,
+        client: &Client,
     ) -> Result<B, IronOxideErr> {
         self.request_ironcore_auth::<A, _, _>(
             relative_url,
@@ -413,6 +419,7 @@ impl IronCoreRequest {
             None,
             error_code,
             auth_b,
+            client,
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
         .await
@@ -425,6 +432,7 @@ impl IronCoreRequest {
         relative_url: &str,
         error_code: RequestErrorCode,
         auth_b: AuthV2Builder<'_>,
+        client: &Client,
     ) -> Result<A, IronOxideErr> {
         //A little lie here, String isn't actually the body type as it's unused
         self.request_ironcore_auth::<String, _, _>(
@@ -434,6 +442,7 @@ impl IronCoreRequest {
             None,
             error_code,
             auth_b,
+            client,
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
         .await
@@ -447,6 +456,7 @@ impl IronCoreRequest {
         query_params: &[(String, PercentEncodedString)],
         error_code: RequestErrorCode,
         auth_b: AuthV2Builder<'_>,
+        client: &Client,
     ) -> Result<A, IronOxideErr> {
         self.request_ironcore_auth::<String, _, _>(
             relative_url,
@@ -455,6 +465,7 @@ impl IronCoreRequest {
             Some(query_params),
             error_code,
             auth_b,
+            client,
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
         .await
@@ -466,6 +477,7 @@ impl IronCoreRequest {
         relative_url: &str,
         error_code: RequestErrorCode,
         auth: &Authorization<'_>,
+        client: &Client,
     ) -> Result<Option<A>, IronOxideErr> {
         //A little lie here, String isn't actually the body type as it's unused
         self.request::<String, _, String, _>(
@@ -475,6 +487,7 @@ impl IronCoreRequest {
             None,
             error_code,
             auth.to_auth_header(),
+            client,
             move |server_resp| {
                 if !server_resp.is_empty() {
                     IronCoreRequest::deserialize_body(server_resp, error_code).map(Some)
@@ -494,6 +507,7 @@ impl IronCoreRequest {
         body: &A,
         error_code: RequestErrorCode,
         auth_b: AuthV2Builder<'_>,
+        client: &Client,
     ) -> Result<B, IronOxideErr> {
         self.request_ironcore_auth::<A, _, _>(
             relative_url,
@@ -502,6 +516,7 @@ impl IronCoreRequest {
             None,
             error_code,
             auth_b,
+            client,
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
         .await
@@ -517,6 +532,7 @@ impl IronCoreRequest {
         maybe_query_params: Option<&Q>,
         error_code: RequestErrorCode,
         headers: HeaderMap,
+        client: &Client,
         resp_handler: F,
     ) -> Result<B, IronOxideErr>
     where
@@ -525,7 +541,6 @@ impl IronCoreRequest {
         Q: Serialize + ?Sized,
         F: FnOnce(&Bytes) -> Result<B, IronOxideErr>,
     {
-        let client = Client::new();
         let mut builder = client.request(
             method,
             format!("{}{}", self.base_url, relative_url).as_str(),
@@ -554,6 +569,7 @@ impl IronCoreRequest {
         maybe_query_params: Option<&[(String, PercentEncodedString)]>,
         error_code: RequestErrorCode,
         auth_b: AuthV2Builder<'_>,
+        client: &Client,
         resp_handler: F,
     ) -> Result<B, IronOxideErr>
     where
@@ -606,7 +622,7 @@ impl IronCoreRequest {
             replace_headers(req.headers_mut(), auth.to_auth_header());
             replace_headers(req.headers_mut(), request_sig.to_header());
 
-            Self::send_req(req, error_code, resp_handler).await
+            Self::send_req(req, error_code, client, resp_handler).await
         } else {
             panic!("authorized requests must use version 2 of API authentication")
         }
@@ -629,13 +645,13 @@ impl IronCoreRequest {
     async fn send_req<B, F>(
         req: Request,
         error_code: RequestErrorCode,
+        client: &Client,
         resp_handler: F,
     ) -> Result<B, IronOxideErr>
     where
         B: DeserializeOwned,
         F: FnOnce(&Bytes) -> Result<B, IronOxideErr>,
     {
-        let client = Client::new();
         let server_res = client.execute(req).await;
         let res = server_res.map_err(|e| (e, error_code))?;
         //Parse the body content into bytes
@@ -692,12 +708,14 @@ impl IronCoreRequest {
         relative_url: &str,
         error_code: RequestErrorCode,
         auth_b: AuthV2Builder<'_>,
+        client: &Client,
     ) -> Result<B, IronOxideErr> {
         self.delete(
             relative_url,
             &PhantomData::<u8>, // BS type, maybe there's a better way?
             error_code,
             auth_b,
+            client,
         )
         .await
     }
