@@ -111,7 +111,7 @@ async fn group_rotate_private_key() -> Result<(), IronOxideErr> {
 
     let encrypt_result = creator_sdk
         .document_encrypt(
-            &bytes,
+            bytes.clone(),
             &DocumentEncryptOpts::with_explicit_grants(
                 None,
                 None,

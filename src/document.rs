@@ -154,14 +154,14 @@ pub trait DocumentOps {
     /// # use ironoxide::prelude::*;
     /// # let sdk: IronOxide = unimplemented!();
     /// # use ironoxide::document::DocumentEncryptOpts;
-    /// let data = "secret data".as_bytes();
+    /// let data = "secret data".to_string().into_bytes();
     /// let encrypted = sdk.document_encrypt(data, &DocumentEncryptOpts::default()).await?;
     /// # Ok(())
     /// # }
     /// ```
     async fn document_encrypt(
         &self,
-        document_data: &[u8],
+        document_data: Vec<u8>,
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptResult>;
 
@@ -262,7 +262,7 @@ pub trait DocumentOps {
     /// # use ironoxide::prelude::*;
     /// # let sdk: IronOxide = unimplemented!();
     /// # let document_id: DocumentId = unimplemented!();
-    /// let new_data = "more secret data".as_bytes();
+    /// let new_data = "more secret data".to_string().into_bytes();
     /// let encrypted = sdk.document_update_bytes(&document_id, new_data).await?;
     /// # Ok(())
     /// # }
@@ -270,7 +270,7 @@ pub trait DocumentOps {
     async fn document_update_bytes(
         &self,
         id: &DocumentId,
-        new_document_data: &[u8],
+        new_document_data: Vec<u8>,
     ) -> Result<DocumentEncryptResult>;
 
     /// Modifies or removes a document's name.
@@ -370,7 +370,7 @@ pub trait DocumentOps {
 impl DocumentOps for crate::IronOxide {
     async fn document_encrypt(
         &self,
-        document_data: &[u8],
+        document_data: Vec<u8>,
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptResult> {
         let encrypt_opts = encrypt_opts.clone();
@@ -453,7 +453,7 @@ impl DocumentOps for crate::IronOxide {
     async fn document_update_bytes(
         &self,
         id: &DocumentId,
-        new_document_data: &[u8],
+        new_document_data: Vec<u8>,
     ) -> Result<DocumentEncryptResult> {
         add_optional_timeout(
             document_api::document_update_bytes(

@@ -52,14 +52,14 @@ fn criterion_benchmark(c: &mut Criterion) {
 
         // encrypted data to user to decrypt
         let enc_result = io
-            .document_encrypt(&data, &Default::default())
+            .document_encrypt(data.into(), &Default::default())
             .await
             .expect("encryption failed");
         let enc_data = enc_result.encrypted_data().to_vec();
 
         // (unmanaged) encrypted data/deks to user to decrypt
         let enc_result_unmanaged = io
-            .document_encrypt_unmanaged(&data, &Default::default())
+            .document_encrypt_unmanaged(data.into(), &Default::default())
             .await
             .expect("encryption failed");
         let (enc_data_unmanaged, enc_deks_unmanaged) = (
@@ -84,7 +84,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         // data encrypted to a group to decrypt
         let group_enc_result = io
             .document_encrypt_unmanaged(
-                &data,
+                data.into(),
                 &DocumentEncryptOpts::with_explicit_grants(None, None, false, vec![group1.into()]),
             )
             .await
@@ -125,11 +125,13 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     c.bench_function("document encrypt [self]", |b| {
-        b.iter(|| rt.block_on(io.document_encrypt(black_box(&data), &Default::default())))
+        b.iter(|| rt.block_on(io.document_encrypt(black_box(data.into()), &Default::default())))
     });
 
     c.bench_function("document encrypt (unmanaged) [self]", |b| {
-        b.iter(|| rt.block_on(io.document_encrypt_unmanaged(black_box(&data), &Default::default())))
+        b.iter(|| {
+            rt.block_on(io.document_encrypt_unmanaged(black_box(data.into()), &Default::default()))
+        })
     });
 
     c.bench_function("document encrypt [self, group]", |b| {
@@ -140,7 +142,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 true,
                 vec![group1.clone().into()],
             );
-            rt.block_on(io.document_encrypt(black_box(&data), &opts))
+            rt.block_on(io.document_encrypt(black_box(data.into()), &opts))
         })
     });
 
@@ -152,7 +154,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 true,
                 vec![group1.clone().into(), group2.clone().into()],
             );
-            rt.block_on(io.document_encrypt(black_box(&data), &opts))
+            rt.block_on(io.document_encrypt(black_box(data.into()), &opts))
         })
     });
 

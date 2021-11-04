@@ -106,7 +106,7 @@ async fn generate_encrypted_documents(
     println!("Encrypting {} documents...", number_of_documents);
     let opts = DocumentEncryptOpts::default();
     let encrypted_documents = futures::future::try_join_all(
-        (0..number_of_documents).map(|_| sdk.document_encrypt(b"foobar", &opts)),
+        (0..number_of_documents).map(|_| sdk.document_encrypt(b"foobar".to_vec(), &opts)),
     )
     .await;
     println!("Done\n");

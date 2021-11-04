@@ -18,10 +18,10 @@ async fn main() -> Result<()> {
 async fn encrypt_to_group(sdk: &IronOxide) -> Result<DocumentId> {
     // start-snippet{encryptToGroup}
     let group_id = create_group(sdk).await?;
-    let message = "This is my secret which a whole group should see.";
+    let message = "This is my secret which a whole group should see.".to_string();
     let encrypted_result = sdk
         .document_encrypt(
-            message.as_bytes(),
+            message.into_bytes(),
             &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![(&group_id).into()]),
         )
         .await?;
@@ -32,10 +32,10 @@ async fn encrypt_to_group(sdk: &IronOxide) -> Result<DocumentId> {
 
 async fn encrypt_to_user(sdk: &IronOxide, user_id: &UserId) -> Result<DocumentId> {
     // start-snippet{encryptToUser}
-    let message = "This is my secret for a single user.";
+    let message = "This is my secret for a single user.".to_string();
     let encrypted_result = sdk
         .document_encrypt(
-            message.as_bytes(),
+            message.into_bytes(),
             &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![user_id.into()]),
         )
         .await?;
@@ -47,7 +47,7 @@ async fn encrypt_to_user(sdk: &IronOxide, user_id: &UserId) -> Result<DocumentId
 
 async fn encrypt_with_policy(sdk: &IronOxide) -> Result<DocumentId> {
     // start-snippet{encrypt_with_policy}
-    let message = "this is my secret which has some labels.";
+    let message = "this is my secret which has some labels.".to_string();
     let data_labels = PolicyGrant::new(
         Some(Category::try_from("PII")?),
         Some(Sensitivity::try_from("PRIVATE")?),
@@ -56,7 +56,7 @@ async fn encrypt_with_policy(sdk: &IronOxide) -> Result<DocumentId> {
     );
     let encrypted_result = sdk
         .document_encrypt(
-            message.as_bytes(),
+            message.into_bytes(),
             &DocumentEncryptOpts::with_policy_grants(None, None, data_labels),
         )
         .await?;

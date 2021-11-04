@@ -118,7 +118,7 @@ async fn user_add_device_after_rotation() -> Result<(), IronOxideErr> {
 
     let encrypt_result = sdk
         .document_encrypt(
-            &bytes,
+            bytes.clone(),
             &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![]),
         )
         .await?;

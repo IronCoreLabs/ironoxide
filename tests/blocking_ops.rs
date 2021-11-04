@@ -77,11 +77,12 @@ mod integration_tests {
         .into();
         let sdk = ironoxide::blocking::initialize(&device, &Default::default())?;
         let doc = [0u8; 64];
-        let doc_result = sdk.document_encrypt(&doc, &Default::default())?;
+        let doc_result = sdk.document_encrypt(doc.into(), &Default::default())?;
         assert_eq!(doc_result.grants().len(), 1);
         assert_eq!(doc_result.access_errs().len(), 0);
 
-        let doc_unmanaged_result = sdk.document_encrypt_unmanaged(&doc, &Default::default())?;
+        let doc_unmanaged_result =
+            sdk.document_encrypt_unmanaged(doc.into(), &Default::default())?;
         assert_eq!(doc_unmanaged_result.grants().len(), 1);
         assert_eq!(doc_unmanaged_result.access_errs().len(), 0);
 

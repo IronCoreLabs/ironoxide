@@ -14,7 +14,7 @@ use std::convert::{TryFrom, TryInto};
 async fn doc_list() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
     let (other_user, _) = init_sdk_get_user().await;
-    let doc = "secret".as_bytes();
+    let doc = "secret".to_string().into_bytes();
     // grant_to_author is false, but doc should still come back in document_list
     let opts =
         DocumentEncryptOpts::with_explicit_grants(None, None, false, vec![(&other_user).into()]);
@@ -30,7 +30,9 @@ async fn doc_roundtrip_empty_data() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
     let doc = [0u8; 0];
 
-    let doc_result = sdk.document_encrypt(&doc, &Default::default()).await?;
+    let doc_result = sdk
+        .document_encrypt(doc.into(), &Default::default())
+        .await?;
     let decrypted_result = sdk.document_decrypt(doc_result.encrypted_data()).await?;
 
     Ok(assert_eq!(&doc, decrypted_result.decrypted_data()))
@@ -42,7 +44,9 @@ async fn doc_create_without_id() -> Result<(), IronOxideErr> {
 
     let doc = [0u8; 64];
 
-    let doc_result = sdk.document_encrypt(&doc, &Default::default()).await?;
+    let doc_result = sdk
+        .document_encrypt(doc.into(), &Default::default())
+        .await?;
 
     assert_eq!(doc_result.grants().len(), 1); // access always granted to creator
     assert_eq!(doc_result.access_errs().len(), 0);
@@ -121,7 +125,7 @@ async fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
     // all of the policy grant fields are optional
     let doc_result = sdk
         .document_encrypt(
-            &doc,
+            doc.into(),
             &DocumentEncryptOpts::with_policy_grants(
                 None,
                 Some("doc name".try_into()?),
@@ -186,7 +190,7 @@ async fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
 
     let doc_result2 = sdk
         .document_encrypt(
-            &doc,
+            doc.into(),
             &DocumentEncryptOpts::with_policy_grants(
                 None,
                 Some("doc name2".try_into()?),
@@ -230,7 +234,7 @@ async fn doc_create_with_policy_grants() -> Result<(), IronOxideErr> {
     //finally send an empty policy. This will evaluate cleanly and will thus be cached.
     let doc_result3 = sdk
         .document_encrypt(
-            &doc,
+            doc.into(),
             &DocumentEncryptOpts::with_policy_grants(
                 None,
                 Some("doc name2".try_into()?),
@@ -289,7 +293,7 @@ async fn doc_create_with_explicit_self_grant() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
     let encrypt_opts = setup_encrypt_with_explicit_self_grant();
     let doc = [0u8; 64];
-    let doc_result = sdk.document_encrypt(&doc, &encrypt_opts).await?;
+    let doc_result = sdk.document_encrypt(doc.into(), &encrypt_opts).await?;
 
     check_encrypt_with_explicit_self_grant(&sdk, Box::new(doc_result));
     Ok(())
@@ -300,7 +304,9 @@ async fn doc_encrypt_unmanaged_with_explicit_self_grant() -> Result<(), IronOxid
     let sdk = initialize_sdk().await?;
     let encrypt_opts = setup_encrypt_with_explicit_self_grant();
     let doc = [0u8; 64];
-    let doc_result = sdk.document_encrypt_unmanaged(&doc, &encrypt_opts).await?;
+    let doc_result = sdk
+        .document_encrypt_unmanaged(doc.into(), &encrypt_opts)
+        .await?;
 
     check_encrypt_with_explicit_self_grant(&sdk, Box::new(doc_result));
     Ok(())
@@ -408,7 +414,7 @@ async fn doc_create_with_explicit_and_policy_grants() -> Result<(), IronOxideErr
     let (opts, ex_group_id, data_rec_group_id) =
         setup_encrypt_with_explicit_and_policy_grants(&sdk, &curr_user, &bad_group).await?;
 
-    let doc_result = sdk.document_encrypt(&doc, &opts).await?;
+    let doc_result = sdk.document_encrypt(doc.into(), &opts).await?;
     check_encrypt_with_explicit_and_policy_grants(
         &curr_user,
         &ex_group_id,
@@ -429,7 +435,7 @@ async fn doc_encrypt_unmanaged_with_explicit_and_policy_grants() -> Result<(), I
     let (opts, ex_group_id, data_rec_group_id) =
         setup_encrypt_with_explicit_and_policy_grants(&sdk, &curr_user, &bad_group).await?;
 
-    let doc_result = sdk.document_encrypt_unmanaged(&doc, &opts).await?;
+    let doc_result = sdk.document_encrypt_unmanaged(doc.into(), &opts).await?;
     check_encrypt_with_explicit_and_policy_grants(
         &curr_user,
         &ex_group_id,
@@ -447,7 +453,7 @@ async fn doc_create_duplicate_grants() -> Result<(), IronOxideErr> {
 
     let doc_result = sdk
         .document_encrypt(
-            &doc,
+            doc.into(),
             &DocumentEncryptOpts::with_explicit_grants(
                 None,
                 Some("first name".try_into()?),
@@ -472,7 +478,7 @@ async fn doc_create_without_self_grant() -> Result<(), IronOxideErr> {
 
     let doc_result = sdk
         .document_encrypt(
-            &doc,
+            doc.into(),
             &DocumentEncryptOpts::with_explicit_grants(
                 Some(create_id_all_classes("").try_into()?),
                 Some("first name".try_into()?),
@@ -511,7 +517,7 @@ async fn doc_create_must_grant() -> Result<(), IronOxideErr> {
     // should fail because encrypting a document with no grants is nonsense
     let doc_result = sdk
         .document_encrypt(
-            &doc,
+            doc.into(),
             &DocumentEncryptOpts::with_explicit_grants(
                 None,
                 Some("first name".try_into()?),
@@ -540,7 +546,7 @@ async fn doc_create_and_adjust_name() -> Result<(), IronOxideErr> {
 
     let doc_result = sdk
         .document_encrypt(
-            &doc,
+            doc.into(),
             &DocumentEncryptOpts::with_explicit_grants(
                 Some(create_id_all_classes("").try_into()?),
                 Some("first name".try_into()?),
@@ -574,7 +580,9 @@ async fn doc_encrypt_decrypt_roundtrip() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
 
     let doc = [43u8; 64];
-    let encrypted_doc = sdk.document_encrypt(&doc, &Default::default()).await?;
+    let encrypted_doc = sdk
+        .document_encrypt(doc.into(), &Default::default())
+        .await?;
 
     sdk.document_get_metadata(&encrypted_doc.id()).await?;
 
@@ -597,7 +605,7 @@ async fn doc_decrypt_unmanaged_no_access() -> Result<(), IronOxideErr> {
     let doc = [43u8; 64];
     let encrypted_doc = sdk
         .document_encrypt_unmanaged(
-            &doc,
+            doc.into(),
             &DocumentEncryptOpts::with_explicit_grants(
                 Some(create_id_all_classes("").try_into()?),
                 None,
@@ -627,7 +635,7 @@ async fn decrypt_with_rotated_user_private_key() -> Result<(), IronOxideErr> {
 
     let encrypted_doc = sdk
         .document_encrypt(
-            &[42u8, 43u8],
+            [42u8, 43u8].into(),
             &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![]),
         )
         .await?;
@@ -645,7 +653,9 @@ async fn doc_encrypt_decrypt_unmanaged_roundtrip() -> Result<(), IronOxideErr> {
     let encrypt_opts = Default::default();
     let doc = [0u8; 42];
 
-    let encrypt_result = sdk.document_encrypt_unmanaged(&doc, &encrypt_opts).await?;
+    let encrypt_result = sdk
+        .document_encrypt_unmanaged(doc.into(), &encrypt_opts)
+        .await?;
     let decrypt_result = sdk
         .document_decrypt_unmanaged(
             &encrypt_result.encrypted_data(),
@@ -661,13 +671,15 @@ async fn doc_encrypt_update_and_decrypt() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
     let doc1 = [20u8; 72];
 
-    let encrypted_doc = sdk.document_encrypt(&doc1, &Default::default()).await?;
+    let encrypted_doc = sdk
+        .document_encrypt(doc1.into(), &Default::default())
+        .await?;
 
     let doc_id = &encrypted_doc.id();
 
     let doc2 = [10u8; 11];
 
-    let updated_encrypted_doc = sdk.document_update_bytes(doc_id, &doc2).await?;
+    let updated_encrypted_doc = sdk.document_update_bytes(doc_id, doc2.into()).await?;
 
     let decrypted = sdk
         .document_decrypt(&updated_encrypted_doc.encrypted_data())
@@ -682,7 +694,9 @@ async fn doc_grant_access() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
 
     let doc = [0u8; 64];
-    let doc_result = sdk.document_encrypt(&doc, &Default::default()).await?;
+    let doc_result = sdk
+        .document_encrypt(doc.into(), &Default::default())
+        .await?;
     let doc_id = doc_result.id().clone();
 
     // create a second user to grant access to the document
@@ -737,7 +751,7 @@ async fn doc_revoke_access() -> Result<(), IronOxideErr> {
     let doc = [0u8; 64];
     let doc_result = sdk
         .document_encrypt(
-            &doc,
+            doc.into(),
             &DocumentEncryptOpts::with_explicit_grants(
                 Some(create_id_all_classes("").try_into()?),
                 None,

@@ -235,10 +235,10 @@ pub fn decrypt(
     key: [u8; AES_KEY_LEN],
 ) -> Result<&mut [u8], Unspecified> {
     let mut aes_key = aead::OpeningKey::new(
-        aead::UnboundKey::new(&aead::AES_256_GCM, &key[..])?,
+        aead::UnboundKey::new(&aead::AES_256_GCM, &key)?,
         SingleUseNonceGenerator::new(encrypted_doc.aes_iv),
     );
-    let plaintext = aes_key.open_in_place(aead::Aad::empty(), &mut encrypted_doc.ciphertext[..])?;
+    let plaintext = aes_key.open_in_place(aead::Aad::empty(), &mut encrypted_doc.ciphertext)?;
     Ok(plaintext)
 }
 

@@ -33,7 +33,7 @@ pub trait DocumentAdvancedOps {
     ///      [DocumentEncryptOpts::default()](../struct.DocumentEncryptOpts.html#method.default).
     async fn document_encrypt_unmanaged(
         &self,
-        data: &[u8],
+        data: Vec<u8>,
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptUnmanagedResult>;
 
@@ -58,7 +58,7 @@ pub trait DocumentAdvancedOps {
 impl DocumentAdvancedOps for crate::IronOxide {
     async fn document_encrypt_unmanaged(
         &self,
-        data: &[u8],
+        data: Vec<u8>,
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptUnmanagedResult> {
         let (explicit_users, explicit_groups, grant_to_author, policy_grants) =
