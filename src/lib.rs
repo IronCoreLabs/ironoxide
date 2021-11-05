@@ -147,10 +147,12 @@
 //! # }
 //! ```
 
-// required by quick_error or IronOxideErr
-#![recursion_limit = "128"]
-// required as of rust 1.46.0
-#![type_length_limit = "2000000"]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::type_complexity)]
+// // required by quick_error or IronOxideErr
+// #![recursion_limit = "128"]
+// // required as of rust 1.46.0
+// #![type_length_limit = "2000000"]
 
 // include generated proto code as a proto module
 include!(concat!(env!("OUT_DIR"), "/transform.rs"));
@@ -358,7 +360,7 @@ pub async fn initialize(
 /// Finds the groups that the caller is an admin of that need rotation and
 /// forms an InitAndRotationCheck from the user/groups needing rotation.
 fn check_groups_and_collect_rotation<T>(
-    groups: &Vec<internal::group_api::GroupMetaResult>,
+    groups: &[internal::group_api::GroupMetaResult],
     user_needs_rotation: bool,
     account_id: UserId,
     ironoxide: T,

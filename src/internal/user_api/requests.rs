@@ -286,7 +286,7 @@ pub mod user_key_list {
 
     pub async fn user_key_list_request(
         auth: &RequestAuth,
-        users: &Vec<UserId>,
+        users: &[UserId],
     ) -> Result<UserKeyListResponse, IronOxideErr> {
         let user_ids: Vec<&str> = users.iter().map(UserId::id).collect();
         if !user_ids.is_empty() {

@@ -592,8 +592,8 @@ pub async fn encrypt_document<
     document_id: Option<DocumentId>,
     document_name: Option<DocumentName>,
     grant_to_author: bool,
-    user_grants: &Vec<UserId>,
-    group_grants: &Vec<GroupId>,
+    user_grants: &[UserId],
+    group_grants: &[GroupId],
     policy_grant: Option<&PolicyGrant>,
     policy_cache: &PolicyCache,
 ) -> Result<DocumentEncryptResult, IronOxideErr> {
@@ -610,7 +610,7 @@ pub async fn encrypt_document<
             group_grants,
             policy_grant,
             if grant_to_author {
-                Some(&user_master_pub_key)
+                Some(user_master_pub_key)
             } else {
                 None
             },
@@ -654,8 +654,8 @@ type UserMasterPublicKey = PublicKey;
 async fn resolve_keys_for_grants(
     auth: &RequestAuth,
     config: &IronOxideConfig,
-    user_grants: &Vec<UserId>,
-    group_grants: &Vec<GroupId>,
+    user_grants: &[UserId],
+    group_grants: &[GroupId],
     policy_grant: Option<&PolicyGrant>,
     maybe_user_master_pub_key: Option<&UserMasterPublicKey>,
     policy_cache: &PolicyCache,
@@ -750,8 +750,8 @@ pub async fn encrypt_document_unmanaged<R1, R2>(
     plaintext: &[u8],
     document_id: Option<DocumentId>,
     grant_to_author: bool,
-    user_grants: &Vec<UserId>,
-    group_grants: &Vec<GroupId>,
+    user_grants: &[UserId],
+    group_grants: &[GroupId],
     policy_grant: Option<&PolicyGrant>,
 ) -> Result<DocumentEncryptUnmanagedResult, IronOxideErr>
 where
@@ -774,7 +774,7 @@ where
             group_grants,
             policy_grant,
             if grant_to_author {
-                Some(&user_master_pub_key)
+                Some(user_master_pub_key)
             } else {
                 None
             },
@@ -979,10 +979,12 @@ impl EncryptedDoc {
             .collect();
         let proto_edek_vec = proto_edek_vec_results?;
 
-        let mut proto_edeks = EncryptedDeksP::default();
-        proto_edeks.edeks = RepeatedField::from_vec(proto_edek_vec);
-        proto_edeks.documentId = self.header.document_id.id().into();
-        proto_edeks.segmentId = self.header.segment_id as i32; // okay since the ironcore-ws defines this to be an i32
+        let proto_edeks = EncryptedDeksP {
+            edeks: RepeatedField::from_vec(proto_edek_vec),
+            documentId: self.header.document_id.id().into(),
+            segmentId: self.header.segment_id as i32, // okay since the ironcore-ws defines this to be an i32
+            ..Default::default()
+        };
 
         let edek_bytes = proto_edeks.write_to_bytes()?;
         Ok(edek_bytes)
@@ -1104,7 +1106,7 @@ pub async fn decrypt_document_unmanaged<CR: rand::CryptoRng + rand::RngCore>(
                 parse_document_parts(encrypted_doc)?,
             ))
         },
-        requests::edek_transform::edek_transform(&auth, encrypted_deks,)
+        requests::edek_transform::edek_transform(auth, encrypted_deks,)
     )?;
 
     edeks_and_header_match_or_err(&proto_edeks, &doc_meta)?;
@@ -1164,8 +1166,8 @@ pub async fn document_grant_access<CR: rand::CryptoRng + rand::RngCore>(
     id: &DocumentId,
     user_master_pub_key: &PublicKey,
     priv_device_key: &PrivateKey,
-    user_grants: &Vec<UserId>,
-    group_grants: &Vec<GroupId>,
+    user_grants: &[UserId],
+    group_grants: &[GroupId],
 ) -> Result<DocumentAccessResult, IronOxideErr> {
     let (doc_meta, users, groups) = try_join!(
         document_get_metadata(auth, id),
@@ -1211,7 +1213,7 @@ pub async fn document_grant_access<CR: rand::CryptoRng + rand::RngCore>(
 pub async fn document_revoke_access(
     auth: &RequestAuth,
     id: &DocumentId,
-    revoke_list: &Vec<UserOrGroup>,
+    revoke_list: &[UserOrGroup],
 ) -> Result<DocumentAccessResult, IronOxideErr> {
     use requests::document_access::{self, resp};
 
