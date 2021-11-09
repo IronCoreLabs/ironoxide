@@ -149,9 +149,9 @@
 
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::type_complexity)]
-// // required by quick_error or IronOxideErr
+// required by quick_error or IronOxideErr
 #![recursion_limit = "128"]
-// // required as of rust 1.46.0
+// required as of rust 1.46.0
 #![type_length_limit = "2000000"]
 
 // include generated proto code as a proto module
