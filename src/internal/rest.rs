@@ -107,6 +107,7 @@ pub fn url_encode(token: &str) -> PercentEncodedString {
     PercentEncodedString(percent_encoding::utf8_percent_encode(token, ICL_ENCODE_SET).to_string())
 }
 
+#[allow(clippy::large_enum_variant)]
 ///Enum representing all the ways that authorization can be done for the IronCoreRequest.
 pub enum Authorization<'a> {
     JwtAuth(&'a Jwt),

@@ -371,7 +371,7 @@ pub async fn user_verify(
     jwt: &Jwt,
     request: IronCoreRequest,
 ) -> Result<Option<UserResult>, IronOxideErr> {
-    requests::user_verify::user_verify(&jwt, &request)
+    requests::user_verify::user_verify(jwt, &request)
         .await?
         .map(|resp| resp.try_into())
         .transpose()
@@ -398,7 +398,7 @@ pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
         })?;
 
     requests::user_create::user_create(
-        &jwt,
+        jwt,
         recrypt_pub.into(),
         encrypted_priv_key.into(),
         needs_rotation,
@@ -640,7 +640,7 @@ pub async fn device_delete(
 /// Get a list of users public keys given a list of user account IDs
 pub async fn user_key_list(
     auth: &RequestAuth,
-    user_ids: &Vec<UserId>,
+    user_ids: &[UserId],
 ) -> Result<HashMap<UserId, PublicKey>, IronOxideErr> {
     requests::user_key_list::user_key_list_request(auth, user_ids)
         .await
@@ -666,7 +666,7 @@ pub async fn user_key_list(
 /// Calling this with an empty `users` list will not result in a call to the server.
 pub(crate) async fn get_user_keys(
     auth: &RequestAuth,
-    users: &Vec<UserId>,
+    users: &[UserId],
 ) -> Result<(Vec<UserId>, Vec<WithKey<UserId>>), IronOxideErr> {
     // if there aren't any users in the list, just return with empty results
     if users.is_empty() {
@@ -675,7 +675,7 @@ pub(crate) async fn get_user_keys(
         user_api::user_key_list(auth, users)
             .await
             .map(|ids_with_keys| {
-                users.clone().into_iter().partition_map(|user_id| {
+                users.to_vec().into_iter().partition_map(|user_id| {
                     let maybe_public_key = ids_with_keys.get(&user_id).cloned();
                     match maybe_public_key {
                         Some(pk) => Either::Right(WithKey::new(user_id, pk)),
@@ -732,7 +732,7 @@ fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
         transform_key: &'a TransformKey,
         jwt: &'a Jwt,
         user_public_key: &'a PublicKey,
-    };
+    }
 
     impl<'a> recrypt::api::Hashable for SignedMessage<'a> {
         fn to_bytes(&self) -> Vec<u8> {
