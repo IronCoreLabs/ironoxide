@@ -7,7 +7,13 @@ license = "AGPL-3.0-only"
 repository = "https://github.com/IronCoreLabs/ironoxide"
 documentation = "https://docs.rs/ironoxide"
 categories = [ "cryptography" ]
-keywords = [ "cryptography", "proxy-re-encryption", "PRE", "ECC", "transform-encryption" ]
+keywords = [
+    "cryptography",
+    "proxy-re-encryption",
+    "PRE",
+    "ECC",
+    "transform-encryption",
+]
 description = "A pure-Rust SDK for accessing IronCore's privacy platform"
 edition = "2018"
 
@@ -16,7 +22,6 @@ async-trait = "0.1.21"
 base64 = "0.13"
 base64-serde = "0.6.1"
 bytes = "1"
-chrono = { version = "0.4", features = [ "serde" ] }
 dashmap = "4"
 futures = "0.3.1"
 hex = "0.4"
@@ -34,8 +39,13 @@ recrypt = "0.12"
 regex = "1.4"
 reqwest = { version = "0.11", features = [ "json" ], default-features = false }
 ring = { version = "0.16", features = [ "std" ] }
-serde = { version = "1.0.123", features = [ "derive" ] }
+serde = { version = "1.0.126", features = [ "derive" ] }
 serde_json = "1"
+time = { version = "0.3", features = [
+    "std",
+    "serde-human-readable",
+    "parsing",
+] }
 tokio = { version = "1", features = [ "time" ] }
 url = "2.2"
 vec1 = "1.6"
