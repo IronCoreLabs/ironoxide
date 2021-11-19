@@ -106,9 +106,9 @@ pub struct GroupCreateApiResponse {
     pub(in crate::internal) id: GroupId,
     pub(in crate::internal) name: Option<GroupName>,
     pub(in crate::internal) permissions: HashSet<Permission>,
-        #[serde(with = "crate::internal::serde_rfc3339")]
+    #[serde(with = "crate::internal::serde_rfc3339")]
     pub(in crate::internal) updated: OffsetDateTime,
-        #[serde(with = "crate::internal::serde_rfc3339")]
+    #[serde(with = "crate::internal::serde_rfc3339")]
     pub(in crate::internal) created: OffsetDateTime,
     pub(in crate::internal) owner: UserId,
     pub(in crate::internal) admin_ids: Vec<UserId>,
