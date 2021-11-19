@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.27.0 (Unreleased)
+- [[#249](https://github.com/IronCoreLabs/ironoxide/pull/249)] Remove `chrono` types in public API and replace with equivalent `time` types.
+
 ## 0.26.0
 
 - [[#243](https://github.com/IronCoreLabs/ironoxide/pull/243)] Add `#[non_exhaustive]` to IronOxideErr.

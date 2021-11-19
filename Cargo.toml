@@ -1,6 +1,6 @@
 [package]
 name = "ironoxide"
-version = "0.26.0"
+version = "0.27.0"
 authors = [ "IronCore Labs <info@ironcorelabs.com>" ]
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -27,7 +27,7 @@ futures = "0.3.1"
 hex = "0.4"
 ironcore-search-helpers = { version = "0.1.2", optional = true }
 itertools = "0.10"
-jsonwebtoken = "7.2"
+jsonwebtoken = { git = "https://github.com/IronCoreLabs/jsonwebtoken" }
 lazy_static = "1.4"
 log = "0.4"
 percent-encoding = "2.1"
