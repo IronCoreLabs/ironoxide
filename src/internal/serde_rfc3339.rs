@@ -1,5 +1,6 @@
 //! MAINTENANCE NOTE
-//! This code is copied from https://github.com/time-rs/time/tree/serde-rfc3339
+//! This code is copied from https://github.com/time-rs/time/tree/serde-rfc3339 (non-perma-link)
+//! https://github.com/time-rs/time/blob/7dcd89ef6b0f8ee4bbe794a72c80c76639193102/src/serde/rfc3339.rs
 //! Once https://github.com/time-rs/time/issues/387 is closed this file can be deleted.
 //!
 //! Use the well-known [RFC3339 format] when serializing and deserializing an [`OffsetDateTime`].

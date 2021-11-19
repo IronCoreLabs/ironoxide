@@ -504,8 +504,8 @@ mod tests {
     ///This test is to ensure our lowercase admin and member permissions are handled correctly.
     #[test]
     fn group_item_serde_format_is_expected() {
-        let created = OffsetDateTime::from_unix_timestamp_nanos(1_551_461_529_000_000).unwrap();
-        let updated = OffsetDateTime::from_unix_timestamp_nanos(1_551_461_529_001_000).unwrap();
+        let created = OffsetDateTime::from_unix_timestamp_nanos(1_551_461_529_000_000_000).unwrap();
+        let updated = OffsetDateTime::from_unix_timestamp_nanos(1_551_461_529_001_000_000).unwrap();
         let mut permissions = HashSet::new();
         permissions.insert(Permission::Member);
         permissions.insert(Permission::Admin);
