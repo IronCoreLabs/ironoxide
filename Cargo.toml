@@ -27,7 +27,8 @@ futures = "0.3.1"
 hex = "0.4"
 ironcore-search-helpers = { version = "0.1.2", optional = true }
 itertools = "0.10"
-jsonwebtoken = { git = "https://github.com/IronCoreLabs/jsonwebtoken" }
+# see https://github.com/IronCoreLabs/ironoxide/pull/249
+jsonwebtoken = { git = "https://github.com/IronCoreLabs/jsonwebtoken", rev = "393782" }
 lazy_static = "1.4"
 log = "0.4"
 percent-encoding = "2.1"
