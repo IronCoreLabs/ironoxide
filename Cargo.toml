@@ -15,7 +15,8 @@ keywords = [
     "transform-encryption",
 ]
 description = "A pure-Rust SDK for accessing IronCore's privacy platform"
-edition = "2018"
+edition = "2021"
+rust-version = "1.56.0"
 
 [dependencies]
 async-trait = "0.1.21"
@@ -25,7 +26,7 @@ bytes = "1"
 dashmap = "4"
 futures = "0.3.1"
 hex = "0.4"
-ironcore-search-helpers = { version = "0.1.2", optional = true }
+ironcore-search-helpers = { version = "0.2", optional = true }
 itertools = "0.10"
 # see https://github.com/IronCoreLabs/ironoxide/pull/249
 jsonwebtoken = { git = "https://github.com/IronCoreLabs/jsonwebtoken", rev = "393782" }
@@ -34,9 +35,9 @@ log = "0.4"
 percent-encoding = "2.1"
 protobuf = { version = "2.20", features = [ "with-bytes" ] }
 quick-error = "2"
-rand = "0.7"
-rand_chacha = "0.2.2"
-recrypt = "0.12"
+rand = "0.8"
+rand_chacha = "0.3"
+recrypt = "0.13"
 regex = "1.4"
 reqwest = { version = "0.11", features = [ "json" ], default-features = false }
 ring = { version = "0.16", features = [ "std" ] }

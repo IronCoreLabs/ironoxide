@@ -38,7 +38,7 @@ jobs:
             features: default
           # MSRV
           - os: ubuntu-18.04
-            toolchain: 1.41.1
+            toolchain: 1.56.0
             features: default
     steps:
       - uses: actions/checkout@v2

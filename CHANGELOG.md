@@ -2,6 +2,12 @@
 
 ## 0.27.0 (Unreleased)
 - [[#249](https://github.com/IronCoreLabs/ironoxide/pull/249)] Remove `chrono` types in public API and replace with equivalent `time` types.
+- [[#248](https://github.com/IronCoreLabs/ironoxide/pull/248)]
+  - Bump MSRV to 1.56.0
+  - Update to recrypt 0.13
+  - Update to rand 0.8
+  - Update to rand_chacha 0.3
+  - Update to ironcore-search-helpers 0.2
 
 ## 0.26.0
 
