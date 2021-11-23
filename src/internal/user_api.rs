@@ -2,7 +2,6 @@ use crate::{
     crypto::aes::{self, EncryptedMasterKey},
     internal::{rest::IronCoreRequest, *},
 };
-use chrono::{DateTime, Utc};
 use itertools::{Either, Itertools};
 use jsonwebtoken::Algorithm;
 use rand::rngs::OsRng;
@@ -13,6 +12,7 @@ use std::{
     result::Result,
     sync::Mutex,
 };
+use time::OffsetDateTime;
 
 /// private module that handles interaction with the IronCore webservice
 mod requests;
@@ -170,7 +170,7 @@ pub(crate) struct DeviceAdd {
     /// Signature needed for authorized device requests
     signature: SchnorrSignature,
     /// Timestamp used in the schnorr signature
-    signature_ts: DateTime<Utc>,
+    signature_ts: OffsetDateTime,
 }
 
 /// Metadata for a user.
@@ -229,9 +229,9 @@ pub struct UserDevice {
     id: DeviceId,
     name: Option<DeviceName>,
     /// time the device was created
-    created: DateTime<Utc>,
+    created: OffsetDateTime,
     /// time the device was last updated
-    last_updated: DateTime<Utc>,
+    last_updated: OffsetDateTime,
     /// true if this UserDevice is the device making the query
     is_current_device: bool,
 }
@@ -245,11 +245,11 @@ impl UserDevice {
         self.name.as_ref()
     }
     /// Date and time when the device was created
-    pub fn created(&self) -> &DateTime<Utc> {
+    pub fn created(&self) -> &OffsetDateTime {
         &self.created
     }
     /// Date and time when the device was last updated
-    pub fn last_updated(&self) -> &DateTime<Utc> {
+    pub fn last_updated(&self) -> &OffsetDateTime {
         &self.last_updated
     }
     /// Whether this is the device that was used to make the API request
@@ -371,7 +371,7 @@ pub async fn user_verify(
     jwt: &Jwt,
     request: IronCoreRequest,
 ) -> Result<Option<UserResult>, IronOxideErr> {
-    requests::user_verify::user_verify(&jwt, &request)
+    requests::user_verify::user_verify(jwt, &request)
         .await?
         .map(|resp| resp.try_into())
         .transpose()
@@ -398,7 +398,7 @@ pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
         })?;
 
     requests::user_create::user_create(
-        &jwt,
+        jwt,
         recrypt_pub.into(),
         encrypted_priv_key.into(),
         needs_rotation,
@@ -507,8 +507,8 @@ pub struct DeviceAddResult {
     signing_private_key: DeviceSigningKeyPair,
     device_id: DeviceId,
     name: Option<DeviceName>,
-    created: DateTime<Utc>,
-    last_updated: DateTime<Utc>,
+    created: OffsetDateTime,
+    last_updated: OffsetDateTime,
 }
 impl DeviceAddResult {
     /// ID of the device
@@ -538,11 +538,11 @@ impl DeviceAddResult {
         &self.device_private_key
     }
     /// The date and time when the device was created
-    pub fn created(&self) -> &DateTime<Utc> {
+    pub fn created(&self) -> &OffsetDateTime {
         &self.created
     }
     /// The date and time when the device was last updated
-    pub fn last_updated(&self) -> &DateTime<Utc> {
+    pub fn last_updated(&self) -> &OffsetDateTime {
         &self.last_updated
     }
 }
@@ -563,7 +563,7 @@ pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
     jwt: &Jwt,
     password: Password,
     device_name: Option<DeviceName>,
-    signing_ts: &DateTime<Utc>,
+    signing_ts: &OffsetDateTime,
     request: &IronCoreRequest,
 ) -> Result<DeviceAddResult, IronOxideErr> {
     // verify that this user exists
@@ -640,7 +640,7 @@ pub async fn device_delete(
 /// Get a list of users public keys given a list of user account IDs
 pub async fn user_key_list(
     auth: &RequestAuth,
-    user_ids: &Vec<UserId>,
+    user_ids: &[UserId],
 ) -> Result<HashMap<UserId, PublicKey>, IronOxideErr> {
     requests::user_key_list::user_key_list_request(auth, user_ids)
         .await
@@ -666,7 +666,7 @@ pub async fn user_key_list(
 /// Calling this with an empty `users` list will not result in a call to the server.
 pub(crate) async fn get_user_keys(
     auth: &RequestAuth,
-    users: &Vec<UserId>,
+    users: &[UserId],
 ) -> Result<(Vec<UserId>, Vec<WithKey<UserId>>), IronOxideErr> {
     // if there aren't any users in the list, just return with empty results
     if users.is_empty() {
@@ -675,7 +675,7 @@ pub(crate) async fn get_user_keys(
         user_api::user_key_list(auth, users)
             .await
             .map(|ids_with_keys| {
-                users.clone().into_iter().partition_map(|user_id| {
+                users.to_vec().into_iter().partition_map(|user_id| {
                     let maybe_public_key = ids_with_keys.get(&user_id).cloned();
                     match maybe_public_key {
                         Some(pk) => Either::Right(WithKey::new(user_id, pk)),
@@ -693,7 +693,7 @@ fn generate_device_add<CR: rand::CryptoRng + rand::RngCore>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: &Jwt,
     user_master_keypair: &KeyPair,
-    signing_ts: &DateTime<Utc>,
+    signing_ts: &OffsetDateTime,
 ) -> Result<DeviceAdd, IronOxideErr> {
     let signing_keypair = recrypt.generate_ed25519_key_pair();
     let (recrypt_priv_key, recrypt_pub_key) = recrypt.generate_key_pair()?;
@@ -725,19 +725,23 @@ fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
     jwt: &Jwt,
     user_master_keypair: &KeyPair,
     transform_key: &TransformKey,
-    signing_ts: &DateTime<Utc>,
+    signing_ts: &OffsetDateTime,
 ) -> SchnorrSignature {
     struct SignedMessage<'a> {
-        timestamp: &'a DateTime<Utc>,
+        timestamp: &'a OffsetDateTime,
         transform_key: &'a TransformKey,
         jwt: &'a Jwt,
         user_public_key: &'a PublicKey,
-    };
+    }
 
     impl<'a> recrypt::api::Hashable for SignedMessage<'a> {
         fn to_bytes(&self) -> Vec<u8> {
             let mut vec: Vec<u8> = vec![];
-            vec.extend_from_slice(self.timestamp.timestamp_millis().to_string().as_bytes());
+            vec.extend_from_slice(
+                rest::as_unix_timestamp_millis(self.timestamp.clone())
+                    .to_string()
+                    .as_bytes(),
+            );
             vec.extend_from_slice(&self.transform_key.to_bytes());
             vec.extend_from_slice(&self.jwt.to_utf8());
             vec.extend_from_slice(&self.user_public_key.as_bytes());

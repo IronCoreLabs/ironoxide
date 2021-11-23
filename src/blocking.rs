@@ -271,9 +271,9 @@ impl BlockingIronOxide {
     }
 }
 
-/// Creates a tokio runtime with the default number of core threads (num of cores on a machine)
+/// Creates a tokio runtime on the current thread
 fn create_runtime() -> tokio::runtime::Runtime {
-    tokio::runtime::Builder::new_multi_thread()
+    tokio::runtime::Builder::new_current_thread()
         .enable_all() // enable both I/O and time drivers
         .build()
         .expect("tokio runtime failed to initialize")

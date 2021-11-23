@@ -12,12 +12,12 @@ use crate::internal::{
     },
     IronOxideErr, RequestAuth, RequestErrorCode, SchnorrSignature,
 };
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
     convert::{TryFrom, TryInto},
 };
+use time::OffsetDateTime;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,8 +34,10 @@ pub struct GroupBasicApiResponse {
     pub(crate) name: Option<GroupName>,
     pub(crate) permissions: HashSet<Permission>,
     pub(crate) status: u32,
-    pub(crate) updated: DateTime<Utc>,
-    pub(crate) created: DateTime<Utc>,
+    #[serde(with = "crate::internal::serde_rfc3339")]
+    pub(crate) updated: OffsetDateTime,
+    #[serde(with = "crate::internal::serde_rfc3339")]
+    pub(crate) created: OffsetDateTime,
     pub(crate) group_master_public_key: PublicKey,
     pub(crate) needs_rotation: Option<bool>,
 }
@@ -65,8 +67,10 @@ pub struct GroupGetApiResponse {
     pub(crate) name: Option<GroupName>,
     pub(crate) permissions: HashSet<Permission>,
     pub(crate) status: u32,
-    pub(crate) updated: DateTime<Utc>,
-    pub(crate) created: DateTime<Utc>,
+    #[serde(with = "crate::internal::serde_rfc3339")]
+    pub(crate) updated: OffsetDateTime,
+    #[serde(with = "crate::internal::serde_rfc3339")]
+    pub(crate) created: OffsetDateTime,
     pub(crate) owner: Option<UserId>,
     pub(crate) admin_ids: Option<Vec<UserId>>,
     pub(crate) member_ids: Option<Vec<UserId>>,
@@ -102,8 +106,10 @@ pub struct GroupCreateApiResponse {
     pub(in crate::internal) id: GroupId,
     pub(in crate::internal) name: Option<GroupName>,
     pub(in crate::internal) permissions: HashSet<Permission>,
-    pub(in crate::internal) updated: DateTime<Utc>,
-    pub(in crate::internal) created: DateTime<Utc>,
+    #[serde(with = "crate::internal::serde_rfc3339")]
+    pub(in crate::internal) updated: OffsetDateTime,
+    #[serde(with = "crate::internal::serde_rfc3339")]
+    pub(in crate::internal) created: OffsetDateTime,
     pub(in crate::internal) owner: UserId,
     pub(in crate::internal) admin_ids: Vec<UserId>,
     pub(in crate::internal) member_ids: Vec<UserId>,
@@ -187,7 +193,7 @@ pub mod group_list {
             .get(
                 "groups",
                 RequestErrorCode::GroupList,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -195,7 +201,7 @@ pub mod group_list {
     //List a specific set of groups given a list of group IDs
     pub async fn group_limited_list_request(
         auth: &RequestAuth,
-        groups: &Vec<GroupId>,
+        groups: &[GroupId],
     ) -> Result<GroupListResponse, IronOxideErr> {
         let group_ids: Vec<&str> = groups.iter().map(GroupId::id).collect();
         auth.request
@@ -203,7 +209,7 @@ pub mod group_list {
                 "groups",
                 &[("id".into(), rest::url_encode(&group_ids.join(",")))],
                 RequestErrorCode::GroupList,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -249,7 +255,7 @@ pub mod group_create {
                 "groups",
                 &req,
                 RequestErrorCode::GroupCreate,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -266,7 +272,7 @@ pub mod group_get {
             .get(
                 &format!("groups/{}", rest::url_encode(&id.0)),
                 RequestErrorCode::GroupGet,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -321,7 +327,7 @@ pub mod group_update_private_key {
                     admins,
                 },
                 RequestErrorCode::GroupKeyUpdate,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -343,7 +349,7 @@ pub mod group_delete {
             .delete_with_no_body(
                 &format!("groups/{}", rest::url_encode(&id.0)),
                 RequestErrorCode::GroupDelete,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -367,7 +373,7 @@ pub mod group_update {
                 &format!("groups/{}", rest::url_encode(&id.0)),
                 &GroupUpdateRequest { name },
                 RequestErrorCode::GroupUpdate,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -407,7 +413,7 @@ pub mod group_add_member {
                     signature: signature.into(),
                 },
                 RequestErrorCode::GroupAddMember,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -439,7 +445,7 @@ pub mod group_add_admin {
                     signature: signature.into(),
                 },
                 RequestErrorCode::GroupAddMember,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -462,7 +468,7 @@ pub mod group_remove_entity {
     pub async fn remove_entity_request(
         auth: &RequestAuth,
         group_id: &GroupId,
-        user_ids: &Vec<UserId>,
+        user_ids: &[UserId],
         entity_type: GroupEntity,
     ) -> Result<GroupUserEditResponse, IronOxideErr> {
         let removed_users = user_ids
@@ -484,7 +490,7 @@ pub mod group_remove_entity {
                     users: removed_users,
                 },
                 error_code,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -492,16 +498,14 @@ pub mod group_remove_entity {
 
 #[cfg(test)]
 mod tests {
-    use chrono::TimeZone;
-
     use super::*;
     use recrypt::api::KeyGenOps;
 
     ///This test is to ensure our lowercase admin and member permissions are handled correctly.
     #[test]
     fn group_item_serde_format_is_expected() {
-        let created = Utc.timestamp_millis(1_551_461_529_000);
-        let updated = Utc.timestamp_millis(1_551_461_529_001);
+        let created = OffsetDateTime::from_unix_timestamp_nanos(1_551_461_529_000_000_000).unwrap();
+        let updated = OffsetDateTime::from_unix_timestamp_nanos(1_551_461_529_001_000_000).unwrap();
         let mut permissions = HashSet::new();
         permissions.insert(Permission::Member);
         permissions.insert(Permission::Admin);
@@ -522,11 +526,13 @@ mod tests {
         let result = serde_json::to_string(&item).unwrap();
         assert!(
             result.contains("\"admin\""),
-            format!("{} should contain admin", result)
+            "{} should contain admin",
+            result
         );
         assert!(
             result.contains("\"member\""),
-            format!("{} should contain member", result)
+            "{} should contain member",
+            result
         );
         let de_result = serde_json::from_str(&result).unwrap();
         assert_eq!(item, de_result)

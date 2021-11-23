@@ -329,7 +329,7 @@ pub trait DocumentOps {
     async fn document_grant_access(
         &self,
         document_id: &DocumentId,
-        grant_list: &Vec<UserOrGroup>,
+        grant_list: &[UserOrGroup],
     ) -> Result<DocumentAccessResult>;
 
     /// Revokes decryption access to a document for the provided users and/or groups.
@@ -362,7 +362,7 @@ pub trait DocumentOps {
     async fn document_revoke_access(
         &self,
         document_id: &DocumentId,
-        revoke_list: &Vec<UserOrGroup>,
+        revoke_list: &[UserOrGroup],
     ) -> Result<DocumentAccessResult>;
 }
 
@@ -486,7 +486,7 @@ impl DocumentOps for crate::IronOxide {
     async fn document_grant_access(
         &self,
         id: &DocumentId,
-        grant_list: &Vec<UserOrGroup>,
+        grant_list: &[UserOrGroup],
     ) -> Result<DocumentAccessResult> {
         let (users, groups) = partition_user_or_group(grant_list);
 
@@ -509,7 +509,7 @@ impl DocumentOps for crate::IronOxide {
     async fn document_revoke_access(
         &self,
         id: &DocumentId,
-        revoke_list: &Vec<UserOrGroup>,
+        revoke_list: &[UserOrGroup],
     ) -> Result<DocumentAccessResult> {
         add_optional_timeout(
             document_api::document_revoke_access(self.device.auth(), id, revoke_list),

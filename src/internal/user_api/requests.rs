@@ -14,9 +14,9 @@ use crate::{
         IronOxideErr, RequestAuth, RequestErrorCode,
     },
 };
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
+use time::OffsetDateTime;
 
 use crate::internal::auth_v2::AuthV2Builder;
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -152,7 +152,7 @@ pub mod user_get {
             .get(
                 "users/current",
                 RequestErrorCode::UserGetCurrent,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -207,7 +207,7 @@ pub mod user_update_private_key {
                     augmentation_factor: augmenting_key,
                 },
                 RequestErrorCode::UserKeyUpdate,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -286,7 +286,7 @@ pub mod user_key_list {
 
     pub async fn user_key_list_request(
         auth: &RequestAuth,
-        users: &Vec<UserId>,
+        users: &[UserId],
     ) -> Result<UserKeyListResponse, IronOxideErr> {
         let user_ids: Vec<&str> = users.iter().map(UserId::id).collect();
         if !user_ids.is_empty() {
@@ -295,7 +295,7 @@ pub mod user_key_list {
                     "users",
                     &[("id".into(), rest::url_encode(&user_ids.join(",")))],
                     RequestErrorCode::UserKeyList,
-                    AuthV2Builder::new(auth, Utc::now()),
+                    AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
                 )
                 .await
         } else {
@@ -336,8 +336,10 @@ pub mod device_add {
         pub device_id: DeviceId,
         pub device_public_key: PublicKey,
         pub name: Option<DeviceName>,
-        pub created: DateTime<Utc>,
-        pub updated: DateTime<Utc>,
+        #[serde(with = "crate::internal::serde_rfc3339")]
+        pub created: OffsetDateTime,
+        #[serde(with = "crate::internal::serde_rfc3339")]
+        pub updated: OffsetDateTime,
     }
 
     pub(crate) async fn user_device_add(
@@ -347,7 +349,7 @@ pub mod device_add {
         request: &IronCoreRequest,
     ) -> Result<DeviceAddResponse, IronOxideErr> {
         let req_body: DeviceAddReq = DeviceAddReq {
-            timestamp: device_add.signature_ts.timestamp_millis() as u64,
+            timestamp: rest::as_unix_timestamp_millis(device_add.signature_ts) as u64,
             user_public_key: device_add.user_public_key.clone().into(),
             signature: device_add.signature.clone().into(),
             device: Device {
@@ -367,7 +369,7 @@ pub mod device_add {
 }
 
 pub mod device_list {
-    use chrono::{DateTime, Utc};
+    use time::OffsetDateTime;
 
     use crate::internal::user_api::{DeviceId, DeviceName, UserDevice};
 
@@ -379,8 +381,10 @@ pub mod device_list {
         #[serde(rename = "id")]
         device_id: DeviceId,
         name: Option<DeviceName>,
-        created: DateTime<Utc>,
-        updated: DateTime<Utc>,
+        #[serde(with = "crate::internal::serde_rfc3339")]
+        created: OffsetDateTime,
+        #[serde(with = "crate::internal::serde_rfc3339")]
+        updated: OffsetDateTime,
         is_current_device: bool,
     }
 
@@ -394,7 +398,7 @@ pub mod device_list {
             .get(
                 &format!("users/{}/devices", rest::url_encode(&auth.account_id().0)),
                 RequestErrorCode::UserDeviceList,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -433,7 +437,7 @@ pub mod device_delete {
                     device_id.0
                 ),
                 RequestErrorCode::UserDeviceDelete,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -448,7 +452,7 @@ pub mod device_delete {
                     rest::url_encode(&auth.account_id().0)
                 ),
                 RequestErrorCode::UserDeviceDelete,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }

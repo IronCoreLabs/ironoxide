@@ -6,7 +6,6 @@ use crate::internal::{
     DeviceSigningKeyPair, IronOxideErr, RequestErrorCode, OUR_REQUEST,
 };
 use bytes::Bytes;
-use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
 use percent_encoding::{AsciiSet, CONTROLS};
 use reqwest::{
@@ -20,6 +19,7 @@ use std::{
     marker::PhantomData,
     ops::Deref,
 };
+use time::OffsetDateTime;
 
 lazy_static! {
     static ref DEFAULT_HEADERS: HeaderMap = {
@@ -107,6 +107,7 @@ pub fn url_encode(token: &str) -> PercentEncodedString {
     PercentEncodedString(percent_encoding::utf8_percent_encode(token, ICL_ENCODE_SET).to_string())
 }
 
+#[allow(clippy::large_enum_variant)]
 ///Enum representing all the ways that authorization can be done for the IronCoreRequest.
 pub enum Authorization<'a> {
     JwtAuth(&'a Jwt),
@@ -140,7 +141,7 @@ impl<'a> Authorization<'a> {
     }
 
     pub fn create_signatures_v2(
-        time: DateTime<Utc>,
+        time: OffsetDateTime,
         segment_id: usize,
         user_id: &UserId,
         method: Method,
@@ -199,10 +200,14 @@ impl SignatureUrlString {
 /// Representation of X-IronCore-User-Context header
 #[derive(Clone, Debug)]
 pub struct HeaderIronCoreUserContext {
-    timestamp: DateTime<Utc>,
+    timestamp: OffsetDateTime,
     segment_id: usize,
     user_id: UserId,
     public_signing_key: [u8; 32],
+}
+
+pub const fn as_unix_timestamp_millis(ts: OffsetDateTime) -> i128 {
+    ts.unix_timestamp() as i128 * 1_000 + ts.millisecond() as i128
 }
 
 impl HeaderIronCoreUserContext {
@@ -210,7 +215,7 @@ impl HeaderIronCoreUserContext {
     fn payload(&self) -> String {
         format!(
             "{},{},{},{}",
-            self.timestamp.timestamp_millis(),
+            as_unix_timestamp_millis(self.timestamp),
             self.segment_id,
             self.user_id.id(),
             base64::encode(&self.public_signing_key)
@@ -1015,7 +1020,6 @@ pub mod json {
 mod tests {
     use super::*;
     use crate::internal::tests::{contains, length};
-    use chrono::TimeZone;
     use galvanic_assert::{
         matchers::{variant::*, *},
         *,
@@ -1129,7 +1133,7 @@ mod tests {
 
     #[test]
     fn ironcore_user_context_signing_and_headers_are_correct() {
-        let ts = Utc.timestamp_millis(123_456);
+        let ts = OffsetDateTime::from_unix_timestamp_nanos(123_456_000_000).unwrap();
         let signing_key_bytes: [u8; 64] = [
             38, 218, 141, 117, 248, 58, 31, 187, 17, 183, 163, 49, 109, 66, 9, 132, 131, 77, 196,
             31, 117, 15, 61, 29, 171, 119, 177, 31, 219, 164, 218, 221, 198, 202, 159, 250, 136,
@@ -1185,7 +1189,7 @@ mod tests {
 
     #[test]
     fn ironcore_auth_v2_produces_expected_values() {
-        let ts = Utc.timestamp_millis(123_456);
+        let ts = OffsetDateTime::from_unix_timestamp_nanos(123_456_000_000).unwrap();
         let signing_key_bytes: [u8; 64] = [
             38, 218, 141, 117, 248, 58, 31, 187, 17, 183, 163, 49, 109, 66, 9, 132, 131, 77, 196,
             31, 117, 15, 61, 29, 171, 119, 177, 31, 219, 164, 218, 221, 198, 202, 159, 250, 136,
@@ -1362,5 +1366,17 @@ mod tests {
         IronCoreRequest::req_add_query(&mut req, &[]);
         assert_eq!(req.url().query(), None);
         assert_eq!(req.url().as_str(), "https://example.com/policies")
+    }
+
+    #[test]
+    fn as_unix_timestamp_millis_works() {
+        // 1999999ns on the end of this. Also 1ms
+        let ts = OffsetDateTime::from_unix_timestamp_nanos(1_638_576_000_001_999_999).unwrap();
+
+        let ts_nanos = ts.unix_timestamp_nanos();
+        let ts_millis = as_unix_timestamp_millis(ts.clone());
+        assert_eq!(1_638_576_000_001, ts_millis);
+
+        assert_eq!(ts_nanos as i128 / 1000000, ts_millis);
     }
 }

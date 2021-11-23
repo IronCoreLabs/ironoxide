@@ -12,7 +12,6 @@ use crate::{
         RequestAuth, SchnorrSignature, TransformKey, WithKey,
     },
 };
-use chrono::{DateTime, Utc};
 use core::convert::identity;
 use futures::try_join;
 use itertools::{Either, Itertools};
@@ -23,6 +22,7 @@ use std::{
     convert::{TryFrom, TryInto},
     iter::FromIterator,
 };
+use time::OffsetDateTime;
 use vec1::Vec1;
 
 mod requests;
@@ -72,7 +72,7 @@ impl GroupId {
     }
 }
 impl recrypt::api::Hashable for GroupId {
-    fn to_bytes(self: &Self) -> Vec<u8> {
+    fn to_bytes(&self) -> Vec<u8> {
         self.0.as_bytes().to_vec()
     }
 }
@@ -141,8 +141,8 @@ pub struct GroupMetaResult {
     group_master_public_key: PublicKey,
     is_admin: bool,
     is_member: bool,
-    created: DateTime<Utc>,
-    updated: DateTime<Utc>,
+    created: OffsetDateTime,
+    updated: OffsetDateTime,
     needs_rotation: Option<bool>,
 }
 impl GroupMetaResult {
@@ -163,11 +163,11 @@ impl GroupMetaResult {
         self.is_member
     }
     /// Date and time when the group was created
-    pub fn created(&self) -> &DateTime<Utc> {
+    pub fn created(&self) -> &OffsetDateTime {
         &self.created
     }
     /// Date and time when the group was last updated
-    pub fn last_updated(&self) -> &DateTime<Utc> {
+    pub fn last_updated(&self) -> &OffsetDateTime {
         &self.updated
     }
     /// Public key for encrypting to the group
@@ -195,8 +195,8 @@ pub struct GroupCreateResult {
     owner: UserId,
     admins: Vec<UserId>,
     members: Vec<UserId>,
-    created: DateTime<Utc>,
-    updated: DateTime<Utc>,
+    created: OffsetDateTime,
+    updated: OffsetDateTime,
     needs_rotation: Option<bool>,
 }
 impl GroupCreateResult {
@@ -233,11 +233,11 @@ impl GroupCreateResult {
         self.members.as_ref()
     }
     /// Date and time when the group was created
-    pub fn created(&self) -> &DateTime<Utc> {
+    pub fn created(&self) -> &OffsetDateTime {
         &self.created
     }
     /// Date and time when the group was last updated
-    pub fn last_updated(&self) -> &DateTime<Utc> {
+    pub fn last_updated(&self) -> &OffsetDateTime {
         &self.updated
     }
     /// Whether the group's private key needs rotation. Can only be accessed by a group administrator.
@@ -261,8 +261,8 @@ pub struct GroupGetResult {
     owner: Option<UserId>,
     admin_list: Option<Vec<UserId>>,
     member_list: Option<Vec<UserId>>,
-    created: DateTime<Utc>,
-    updated: DateTime<Utc>,
+    created: OffsetDateTime,
+    updated: OffsetDateTime,
     needs_rotation: Option<bool>,
     /// not exposed outside of the module
     encrypted_private_key: Option<TransformedEncryptedValue>,
@@ -289,11 +289,11 @@ impl GroupGetResult {
         self.is_member
     }
     /// Date and time when the group was created
-    pub fn created(&self) -> &DateTime<Utc> {
+    pub fn created(&self) -> &OffsetDateTime {
         &self.created
     }
     /// Date and time when the group was last updated
-    pub fn last_updated(&self) -> &DateTime<Utc> {
+    pub fn last_updated(&self) -> &OffsetDateTime {
         &self.updated
     }
     /// The owner of the group
@@ -364,7 +364,7 @@ impl GroupAccessEditResult {
 // List all of the groups that the requesting user is either a member or admin of
 pub async fn list(
     auth: &RequestAuth,
-    ids: Option<&Vec<GroupId>>,
+    ids: Option<&[GroupId]>,
 ) -> Result<GroupListResult, IronOxideErr> {
     let GroupListResponse { result } = match ids {
         Some(group_ids) => requests::group_list::group_limited_list_request(auth, group_ids).await,
@@ -382,14 +382,14 @@ pub async fn list(
 /// Calling this with an empty `groups` list will not result in a call to the server.
 pub(crate) async fn get_group_keys(
     auth: &RequestAuth,
-    groups: &Vec<GroupId>,
+    groups: &[GroupId],
 ) -> Result<(Vec<GroupId>, Vec<WithKey<GroupId>>), IronOxideErr> {
     // if there aren't any groups in the list, just return with empty results
     if groups.is_empty() {
         return Ok((vec![], vec![]));
     }
 
-    let cloned_groups: Vec<GroupId> = groups.clone();
+    let cloned_groups: Vec<GroupId> = groups.to_vec();
     let GroupListResult { result } = list(auth, Some(groups)).await?;
     let ids_with_keys =
         result
@@ -494,7 +494,7 @@ pub async fn group_create<CR: rand::CryptoRng + rand::RngCore>(
     owner: Option<UserId>,
     admins: Vec1<UserId>,
     members: Vec<UserId>,
-    users_to_lookup: &Vec<UserId>,
+    users_to_lookup: &[UserId],
     needs_rotation: bool,
 ) -> Result<GroupCreateResult, IronOxideErr> {
     let user_ids_and_keys = user_api::user_key_list(auth, users_to_lookup).await?;
@@ -628,8 +628,7 @@ fn generate_aug_and_admins<CR: rand::CryptoRng + rand::RngCore>(
     );
     errors
         .into_iter()
-        .map(|(_, e)| Err(e.into()))
-        .collect::<Result<(), IronOxideErr>>()?;
+        .try_for_each(|(_, e)| Err::<(), IronOxideErr>(e.into()))?;
     Ok((aug_factor.into(), updated_group_admins))
 }
 
@@ -707,7 +706,7 @@ pub async fn group_add_members<CR: rand::CryptoRng + rand::RngCore>(
     auth: &RequestAuth,
     device_private_key: &PrivateKey,
     group_id: &GroupId,
-    users: &Vec<UserId>,
+    users: &[UserId],
 ) -> Result<GroupAccessEditResult, IronOxideErr> {
     let (group_get, (mut acc_fails, successes)) =
         try_join!(get_metadata(auth, group_id), get_user_keys(auth, users))?;
@@ -769,7 +768,7 @@ pub async fn group_add_admins<CR: rand::CryptoRng + rand::RngCore>(
     auth: &RequestAuth,
     device_private_key: &PrivateKey,
     group_id: &GroupId,
-    users: &Vec<UserId>,
+    users: &[UserId],
 ) -> Result<GroupAccessEditResult, IronOxideErr> {
     let (group_get, (mut acc_fails, successes)) =
         try_join!(get_metadata(auth, group_id), get_user_keys(auth, users))?;
@@ -821,7 +820,7 @@ pub async fn group_add_admins<CR: rand::CryptoRng + rand::RngCore>(
 ///This is a thin wrapper that's just mapping the errors into the type we need for add member and add admin
 async fn get_user_keys(
     auth: &RequestAuth,
-    users: &Vec<UserId>,
+    users: &[UserId],
 ) -> Result<(Vec<GroupAccessEditErr>, Vec<WithKey<UserId>>), IronOxideErr> {
     let (failed_ids, succeeded_ids) = user_api::get_user_keys(auth, users).await?;
     let failed_ids_result = failed_ids
@@ -868,7 +867,7 @@ pub async fn update_group_name(
 pub async fn group_remove_entity(
     auth: &RequestAuth,
     id: &GroupId,
-    users: &Vec<UserId>,
+    users: &[UserId],
     entity_type: GroupEntity,
 ) -> Result<GroupAccessEditResult, IronOxideErr> {
     let GroupUserEditResponse {
@@ -934,8 +933,8 @@ pub(crate) mod tests {
         group_master_public_key: PublicKey,
         is_admin: bool,
         is_member: bool,
-        created: DateTime<Utc>,
-        updated: DateTime<Utc>,
+        created: OffsetDateTime,
+        updated: OffsetDateTime,
         needs_rotation: Option<bool>,
     ) -> GroupMetaResult {
         GroupMetaResult {

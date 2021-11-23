@@ -11,9 +11,9 @@ use crate::internal::{
     user_api::UserId,
     IronOxideErr, RequestAuth, RequestErrorCode,
 };
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::convert::{TryFrom, TryInto};
+use time::OffsetDateTime;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct Association {
@@ -130,8 +130,10 @@ pub struct DocumentMetaApiResponse {
     pub association: Association,
     pub visible_to: DocumentVisibility,
     pub encrypted_symmetric_key: TransformedEncryptedValue,
-    pub updated: DateTime<Utc>,
-    pub created: DateTime<Utc>,
+    #[serde(with = "crate::internal::serde_rfc3339")]
+    pub updated: OffsetDateTime,
+    #[serde(with = "crate::internal::serde_rfc3339")]
+    pub created: OffsetDateTime,
 }
 
 pub mod document_list {
@@ -147,8 +149,10 @@ pub mod document_list {
         pub id: DocumentId,
         pub name: Option<DocumentName>,
         pub association: Association,
-        pub created: DateTime<Utc>,
-        pub updated: DateTime<Utc>,
+        #[serde(with = "crate::internal::serde_rfc3339")]
+        pub created: OffsetDateTime,
+        #[serde(with = "crate::internal::serde_rfc3339")]
+        pub updated: OffsetDateTime,
     }
 
     /// Make GET request to document list endpoint for the current user/device context
@@ -159,7 +163,7 @@ pub mod document_list {
             .get(
                 "documents",
                 RequestErrorCode::DocumentList,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -176,7 +180,7 @@ pub mod document_get {
             .get(
                 &format!("documents/{}", rest::url_encode(&id.0)),
                 RequestErrorCode::DocumentGet,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -194,7 +198,7 @@ pub mod edek_transform {
                 "edeks/transform",
                 edek_bytes,
                 RequestErrorCode::EdekTransform,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -227,14 +231,15 @@ pub mod document_create {
         pub(crate) id: DocumentId,
         pub(crate) value: DocumentCreateValue,
     }
-
     #[derive(Clone, Debug, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct DocumentCreateResponse {
         pub(crate) id: DocumentId,
         pub(crate) name: Option<DocumentName>,
-        pub(crate) updated: DateTime<Utc>,
-        pub(crate) created: DateTime<Utc>,
+        #[serde(with = "crate::internal::serde_rfc3339")]
+        pub(crate) updated: OffsetDateTime,
+        #[serde(with = "crate::internal::serde_rfc3339")]
+        pub(crate) created: OffsetDateTime,
         pub(crate) shared_with: Vec<AccessGrant>,
     }
 
@@ -259,7 +264,7 @@ pub mod document_create {
                 "documents",
                 &req,
                 RequestErrorCode::DocumentCreate,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -310,7 +315,7 @@ pub mod policy_get {
                 "policies",
                 &query_params,
                 RequestErrorCode::PolicyGet,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -334,7 +339,7 @@ pub mod document_update {
                 &format!("documents/{}", rest::url_encode(&id.0)),
                 &DocumentUpdateRequest { name },
                 RequestErrorCode::DocumentUpdate,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -464,7 +469,7 @@ pub mod document_access {
                 &format!("documents/{}/access", rest::url_encode(id.id())),
                 &req,
                 RequestErrorCode::DocumentGrantAccess,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -481,7 +486,7 @@ pub mod document_access {
                     user_or_groups: revoke_list,
                 },
                 RequestErrorCode::DocumentRevokeAccess,
-                AuthV2Builder::new(auth, Utc::now()),
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
             )
             .await
     }
@@ -489,7 +494,6 @@ pub mod document_access {
 
 #[cfg(test)]
 mod tests {
-    use chrono::TimeZone;
 
     use super::*;
 
@@ -498,8 +502,8 @@ mod tests {
     fn document_item_serde_format_is_expected() {
         use document_list::DocumentListApiResponseItem;
 
-        let created = Utc.timestamp_millis(1_551_461_529_000);
-        let updated = Utc.timestamp_millis(1_551_461_529_001);
+        let created = OffsetDateTime::from_unix_timestamp_nanos(1_551_461_529_000_000).unwrap();
+        let updated = OffsetDateTime::from_unix_timestamp_nanos(1_551_461_529_001_000).unwrap();
         let item = DocumentListApiResponseItem {
             id: DocumentId("my_id".to_string()),
             name: None,
@@ -512,7 +516,8 @@ mod tests {
         let result = serde_json::to_string(&item).unwrap();
         assert!(
             result.contains("\"fromGroup\""),
-            format!("{} should contain fromGroup", result)
+            "{} should contain fromGroup",
+            result
         );
         let de_result = serde_json::from_str(&result).unwrap();
         assert_eq!(item, de_result)

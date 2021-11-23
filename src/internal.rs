@@ -7,7 +7,6 @@ use crate::internal::{
     rest::{Authorization, IronCoreRequest, SignatureUrlString},
     user_api::UserId,
 };
-use chrono::{DateTime, Utc};
 use futures::Future;
 use lazy_static::lazy_static;
 use log::error;
@@ -27,10 +26,12 @@ use std::{
     result::Result,
     sync::{Mutex, MutexGuard},
 };
+use time::OffsetDateTime;
 
 pub mod document_api;
 pub mod group_api;
 mod rest;
+mod serde_rfc3339;
 pub mod user_api;
 
 lazy_static! {
@@ -279,6 +280,8 @@ pub fn validate_name(name: &str, name_type: &str) -> Result<String, IronOxideErr
 }
 
 pub mod auth_v2 {
+    use time::OffsetDateTime;
+
     use super::*;
 
     /// API Auth version 2.
@@ -287,11 +290,11 @@ pub mod auth_v2 {
     /// Step 2 is done via `finish_with` as a request is being sent out and the bytes of the body are available.
     pub struct AuthV2Builder<'a> {
         pub(in crate::internal::auth_v2) req_auth: &'a RequestAuth,
-        pub(in crate::internal::auth_v2) timestamp: DateTime<Utc>,
+        pub(in crate::internal::auth_v2) timestamp: OffsetDateTime,
     }
 
     impl<'a> AuthV2Builder<'a> {
-        pub fn new(req_auth: &'a RequestAuth, timestamp: DateTime<Utc>) -> AuthV2Builder {
+        pub fn new(req_auth: &'a RequestAuth, timestamp: OffsetDateTime) -> AuthV2Builder {
             AuthV2Builder {
                 req_auth,
                 timestamp,
@@ -335,7 +338,7 @@ pub struct RequestAuth {
 impl RequestAuth {
     pub fn create_signature_v2<'a>(
         &'a self,
-        current_time: DateTime<Utc>,
+        current_time: OffsetDateTime,
         sig_url: SignatureUrlString,
         method: Method,
         body: Option<&'a [u8]>,
@@ -719,7 +722,7 @@ pub(crate) fn take_lock<T>(m: &Mutex<T>) -> MutexGuard<T> {
     m.lock().unwrap_or_else(|e| {
         let error = format!("Error when acquiring lock: {}", e);
         error!("{}", error);
-        panic!(error);
+        panic!("{}", error);
     })
 }
 
@@ -1197,7 +1200,7 @@ pub(crate) mod tests {
         };
         let recrypt = recrypt::api::Recrypt::new();
         let (_, pub_key) = recrypt.generate_key_pair()?;
-        let time = chrono::Utc::now();
+        let time = OffsetDateTime::now_utc();
         let create_gmr = |id: GroupId, needs_rotation: Option<bool>| {
             create_group_meta_result(
                 id,
