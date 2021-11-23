@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.27.0
+## 0.27.0 (Unreleased)
 - [[#246](https://github.com/IronCoreLabs/ironoxide/pull/246)] Don't clone plaintext on AES encryption
   - Public APIs for `document_encrypt`, `document_encrypt_unmanaged`, and `document_update_bytes` now take owned bytes instead of byte slices to improve performance for common use cases.
   - AES encryption has improved memory usage in most cases.
