@@ -124,7 +124,7 @@
 //! # use ironoxide::prelude::*;
 //! # let sdk: IronOxide = unimplemented!();
 //! use ironoxide::document::DocumentEncryptOpts;
-//! let data = "secret data".as_bytes();
+//! let data = "secret data".to_string().into_bytes();
 //! let encrypted = sdk.document_encrypt(data, &DocumentEncryptOpts::default()).await?;
 //! let encrypted_bytes = encrypted.encrypted_data();
 //! # Ok(())

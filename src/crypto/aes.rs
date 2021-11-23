@@ -118,7 +118,7 @@ impl From<ring::error::Unspecified> for IronOxideErr {
     }
 }
 
-/// Derive a key from a string password. Returns a tuple of salt that was used as part of the deriviation and the
+/// Derive a key from a string password. Returns a tuple of salt that was used as part of the derivation and the
 /// key, both of which are 32 bytes.
 fn derive_key_from_password(password: &str, salt: [u8; PBKDF2_SALT_LEN]) -> [u8; AES_KEY_LEN] {
     let mut derived_key = [0u8; digest::SHA256_OUTPUT_LEN];
@@ -144,7 +144,7 @@ pub fn encrypt_user_master_key<R: CryptoRng + RngCore>(
     take_lock(rng).deref_mut().fill_bytes(&mut salt);
     let derived_key = derive_key_from_password(password, salt);
 
-    let encrypted_key = encrypt(rng, &user_master_key.to_vec(), derived_key)?;
+    let encrypted_key = encrypt(rng, user_master_key.to_vec(), derived_key)?;
     //Convert the AES encrypted ciphertext vector into a fixed size array so that the
     //EncryptedMasterKey struct is all fixed size values
     let mut master_key_ciphertext = [0u8; ENCRYPTED_KEY_AND_GCM_TAG_LEN];
@@ -200,7 +200,7 @@ impl aead::NonceSequence for SingleUseNonceGenerator {
 /// is a struct which contains the resulting ciphertext and the IV used during encryption.
 pub fn encrypt<R: CryptoRng + RngCore>(
     rng: &Mutex<R>,
-    plaintext: &[u8],
+    mut plaintext: Vec<u8>,
     key: [u8; AES_KEY_LEN],
 ) -> Result<AesEncryptedValue, Unspecified> {
     let algorithm = &aead::AES_256_GCM;
@@ -210,11 +210,10 @@ pub fn encrypt<R: CryptoRng + RngCore>(
         aead::UnboundKey::new(algorithm, &key[..])?,
         SingleUseNonceGenerator::new(iv),
     );
-    //Increase the size of the plaintext vector to fit the GCM auth tag
-    let mut ciphertext = plaintext.to_owned(); // <-- Not good. We're copying the entire plaintext, which could be large.
-    aes_key.seal_in_place_append_tag(aead::Aad::empty(), &mut ciphertext)?;
+    // Increase the size of the plaintext vector to fit the GCM auth tag
+    aes_key.seal_in_place_append_tag(aead::Aad::empty(), &mut plaintext)?;
     Ok(AesEncryptedValue {
-        ciphertext,
+        ciphertext: plaintext,
         aes_iv: iv,
     })
 }
@@ -222,7 +221,7 @@ pub fn encrypt<R: CryptoRng + RngCore>(
 /// Like `encrypt`, just async for convenience
 pub async fn encrypt_async<R: CryptoRng + RngCore>(
     rng: &Mutex<R>,
-    plaintext: &[u8],
+    plaintext: Vec<u8>,
     key: [u8; AES_KEY_LEN],
 ) -> Result<AesEncryptedValue, IronOxideErr> {
     async { encrypt(rng, plaintext, key).map_err(IronOxideErr::from) }.await
@@ -236,10 +235,10 @@ pub fn decrypt(
     key: [u8; AES_KEY_LEN],
 ) -> Result<&mut [u8], Unspecified> {
     let mut aes_key = aead::OpeningKey::new(
-        aead::UnboundKey::new(&aead::AES_256_GCM, &key[..])?,
+        aead::UnboundKey::new(&aead::AES_256_GCM, &key)?,
         SingleUseNonceGenerator::new(encrypted_doc.aes_iv),
     );
-    let plaintext = aes_key.open_in_place(aead::Aad::empty(), &mut encrypted_doc.ciphertext[..])?;
+    let plaintext = aes_key.open_in_place(aead::Aad::empty(), &mut encrypted_doc.ciphertext)?;
     Ok(plaintext)
 }
 
@@ -280,7 +279,7 @@ mod tests {
         let mut rng = rand::thread_rng();
         rng.fill_bytes(&mut key);
 
-        let res = encrypt(&Mutex::new(rng), &plaintext, key).unwrap();
+        let res = encrypt(&Mutex::new(rng), plaintext.clone(), key).unwrap();
         assert_eq!(res.aes_iv.len(), 12);
         assert_eq!(
             res.ciphertext.len(),
@@ -295,7 +294,7 @@ mod tests {
         let mut rng = rand::thread_rng();
         rng.fill_bytes(&mut key);
 
-        let mut encrypted_result = encrypt(&Mutex::new(rng), &plaintext, key).unwrap();
+        let mut encrypted_result = encrypt(&Mutex::new(rng), plaintext.clone(), key).unwrap();
 
         let decrypted_plaintext = decrypt(&mut encrypted_result, key).unwrap();
 
@@ -336,7 +335,7 @@ mod tests {
             let rng_ref = a_rng.clone();
             let pt = plaintext.clone();
             threads.push(std::thread::spawn(move || {
-                let _res = encrypt(&rng_ref, &pt, key).unwrap();
+                let _res = encrypt(&rng_ref, pt, key).unwrap();
             }));
         }
 

@@ -588,7 +588,7 @@ pub async fn encrypt_document<
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
     user_master_pub_key: &PublicKey,
     rng: &Mutex<R2>,
-    plaintext: &[u8],
+    plaintext: Vec<u8>,
     document_id: Option<DocumentId>,
     document_name: Option<DocumentName>,
     grant_to_author: bool,
@@ -599,10 +599,9 @@ pub async fn encrypt_document<
 ) -> Result<DocumentEncryptResult, IronOxideErr> {
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
     let doc_id = document_id.unwrap_or_else(|| DocumentId::goo_id(rng));
-    let pt_bytes = plaintext.to_vec();
 
     let (encrypted_doc, (grants, key_errs)) = try_join!(
-        aes::encrypt_async(rng, &pt_bytes, *doc_sym_key.bytes()),
+        aes::encrypt_async(rng, plaintext, *doc_sym_key.bytes()),
         resolve_keys_for_grants(
             auth,
             config,
@@ -747,7 +746,7 @@ pub async fn encrypt_document_unmanaged<R1, R2>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
     user_master_pub_key: &PublicKey,
     rng: &Mutex<R2>,
-    plaintext: &[u8],
+    plaintext: Vec<u8>,
     document_id: Option<DocumentId>,
     grant_to_author: bool,
     user_grants: &[UserId],
@@ -763,10 +762,9 @@ where
 
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
     let doc_id = document_id.unwrap_or_else(|| DocumentId::goo_id(rng));
-    let pt_bytes = plaintext.to_vec();
 
     let (encryption_result, (grants, key_errs)) = try_join!(
-        aes::encrypt_async(rng, &pt_bytes, *doc_sym_key.bytes()),
+        aes::encrypt_async(rng, plaintext, *doc_sym_key.bytes()),
         resolve_keys_for_grants(
             auth,
             &config,
@@ -1029,7 +1027,7 @@ pub async fn document_update_bytes<
     device_private_key: &PrivateKey,
     rng: &Mutex<R2>,
     document_id: &DocumentId,
-    plaintext: &[u8],
+    plaintext: Vec<u8>,
 ) -> Result<DocumentEncryptResult, IronOxideErr> {
     let doc_meta = document_get_metadata(auth, document_id).await?;
     let sym_key = transform::decrypt_as_symmetric_key(
@@ -1038,7 +1036,7 @@ pub async fn document_update_bytes<
         device_private_key.recrypt_key(),
     )?;
     Ok(
-        aes::encrypt(rng, &plaintext.to_vec(), *sym_key.bytes()).map(move |encrypted_doc| {
+        aes::encrypt(rng, plaintext, *sym_key.bytes()).map(move |encrypted_doc| {
             let mut encrypted_payload =
                 DocumentHeader::new(document_id.clone(), auth.segment_id()).pack();
             encrypted_payload.0.append(&mut encrypted_doc.bytes());

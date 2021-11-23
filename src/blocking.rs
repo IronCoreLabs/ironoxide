@@ -77,7 +77,7 @@ impl BlockingIronOxide {
     /// See [ironoxide::document::DocumentOps::document_encrypt](trait.DocumentOps.html#tymethod.document_encrypt)
     pub fn document_encrypt(
         &self,
-        document_data: &[u8],
+        document_data: Vec<u8>,
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptResult> {
         self.runtime
@@ -87,7 +87,7 @@ impl BlockingIronOxide {
     pub fn document_update_bytes(
         &self,
         id: &DocumentId,
-        new_document_data: &[u8],
+        new_document_data: Vec<u8>,
     ) -> Result<DocumentEncryptResult> {
         self.runtime
             .block_on(self.ironoxide.document_update_bytes(id, new_document_data))
@@ -127,7 +127,7 @@ impl BlockingIronOxide {
     /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_encrypt_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged)
     pub fn document_encrypt_unmanaged(
         &self,
-        data: &[u8],
+        data: Vec<u8>,
         encrypt_opts: &DocumentEncryptOpts,
     ) -> Result<DocumentEncryptUnmanagedResult> {
         self.runtime.block_on(

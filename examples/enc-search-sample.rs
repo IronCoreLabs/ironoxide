@@ -110,25 +110,25 @@ async fn main() -> Result<()> {
         name: "Gumby".to_string(),
         email: "gumby@gumby.io".to_string(),
     };
-    save_customer(&cust1, &group_id, &sdk, &blind_index).await?;
+    save_customer(cust1, &group_id, &sdk, &blind_index).await?;
     let cust2 = Customer {
         id: 2,
         name: "Æ neid 北亰".to_string(),
         email: "".to_string(),
     };
-    save_customer(&cust2, &group_id, &sdk, &blind_index).await?;
+    save_customer(cust2, &group_id, &sdk, &blind_index).await?;
     let cust3 = Customer {
         id: 3,
         name: "aeneid bei jing".to_string(),
         email: "".to_string(),
     };
-    save_customer(&cust3, &group_id, &sdk, &blind_index).await?;
+    save_customer(cust3, &group_id, &sdk, &blind_index).await?;
     let cust4 = Customer {
         id: 4,
         name: "J. Fred Muggs".to_string(),
         email: "j.fred.muggs@nowhere.com".to_string(),
     };
-    save_customer(&cust4, &group_id, &sdk, &blind_index).await?;
+    save_customer(cust4, &group_id, &sdk, &blind_index).await?;
 
     // Allow the user to enter additional customers
     add_customers(&4, &group_id, &sdk, &blind_index).await?;
@@ -157,7 +157,7 @@ async fn main() -> Result<()> {
         name: "Pokey".to_string(),
         email: "pokey@gumby.io".to_string(),
     };
-    save_customer_with_2_indices(&cust24, &group_id, &sdk, &blind_index, &blind_index2).await?;
+    save_customer_with_2_indices(cust24, &group_id, &sdk, &blind_index, &blind_index2).await?;
 
     Ok(())
 }
@@ -192,7 +192,7 @@ async fn add_customers(
                 name: name,
                 email: email,
             };
-            save_customer(&cust, &group_id, &sdk, &blind_index).await?;
+            save_customer(cust, &group_id, &sdk, &blind_index).await?;
         }
         next_id += 1;
     }
@@ -204,7 +204,7 @@ async fn add_customers(
 // field, generate the index tokens for the name, encrypt the name and email, and save the
 // customer record with the index tokens to the server.
 async fn save_customer(
-    cust: &Customer,
+    cust: Customer,
     group_id: &ironoxide::group::GroupId,
     sdk: &ironoxide::IronOxide,
     blind_index: &ironoxide::search::BlindIndexSearch,
@@ -225,10 +225,10 @@ async fn save_customer(
         vec![group_id.into()], // users and groups to which to grant access
     );
     let enc_name = sdk
-        .document_encrypt_unmanaged(cust.name.as_bytes(), &encrypt_opts)
+        .document_encrypt_unmanaged(cust.name.into_bytes(), &encrypt_opts)
         .await?;
     let enc_email = sdk
-        .document_encrypt_unmanaged(cust.email.as_bytes(), &encrypt_opts)
+        .document_encrypt_unmanaged(cust.email.into_bytes(), &encrypt_opts)
         .await?;
 
     let enc_cust = EncryptedCustomer {
@@ -248,7 +248,7 @@ async fn save_customer(
 // and email fields, generate the index tokens for the name and for the email, encrypt the
 // name and email, and save the customer record with both sets of index tokens to the server.
 async fn save_customer_with_2_indices(
-    cust: &Customer,
+    cust: Customer,
     group_id: &ironoxide::group::GroupId,
     sdk: &ironoxide::IronOxide,
     name_blind_index: &ironoxide::search::BlindIndexSearch,
@@ -274,10 +274,10 @@ async fn save_customer_with_2_indices(
         vec![group_id.into()], // users and groups to which to grant access
     );
     let enc_name = sdk
-        .document_encrypt_unmanaged(cust.name.as_bytes(), &encrypt_opts)
+        .document_encrypt_unmanaged(cust.name.into_bytes(), &encrypt_opts)
         .await?;
     let enc_email = sdk
-        .document_encrypt_unmanaged(cust.email.as_bytes(), &encrypt_opts)
+        .document_encrypt_unmanaged(cust.email.into_bytes(), &encrypt_opts)
         .await?;
 
     let enc_cust = EncryptedCustomer {
