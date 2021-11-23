@@ -12,7 +12,6 @@ use crate::{
         RequestAuth, SchnorrSignature, TransformKey, WithKey,
     },
 };
-use chrono::{DateTime, Utc};
 use core::convert::identity;
 use futures::try_join;
 use itertools::{Either, Itertools};
@@ -23,6 +22,7 @@ use std::{
     convert::{TryFrom, TryInto},
     iter::FromIterator,
 };
+use time::OffsetDateTime;
 use vec1::Vec1;
 
 mod requests;
@@ -141,8 +141,8 @@ pub struct GroupMetaResult {
     group_master_public_key: PublicKey,
     is_admin: bool,
     is_member: bool,
-    created: DateTime<Utc>,
-    updated: DateTime<Utc>,
+    created: OffsetDateTime,
+    updated: OffsetDateTime,
     needs_rotation: Option<bool>,
 }
 impl GroupMetaResult {
@@ -163,11 +163,11 @@ impl GroupMetaResult {
         self.is_member
     }
     /// Date and time when the group was created
-    pub fn created(&self) -> &DateTime<Utc> {
+    pub fn created(&self) -> &OffsetDateTime {
         &self.created
     }
     /// Date and time when the group was last updated
-    pub fn last_updated(&self) -> &DateTime<Utc> {
+    pub fn last_updated(&self) -> &OffsetDateTime {
         &self.updated
     }
     /// Public key for encrypting to the group
@@ -195,8 +195,8 @@ pub struct GroupCreateResult {
     owner: UserId,
     admins: Vec<UserId>,
     members: Vec<UserId>,
-    created: DateTime<Utc>,
-    updated: DateTime<Utc>,
+    created: OffsetDateTime,
+    updated: OffsetDateTime,
     needs_rotation: Option<bool>,
 }
 impl GroupCreateResult {
@@ -233,11 +233,11 @@ impl GroupCreateResult {
         self.members.as_ref()
     }
     /// Date and time when the group was created
-    pub fn created(&self) -> &DateTime<Utc> {
+    pub fn created(&self) -> &OffsetDateTime {
         &self.created
     }
     /// Date and time when the group was last updated
-    pub fn last_updated(&self) -> &DateTime<Utc> {
+    pub fn last_updated(&self) -> &OffsetDateTime {
         &self.updated
     }
     /// Whether the group's private key needs rotation. Can only be accessed by a group administrator.
@@ -261,8 +261,8 @@ pub struct GroupGetResult {
     owner: Option<UserId>,
     admin_list: Option<Vec<UserId>>,
     member_list: Option<Vec<UserId>>,
-    created: DateTime<Utc>,
-    updated: DateTime<Utc>,
+    created: OffsetDateTime,
+    updated: OffsetDateTime,
     needs_rotation: Option<bool>,
     /// not exposed outside of the module
     encrypted_private_key: Option<TransformedEncryptedValue>,
@@ -289,11 +289,11 @@ impl GroupGetResult {
         self.is_member
     }
     /// Date and time when the group was created
-    pub fn created(&self) -> &DateTime<Utc> {
+    pub fn created(&self) -> &OffsetDateTime {
         &self.created
     }
     /// Date and time when the group was last updated
-    pub fn last_updated(&self) -> &DateTime<Utc> {
+    pub fn last_updated(&self) -> &OffsetDateTime {
         &self.updated
     }
     /// The owner of the group
@@ -933,8 +933,8 @@ pub(crate) mod tests {
         group_master_public_key: PublicKey,
         is_admin: bool,
         is_member: bool,
-        created: DateTime<Utc>,
-        updated: DateTime<Utc>,
+        created: OffsetDateTime,
+        updated: OffsetDateTime,
         needs_rotation: Option<bool>,
     ) -> GroupMetaResult {
         GroupMetaResult {

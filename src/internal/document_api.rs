@@ -19,7 +19,6 @@ use crate::{
     },
     DeviceSigningKeyPair, PolicyCache,
 };
-use chrono::{DateTime, Utc};
 use futures::{try_join, Future};
 use hex::encode;
 use itertools::{Either, Itertools};
@@ -39,6 +38,7 @@ use std::{
     ops::DerefMut,
     sync::Mutex,
 };
+use time::OffsetDateTime;
 
 mod requests;
 
@@ -240,11 +240,11 @@ impl DocumentListMeta {
         &self.0.association.typ
     }
     /// Date and time when the document was created
-    pub fn created(&self) -> &DateTime<Utc> {
+    pub fn created(&self) -> &OffsetDateTime {
         &self.0.created
     }
     /// Date and time when the document was last updated
-    pub fn last_updated(&self) -> &DateTime<Utc> {
+    pub fn last_updated(&self) -> &OffsetDateTime {
         &self.0.updated
     }
 }
@@ -279,11 +279,11 @@ impl DocumentMetadataResult {
         self.0.name.as_ref()
     }
     /// Date and time when the document was created
-    pub fn created(&self) -> &DateTime<Utc> {
+    pub fn created(&self) -> &OffsetDateTime {
         &self.0.created
     }
     /// Date and time when the document was last updated
-    pub fn last_updated(&self) -> &DateTime<Utc> {
+    pub fn last_updated(&self) -> &OffsetDateTime {
         &self.0.updated
     }
     /// How the requesting user has access to the document
@@ -370,8 +370,8 @@ impl DocumentEncryptUnmanagedResult {
 pub struct DocumentEncryptResult {
     id: DocumentId,
     name: Option<DocumentName>,
-    updated: DateTime<Utc>,
-    created: DateTime<Utc>,
+    updated: OffsetDateTime,
+    created: OffsetDateTime,
     encrypted_data: Vec<u8>,
     grants: Vec<UserOrGroup>,
     access_errs: Vec<DocAccessEditErr>,
@@ -390,11 +390,11 @@ impl DocumentEncryptResult {
         self.name.as_ref()
     }
     /// Date and time when the document was created
-    pub fn created(&self) -> &DateTime<Utc> {
+    pub fn created(&self) -> &OffsetDateTime {
         &self.created
     }
     /// Date and time when the document was last updated
-    pub fn last_updated(&self) -> &DateTime<Utc> {
+    pub fn last_updated(&self) -> &OffsetDateTime {
         &self.updated
     }
     /// Users and groups the document was successfully encrypted to
@@ -413,8 +413,8 @@ impl DocumentEncryptResult {
 pub struct DocumentDecryptResult {
     id: DocumentId,
     name: Option<DocumentName>,
-    updated: DateTime<Utc>,
-    created: DateTime<Utc>,
+    updated: OffsetDateTime,
+    created: OffsetDateTime,
     decrypted_data: Vec<u8>,
 }
 impl DocumentDecryptResult {
@@ -431,11 +431,11 @@ impl DocumentDecryptResult {
         self.name.as_ref()
     }
     /// Date and time when the document was created
-    pub fn created(&self) -> &DateTime<Utc> {
+    pub fn created(&self) -> &OffsetDateTime {
         &self.created
     }
     /// Date and time when the document was last updated
-    pub fn last_updated(&self) -> &DateTime<Utc> {
+    pub fn last_updated(&self) -> &OffsetDateTime {
         &self.updated
     }
 }
