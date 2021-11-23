@@ -29,7 +29,7 @@ hex = "0.4"
 ironcore-search-helpers = { version = "0.2", optional = true }
 itertools = "0.10"
 # see https://github.com/IronCoreLabs/ironoxide/pull/249
-jsonwebtoken = { git = "https://github.com/IronCoreLabs/jsonwebtoken", rev = "393782" }
+jsonwebtoken = { git = "https://github.com/IronCoreLabs/jsonwebtoken", rev = "147e560" }
 lazy_static = "1.4"
 log = "0.4"
 percent-encoding = "2.1"
