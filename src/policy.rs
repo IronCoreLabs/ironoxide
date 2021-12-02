@@ -96,7 +96,7 @@ use std::convert::{TryFrom, TryInto};
 /// rule may generate any number of users/groups.
 ///
 /// `substitute_user` replaces `%USER%` in a matched policy rule.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
 pub struct PolicyGrant {
     category: Option<Category>,
     sensitivity: Option<Sensitivity>,
@@ -132,16 +132,6 @@ impl PolicyGrant {
     }
     pub fn substitute_user(&self) -> Option<&UserId> {
         self.substitute_user.as_ref()
-    }
-}
-impl Default for PolicyGrant {
-    fn default() -> Self {
-        PolicyGrant {
-            category: None,
-            sensitivity: None,
-            data_subject: None,
-            substitute_user: None,
-        }
     }
 }
 
