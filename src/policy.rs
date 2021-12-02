@@ -193,6 +193,18 @@ mod tests {
     use std::convert::TryInto;
 
     #[test]
+    fn test_default_policy() {
+        let default_policy = PolicyGrant::default();
+        let empty_policy = PolicyGrant {
+            category: None,
+            sensitivity: None,
+            data_subject: None,
+            substitute_user: None,
+        };
+        assert_eq!(default_policy, empty_policy);
+    }
+
+    #[test]
     fn validate_simple_policy_id_good() {
         let name_type = "name_type";
         let id = "abc-123";
