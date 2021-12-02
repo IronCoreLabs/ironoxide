@@ -738,7 +738,7 @@ fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
         fn to_bytes(&self) -> Vec<u8> {
             let mut vec: Vec<u8> = vec![];
             vec.extend_from_slice(
-                rest::as_unix_timestamp_millis(self.timestamp.clone())
+                rest::as_unix_timestamp_millis(*self.timestamp)
                     .to_string()
                     .as_bytes(),
             );

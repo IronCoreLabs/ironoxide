@@ -96,7 +96,7 @@ use std::convert::{TryFrom, TryInto};
 /// rule may generate any number of users/groups.
 ///
 /// `substitute_user` replaces `%USER%` in a matched policy rule.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
 pub struct PolicyGrant {
     category: Option<Category>,
     sensitivity: Option<Sensitivity>,
@@ -132,16 +132,6 @@ impl PolicyGrant {
     }
     pub fn substitute_user(&self) -> Option<&UserId> {
         self.substitute_user.as_ref()
-    }
-}
-impl Default for PolicyGrant {
-    fn default() -> Self {
-        PolicyGrant {
-            category: None,
-            sensitivity: None,
-            data_subject: None,
-            substitute_user: None,
-        }
     }
 }
 
@@ -201,6 +191,18 @@ mod tests {
     use crate::internal::tests::contains;
     use galvanic_assert::{matchers::eq, *};
     use std::convert::TryInto;
+
+    #[test]
+    fn test_default_policy() {
+        let default_policy = PolicyGrant::default();
+        let empty_policy = PolicyGrant {
+            category: None,
+            sensitivity: None,
+            data_subject: None,
+            substitute_user: None,
+        };
+        assert_eq!(default_policy, empty_policy);
+    }
 
     #[test]
     fn validate_simple_policy_id_good() {
