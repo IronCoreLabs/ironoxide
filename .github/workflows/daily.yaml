@@ -1,12 +1,8 @@
 name: Daily runs
 
-# Run daily and also when Cargo.toml changes
 on:
   schedule:
     - cron: "0 14 * * *" # Daily at 2pm UTC
-  push:
-    paths:
-      - "**/Cargo.toml"
 
 jobs:
   security-audit:
