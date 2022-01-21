@@ -43,9 +43,10 @@ reqwest = { version = "0.11", features = [ "json" ], default-features = false }
 ring = { version = "0.16", features = [ "std" ] }
 serde = { version = "1.0.126", features = [ "derive" ] }
 serde_json = "1"
-time = { version = "0.3", features = [
+time = { version = "0.3.6", features = [
     "std",
     "serde-human-readable",
+    "serde-well-known",
     "parsing",
 ] }
 tokio = { version = "1", features = [ "time" ] }

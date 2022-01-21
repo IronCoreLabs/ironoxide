@@ -130,9 +130,9 @@ pub struct DocumentMetaApiResponse {
     pub association: Association,
     pub visible_to: DocumentVisibility,
     pub encrypted_symmetric_key: TransformedEncryptedValue,
-    #[serde(with = "crate::internal::serde_rfc3339")]
+    #[serde(with = "time::serde::rfc3339")]
     pub updated: OffsetDateTime,
-    #[serde(with = "crate::internal::serde_rfc3339")]
+    #[serde(with = "time::serde::rfc3339")]
     pub created: OffsetDateTime,
 }
 
@@ -149,9 +149,9 @@ pub mod document_list {
         pub id: DocumentId,
         pub name: Option<DocumentName>,
         pub association: Association,
-        #[serde(with = "crate::internal::serde_rfc3339")]
+        #[serde(with = "time::serde::rfc3339")]
         pub created: OffsetDateTime,
-        #[serde(with = "crate::internal::serde_rfc3339")]
+        #[serde(with = "time::serde::rfc3339")]
         pub updated: OffsetDateTime,
     }
 
@@ -236,9 +236,9 @@ pub mod document_create {
     pub struct DocumentCreateResponse {
         pub(crate) id: DocumentId,
         pub(crate) name: Option<DocumentName>,
-        #[serde(with = "crate::internal::serde_rfc3339")]
+        #[serde(with = "time::serde::rfc3339")]
         pub(crate) updated: OffsetDateTime,
-        #[serde(with = "crate::internal::serde_rfc3339")]
+        #[serde(with = "time::serde::rfc3339")]
         pub(crate) created: OffsetDateTime,
         pub(crate) shared_with: Vec<AccessGrant>,
     }

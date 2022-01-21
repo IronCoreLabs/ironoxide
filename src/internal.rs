@@ -31,7 +31,6 @@ use time::OffsetDateTime;
 pub mod document_api;
 pub mod group_api;
 mod rest;
-mod serde_rfc3339;
 pub mod user_api;
 
 lazy_static! {
