@@ -336,9 +336,9 @@ pub mod device_add {
         pub device_id: DeviceId,
         pub device_public_key: PublicKey,
         pub name: Option<DeviceName>,
-        #[serde(with = "crate::internal::serde_rfc3339")]
+        #[serde(with = "time::serde::rfc3339")]
         pub created: OffsetDateTime,
-        #[serde(with = "crate::internal::serde_rfc3339")]
+        #[serde(with = "time::serde::rfc3339")]
         pub updated: OffsetDateTime,
     }
 
@@ -381,9 +381,9 @@ pub mod device_list {
         #[serde(rename = "id")]
         device_id: DeviceId,
         name: Option<DeviceName>,
-        #[serde(with = "crate::internal::serde_rfc3339")]
+        #[serde(with = "time::serde::rfc3339")]
         created: OffsetDateTime,
-        #[serde(with = "crate::internal::serde_rfc3339")]
+        #[serde(with = "time::serde::rfc3339")]
         updated: OffsetDateTime,
         is_current_device: bool,
     }
