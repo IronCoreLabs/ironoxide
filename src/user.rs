@@ -323,7 +323,7 @@ impl UserOps for IronOxide {
 
     async fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {
         add_optional_timeout(
-            user_api::user_key_list(self.device.auth(), &users.to_vec()),
+            user_api::user_key_list(self.device.auth(), users),
             self.config.sdk_operation_timeout,
             SdkOperation::UserGetPublicKey,
         )

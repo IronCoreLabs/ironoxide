@@ -682,7 +682,7 @@ pub(crate) async fn get_user_keys(
         user_api::user_key_list(auth, users)
             .await
             .map(|ids_with_keys| {
-                users.to_vec().into_iter().partition_map(|user_id| {
+                users.iter().cloned().partition_map(|user_id| {
                     let maybe_public_key = ids_with_keys.get(&user_id).cloned();
                     match maybe_public_key {
                         Some(pk) => Either::Right(WithKey::new(user_id, pk)),
