@@ -581,7 +581,7 @@ impl Serialize for PrivateKey {
     where
         S: Serializer,
     {
-        serializer.serialize_str(&base64::encode(&self.0.bytes().to_vec()))
+        serializer.serialize_str(&base64::encode(self.0.bytes()))
     }
 }
 impl<'de> Deserialize<'de> for PrivateKey {
@@ -655,7 +655,7 @@ impl Serialize for DeviceSigningKeyPair {
     where
         S: Serializer,
     {
-        let base64 = base64::encode(&self.0.bytes().to_vec());
+        let base64 = base64::encode(self.0.bytes());
         serializer.serialize_str(&base64)
     }
 }

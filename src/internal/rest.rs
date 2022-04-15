@@ -130,7 +130,7 @@ impl<'a> Authorization<'a> {
             } => format!(
                 "IronCore {}.{}",
                 Authorization::VERSION_NUM,
-                base64::encode(&user_context.signature(request_sig.signing_keys).to_vec())
+                base64::encode(user_context.signature(request_sig.signing_keys))
             )
             .parse()
             .expect("Auth v2 headers should only contain ASCII"),
@@ -290,7 +290,7 @@ impl<'a> HeaderIronCoreRequestSig<'a> {
         let mut headers: HeaderMap = Default::default();
         headers.append(
             "X-IronCore-Request-Sig",
-            base64::encode(&self.signature().to_vec())
+            base64::encode(self.signature())
                 .parse()
                 .expect("signature as base64 can always be encoded as ASCII"),
         );
