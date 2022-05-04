@@ -536,10 +536,7 @@ async fn doc_create_shared_user_can_revoke() -> Result<(), IronOxideErr> {
     assert_eq!(doc_result.grants().len(), 2);
     //Revoke the creator, which should now be allowed.
     let revoke_result = user2_sdk
-        .document_revoke_access(
-            doc_result.id(),
-            &vec![UserOrGroup::User { id: user1.clone() }][..],
-        )
+        .document_revoke_access(doc_result.id(), &[UserOrGroup::User { id: user1.clone() }])
         .await?;
     assert_eq!(revoke_result.failed().len(), 0);
     assert_eq!(revoke_result.succeeded().len(), 1);
