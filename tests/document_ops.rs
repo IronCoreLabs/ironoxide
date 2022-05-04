@@ -15,7 +15,7 @@ async fn doc_list() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
     let (other_user, _) = init_sdk_get_user().await;
     let doc = "secret".to_string().into_bytes();
-    // grant_to_author is false, but doc should not come back in document list
+    // grant_to_author is false, so doc should not come back in document list
     let opts =
         DocumentEncryptOpts::with_explicit_grants(None, None, false, vec![(&other_user).into()]);
     sdk.document_encrypt(doc.clone(), &opts).await?;
