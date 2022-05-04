@@ -15,13 +15,18 @@ async fn doc_list() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
     let (other_user, _) = init_sdk_get_user().await;
     let doc = "secret".to_string().into_bytes();
-    // grant_to_author is false, but doc should still come back in document_list
+    // grant_to_author is false, but doc should not come back in document list
     let opts =
         DocumentEncryptOpts::with_explicit_grants(None, None, false, vec![(&other_user).into()]);
-    sdk.document_encrypt(doc, &opts).await?;
-    let document_list = sdk.document_list().await?;
-    dbg!(&document_list);
-    assert_eq!(document_list.result().len(), 1);
+    sdk.document_encrypt(doc.clone(), &opts).await?;
+    let document_list_one = sdk.document_list().await?;
+    assert_eq!(document_list_one.result().len(), 0);
+    //Create another doc, grant to author true.
+    let opts2 =
+        DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![(&other_user).into()]);
+    sdk.document_encrypt(doc, &opts2).await?;
+    let document_list_two = sdk.document_list().await?;
+    assert_eq!(document_list_two.result().len(), 1);
     Ok(())
 }
 
@@ -505,6 +510,43 @@ async fn doc_create_without_self_grant() -> Result<(), IronOxideErr> {
         }
     );
     assert_eq!(doc_result.access_errs().len(), 0);
+    Ok(())
+}
+
+#[tokio::test]
+async fn doc_create_shared_user_can_revoke() -> Result<(), IronOxideErr> {
+    let (user1, user1_sdk) = init_sdk_get_user().await;
+    let (user2, user2_sdk) = init_sdk_get_user().await;
+
+    let doc = [0u8; 64];
+
+    let doc_result = user1_sdk
+        .document_encrypt(
+            doc.into(),
+            &DocumentEncryptOpts::with_explicit_grants(
+                Some(create_id_all_classes("").try_into()?),
+                Some("first name".try_into()?),
+                true,
+                vec![UserOrGroup::User { id: user2.clone() }],
+            ),
+        )
+        .await?;
+
+    // should be a user with access, but not the currently initd user
+    assert_eq!(doc_result.grants().len(), 2);
+    //Revoke the creator, which should now be allowed.
+    let revoke_result = user2_sdk
+        .document_revoke_access(
+            doc_result.id(),
+            &vec![UserOrGroup::User { id: user1.clone() }][..],
+        )
+        .await?;
+    assert_eq!(revoke_result.failed().len(), 0);
+    assert_eq!(revoke_result.succeeded().len(), 1);
+    let decrypt_result_or_error = user1_sdk
+        .document_decrypt(doc_result.encrypted_data())
+        .await;
+    assert!(decrypt_result_or_error.err().is_some());
     Ok(())
 }
 
