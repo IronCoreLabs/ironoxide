@@ -532,7 +532,7 @@ async fn doc_create_shared_user_can_revoke() -> Result<(), IronOxideErr> {
         )
         .await?;
 
-    // should be a user with access, but not the currently initd user
+    // should be the author and the user2.
     assert_eq!(doc_result.grants().len(), 2);
     //Revoke the creator, which should now be allowed.
     let revoke_result = user2_sdk
