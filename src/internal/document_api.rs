@@ -875,18 +875,14 @@ impl TryFrom<&EncryptedDek> for EncryptedDekP {
                 auth_hash,
                 public_signing_key,
                 signature,
-            } => {
-                let mut proto_edek_data = EncryptedDekDataP::default();
-
-                proto_edek_data.encryptedBytes = encrypted_message.bytes().to_vec().into();
-                proto_edek_data.ephemeralPublicKey =
-                    Some(PublicKey::from(ephemeral_public_key).into()).into();
-                proto_edek_data.signature = signature.bytes().to_vec().into();
-                proto_edek_data.authHash = auth_hash.bytes().to_vec().into();
-                proto_edek_data.publicSigningKey = public_signing_key.bytes().to_vec().into();
-
-                Ok(proto_edek_data)
-            }
+            } => Ok(EncryptedDekDataP {
+                encryptedBytes: encrypted_message.bytes().to_vec().into(),
+                ephemeralPublicKey: Some(PublicKey::from(ephemeral_public_key).into()).into(),
+                signature: signature.bytes().to_vec().into(),
+                authHash: auth_hash.bytes().to_vec().into(),
+                publicSigningKey: public_signing_key.bytes().to_vec().into(),
+                ..Default::default()
+            }),
             re::EncryptedValue::TransformedValue { .. } => Err(
                 IronOxideErr::InvalidRecryptEncryptedValue("Expected".to_string()),
             ),
@@ -920,10 +916,11 @@ impl TryFrom<&EncryptedDek> for EncryptedDekP {
             }
         };
 
-        let mut proto_edek = EncryptedDekP::default();
-        proto_edek.userOrGroup = Some(proto_uog).into();
-        proto_edek.encryptedDekData = Some(proto_edek_data).into();
-        Ok(proto_edek)
+        Ok(EncryptedDekP {
+            userOrGroup: Some(proto_uog).into(),
+            encryptedDekData: Some(proto_edek_data).into(),
+            ..Default::default()
+        })
     }
 }
 /// Result of recrypt encryption. Contains the encrypted DEKs and the encrypted (user) data.

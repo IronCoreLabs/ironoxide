@@ -487,10 +487,11 @@ impl From<&PublicKey> for RecryptPublicKey {
 }
 impl From<PublicKey> for crate::proto::transform::PublicKey {
     fn from(pubk: PublicKey) -> Self {
-        let mut proto_pub_key = crate::proto::transform::PublicKey::default();
-        proto_pub_key.x = pubk.to_bytes_x_y().0.into();
-        proto_pub_key.y = pubk.to_bytes_x_y().1.into();
-        proto_pub_key
+        crate::proto::transform::PublicKey {
+            x: pubk.to_bytes_x_y().0.into(),
+            y: pubk.to_bytes_x_y().1.into(),
+            ..Default::default()
+        }
     }
 }
 impl TryFrom<&[u8]> for PublicKey {
