@@ -22,7 +22,7 @@ use crate::{
 use futures::{try_join, Future};
 use hex::encode;
 use itertools::{Either, Itertools};
-use protobuf::{Message, RepeatedField};
+use protobuf::Message;
 use rand::{self, CryptoRng, RngCore};
 use recrypt::{api::Plaintext, prelude::*};
 use requests::{
@@ -878,12 +878,12 @@ impl TryFrom<&EncryptedDek> for EncryptedDekP {
             } => {
                 let mut proto_edek_data = EncryptedDekDataP::default();
 
-                proto_edek_data.set_encryptedBytes(encrypted_message.bytes().to_vec().into());
-                proto_edek_data
-                    .set_ephemeralPublicKey(PublicKey::from(ephemeral_public_key).into());
-                proto_edek_data.set_signature(signature.bytes().to_vec().into());
-                proto_edek_data.set_authHash(auth_hash.bytes().to_vec().into());
-                proto_edek_data.set_publicSigningKey(public_signing_key.bytes().to_vec().into());
+                proto_edek_data.encryptedBytes = encrypted_message.bytes().to_vec().into();
+                proto_edek_data.ephemeralPublicKey =
+                    Some(PublicKey::from(ephemeral_public_key).into()).into();
+                proto_edek_data.signature = signature.bytes().to_vec().into();
+                proto_edek_data.authHash = auth_hash.bytes().to_vec().into();
+                proto_edek_data.publicSigningKey = public_signing_key.bytes().to_vec().into();
 
                 Ok(proto_edek_data)
             }
@@ -903,7 +903,7 @@ impl TryFrom<&EncryptedDek> for EncryptedDekP {
             } => {
                 let mut proto_uog = transform::UserOrGroup::default();
                 proto_uog.set_userId(user_string.into());
-                proto_uog.set_masterPublicKey(public_key.into());
+                proto_uog.masterPublicKey = Some(public_key.into()).into();
                 proto_uog
             }
             WithKey {
@@ -915,14 +915,14 @@ impl TryFrom<&EncryptedDek> for EncryptedDekP {
             } => {
                 let mut proto_uog = transform::UserOrGroup::default();
                 proto_uog.set_groupId(group_string.into());
-                proto_uog.set_masterPublicKey(public_key.into());
+                proto_uog.masterPublicKey = Some(public_key.into()).into();
                 proto_uog
             }
         };
 
         let mut proto_edek = EncryptedDekP::default();
-        proto_edek.set_userOrGroup(proto_uog);
-        proto_edek.set_encryptedDekData(proto_edek_data);
+        proto_edek.userOrGroup = Some(proto_uog).into();
+        proto_edek.encryptedDekData = Some(proto_edek_data).into();
         Ok(proto_edek)
     }
 }
@@ -978,7 +978,7 @@ impl EncryptedDoc {
         let proto_edek_vec = proto_edek_vec_results?;
 
         let proto_edeks = EncryptedDeksP {
-            edeks: RepeatedField::from_vec(proto_edek_vec),
+            edeks: proto_edek_vec,
             documentId: self.header.document_id.id().into(),
             segmentId: self.header.segment_id as i32, // okay since the ironcore-ws defines this to be an i32
             ..Default::default()
@@ -1132,12 +1132,12 @@ fn edeks_and_header_match_or_err(
     edeks: &EncryptedDeksP,
     doc_meta: &DocumentHeader,
 ) -> Result<(), IronOxideErr> {
-    if doc_meta.document_id.id() != edeks.get_documentId()
-        || doc_meta.segment_id as i32 != edeks.get_segmentId()
+    if doc_meta.document_id.id() != edeks.documentId.to_string()
+        || doc_meta.segment_id as i32 != edeks.segmentId
     {
         Err(IronOxideErr::UnmanagedDecryptionError(
-            edeks.get_documentId().into(),
-            edeks.get_segmentId(),
+            edeks.documentId.to_string(),
+            edeks.segmentId,
             doc_meta.document_id.clone().0,
             doc_meta.segment_id as i32,
         ))
@@ -1714,24 +1714,13 @@ mod tests {
 
         let proto_edek: EncryptedDekP = edek.borrow().try_into().unwrap();
 
-        assert_eq!(
-            &user_str,
-            &proto_edek.get_userOrGroup().get_userId().to_string()
-        );
+        assert_eq!(&user_str, &proto_edek.userOrGroup.userId());
         let (x, y) = pubk.bytes_x_y();
         assert_eq!(
             (x.to_vec(), y.to_vec()),
             (
-                proto_edek
-                    .get_userOrGroup()
-                    .get_masterPublicKey()
-                    .get_x()
-                    .to_vec(),
-                proto_edek
-                    .get_userOrGroup()
-                    .get_masterPublicKey()
-                    .get_y()
-                    .to_vec()
+                proto_edek.userOrGroup.masterPublicKey.x.to_vec(),
+                proto_edek.userOrGroup.masterPublicKey.y.to_vec()
             )
         );
 
@@ -1749,43 +1738,29 @@ mod tests {
                     ephemeral_public_key.bytes_x_y().1.to_vec()
                 ),
                 (
-                    proto_edek
-                        .get_encryptedDekData()
-                        .get_ephemeralPublicKey()
-                        .get_x()
-                        .to_vec(),
-                    proto_edek
-                        .get_encryptedDekData()
-                        .get_ephemeralPublicKey()
-                        .get_y()
-                        .to_vec()
+                    proto_edek.encryptedDekData.ephemeralPublicKey.x.to_vec(),
+                    proto_edek.encryptedDekData.ephemeralPublicKey.y.to_vec()
                 )
             );
 
             assert_eq!(
                 encrypted_message.bytes().to_vec(),
-                proto_edek
-                    .get_encryptedDekData()
-                    .get_encryptedBytes()
-                    .to_vec()
+                proto_edek.encryptedDekData.encryptedBytes.to_vec()
             );
 
             assert_eq!(
                 auth_hash.bytes().to_vec(),
-                proto_edek.get_encryptedDekData().get_authHash().to_vec()
+                proto_edek.encryptedDekData.authHash.to_vec()
             );
 
             assert_eq!(
                 public_signing_key.to_bytes(),
-                proto_edek
-                    .get_encryptedDekData()
-                    .get_publicSigningKey()
-                    .to_vec()
+                proto_edek.encryptedDekData.publicSigningKey.to_vec()
             );
 
             assert_eq!(
                 signature.bytes().to_vec(),
-                proto_edek.get_encryptedDekData().get_signature().to_vec()
+                proto_edek.encryptedDekData.signature.to_vec()
             );
         } else {
             panic!("Should be EncryptedOnceValue");
@@ -1834,7 +1809,7 @@ mod tests {
     #[test]
     pub fn unmanaged_edoc_compare_grants() -> Result<(), IronOxideErr> {
         use crate::proto::transform::{
-            UserOrGroup as UserOrGroupP, UserOrGroup_oneof_UserOrGroupId as UserOrGroupIdP,
+            user_or_group::UserOrGroupId as UserOrGroupIdP, UserOrGroup as UserOrGroupP,
         };
         use recrypt::prelude::*;
 
@@ -1881,10 +1856,10 @@ mod tests {
                 }) = edek.userOrGroup.as_ref()
                 {
                     match proto_uog {
-                        UserOrGroupIdP::userId(user_chars) => Ok(UserOrGroup::User {
+                        UserOrGroupIdP::UserId(user_chars) => Ok(UserOrGroup::User {
                             id: user_chars.to_string().try_into()?,
                         }),
-                        UserOrGroupIdP::groupId(group_chars) => Ok(UserOrGroup::Group {
+                        UserOrGroupIdP::GroupId(group_chars) => Ok(UserOrGroup::Group {
                             id: group_chars.to_string().try_into()?,
                         }),
                     }
