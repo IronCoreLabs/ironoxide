@@ -772,6 +772,38 @@ fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
         .into()
 }
 
+/// Change the password for the user
+pub async fn user_change_password(
+    password: Password,
+    new_password: Password,
+    auth: &RequestAuth,
+) -> Result<UserCreateResult, IronOxideErr> {
+    let requests::user_get::CurrentUserResponse {
+        user_private_key: encrypted_priv_key,
+        id: curr_user_id,
+        ..
+    } = requests::user_get::get_curr_user(auth).await?;
+    let (user_id, new_encrypted_priv_key) = {
+        let priv_key: PrivateKey = aes::decrypt_user_master_key(
+            &password.0,
+            &aes::EncryptedMasterKey::new_from_slice(&encrypted_priv_key.0)?,
+        )?
+        .into();
+
+        let new_encrypted_priv_key = aes::encrypt_user_master_key(
+            &Mutex::new(OsRng::default()),
+            &new_password.0,
+            priv_key.as_bytes(),
+        )?;
+        (curr_user_id, new_encrypted_priv_key)
+    };
+    Ok(
+        requests::user_update::user_update(auth, &user_id, Some(new_encrypted_priv_key.into()))
+            .await?
+            .try_into()?,
+    )
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;

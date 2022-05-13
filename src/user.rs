@@ -250,6 +250,31 @@ pub trait UserOps {
     /// # }
     /// ```
     async fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId>;
+
+    /// Change the password for the user
+    ///
+    /// This will result in the password that is being used to encrypt the user private key to be changed.
+    ///
+    /// # Arguments
+    /// `current_password` - Password to unlock the current user's private key
+    /// `new_password` - New password to lok the current user's private key
+    ///
+    /// # Examples
+    /// ```
+    /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+    /// # use ironoxide::prelude::*;
+    /// # let sdk: IronOxide = unimplemented!();
+    /// let password = "foobar";
+    /// let new_password = "barbaz";
+    /// let rotate_result = sdk.user_change_password(password, new_password).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    async fn user_change_password(
+        &self,
+        current_password: &str,
+        new_password: &str,
+    ) -> Result<UserCreateResult>;
 }
 
 #[async_trait]
@@ -348,6 +373,23 @@ impl UserOps for IronOxide {
             user_api::device_delete(self.device.auth(), device_id),
             self.config.sdk_operation_timeout,
             SdkOperation::UserDeleteDevice,
+        )
+        .await?
+    }
+
+    async fn user_change_password(
+        &self,
+        current_password: &str,
+        new_password: &str,
+    ) -> Result<UserCreateResult> {
+        add_optional_timeout(
+            user_api::user_change_password(
+                current_password.try_into()?,
+                new_password.try_into()?,
+                self.device.auth(),
+            ),
+            self.config.sdk_operation_timeout,
+            SdkOperation::UserChangePassword,
         )
         .await?
     }

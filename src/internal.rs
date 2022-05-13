@@ -51,6 +51,7 @@ lazy_static! {
 pub enum RequestErrorCode {
     UserVerify,
     UserCreate,
+    UserUpdate,
     UserDeviceAdd,
     UserDeviceDelete,
     UserDeviceList,
@@ -99,6 +100,7 @@ pub enum SdkOperation {
     UserVerify,
     UserGetPublicKey,
     UserRotatePrivateKey,
+    UserChangePassword,
     GroupList,
     GroupCreate,
     GroupGetMetadata,
