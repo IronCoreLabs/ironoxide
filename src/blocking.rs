@@ -270,9 +270,15 @@ impl BlockingIronOxide {
             .block_on(self.ironoxide.user_rotate_private_key(password))
     }
     /// See [ironoxide::user::UserOps::user_change_password](trait.UserOps.html#tymethod.user_change_password)
-    pub fn user_change_password(&self, password: &str) -> Result<UserUpdatePrivateKeyResult> {
-        self.runtime
-            .block_on(self.ironoxide.user_change_password(password))
+    pub fn user_change_password(
+        &self,
+        current_password: &str,
+        new_password: &str,
+    ) -> Result<UserUpdateResult> {
+        self.runtime.block_on(
+            self.ironoxide
+                .user_change_password(current_password, new_password),
+        )
     }
 }
 

@@ -5,7 +5,7 @@
 pub use crate::internal::user_api::{
     DeviceAddResult, DeviceId, DeviceName, EncryptedPrivateKey, Jwt, JwtClaims, KeyPair,
     UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserResult,
-    UserUpdatePrivateKeyResult,
+    UserUpdatePrivateKeyResult, UserUpdateResult,
 };
 use crate::{
     common::{PublicKey, SdkOperation},
@@ -274,7 +274,7 @@ pub trait UserOps {
         &self,
         current_password: &str,
         new_password: &str,
-    ) -> Result<UserCreateResult>;
+    ) -> Result<UserUpdateResult>;
 }
 
 #[async_trait]
@@ -381,7 +381,7 @@ impl UserOps for IronOxide {
         &self,
         current_password: &str,
         new_password: &str,
-    ) -> Result<UserCreateResult> {
+    ) -> Result<UserUpdateResult> {
         add_optional_timeout(
             user_api::user_change_password(
                 current_password.try_into()?,

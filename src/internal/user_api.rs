@@ -119,6 +119,8 @@ pub struct UserCreateResult {
     needs_rotation: bool,
 }
 
+pub type UserUpdateResult = UserCreateResult;
+
 impl UserCreateResult {
     /// Public key for the user
     ///
