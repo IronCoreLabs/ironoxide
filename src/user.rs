@@ -266,7 +266,7 @@ pub trait UserOps {
     /// # let sdk: IronOxide = unimplemented!();
     /// let password = "foobar";
     /// let new_password = "barbaz";
-    /// let rotate_result = sdk.user_change_password(password, new_password).await?;
+    /// let change_password_result = sdk.user_change_password(password, new_password).await?;
     /// # Ok(())
     /// # }
     /// ```
