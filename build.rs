@@ -18,6 +18,7 @@ fn main() {
                 .tokio_bytes(true)
                 .tokio_bytes_for_string(true),
         )
+        .pure()
         .run()
         .expect("protoc");
 

@@ -114,8 +114,6 @@ jobs:
       #     key: ${{ github.workflow }}-rust-arch-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
       #     restore-keys: |
       #       ${{ github.workflow }}-rust-arch-${{ matrix.target }}-
-      - name: Install protobuf-codegen
-        run: cargo install protobuf-codegen
       - uses: actions-rs/cargo@v1
         with:
           # `cross` will work on all our targets except aarch64-apple-ios. We can still use `cross` everywhere, because it transparently falls back to `cargo`.
