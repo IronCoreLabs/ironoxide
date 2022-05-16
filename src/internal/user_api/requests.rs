@@ -270,6 +270,58 @@ pub mod user_create {
     }
 }
 
+pub mod user_update {
+    use crate::internal::{user_api::UserCreateResult, TryInto};
+
+    use super::*;
+
+    #[derive(Debug, PartialEq, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct UserUpdateResponse {
+        id: String,
+        status: usize,
+        segment_id: usize,
+        pub user_private_key: EncryptedPrivateKey,
+        pub user_master_public_key: PublicKey,
+        needs_rotation: bool,
+    }
+
+    #[derive(Debug, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct UserUpdateReq {
+        user_private_key: Option<EncryptedPrivateKey>,
+    }
+
+    pub async fn user_update(
+        auth: &RequestAuth,
+        user_id: &UserId,
+        encrypted_user_private_key: Option<EncryptedPrivateKey>,
+    ) -> Result<UserUpdateResponse, IronOxideErr> {
+        let req_body = UserUpdateReq {
+            user_private_key: encrypted_user_private_key,
+        };
+        auth.request
+            .put(
+                &format!("users/{}", rest::url_encode(user_id.id())),
+                &req_body,
+                RequestErrorCode::UserUpdate,
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
+            )
+            .await
+    }
+
+    impl TryFrom<UserUpdateResponse> for UserCreateResult {
+        type Error = IronOxideErr;
+
+        fn try_from(resp: UserUpdateResponse) -> Result<Self, Self::Error> {
+            Ok(UserCreateResult {
+                user_public_key: resp.user_master_public_key.try_into()?,
+                needs_rotation: resp.needs_rotation,
+            })
+        }
+    }
+}
+
 pub mod user_key_list {
     use super::*;
 

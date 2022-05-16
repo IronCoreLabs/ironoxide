@@ -94,6 +94,57 @@ async fn user_private_key_rotation() -> Result<(), IronOxideErr> {
 }
 
 #[tokio::test]
+async fn user_change_password() -> Result<(), IronOxideErr> {
+    let account_id: UserId = Uuid::new_v4().to_string().try_into()?;
+    let first_password = "foo";
+    let new_password = "bar";
+    let initial_result = IronOxide::user_create(
+        &gen_jwt(Some(account_id.id())).0,
+        first_password,
+        &Default::default(),
+        None,
+    )
+    .await?;
+    let device: DeviceContext = IronOxide::generate_new_device(
+        &gen_jwt(Some(account_id.id())).0,
+        first_password,
+        &Default::default(),
+        None,
+    )
+    .await?
+    .into();
+    let sdk = ironoxide::initialize(&device, &Default::default()).await?;
+    let change_passcode_result = sdk
+        .user_change_password(first_password, new_password)
+        .await?;
+
+    assert_eq!(
+        initial_result.user_public_key(),
+        change_passcode_result.user_public_key()
+    );
+
+    //Make sure we can't add a device with the old password.
+    assert!(IronOxide::generate_new_device(
+        &gen_jwt(Some(account_id.id())).0,
+        first_password,
+        &Default::default(),
+        None,
+    )
+    .await
+    .is_err());
+
+    //Make sure we can add a new device with the new password
+    IronOxide::generate_new_device(
+        &gen_jwt(Some(account_id.id())).0,
+        new_password,
+        &Default::default(),
+        None,
+    )
+    .await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn sdk_init_with_private_key_rotation() -> Result<(), IronOxideErr> {
     use ironoxide::InitAndRotationCheck;
 
