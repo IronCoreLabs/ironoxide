@@ -257,7 +257,7 @@ pub trait UserOps {
     ///
     /// # Arguments
     /// `current_password` - Password to unlock the current user's private key
-    /// `new_password` - New password to lok the current user's private key
+    /// `new_password` - New password to lock the current user's private key
     ///
     /// # Examples
     /// ```
