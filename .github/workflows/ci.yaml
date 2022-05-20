@@ -69,6 +69,8 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.features }}-${{ matrix.toolchain }}-Cargo.lock
           path: Cargo.lock
+      - name: Install protobuf-codegen
+        run: cargo install protobuf-codegen
       - name: Cargo test
         run: cargo test --features ${{ matrix.features }}
       - name: Post to Slack on failure of scheduled run
