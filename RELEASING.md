@@ -9,6 +9,6 @@ Release Checklist
 * `cargo package` to see if there are any issues
 * Tag the release, using the changelog entry as the commit message
   - `git tag -a <NEW_VER_NUM>`
-  - `git push origin <NEW_VER_NUM> && git push` (eg: 0.5.2)
+  - `git push && git push origin <NEW_VER_NUM>` (eg: 0.5.2)
 * `cargo publish`
 * Check crates.io and docs.rs sites for new version
