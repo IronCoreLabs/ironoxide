@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.28.0 (unreleased)
+## 1.0.0
+
+- [#267](https://github.com/IronCoreLabs/ironoxide/pull/267) Add `user_change_password`
 
 ## 0.27.0
 - [[#246](https://github.com/IronCoreLabs/ironoxide/pull/246)] Don't clone plaintext on AES encryption
