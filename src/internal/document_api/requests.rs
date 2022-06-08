@@ -305,7 +305,6 @@ pub mod policy_get {
                 .substitute_user()
                 .map(|UserId(u)| (SUBSTITUTE_ID_QUERY_PARAM.to_string(), url_encode(u))),
         ]
-        .to_vec()
         .into_iter()
         .flatten()
         .collect();

@@ -9,15 +9,16 @@ use std::{
 fn main() {
     let out_dir = env::var("OUT_DIR").expect("OUT_DIR should exist");
     let name = "transform";
-    protobuf_codegen_pure::Codegen::new()
+    protobuf_codegen::Codegen::new()
         .out_dir(&out_dir)
         .input(format!("proto/{}.proto", name))
         .include("proto")
-        .customize(protobuf_codegen_pure::Customize {
-            carllerche_bytes_for_bytes: Some(true),
-            carllerche_bytes_for_string: Some(true),
-            ..Default::default()
-        })
+        .customize(
+            protobuf_codegen::Customize::default()
+                .tokio_bytes(true)
+                .tokio_bytes_for_string(true),
+        )
+        .pure()
         .run()
         .expect("protoc");
 

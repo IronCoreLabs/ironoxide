@@ -119,6 +119,8 @@ pub struct UserCreateResult {
     needs_rotation: bool,
 }
 
+pub type UserUpdateResult = UserCreateResult;
+
 impl UserCreateResult {
     /// Public key for the user
     ///
@@ -682,7 +684,7 @@ pub(crate) async fn get_user_keys(
         user_api::user_key_list(auth, users)
             .await
             .map(|ids_with_keys| {
-                users.to_vec().into_iter().partition_map(|user_id| {
+                users.iter().cloned().partition_map(|user_id| {
                     let maybe_public_key = ids_with_keys.get(&user_id).cloned();
                     match maybe_public_key {
                         Some(pk) => Either::Right(WithKey::new(user_id, pk)),
@@ -770,6 +772,41 @@ fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
             &msg,
         )
         .into()
+}
+
+/// Change the password for the user
+pub async fn user_change_password(
+    password: Password,
+    new_password: Password,
+    auth: &RequestAuth,
+) -> Result<UserCreateResult, IronOxideErr> {
+    let requests::user_get::CurrentUserResponse {
+        user_private_key: encrypted_priv_key,
+        id: curr_user_id,
+        ..
+    } = requests::user_get::get_curr_user(auth).await?;
+    let new_encrypted_priv_key = {
+        let priv_key: PrivateKey = aes::decrypt_user_master_key(
+            &password.0,
+            &aes::EncryptedMasterKey::new_from_slice(&encrypted_priv_key.0)?,
+        )?
+        .into();
+
+        aes::encrypt_user_master_key(
+            &Mutex::new(OsRng::default()),
+            &new_password.0,
+            priv_key.as_bytes(),
+        )?
+    };
+    Ok(
+        requests::user_update::user_update(
+            auth,
+            &curr_user_id,
+            Some(new_encrypted_priv_key.into()),
+        )
+        .await?
+        .try_into()?,
+    )
 }
 
 #[cfg(test)]

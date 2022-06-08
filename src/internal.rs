@@ -10,7 +10,7 @@ use crate::internal::{
 use futures::Future;
 use lazy_static::lazy_static;
 use log::error;
-use protobuf::{self, ProtobufError};
+use protobuf::{self, Error as ProtobufError};
 use quick_error::quick_error;
 use recrypt::api::{
     CryptoOps, Ed25519, Hashable, KeyGenOps, Plaintext, PrivateKey as RecryptPrivateKey,
@@ -51,6 +51,7 @@ lazy_static! {
 pub enum RequestErrorCode {
     UserVerify,
     UserCreate,
+    UserUpdate,
     UserDeviceAdd,
     UserDeviceDelete,
     UserDeviceList,
@@ -99,6 +100,7 @@ pub enum SdkOperation {
     UserVerify,
     UserGetPublicKey,
     UserRotatePrivateKey,
+    UserChangePassword,
     GroupList,
     GroupCreate,
     GroupGetMetadata,
@@ -173,7 +175,7 @@ quick_error! {
             display("No policy is defined. Please visit https://admin.ironcorelabs.com/policy to set a policy")
         }
         /// Protobuf encode/decode error
-        ProtobufSerdeError(err: protobuf::ProtobufError) {
+        ProtobufSerdeError(err: ProtobufError) {
             source(err)
         }
         /// Protobuf decode succeeded, but the result is not valid
@@ -487,10 +489,11 @@ impl From<&PublicKey> for RecryptPublicKey {
 }
 impl From<PublicKey> for crate::proto::transform::PublicKey {
     fn from(pubk: PublicKey) -> Self {
-        let mut proto_pub_key = crate::proto::transform::PublicKey::default();
-        proto_pub_key.set_x(pubk.to_bytes_x_y().0.into());
-        proto_pub_key.set_y(pubk.to_bytes_x_y().1.into());
-        proto_pub_key
+        crate::proto::transform::PublicKey {
+            x: pubk.to_bytes_x_y().0.into(),
+            y: pubk.to_bytes_x_y().1.into(),
+            ..Default::default()
+        }
     }
 }
 impl TryFrom<&[u8]> for PublicKey {
@@ -581,7 +584,7 @@ impl Serialize for PrivateKey {
     where
         S: Serializer,
     {
-        serializer.serialize_str(&base64::encode(&self.0.bytes().to_vec()))
+        serializer.serialize_str(&base64::encode(self.0.bytes()))
     }
 }
 impl<'de> Deserialize<'de> for PrivateKey {
@@ -655,7 +658,7 @@ impl Serialize for DeviceSigningKeyPair {
     where
         S: Serializer,
     {
-        let base64 = base64::encode(&self.0.bytes().to_vec());
+        let base64 = base64::encode(self.0.bytes());
         serializer.serialize_str(&base64)
     }
 }
@@ -975,7 +978,7 @@ pub(crate) mod tests {
         let proto_pubk: crate::proto::transform::PublicKey = pubk.clone().into();
         assert_eq!(
             (&pubk.to_bytes_x_y().0, &pubk.to_bytes_x_y().1),
-            (&proto_pubk.get_x().to_vec(), &proto_pubk.get_y().to_vec())
+            (&proto_pubk.x.to_vec(), &proto_pubk.y.to_vec())
         );
         Ok(())
     }
