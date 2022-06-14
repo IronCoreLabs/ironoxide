@@ -263,6 +263,7 @@ pub mod user_create {
 
         fn try_from(resp: UserCreateResponse) -> Result<Self, Self::Error> {
             Ok(UserCreateResult {
+                id: resp.id,
                 user_public_key: resp.user_master_public_key.try_into()?,
                 needs_rotation: resp.needs_rotation,
             })
@@ -315,6 +316,7 @@ pub mod user_update {
 
         fn try_from(resp: UserUpdateResponse) -> Result<Self, Self::Error> {
             Ok(UserCreateResult {
+                id: resp.id,
                 user_public_key: resp.user_master_public_key.try_into()?,
                 needs_rotation: resp.needs_rotation,
             })
