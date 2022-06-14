@@ -117,6 +117,7 @@ impl TryFrom<&str> for DeviceName {
 pub struct UserCreateResult {
     user_public_key: PublicKey,
     needs_rotation: bool,
+    id: String,
 }
 
 pub type UserUpdateResult = UserCreateResult;
@@ -132,6 +133,10 @@ impl UserCreateResult {
     /// Whether the user's private key needs to be rotated
     pub fn needs_rotation(&self) -> bool {
         self.needs_rotation
+    }
+    /// The user's id.
+    pub fn id(&self) -> &str {
+        self.id.as_str()
     }
 }
 
