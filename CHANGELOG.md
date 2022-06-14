@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.0
+
+- [#270](https://github.com/IronCoreLabs/ironoxide/pull/270) Add `id` to the UserCreateResult and UserUpdateResult.
+
 ## 1.0.0
 
 - [#267](https://github.com/IronCoreLabs/ironoxide/pull/267) Add `user_change_password`
