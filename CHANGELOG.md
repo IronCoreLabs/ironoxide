@@ -1,14 +1,19 @@
 # Changelog
 
+## 1.1.1
+
+- [[#272](https://github.com/IronCoreLabs/ironoxide/pull/272)] Fix regression that removed `Hash` from `Jwt`.
+
 ## 1.1.0
 
-- [#270](https://github.com/IronCoreLabs/ironoxide/pull/270) Add `id` to the UserCreateResult and UserUpdateResult.
+- [[#270](https://github.com/IronCoreLabs/ironoxide/pull/270)] Add `id` to the UserCreateResult and UserUpdateResult.
 
 ## 1.0.0
 
-- [#267](https://github.com/IronCoreLabs/ironoxide/pull/267) Add `user_change_password`
+- [[#267](https://github.com/IronCoreLabs/ironoxide/pull/267)] Add `user_change_password`
 
 ## 0.27.0
+
 - [[#246](https://github.com/IronCoreLabs/ironoxide/pull/246)] Don't clone plaintext on AES encryption
   - Public APIs for `document_encrypt`, `document_encrypt_unmanaged`, and `document_update_bytes` now take owned bytes instead of byte slices to improve performance for common use cases.
   - AES encryption has improved memory usage in most cases.
