@@ -38,7 +38,7 @@ jobs:
             features: default
           # MSRV
           - os: ubuntu-18.04
-            toolchain: 1.56.0
+            toolchain: 1.60.0
             features: default
     steps:
       - uses: actions/checkout@v3
@@ -46,6 +46,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.toolchain }}
+          override: true
       # This was disabled because of intermittent failures after a cache hit in macos-10.15
       #
       # - name: Generate Cargo.lock so we can cache from it
@@ -101,6 +102,7 @@ jobs:
         with:
           toolchain: stable
           target: ${{ matrix.target }}
+          override: true
       # This was disabled because of intermittent failures after a cache hit in macos-10.15
       #
       # - name: Generate Cargo.lock so we can cache from it

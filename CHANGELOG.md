@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- [[#274](https://github.com/IronCoreLabs/ironoxide/pull/274)] Bump MSRV to 1.60.0.
+
 ## 1.1.1
 
 - [[#272](https://github.com/IronCoreLabs/ironoxide/pull/272)] Fix regression that removed `Hash` from `Jwt`.
