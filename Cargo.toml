@@ -16,7 +16,7 @@ keywords = [
 ]
 description = "A pure-Rust SDK for accessing IronCore's privacy platform"
 edition = "2021"
-rust-version = "1.56.0"
+rust-version = "1.60.0"
 
 [dependencies]
 async-trait = "0.1.21"
