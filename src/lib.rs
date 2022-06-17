@@ -155,7 +155,9 @@
 #![type_length_limit = "2000000"]
 
 // include generated proto code as a proto module
-include!(concat!(env!("OUT_DIR"), "/transform.rs"));
+mod proto {
+    include!(concat!(env!("OUT_DIR"), "/proto/mod.rs"));
+}
 
 mod crypto {
     pub mod aes;
