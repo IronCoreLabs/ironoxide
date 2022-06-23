@@ -225,10 +225,10 @@ async fn save_customer(
         vec![group_id.into()], // users and groups to which to grant access
     );
     let enc_name = sdk
-        .document_encrypt_unmanaged(cust.name.into_bytes(), &encrypt_opts)
+        .document_encrypt_unmanaged(cust.name.into_bytes(), encrypt_opts.clone())
         .await?;
     let enc_email = sdk
-        .document_encrypt_unmanaged(cust.email.into_bytes(), &encrypt_opts)
+        .document_encrypt_unmanaged(cust.email.into_bytes(), encrypt_opts)
         .await?;
 
     let enc_cust = EncryptedCustomer {
@@ -274,10 +274,10 @@ async fn save_customer_with_2_indices(
         vec![group_id.into()], // users and groups to which to grant access
     );
     let enc_name = sdk
-        .document_encrypt_unmanaged(cust.name.into_bytes(), &encrypt_opts)
+        .document_encrypt_unmanaged(cust.name.into_bytes(), encrypt_opts.clone())
         .await?;
     let enc_email = sdk
-        .document_encrypt_unmanaged(cust.email.into_bytes(), &encrypt_opts)
+        .document_encrypt_unmanaged(cust.email.into_bytes(), encrypt_opts)
         .await?;
 
     let enc_cust = EncryptedCustomer {
@@ -325,17 +325,17 @@ async fn create_group(
     group_id: &ironoxide::group::GroupId,
     name: &str,
 ) -> Result<GroupCreateResult> {
-    let opts = GroupCreateOpts::new(
-        Some(group_id.to_owned()),                   // ID
-        Some(GroupName::try_from(name.to_owned())?), // name
-        true,                                        // add as admin
-        true,                                        // add as user
-        None,                                        // owner - defaults to caller
-        vec![],                                      // additional admins
-        vec![],                                      // additional users
-        false,                                       // needs rotation
-    );
-    let group = sdk.group_create(&opts).await?;
+    let opts = GroupCreateOpts {
+        id: Some(group_id.to_owned()),
+        name: Some(GroupName::try_from(name.to_owned())?),
+        add_as_admin: true,
+        add_as_member: true,
+        owner: None, // defaults to caller
+        admins: vec![],
+        members: vec![],
+        needs_rotation: false,
+    };
+    let group = sdk.group_create(opts).await?;
     Ok(group)
 }
 // end-snippet{createGroup}

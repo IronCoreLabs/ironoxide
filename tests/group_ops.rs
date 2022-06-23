@@ -14,16 +14,13 @@ async fn group_create_no_member() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
 
     let group_result = sdk
-        .group_create(&GroupCreateOpts::new(
-            Some(create_id_all_classes("").try_into()?),
-            Some("test group name".try_into()?),
-            true,
-            false,
-            None,
-            vec![],
-            vec![],
-            true,
-        ))
+        .group_create(GroupCreateOpts {
+            id: Some(create_id_all_classes("").try_into()?),
+            name: Some("test group name".try_into()?),
+            add_as_member: false,
+            needs_rotation: true,
+            ..Default::default()
+        })
         .await?;
 
     assert_eq!(group_result.owner(), sdk.device().account_id());
@@ -35,7 +32,7 @@ async fn group_create_no_member() -> Result<(), IronOxideErr> {
 async fn group_create_with_defaults() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
 
-    let result = sdk.group_create(&Default::default()).await;
+    let result = sdk.group_create(GroupCreateOpts::default()).await;
     let group_result = result?;
     assert_eq!(group_result.needs_rotation(), Some(false));
     assert!(group_result.is_member());
@@ -51,29 +48,23 @@ async fn group_init_and_rotation_check() -> Result<(), IronOxideErr> {
     IronOxide::user_create(
         &gen_jwt(Some(user.id())).0,
         USER_PASSWORD,
-        &Default::default(),
+        UserCreateOpts::default(),
         None,
     )
     .await?;
     let device: DeviceContext = IronOxide::generate_new_device(
         &gen_jwt(Some(user.id())).0,
         USER_PASSWORD,
-        &Default::default(),
+        DeviceCreateOpts::default(),
         None,
     )
     .await?
     .into();
     let sdk = ironoxide::initialize(&device, &Default::default()).await?;
-    sdk.group_create(&GroupCreateOpts::new(
-        None,
-        None,
-        true,
-        true,
-        None,
-        vec![],
-        vec![],
-        true,
-    ))
+    sdk.group_create(GroupCreateOpts {
+        needs_rotation: true,
+        ..Default::default()
+    })
     .await?;
     let init_and_rotation_check =
         ironoxide::initialize_check_rotation(&device, &Default::default()).await?;
@@ -91,19 +82,11 @@ async fn group_init_and_rotation_check() -> Result<(), IronOxideErr> {
 async fn group_rotate_private_key() -> Result<(), IronOxideErr> {
     let creator_sdk = initialize_sdk().await?;
     let (member, member_sdk) = init_sdk_get_user().await;
-
-    // making non-default group so I can specify needs_rotation of true
     let group_create = creator_sdk
-        .group_create(&GroupCreateOpts::new(
-            None,
-            None,
-            true,
-            true,
-            None,
-            vec![],
-            vec![],
-            true,
-        ))
+        .group_create(GroupCreateOpts {
+            needs_rotation: true,
+            ..Default::default()
+        })
         .await?;
     assert_eq!(group_create.needs_rotation(), Some(true));
 
@@ -112,7 +95,7 @@ async fn group_rotate_private_key() -> Result<(), IronOxideErr> {
     let encrypt_result = creator_sdk
         .document_encrypt(
             bytes.clone(),
-            &DocumentEncryptOpts::with_explicit_grants(
+            DocumentEncryptOpts::with_explicit_grants(
                 None,
                 None,
                 false,
@@ -146,19 +129,11 @@ async fn group_rotate_private_key() -> Result<(), IronOxideErr> {
 async fn group_rotate_private_key_non_admin() -> Result<(), IronOxideErr> {
     let creator_sdk = initialize_sdk().await?;
     let member_sdk = initialize_sdk().await?;
-
-    // making non-default group so I can specify needs_rotation of true
     let group_create = creator_sdk
-        .group_create(&GroupCreateOpts::new(
-            None,
-            None,
-            true,
-            true,
-            None,
-            vec![],
-            vec![],
-            true,
-        ))
+        .group_create(GroupCreateOpts {
+            needs_rotation: true,
+            ..Default::default()
+        })
         .await?;
 
     let group_rotate = member_sdk.group_rotate_private_key(group_create.id()).await;
@@ -175,41 +150,36 @@ async fn rotate_all() -> Result<(), IronOxideErr> {
     use ironoxide::{user::UserCreateOpts, InitAndRotationCheck};
     let account_id: UserId = create_id_all_classes("").try_into()?;
     let jwt = gen_jwt(Some(account_id.id())).0;
-    IronOxide::user_create(&jwt, USER_PASSWORD, &UserCreateOpts::new(true), None).await?;
+    IronOxide::user_create(
+        &jwt,
+        USER_PASSWORD,
+        UserCreateOpts {
+            needs_rotation: true,
+        },
+        None,
+    )
+    .await?;
     let device: DeviceContext = IronOxide::generate_new_device(
         &gen_jwt(Some(account_id.id())).0,
         USER_PASSWORD,
-        &Default::default(),
+        DeviceCreateOpts::default(),
         None,
     )
     .await?
     .into();
     let creator_sdk = ironoxide::initialize(&device, &Default::default()).await?;
-    // making non-default groups so I can specify needs_rotation of true
     let group_create1 = creator_sdk
-        .group_create(&GroupCreateOpts::new(
-            None,
-            None,
-            true,
-            true,
-            None,
-            vec![],
-            vec![],
-            true,
-        ))
+        .group_create(GroupCreateOpts {
+            needs_rotation: true,
+            ..Default::default()
+        })
         .await?;
     assert_eq!(group_create1.needs_rotation(), Some(true));
     let group_create2 = creator_sdk
-        .group_create(&GroupCreateOpts::new(
-            None,
-            None,
-            true,
-            true,
-            None,
-            vec![],
-            vec![],
-            true,
-        ))
+        .group_create(GroupCreateOpts {
+            needs_rotation: true,
+            ..Default::default()
+        })
         .await?;
     assert_eq!(group_create2.needs_rotation(), Some(true));
 
@@ -247,7 +217,7 @@ async fn group_get_metadata() -> Result<(), IronOxideErr> {
     let nonmember_sdk = initialize_sdk().await?;
 
     let member_id = member_sdk.device().account_id().clone();
-    let group = admin_sdk.group_create(&Default::default()).await;
+    let group = admin_sdk.group_create(GroupCreateOpts::default()).await;
     let group_id = &group?.id().clone();
 
     admin_sdk.group_add_members(&group_id, &[member_id]).await?;
@@ -277,16 +247,10 @@ async fn group_delete() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
 
     let group_result = sdk
-        .group_create(&GroupCreateOpts::new(
-            Some(create_id_all_classes("").try_into()?),
-            None,
-            true,
-            true,
-            None,
-            vec![],
-            vec![],
-            false,
-        ))
+        .group_create(GroupCreateOpts {
+            id: Some(create_id_all_classes("").try_into()?),
+            ..Default::default()
+        })
         .await?;
 
     let group_id = group_result.id().clone();
@@ -301,16 +265,12 @@ async fn group_update_name() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
 
     let group_result = sdk
-        .group_create(&GroupCreateOpts::new(
-            Some(create_id_all_classes("").try_into()?),
-            Some("first name".try_into()?),
-            true,
-            false,
-            None,
-            vec![],
-            vec![],
-            false,
-        ))
+        .group_create(GroupCreateOpts {
+            id: Some(create_id_all_classes("").try_into()?),
+            name: Some("first name".try_into()?),
+            add_as_member: false,
+            ..Default::default()
+        })
         .await?;
 
     assert_eq!(
@@ -339,16 +299,11 @@ async fn group_add_member() -> Result<(), IronOxideErr> {
     let (account_id, sdk) = init_sdk_get_user().await;
 
     let group_result = sdk
-        .group_create(&GroupCreateOpts::new(
-            Some(create_id_all_classes("").try_into()?),
-            None,
-            true,
-            false,
-            None,
-            vec![],
-            vec![],
-            false,
-        ))
+        .group_create(GroupCreateOpts {
+            id: Some(create_id_all_classes("").try_into()?),
+            add_as_member: false,
+            ..Default::default()
+        })
         .await?;
 
     let group_id = group_result.id().clone();
@@ -377,16 +332,12 @@ async fn group_add_member_on_create() -> Result<(), IronOxideErr> {
     // Even though `add_as_member` is false, the UserId is in the `members` list,
     // so the caller becomes a member regardless
     let group_result = sdk
-        .group_create(&GroupCreateOpts::new(
-            Some(create_id_all_classes("").try_into()?),
-            None,
-            true,
-            false,
-            None,
-            vec![],
-            vec![account_id.clone(), second_account_id.clone()],
-            false,
-        ))
+        .group_create(GroupCreateOpts {
+            id: Some(create_id_all_classes("").try_into()?),
+            add_as_member: false,
+            members: vec![account_id.clone(), second_account_id.clone()],
+            ..Default::default()
+        })
         .await?;
 
     assert_eq!(group_result.owner(), sdk.device().account_id());
@@ -408,16 +359,16 @@ async fn group_add_specific_owner() -> Result<(), IronOxideErr> {
     // because the owner is specified, GroupCreateOpts.standardize() adds them
     // to the admins list
     let group_result = sdk
-        .group_create(&GroupCreateOpts::new(
-            Some(create_id_all_classes("").try_into()?),
-            None,
-            false,
-            false,
-            Some(second_account_id.clone()),
-            vec![],
-            vec![second_account_id.clone()],
-            false,
-        ))
+        .group_create(GroupCreateOpts {
+            id: Some(create_id_all_classes("").try_into()?),
+            name: None,
+            add_as_admin: false,
+            add_as_member: false,
+            owner: Some(second_account_id.clone()),
+            admins: vec![],
+            members: vec![second_account_id.clone()],
+            needs_rotation: false,
+        })
         .await?;
 
     assert_eq!(group_result.owner(), &second_account_id);
@@ -434,16 +385,13 @@ async fn group_add_admin_on_create() -> Result<(), IronOxideErr> {
     let (second_account_id, _) = init_sdk_get_user().await;
 
     let group_result = sdk
-        .group_create(&GroupCreateOpts::new(
-            Some(create_id_all_classes("").try_into()?),
-            None,
-            true,
-            false,
-            Some(account_id.clone()),
-            vec![second_account_id.clone()],
-            vec![],
-            false,
-        ))
+        .group_create(GroupCreateOpts {
+            id: Some(create_id_all_classes("").try_into()?),
+            add_as_member: false,
+            owner: Some(account_id.clone()),
+            admins: vec![second_account_id.clone()],
+            ..Default::default()
+        })
         .await?;
 
     assert_eq!(group_result.owner(), &account_id);
@@ -462,16 +410,14 @@ async fn group_add_admin_invalid_ids() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
 
     let group_result = sdk
-        .group_create(&GroupCreateOpts::new(
-            Some(create_id_all_classes("").try_into()?),
-            None,
-            true,
-            false,
-            Some(UserId::unsafe_from_string("likeafox".to_string())),
-            vec![UserId::unsafe_from_string("whatsthenextwhat".to_string())],
-            vec![UserId::unsafe_from_string("aretheseuserids".to_string())],
-            false,
-        ))
+        .group_create(GroupCreateOpts {
+            id: Some(create_id_all_classes("").try_into()?),
+            add_as_member: false,
+            owner: Some(UserId::unsafe_from_string("likeafox".to_string())),
+            admins: vec![UserId::unsafe_from_string("whatsthenextwhat".to_string())],
+            members: vec![UserId::unsafe_from_string("aretheseuserids".to_string())],
+            ..Default::default()
+        })
         .await;
 
     assert_that!(
@@ -487,16 +433,13 @@ async fn group_owner_not_an_admin() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
 
     let group_result = sdk
-        .group_create(&GroupCreateOpts::new(
-            Some(create_id_all_classes("").try_into()?),
-            None,
-            false,
-            false,
-            None,
-            vec![UserId::unsafe_from_string("antelope".to_string())],
-            vec![],
-            false,
-        ))
+        .group_create(GroupCreateOpts {
+            id: Some(create_id_all_classes("").try_into()?),
+            add_as_admin: false,
+            add_as_member: false,
+            admins: vec![UserId::unsafe_from_string("antelope".to_string())],
+            ..Default::default()
+        })
         .await;
 
     assert_that!(
@@ -512,8 +455,8 @@ async fn group_list() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
 
     //create two groups
-    sdk.group_create(&Default::default()).await?;
-    sdk.group_create(&Default::default()).await?;
+    sdk.group_create(GroupCreateOpts::default()).await?;
+    sdk.group_create(GroupCreateOpts::default()).await?;
 
     let list_result = sdk.group_list().await?;
     assert_eq!(2, list_result.result().len());
@@ -526,16 +469,10 @@ async fn group_remove_member() -> Result<(), IronOxideErr> {
     let account_id = sdk.device().account_id().clone();
 
     let group_result = sdk
-        .group_create(&GroupCreateOpts::new(
-            Some(create_id_all_classes("").try_into()?),
-            None,
-            true,
-            true,
-            None,
-            vec![],
-            vec![],
-            false,
-        ))
+        .group_create(GroupCreateOpts {
+            id: Some(create_id_all_classes("").try_into()?),
+            ..Default::default()
+        })
         .await?;
     let group_id = group_result.id().clone();
 
@@ -560,16 +497,11 @@ async fn group_add_admin() -> Result<(), IronOxideErr> {
     let second_account_id = initialize_sdk().await?.device().account_id().clone();
 
     let group_result = sdk
-        .group_create(&GroupCreateOpts::new(
-            Some(create_id_all_classes("").try_into()?),
-            None,
-            true,
-            false,
-            None,
-            vec![],
-            vec![],
-            false,
-        ))
+        .group_create(GroupCreateOpts {
+            id: Some(create_id_all_classes("").try_into()?),
+            add_as_member: false,
+            ..Default::default()
+        })
         .await?;
 
     let group_id = group_result.id().clone();
@@ -591,7 +523,7 @@ async fn group_remove_admin() -> Result<(), IronOxideErr> {
 
     let second_account_id = create_second_user().await.account_id().clone();
 
-    let group_result = sdk.group_create(&GroupCreateOpts::default()).await?;
+    let group_result = sdk.group_create(GroupCreateOpts::default()).await?;
 
     let group_id = group_result.id().clone();
     //Call to add the second id as an admin.
@@ -616,16 +548,11 @@ async fn group_get_not_url_safe_id() -> Result<(), IronOxideErr> {
     let not_url_safe_id: GroupId =
         format!("{}{}", Uuid::new_v4(), "'=#.other|/$non@;safe'-:;id_").try_into()?;
     let group_create_result = sdk
-        .group_create(&GroupCreateOpts::new(
-            Some(not_url_safe_id.clone()),
-            None,
-            true,
-            false,
-            None,
-            vec![],
-            vec![],
-            false,
-        ))
+        .group_create(GroupCreateOpts {
+            id: Some(not_url_safe_id.clone()),
+            add_as_member: false,
+            ..Default::default()
+        })
         .await?;
 
     let get_result = sdk.group_get_metadata(&not_url_safe_id).await?;

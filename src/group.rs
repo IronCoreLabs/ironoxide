@@ -21,80 +21,33 @@ use vec1::Vec1;
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GroupCreateOpts {
     /// ID of the group. If `None`, the server will assign the ID.
-    id: Option<GroupId>,
+    pub id: Option<GroupId>,
     /// Name of the group.
-    name: Option<GroupName>,
+    pub name: Option<GroupName>,
     /// - `true` (default) - creating user will be added as an admin of the group.
     /// - `false` - creating user will not be added as an admin of the group.
-    add_as_admin: bool,
+    pub add_as_admin: bool,
     /// - `true` (default) - creating user will be added to the group's membership.
     /// - `false` - creating user will not be added to the group's membership
-    add_as_member: bool,
+    pub add_as_member: bool,
     /// Specifies who the owner of this group is. Group owners have the same permissions as other admins but they cannot be removed as an administrator.
     /// - `None` (default) - The creating user will be the owner of the group. Cannot be used if `add_as_admin` is set to false as the owner must be an admin.
     /// - `Some` - The provided user will be the owner of the group. This ID will automatically be added to the admins list.
-    owner: Option<UserId>,
+    pub owner: Option<UserId>,
     /// List of users to add as admins of the group. Even if `add_as_admin` is false, the calling user will be added as an admin if they are in this list.
-    admins: Vec<UserId>,
+    pub admins: Vec<UserId>,
     /// List of users to add as members of the group. Even if `add_as_member` is false, the calling user will be added as a member if they are in this list.
-    members: Vec<UserId>,
+    pub members: Vec<UserId>,
     /// - `true` - group's private key will be marked for rotation
     /// - `false` (default) - group's private key will not be marked for rotation
-    needs_rotation: bool,
+    pub needs_rotation: bool,
 }
 
 impl GroupCreateOpts {
-    /// # Arguments
-    /// - `id`
-    ///     - `None` (default) - The server will assign the group's ID.
-    ///     - `Some` - The provided ID will be used as the group's ID.
-    /// - `name`
-    ///     - `None` (default) - The group will be created with no name.
-    ///     - `Some` - The provided name will be used as the group's name.
-    /// - `add_as_admin`
-    ///     - `true` (default) - The creating user will be added as a group admin.
-    ///     - `false` - The creating user will not be a group admin.
-    /// - `add_as_member`
-    ///     - `true` (default) - The creating user will be added as a group member.
-    ///     - `false` - The creating user will not be a group member.
-    /// - `owner`
-    ///     - `None` (default) - The creating user will be the owner of the group.
-    ///     - `Some` - The provided user will be the owner of the group. This ID will automatically be added to the admin list.
-    /// - `admins`
-    ///     - The list of users to be added as group admins. This list takes priority over `add_as_admin`,
-    ///       so the calling user will be added as an admin if they are in this list even if `add_as_admin` is false.
-    /// - `members`
-    ///     - The list of users to be added as members of the group. This list takes priority over `add_as_member`,
-    ///       so the calling user will be added as a member if they are in this list even if `add_as_member` is false.
-    /// - `needs_rotation`
-    ///     - `true` - The group's private key will be marked for rotation.
-    ///     - `false` (default) - The group's private key will not be marked for rotation.
-    pub fn new(
-        id: Option<GroupId>,
-        name: Option<GroupName>,
-        add_as_admin: bool,
-        add_as_member: bool,
-        owner: Option<UserId>,
-        admins: Vec<UserId>,
-        members: Vec<UserId>,
-        needs_rotation: bool,
-    ) -> GroupCreateOpts {
-        GroupCreateOpts {
-            id,
-            name,
-            add_as_admin,
-            add_as_member,
-            owner,
-            admins,
-            members,
-            needs_rotation,
-        }
-    }
-
     fn standardize(self, calling_id: &UserId) -> Result<GroupCreateOptsStd> {
         // if `add_as_member`, make sure the calling user is in the `members` list
         let standardized_members = if self.add_as_member && !self.members.contains(calling_id) {
-            let mut members = self.members.clone();
+            let mut members = self.members;
             members.push(calling_id.clone());
             members
         } else {
@@ -103,7 +56,7 @@ impl GroupCreateOpts {
         let (standardized_admins, owner_id) = {
             // if `add_as_admin`, make sure the calling user is in the `admins` list
             let mut admins = if self.add_as_admin && !self.admins.contains(calling_id) {
-                let mut admins = self.admins.clone();
+                let mut admins = self.admins;
                 admins.push(calling_id.clone());
                 admins
             } else {
@@ -155,7 +108,16 @@ impl Default for GroupCreateOpts {
     /// The group will be assigned an ID and have an empty name. The user who calls [group_create](trait.GroupOps.html#tymethod.group_create)
     /// will be the owner of the group as well as the only admin and member of the group. The group's private key will not be marked for rotation.
     fn default() -> Self {
-        GroupCreateOpts::new(None, None, true, true, None, vec![], vec![], false)
+        GroupCreateOpts {
+            id: None,
+            name: None,
+            add_as_admin: true,
+            add_as_member: true,
+            owner: None,
+            admins: vec![],
+            members: vec![],
+            needs_rotation: false,
+        }
     }
 }
 
@@ -190,12 +152,12 @@ pub trait GroupOps {
     /// # let sdk: IronOxide = unimplemented!();
     /// # use std::convert::TryFrom;
     /// let group_id = Some(GroupId::try_from("empl412")?);
-    /// let opts = GroupCreateOpts::new(group_id, None, true, true, None, vec![], vec![], false);
-    /// let group = sdk.group_create(&opts).await?;
+    /// let opts = GroupCreateOpts{id: group_id, ..Default::default()};
+    /// let group = sdk.group_create(opts).await?;
     /// # Ok(())
     /// # }
     /// ```
-    async fn group_create(&self, group_create_opts: &GroupCreateOpts) -> Result<GroupCreateResult>;
+    async fn group_create(&self, group_create_opts: GroupCreateOpts) -> Result<GroupCreateResult>;
 
     /// Gets the full metadata for a group.
     ///
@@ -435,29 +397,20 @@ pub trait GroupOps {
 
 #[async_trait]
 impl GroupOps for crate::IronOxide {
-    async fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupCreateResult> {
-        let standard_opts = opts.clone().standardize(self.device.auth().account_id())?;
-        let all_users = &standard_opts.all_users();
-        let GroupCreateOptsStd {
-            id,
-            name,
-            owner,
-            admins,
-            members,
-            needs_rotation,
-        } = standard_opts;
-
+    async fn group_create(&self, opts: GroupCreateOpts) -> Result<GroupCreateResult> {
+        let standard_opts = opts.standardize(self.device.auth().account_id())?;
+        let all_users = standard_opts.all_users();
         add_optional_timeout(
             group_api::group_create(
                 &self.recrypt,
                 self.device.auth(),
-                id,
-                name,
-                owner,
-                admins,
-                members,
-                all_users,
-                needs_rotation,
+                standard_opts.id,
+                standard_opts.name,
+                standard_opts.owner,
+                standard_opts.admins,
+                standard_opts.members,
+                &all_users,
+                standard_opts.needs_rotation,
             ),
             self.config.sdk_operation_timeout,
             SdkOperation::GroupCreate,
@@ -626,16 +579,13 @@ mod tests {
     fn group_create_opts_standardize_non_owner() -> Result<(), IronOxideErr> {
         let calling_user_id = UserId::unsafe_from_string("test_user".to_string());
         let owner = UserId::unsafe_from_string("owner".to_string());
-        let opts = GroupCreateOpts::new(
-            None,
-            None,
-            false,
-            false,
-            Some(owner.clone()),
-            vec![],
-            vec![],
-            true,
-        );
+        let opts = GroupCreateOpts {
+            owner: Some(owner.clone()),
+            add_as_admin: false,
+            add_as_member: false,
+            needs_rotation: true,
+            ..Default::default()
+        };
         let std_opts = opts.standardize(&calling_user_id)?;
         assert_eq!(std_opts.all_users(), [owner.clone()]);
         assert_eq!(std_opts.owner, Some(owner.clone()));
@@ -648,7 +598,10 @@ mod tests {
     #[test]
     fn group_create_opts_standardize_invalid() -> Result<(), IronOxideErr> {
         let calling_user_id = UserId::unsafe_from_string("test_user".to_string());
-        let opts = GroupCreateOpts::new(None, None, false, true, None, vec![], vec![], false);
+        let opts = GroupCreateOpts {
+            add_as_admin: false,
+            ..Default::default()
+        };
         let std_opts = opts.standardize(&calling_user_id);
         assert!(std_opts.is_err());
         Ok(())

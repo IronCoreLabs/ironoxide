@@ -34,7 +34,7 @@ pub trait DocumentAdvancedOps {
     async fn document_encrypt_unmanaged(
         &self,
         data: Vec<u8>,
-        encrypt_opts: &DocumentEncryptOpts,
+        encrypt_opts: DocumentEncryptOpts,
     ) -> Result<DocumentEncryptUnmanagedResult>;
 
     /// Decrypts a document not managed by the IronCore service.
@@ -59,17 +59,17 @@ impl DocumentAdvancedOps for crate::IronOxide {
     async fn document_encrypt_unmanaged(
         &self,
         data: Vec<u8>,
-        encrypt_opts: &DocumentEncryptOpts,
+        encrypt_opts: DocumentEncryptOpts,
     ) -> Result<DocumentEncryptUnmanagedResult> {
         let (explicit_users, explicit_groups, grant_to_author, policy_grants) =
-            match &encrypt_opts.grants {
+            match encrypt_opts.grants {
                 EitherOrBoth::Left(explicit_grants) => {
-                    let (users, groups) = partition_user_or_group(&explicit_grants.grants);
+                    let (users, groups) = partition_user_or_group(explicit_grants.grants);
                     (users, groups, explicit_grants.grant_to_author, None)
                 }
                 EitherOrBoth::Right(policy_grant) => (vec![], vec![], false, Some(policy_grant)),
                 EitherOrBoth::Both(explicit_grants, policy_grant) => {
-                    let (users, groups) = partition_user_or_group(&explicit_grants.grants);
+                    let (users, groups) = partition_user_or_group(explicit_grants.grants);
                     (
                         users,
                         groups,
@@ -86,11 +86,11 @@ impl DocumentAdvancedOps for crate::IronOxide {
                 &self.user_master_pub_key,
                 &self.rng,
                 data,
-                encrypt_opts.id.clone(),
+                encrypt_opts.id,
                 grant_to_author,
                 &explicit_users,
                 &explicit_groups,
-                policy_grants,
+                policy_grants.as_ref(),
             ),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentEncryptUnmanaged,

@@ -9,7 +9,7 @@ lazy_static! {
     /// Reads from the environment variable IRONCORE_ENV. Supports `dev`, `stage`, and `prod`.
     /// An unset environment variable will be interpreted as `dev`.
     /// An invalid environment variable will result in a panic.
-    pub static ref ENV: String = match std::env::var("IRONCORE_ENV") {
+    static ref ENV: String = match std::env::var("IRONCORE_ENV") {
         Ok(url) => match url.to_lowercase().as_str() {
             "dev" => "dev",
             "stage" => "stage",
@@ -52,14 +52,14 @@ fn criterion_benchmark(c: &mut Criterion) {
 
         // encrypted data to user to decrypt
         let enc_result = io
-            .document_encrypt(data.into(), &Default::default())
+            .document_encrypt(data.into(), DocumentEncryptOpts::default())
             .await
             .expect("encryption failed");
         let enc_data = enc_result.encrypted_data().to_vec();
 
         // (unmanaged) encrypted data/deks to user to decrypt
         let enc_result_unmanaged = io
-            .document_encrypt_unmanaged(data.into(), &Default::default())
+            .document_encrypt_unmanaged(data.into(), DocumentEncryptOpts::default())
             .await
             .expect("encryption failed");
         let (enc_data_unmanaged, enc_deks_unmanaged) = (
@@ -69,14 +69,14 @@ fn criterion_benchmark(c: &mut Criterion) {
 
         // group to encrypt to
         let group_result = io
-            .group_create(&Default::default())
+            .group_create(GroupCreateOpts::default())
             .await
             .expect("group creation failed");
         let group1 = group_result.id();
 
         // another group to encrypt to
         let group_result2 = io
-            .group_create(&Default::default())
+            .group_create(GroupCreateOpts::default())
             .await
             .expect("group creation failed");
         let group2 = group_result2.id();
@@ -85,7 +85,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         let group_enc_result = io
             .document_encrypt_unmanaged(
                 data.into(),
-                &DocumentEncryptOpts::with_explicit_grants(None, None, false, vec![group1.into()]),
+                DocumentEncryptOpts::with_explicit_grants(None, None, false, vec![group1.into()]),
             )
             .await
             .expect("encrypt to group failed");
@@ -125,12 +125,19 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     c.bench_function("document encrypt [self]", |b| {
-        b.iter(|| rt.block_on(io.document_encrypt(black_box(data.into()), &Default::default())))
+        b.iter(|| {
+            rt.block_on(io.document_encrypt(black_box(data.into()), DocumentEncryptOpts::default()))
+        })
     });
 
     c.bench_function("document encrypt (unmanaged) [self]", |b| {
         b.iter(|| {
-            rt.block_on(io.document_encrypt_unmanaged(black_box(data.into()), &Default::default()))
+            rt.block_on(
+                io.document_encrypt_unmanaged(
+                    black_box(data.into()),
+                    DocumentEncryptOpts::default(),
+                ),
+            )
         })
     });
 
@@ -142,7 +149,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 true,
                 vec![group1.clone().into()],
             );
-            rt.block_on(io.document_encrypt(black_box(data.into()), &opts))
+            rt.block_on(io.document_encrypt(black_box(data.into()), opts))
         })
     });
 
@@ -154,7 +161,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 true,
                 vec![group1.clone().into(), group2.clone().into()],
             );
-            rt.block_on(io.document_encrypt(black_box(data.into()), &opts))
+            rt.block_on(io.document_encrypt(black_box(data.into()), opts))
         })
     });
 
@@ -183,7 +190,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     c.bench_function("group create", |b| {
-        b.iter(|| rt.block_on(io.group_create(black_box(&Default::default()))))
+        b.iter(|| rt.block_on(io.group_create(black_box(GroupCreateOpts::default()))))
     });
 }
 

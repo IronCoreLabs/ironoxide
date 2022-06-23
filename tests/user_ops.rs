@@ -18,7 +18,7 @@ async fn user_verify_existing_user() -> Result<(), IronOxideErr> {
     IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
         "foo",
-        &Default::default(),
+        UserCreateOpts::default(),
         None,
     )
     .await?;
@@ -37,7 +37,9 @@ async fn user_verify_after_create_with_needs_rotation() -> Result<(), IronOxideE
     IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
         "foo",
-        &UserCreateOpts::new(true),
+        UserCreateOpts {
+            needs_rotation: true,
+        },
         None,
     )
     .await?;
@@ -54,14 +56,16 @@ async fn user_create_good_with_devices() -> Result<(), IronOxideErr> {
     IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
         "foo",
-        &Default::default(),
+        UserCreateOpts::default(),
         None,
     )
     .await?;
     let device: DeviceContext = IronOxide::generate_new_device(
         &gen_jwt(Some(account_id.id())).0,
         "foo",
-        &DeviceCreateOpts::new(Some("myDevice".try_into()?)),
+        DeviceCreateOpts {
+            device_name: Some("myDevice".try_into()?),
+        },
         None,
     )
     .await?
@@ -101,14 +105,14 @@ async fn user_change_password() -> Result<(), IronOxideErr> {
     let initial_result = IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
         first_password,
-        &Default::default(),
+        UserCreateOpts::default(),
         None,
     )
     .await?;
     let device: DeviceContext = IronOxide::generate_new_device(
         &gen_jwt(Some(account_id.id())).0,
         first_password,
-        &Default::default(),
+        DeviceCreateOpts::default(),
         None,
     )
     .await?
@@ -127,7 +131,7 @@ async fn user_change_password() -> Result<(), IronOxideErr> {
     assert!(IronOxide::generate_new_device(
         &gen_jwt(Some(account_id.id())).0,
         first_password,
-        &Default::default(),
+        DeviceCreateOpts::default(),
         None,
     )
     .await
@@ -137,7 +141,7 @@ async fn user_change_password() -> Result<(), IronOxideErr> {
     IronOxide::generate_new_device(
         &gen_jwt(Some(account_id.id())).0,
         new_password,
-        &Default::default(),
+        DeviceCreateOpts::default(),
         None,
     )
     .await?;
@@ -170,7 +174,7 @@ async fn user_add_device_after_rotation() -> Result<(), IronOxideErr> {
     let encrypt_result = sdk
         .document_encrypt(
             bytes.clone(),
-            &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![]),
+            DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![]),
         )
         .await?;
     let encrypted_data = encrypt_result.encrypted_data();
@@ -182,7 +186,7 @@ async fn user_add_device_after_rotation() -> Result<(), IronOxideErr> {
     let new_device = IronOxide::generate_new_device(
         &common::gen_jwt(Some(user.id())).0,
         common::USER_PASSWORD,
-        &Default::default(),
+        DeviceCreateOpts::default(),
         None,
     )
     .await?;
@@ -206,7 +210,9 @@ async fn user_create_with_needs_rotation() -> Result<(), IronOxideErr> {
     let result = IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
         common::USER_PASSWORD,
-        &UserCreateOpts::new(true),
+        UserCreateOpts {
+            needs_rotation: true,
+        },
         None,
     )
     .await;
@@ -218,7 +224,7 @@ async fn generate_device_with_timeout() -> Result<(), IronOxideErr> {
     let result = IronOxide::generate_new_device(
         &common::gen_jwt(None).0,
         "pass",
-        &Default::default(),
+        DeviceCreateOpts::default(),
         Some(std::time::Duration::from_millis(1)),
     )
     .await;

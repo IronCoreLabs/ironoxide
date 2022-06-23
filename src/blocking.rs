@@ -78,7 +78,7 @@ impl BlockingIronOxide {
     pub fn document_encrypt(
         &self,
         document_data: Vec<u8>,
-        encrypt_opts: &DocumentEncryptOpts,
+        encrypt_opts: DocumentEncryptOpts,
     ) -> Result<DocumentEncryptResult> {
         self.runtime
             .block_on(self.ironoxide.document_encrypt(document_data, encrypt_opts))
@@ -110,7 +110,7 @@ impl BlockingIronOxide {
     pub fn document_grant_access(
         &self,
         id: &DocumentId,
-        grant_list: &Vec<UserOrGroup>,
+        grant_list: Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult> {
         self.runtime
             .block_on(self.ironoxide.document_grant_access(id, grant_list))
@@ -128,7 +128,7 @@ impl BlockingIronOxide {
     pub fn document_encrypt_unmanaged(
         &self,
         data: Vec<u8>,
-        encrypt_opts: &DocumentEncryptOpts,
+        encrypt_opts: DocumentEncryptOpts,
     ) -> Result<DocumentEncryptUnmanagedResult> {
         self.runtime.block_on(
             self.ironoxide
@@ -151,7 +151,7 @@ impl BlockingIronOxide {
         self.runtime.block_on(self.ironoxide.group_list())
     }
     /// See [ironoxide::group::GroupOps::group_create](trait.GroupOps.html#tymethod.group_create)
-    pub fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupCreateResult> {
+    pub fn group_create(&self, opts: GroupCreateOpts) -> Result<GroupCreateResult> {
         self.runtime.block_on(self.ironoxide.group_create(opts))
     }
     /// See [ironoxide::group::GroupOps::group_get_metadata](trait.GroupOps.html#tymethod.group_get_metadata)
@@ -216,7 +216,7 @@ impl BlockingIronOxide {
     pub fn user_create(
         jwt: &Jwt,
         password: &str,
-        user_create_opts: &UserCreateOpts,
+        user_create_opts: UserCreateOpts,
         timeout: Option<std::time::Duration>,
     ) -> Result<UserCreateResult> {
         let rt = create_runtime();
@@ -235,7 +235,7 @@ impl BlockingIronOxide {
     pub fn generate_new_device(
         jwt: &Jwt,
         password: &str,
-        device_create_options: &DeviceCreateOpts,
+        device_create_options: DeviceCreateOpts,
         timeout: Option<std::time::Duration>,
     ) -> Result<DeviceAddResult> {
         let rt = create_runtime();

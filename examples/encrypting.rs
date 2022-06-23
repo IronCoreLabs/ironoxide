@@ -22,7 +22,7 @@ async fn encrypt_to_group(sdk: &IronOxide) -> Result<DocumentId> {
     let encrypted_result = sdk
         .document_encrypt(
             message.into_bytes(),
-            &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![(&group_id).into()]),
+            DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![(&group_id).into()]),
         )
         .await?;
     // end-snippet{encryptToGroup}
@@ -36,7 +36,7 @@ async fn encrypt_to_user(sdk: &IronOxide, user_id: &UserId) -> Result<DocumentId
     let encrypted_result = sdk
         .document_encrypt(
             message.into_bytes(),
-            &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![user_id.into()]),
+            DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![user_id.into()]),
         )
         .await?;
     // end-snippet{encryptToUser}
@@ -57,7 +57,7 @@ async fn encrypt_with_policy(sdk: &IronOxide) -> Result<DocumentId> {
     let encrypted_result = sdk
         .document_encrypt(
             message.into_bytes(),
-            &DocumentEncryptOpts::with_policy_grants(None, None, data_labels),
+            DocumentEncryptOpts::with_policy_grants(None, None, data_labels),
         )
         .await?;
     //end-snippet{encrypt_with_policy}
@@ -82,6 +82,6 @@ async fn initialize_sdk_from_file(device_path: &PathBuf) -> Result<(DeviceContex
 }
 
 async fn create_group(sdk: &IronOxide) -> Result<GroupId> {
-    let result = sdk.group_create(&Default::default()).await?;
+    let result = sdk.group_create(GroupCreateOpts::default()).await?;
     Ok(result.id().clone())
 }

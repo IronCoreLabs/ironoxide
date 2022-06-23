@@ -46,9 +46,12 @@ pub struct GroupCreateOptsStd {
 impl GroupCreateOptsStd {
     /// returns all the users who need their public keys looked up (with duplicates removed).
     pub fn all_users(&self) -> Vec<UserId> {
-        let admins_and_members = [&self.admins[..], &self.members[..]].concat();
-        let set: HashSet<UserId> = HashSet::from_iter(admins_and_members);
-        set.into_iter().collect()
+        self.admins
+            .iter()
+            .chain(&self.members)
+            .unique()
+            .cloned()
+            .collect()
     }
 }
 

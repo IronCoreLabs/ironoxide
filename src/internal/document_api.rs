@@ -36,7 +36,7 @@ use std::{
     convert::{TryFrom, TryInto},
     fmt::Formatter,
     ops::DerefMut,
-    sync::Mutex,
+    sync::{Arc, Mutex},
 };
 use time::OffsetDateTime;
 
@@ -1054,17 +1054,16 @@ pub async fn document_update_bytes<
 /// that was decrypted along with its decrypted bytes.
 pub async fn decrypt_document<CR: rand::CryptoRng + rand::RngCore + Send + Sync + 'static>(
     auth: &RequestAuth,
-    recrypt: std::sync::Arc<Recrypt<Sha256, Ed25519, RandomBytes<CR>>>,
-    device_private_key: &PrivateKey,
+    recrypt: Arc<Recrypt<Sha256, Ed25519, RandomBytes<CR>>>,
+    device_private_key: PrivateKey,
     encrypted_doc: &[u8],
 ) -> Result<DocumentDecryptResult, IronOxideErr> {
     let (doc_header, mut enc_doc) = parse_document_parts(encrypted_doc)?;
     let doc_meta = document_get_metadata(auth, &doc_header.document_id).await?;
-    let device_private_key = device_private_key.clone();
     tokio::task::spawn_blocking(move || {
         let sym_key = transform::decrypt_as_symmetric_key(
             &recrypt,
-            doc_meta.0.encrypted_symmetric_key.clone().try_into()?,
+            doc_meta.0.encrypted_symmetric_key.try_into()?,
             device_private_key.recrypt_key(),
         )?;
 

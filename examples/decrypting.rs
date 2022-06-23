@@ -104,9 +104,9 @@ async fn generate_encrypted_documents(
     number_of_documents: u8,
 ) -> ironoxide::Result<Vec<DocumentEncryptResult>> {
     println!("Encrypting {} documents...", number_of_documents);
-    let opts = DocumentEncryptOpts::default();
     let encrypted_documents = futures::future::try_join_all(
-        (0..number_of_documents).map(|_| sdk.document_encrypt(b"foobar".to_vec(), &opts)),
+        (0..number_of_documents)
+            .map(|_| sdk.document_encrypt(b"foobar".to_vec(), DocumentEncryptOpts::default())),
     )
     .await;
     println!("Done\n");

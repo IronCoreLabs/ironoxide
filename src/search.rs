@@ -87,7 +87,7 @@ impl BlindIndexSearchInitialize for IronOxide {
         let encrypted_salt = self
             .document_encrypt_unmanaged(
                 salt.into(),
-                &DocumentEncryptOpts::with_explicit_grants(
+                DocumentEncryptOpts::with_explicit_grants(
                     None,
                     None,
                     false,

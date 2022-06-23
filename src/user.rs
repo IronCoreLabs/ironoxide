@@ -14,6 +14,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use recrypt::api::Recrypt;
+use std::time::Duration;
 use std::{collections::HashMap, convert::TryInto};
 
 /// Options for device creation.
@@ -21,23 +22,16 @@ use std::{collections::HashMap, convert::TryInto};
 /// Default values are provided with [DeviceCreateOpts::default()](#method.default)
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DeviceCreateOpts {
-    device_name: Option<DeviceName>,
-}
-impl DeviceCreateOpts {
-    /// # Arguments
-    /// - device_name
     ///   - `None` (default) - The device will be created with no name.
     ///   - `Some` - The provided name will be used as the device's name.
-    pub fn new(device_name: Option<DeviceName>) -> DeviceCreateOpts {
-        DeviceCreateOpts { device_name }
-    }
+    pub device_name: Option<DeviceName>,
 }
 impl Default for DeviceCreateOpts {
     /// Default `DeviceCreateOpts` for common use cases.
     ///
     /// The device will be created with no name.
     fn default() -> Self {
-        DeviceCreateOpts::new(None)
+        DeviceCreateOpts { device_name: None }
     }
 }
 
@@ -46,15 +40,8 @@ impl Default for DeviceCreateOpts {
 /// Default values are provided with [UserCreateOpts::default()](#method.default)
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct UserCreateOpts {
-    needs_rotation: bool,
-}
-
-impl UserCreateOpts {
-    /// # Arguments
-    /// - `needs_rotation` - `true` if the private key for this user marked for rotation
-    pub fn new(needs_rotation: bool) -> UserCreateOpts {
-        UserCreateOpts { needs_rotation }
-    }
+    /// `true` if the private key for this user marked for rotation
+    pub needs_rotation: bool,
 }
 
 impl Default for UserCreateOpts {
@@ -62,7 +49,9 @@ impl Default for UserCreateOpts {
     ///
     /// The user will be created with their private key not marked for rotation.
     fn default() -> Self {
-        UserCreateOpts::new(false)
+        UserCreateOpts {
+            needs_rotation: false,
+        }
     }
 }
 
@@ -93,16 +82,16 @@ pub trait UserOps {
     /// # let jwt_str = "";
     /// let jwt = Jwt::new(jwt_str)?;
     /// let password = "foobar";
-    /// let opts = UserCreateOpts::new(false);
-    /// let user_result = IronOxide::user_create(&jwt, password, &opts, None).await?;
+    /// let opts = UserCreateOpts { needs_rotation: false };
+    /// let user_result = IronOxide::user_create(&jwt, password, opts, None).await?;
     /// # Ok(())
     /// # }
     /// ```
     async fn user_create(
         jwt: &Jwt,
         password: &str,
-        user_create_opts: &UserCreateOpts,
-        timeout: Option<std::time::Duration>,
+        user_create_opts: UserCreateOpts,
+        timeout: Option<Duration>,
     ) -> Result<UserCreateResult>;
 
     /// Generates a new device for the user specified in the JWT.
@@ -126,8 +115,8 @@ pub trait UserOps {
     /// let jwt = Jwt::new(jwt_str)?;
     /// let password = "foobar";
     /// let device_name = DeviceName::try_from("primary_device")?;
-    /// let opts = DeviceCreateOpts::new(Some(device_name));
-    /// let device_result = IronOxide::generate_new_device(&jwt, password, &opts, None).await?;
+    /// let opts = DeviceCreateOpts { device_name: Some(device_name) };
+    /// let device_result = IronOxide::generate_new_device(&jwt, password, opts, None).await?;
     /// let device_id: &DeviceId = device_result.device_id();
     /// # Ok(())
     /// # }
@@ -135,8 +124,8 @@ pub trait UserOps {
     async fn generate_new_device(
         jwt: &Jwt,
         password: &str,
-        device_create_options: &DeviceCreateOpts,
-        timeout: Option<std::time::Duration>,
+        device_create_options: DeviceCreateOpts,
+        timeout: Option<Duration>,
     ) -> Result<DeviceAddResult>;
 
     /// Verifies the existence of a user using a JWT to identify their user record.
@@ -158,10 +147,7 @@ pub trait UserOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn user_verify(
-        jwt: &Jwt,
-        timeout: Option<std::time::Duration>,
-    ) -> Result<Option<UserResult>>;
+    async fn user_verify(jwt: &Jwt, timeout: Option<Duration>) -> Result<Option<UserResult>>;
 
     /// Lists all of the devices for the current user.
     ///
@@ -282,8 +268,8 @@ impl UserOps for IronOxide {
     async fn user_create(
         jwt: &Jwt,
         password: &str,
-        user_create_opts: &UserCreateOpts,
-        timeout: Option<std::time::Duration>,
+        user_create_opts: UserCreateOpts,
+        timeout: Option<Duration>,
     ) -> Result<UserCreateResult> {
         let recrypt = Recrypt::new();
         add_optional_timeout(
@@ -303,13 +289,10 @@ impl UserOps for IronOxide {
     async fn generate_new_device(
         jwt: &Jwt,
         password: &str,
-        device_create_options: &DeviceCreateOpts,
-        timeout: Option<std::time::Duration>,
+        device_create_options: DeviceCreateOpts,
+        timeout: Option<Duration>,
     ) -> Result<DeviceAddResult> {
         let recrypt = Recrypt::new();
-
-        let device_create_options = device_create_options.clone();
-
         add_optional_timeout(
             user_api::generate_device_key(
                 &recrypt,
@@ -325,10 +308,7 @@ impl UserOps for IronOxide {
         .await?
     }
 
-    async fn user_verify(
-        jwt: &Jwt,
-        timeout: Option<std::time::Duration>,
-    ) -> Result<Option<UserResult>> {
+    async fn user_verify(jwt: &Jwt, timeout: Option<Duration>) -> Result<Option<UserResult>> {
         add_optional_timeout(
             user_api::user_verify(jwt, *OUR_REQUEST),
             timeout,
@@ -412,7 +392,9 @@ mod tests {
     }
     #[test]
     fn user_create_opts_new() {
-        let opts = UserCreateOpts::new(true);
+        let opts = UserCreateOpts {
+            needs_rotation: true,
+        };
         assert_that!(
             &opts,
             has_structure!(UserCreateOpts {

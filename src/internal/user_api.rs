@@ -803,15 +803,9 @@ pub async fn user_change_password(
             priv_key.as_bytes(),
         )?
     };
-    Ok(
-        requests::user_update::user_update(
-            auth,
-            &curr_user_id,
-            Some(new_encrypted_priv_key.into()),
-        )
+    requests::user_update::user_update(auth, &curr_user_id, Some(new_encrypted_priv_key.into()))
         .await?
-        .try_into()?,
-    )
+        .try_into()
 }
 
 #[cfg(test)]

@@ -29,8 +29,8 @@
 //! let jwt_str = get_jwt();
 //! let jwt = Jwt::new(jwt_str)?;
 //! let password = "foobar";
-//! let opts = UserCreateOpts::new(false);
-//! let user_result = IronOxide::user_create(&jwt, password, &opts, None).await?;
+//! let opts = UserCreateOpts { needs_rotation: false };
+//! let user_result = IronOxide::user_create(&jwt, password, opts, None).await?;
 //! # Ok(())
 //! # }
 //! ```
@@ -52,8 +52,8 @@
 //! let jwt_str = get_jwt();
 //! let jwt = Jwt::new(jwt_str)?;
 //! let password = "foobar";
-//! let opts = DeviceCreateOpts::new(None);
-//! let device_result = IronOxide::generate_new_device(&jwt, password, &opts, None).await?;
+//! let opts = DeviceCreateOpts { device_name: None };
+//! let device_result = IronOxide::generate_new_device(&jwt, password, opts, None).await?;
 //! // A `DeviceAddResult` can be converted into a `DeviceContext` used to initialize the SDK
 //! let device_context: DeviceContext = device_result.into();
 //! # Ok(())
@@ -100,7 +100,7 @@
 //! # use ironoxide::prelude::*;
 //! # let sdk: IronOxide = unimplemented!();
 //! use ironoxide::group::GroupCreateOpts;
-//! let group_result = sdk.group_create(&GroupCreateOpts::default()).await?;
+//! let group_result = sdk.group_create(GroupCreateOpts::default()).await?;
 //! // Group ID used for future calls to this group
 //! let group_id: &GroupId = group_result.id();
 //! # Ok(())
@@ -125,7 +125,7 @@
 //! # let sdk: IronOxide = unimplemented!();
 //! use ironoxide::document::DocumentEncryptOpts;
 //! let data = "secret data".to_string().into_bytes();
-//! let encrypted = sdk.document_encrypt(data, &DocumentEncryptOpts::default()).await?;
+//! let encrypted = sdk.document_encrypt(data, DocumentEncryptOpts::default()).await?;
 //! let encrypted_bytes = encrypted.encrypted_data();
 //! # Ok(())
 //! # }
@@ -189,7 +189,7 @@ use crate::{
     user::{UserId, UserResult, UserUpdatePrivateKeyResult},
 };
 use dashmap::DashMap;
-use itertools::EitherOrBoth;
+use itertools::{EitherOrBoth, Itertools};
 use rand::{
     rngs::{adapter::ReseedingRng, OsRng},
     SeedableRng,
@@ -480,7 +480,7 @@ impl IronOxide {
         });
         let group_futures = rotations.group_rotation_needed().map(|groups| {
             let group_futures = groups
-                .into_iter()
+                .iter()
                 .map(|group_id| {
                     internal::group_api::group_rotate_private_key(
                         &self.recrypt,
@@ -489,7 +489,7 @@ impl IronOxide {
                         self.device().device_private_key(),
                     )
                 })
-                .collect::<Vec<_>>();
+                .collect_vec();
             futures::future::join_all(group_futures)
         });
         let user_opt_future: futures::future::OptionFuture<_> = user_future.into();

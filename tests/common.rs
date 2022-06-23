@@ -109,14 +109,16 @@ pub async fn init_sdk_with_config(config: &IronOxideConfig) -> Result<IronOxide,
     IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
         USER_PASSWORD,
-        &UserCreateOpts::new(false),
+        UserCreateOpts {
+            needs_rotation: false,
+        },
         None,
     )
     .await?;
     let device = IronOxide::generate_new_device(
         &gen_jwt(Some(account_id.id())).0,
         USER_PASSWORD,
-        &Default::default(),
+        DeviceCreateOpts::default(),
         None,
     )
     .await?;
@@ -137,7 +139,9 @@ pub async fn init_sdk_get_init_result(
     IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
         USER_PASSWORD,
-        &UserCreateOpts::new(user_needs_rotation),
+        UserCreateOpts {
+            needs_rotation: user_needs_rotation,
+        },
         None,
     )
     .await
@@ -152,7 +156,7 @@ pub async fn init_sdk_get_init_result(
     let device = IronOxide::generate_new_device(
         &gen_jwt(Some(account_id.id())).0,
         USER_PASSWORD,
-        &Default::default(),
+        DeviceCreateOpts::default(),
         None,
     )
     .await
@@ -174,7 +178,7 @@ pub async fn init_sdk_get_init_result(
     );
     (
         account_id,
-        ironoxide::initialize_check_rotation(&device_init, &Default::default())
+        ironoxide::initialize_check_rotation(&device_init, &IronOxideConfig::default())
             .await
             .unwrap(),
     )
@@ -184,7 +188,7 @@ pub async fn init_sdk_get_init_result(
 pub async fn create_second_user() -> UserResult {
     let (jwt, _) = gen_jwt(Some(&create_id_all_classes("")));
     let create_result =
-        IronOxide::user_create(&jwt, USER_PASSWORD, &Default::default(), None).await;
+        IronOxide::user_create(&jwt, USER_PASSWORD, UserCreateOpts::default(), None).await;
     assert!(create_result.is_ok());
 
     let verify_result = IronOxide::user_verify(&jwt, None).await;

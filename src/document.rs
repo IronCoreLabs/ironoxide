@@ -23,22 +23,10 @@ pub mod advanced;
 /// List of users and groups that should have access to decrypt a document.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct ExplicitGrant {
-    grant_to_author: bool,
-    grants: Vec<UserOrGroup>,
-}
-
-impl ExplicitGrant {
-    /// Constructs a new ExplicitGrant.
-    ///
-    /// # Arguments
-    /// - `grant_to_author` - `true` if the calling user should have access to decrypt the document
-    /// - `grants` - List of users and groups that should have access to decrypt the document
-    pub fn new(grant_to_author: bool, grants: &[UserOrGroup]) -> ExplicitGrant {
-        ExplicitGrant {
-            grant_to_author,
-            grants: grants.to_vec(),
-        }
-    }
+    /// `true` if the calling user should have access to decrypt the document
+    pub grant_to_author: bool,
+    /// List of users and groups that should have access to decrypt the document
+    pub grants: Vec<UserOrGroup>,
 }
 
 /// Parameters that can be provided when encrypting a new document.
@@ -50,30 +38,14 @@ impl ExplicitGrant {
 /// Default values are provided with [DocumentEncryptOpts::default()](struct.DocumentEncryptOpts.html#method.default).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DocumentEncryptOpts {
-    id: Option<DocumentId>,
-    name: Option<DocumentName>,
-    // at least one user/group must be included either explicitly or via a policy
-    grants: EitherOrBoth<ExplicitGrant, PolicyGrant>,
+    /// ID to use for the document.
+    pub id: Option<DocumentId>,
+    /// Name to use for the document.
+    pub name: Option<DocumentName>,
+    // Grants that control who will have access to read and decrypt this document.
+    pub grants: EitherOrBoth<ExplicitGrant, PolicyGrant>,
 }
 impl DocumentEncryptOpts {
-    /// Constructs a new `DocumentEncryptOpts`.
-    ///
-    /// Document encryption requires an `ExplicitGrant`, a `PolicyGrant`, or both. If only using one type
-    /// of grant, consider using [with_explicit_grants](./struct.DocumentEncryptOpts.html#method.with_explicit_grants)
-    /// or [with_policy_grants](./struct.DocumentEncryptOpts.html#method.with_policy_grants) instead.
-    ///
-    /// # Arguments
-    /// - `id` - ID to use for the document.
-    /// - `name` - Name to use for the document.
-    /// - `grants` - Grants that control who will have access to read and decrypt this document.
-    pub fn new(
-        id: Option<DocumentId>,
-        name: Option<DocumentName>,
-        grants: EitherOrBoth<ExplicitGrant, PolicyGrant>,
-    ) -> DocumentEncryptOpts {
-        DocumentEncryptOpts { grants, name, id }
-    }
-
     /// Constructs a new `DocumentEncryptOpts` with access explicitly granted to certain users and groups.
     ///
     /// # Arguments
@@ -155,14 +127,14 @@ pub trait DocumentOps {
     /// # let sdk: IronOxide = unimplemented!();
     /// # use ironoxide::document::DocumentEncryptOpts;
     /// let data = "secret data".to_string().into_bytes();
-    /// let encrypted = sdk.document_encrypt(data, &DocumentEncryptOpts::default()).await?;
+    /// let encrypted = sdk.document_encrypt(data, DocumentEncryptOpts::default()).await?;
     /// # Ok(())
     /// # }
     /// ```
     async fn document_encrypt(
         &self,
         document_data: Vec<u8>,
-        encrypt_opts: &DocumentEncryptOpts,
+        encrypt_opts: DocumentEncryptOpts,
     ) -> Result<DocumentEncryptResult>;
 
     /// Decrypts an IronCore encrypted document.
@@ -322,14 +294,14 @@ pub trait DocumentOps {
     /// use ironoxide::document::UserOrGroup;
     /// // from a list of UserIds, `users`
     /// let users_or_groups: Vec<UserOrGroup> = users.iter().map(|user| user.into()).collect();
-    /// let access_result = sdk.document_grant_access(&document_id, &users_or_groups).await?;
+    /// let access_result = sdk.document_grant_access(&document_id, users_or_groups).await?;
     /// # Ok(())
     /// # }
     /// ```
     async fn document_grant_access(
         &self,
         document_id: &DocumentId,
-        grant_list: &[UserOrGroup],
+        grant_list: Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult>;
 
     /// Revokes decryption access to a document for the provided users and/or groups.
@@ -371,19 +343,17 @@ impl DocumentOps for crate::IronOxide {
     async fn document_encrypt(
         &self,
         document_data: Vec<u8>,
-        encrypt_opts: &DocumentEncryptOpts,
+        encrypt_opts: DocumentEncryptOpts,
     ) -> Result<DocumentEncryptResult> {
-        let encrypt_opts = encrypt_opts.clone();
-
         let (explicit_users, explicit_groups, grant_to_author, policy_grants) =
             match encrypt_opts.grants {
                 EitherOrBoth::Left(explicit_grants) => {
-                    let (users, groups) = partition_user_or_group(&explicit_grants.grants);
+                    let (users, groups) = partition_user_or_group(explicit_grants.grants);
                     (users, groups, explicit_grants.grant_to_author, None)
                 }
                 EitherOrBoth::Right(policy_grant) => (vec![], vec![], false, Some(policy_grant)),
                 EitherOrBoth::Both(explicit_grants, policy_grant) => {
-                    let (users, groups) = partition_user_or_group(&explicit_grants.grants);
+                    let (users, groups) = partition_user_or_group(explicit_grants.grants);
                     (
                         users,
                         groups,
@@ -419,7 +389,7 @@ impl DocumentOps for crate::IronOxide {
             document_api::decrypt_document(
                 self.device.auth(),
                 self.recrypt.clone(),
-                self.device.device_private_key(),
+                self.device.device_private_key().clone(),
                 encrypted_document,
             ),
             self.config.sdk_operation_timeout,
@@ -486,7 +456,7 @@ impl DocumentOps for crate::IronOxide {
     async fn document_grant_access(
         &self,
         id: &DocumentId,
-        grant_list: &[UserOrGroup],
+        grant_list: Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult> {
         let (users, groups) = partition_user_or_group(grant_list);
 
@@ -520,11 +490,11 @@ impl DocumentOps for crate::IronOxide {
     }
 }
 
-fn partition_user_or_group(uog_slice: &[UserOrGroup]) -> (Vec<UserId>, Vec<GroupId>) {
+fn partition_user_or_group(uog_slice: Vec<UserOrGroup>) -> (Vec<UserId>, Vec<GroupId>) {
     uog_slice
-        .iter()
+        .into_iter()
         .partition_map(|access_grant| match access_grant {
-            UserOrGroup::User { id } => Either::Left(id.clone()),
-            UserOrGroup::Group { id } => Either::Right(id.clone()),
+            UserOrGroup::User { id } => Either::Left(id),
+            UserOrGroup::Group { id } => Either::Right(id),
         })
 }

@@ -11,7 +11,7 @@ mod search_tests {
 
     async fn setup_test() -> Result<BlindIndexSearch, IronOxideErr> {
         let ironoxide = initialize_sdk().await?;
-        let group_create_result = ironoxide.group_create(&Default::default()).await?;
+        let group_create_result = ironoxide.group_create(GroupCreateOpts::default()).await?;
         let encrypted_blind_index = ironoxide
             .create_blind_index(group_create_result.id())
             .await?;
@@ -21,7 +21,7 @@ mod search_tests {
     #[tokio::test]
     async fn create_blind_index() -> Result<(), IronOxideErr> {
         let ironoxide = initialize_sdk().await?;
-        let group_create_result = ironoxide.group_create(&Default::default()).await?;
+        let group_create_result = ironoxide.group_create(GroupCreateOpts::default()).await?;
         ironoxide
             .create_blind_index(group_create_result.id())
             .await?;

@@ -6,7 +6,7 @@ mod common;
 mod integration_tests {
     use crate::common::{create_id_all_classes, gen_jwt, USER_PASSWORD};
     use galvanic_assert::{matchers::*, *};
-    use ironoxide::prelude::*;
+    use ironoxide::prelude::{DeviceCreateOpts, *};
     use std::{convert::TryInto, time::Duration};
     // Tests a UserOp (user_create/generate_new_device), a GroupOp (group_create),
     // and ironoxide::blocking functions (initialize/initialize_check_rotation)
@@ -14,26 +14,27 @@ mod integration_tests {
     fn rotate_all() -> Result<(), IronOxideErr> {
         let account_id: UserId = create_id_all_classes("").try_into()?;
         let jwt = gen_jwt(Some(account_id.id())).0;
-        BlockingIronOxide::user_create(&jwt, USER_PASSWORD, &UserCreateOpts::new(true), None)?;
+        BlockingIronOxide::user_create(
+            &jwt,
+            USER_PASSWORD,
+            UserCreateOpts {
+                needs_rotation: true,
+            },
+            None,
+        )?;
         let device = BlockingIronOxide::generate_new_device(
             &gen_jwt(Some(account_id.id())).0,
             USER_PASSWORD,
-            &Default::default(),
+            DeviceCreateOpts::default(),
             None,
         )?
         .into();
         let creator_sdk = ironoxide::blocking::initialize(&device, &Default::default())?;
         // making non-default groups so I can specify needs_rotation of true
-        let group_create = creator_sdk.group_create(&GroupCreateOpts::new(
-            None,
-            None,
-            true,
-            true,
-            None,
-            vec![],
-            vec![],
-            true,
-        ))?;
+        let group_create = creator_sdk.group_create(GroupCreateOpts {
+            needs_rotation: true,
+            ..Default::default()
+        })?;
         assert_eq!(group_create.needs_rotation(), Some(true));
 
         let init_and_rotation_check =
@@ -65,24 +66,26 @@ mod integration_tests {
         BlockingIronOxide::user_create(
             &gen_jwt(Some(account_id.id())).0,
             USER_PASSWORD,
-            &UserCreateOpts::new(false),
+            UserCreateOpts {
+                needs_rotation: false,
+            },
             None,
         )?;
         let device = BlockingIronOxide::generate_new_device(
             &gen_jwt(Some(account_id.id())).0,
             USER_PASSWORD,
-            &Default::default(),
+            DeviceCreateOpts::default(),
             None,
         )?
         .into();
         let sdk = ironoxide::blocking::initialize(&device, &Default::default())?;
         let doc = [0u8; 64];
-        let doc_result = sdk.document_encrypt(doc.into(), &Default::default())?;
+        let doc_result = sdk.document_encrypt(doc.into(), DocumentEncryptOpts::default())?;
         assert_eq!(doc_result.grants().len(), 1);
         assert_eq!(doc_result.access_errs().len(), 0);
 
         let doc_unmanaged_result =
-            sdk.document_encrypt_unmanaged(doc.into(), &Default::default())?;
+            sdk.document_encrypt_unmanaged(doc.into(), DocumentEncryptOpts::default())?;
         assert_eq!(doc_unmanaged_result.grants().len(), 1);
         assert_eq!(doc_unmanaged_result.access_errs().len(), 0);
 
@@ -96,13 +99,15 @@ mod integration_tests {
         BlockingIronOxide::user_create(
             &gen_jwt(Some(account_id.id())).0,
             USER_PASSWORD,
-            &UserCreateOpts::new(false),
+            UserCreateOpts {
+                needs_rotation: false,
+            },
             None,
         )?;
         let device = BlockingIronOxide::generate_new_device(
             &gen_jwt(Some(account_id.id())).0,
             USER_PASSWORD,
-            &Default::default(),
+            DeviceCreateOpts::default(),
             None,
         )?
         .into();
@@ -135,13 +140,15 @@ mod integration_tests {
         BlockingIronOxide::user_create(
             &gen_jwt(Some(account_id.id())).0,
             USER_PASSWORD,
-            &UserCreateOpts::new(true),
+            UserCreateOpts {
+                needs_rotation: true,
+            },
             None,
         )?;
         let device = BlockingIronOxide::generate_new_device(
             &gen_jwt(Some(account_id.id())).0,
             USER_PASSWORD,
-            &Default::default(),
+            DeviceCreateOpts::default(),
             None,
         )?
         .into();
