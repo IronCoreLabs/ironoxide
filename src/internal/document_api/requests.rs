@@ -27,7 +27,7 @@ pub struct DocumentVisibility {
     pub groups: Vec<VisibleGroup>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum UserOrGroupWithKey {
     #[serde(rename_all = "camelCase")]
@@ -56,7 +56,7 @@ impl From<UserOrGroupWithKey> for UserOrGroup {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccessGrant {
     pub(crate) user_or_group: UserOrGroupWithKey,
@@ -139,7 +139,7 @@ pub struct DocumentMetaApiResponse {
 pub mod document_list {
     use super::*;
 
-    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
     pub struct DocumentListApiResponse {
         pub result: Vec<DocumentListApiResponseItem>,
     }
@@ -203,7 +203,7 @@ pub mod edek_transform {
             .await
     }
 
-    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct EdekTransformResponse {
         pub(in crate::internal::document_api) user_or_group: UserOrGroup,
@@ -219,14 +219,14 @@ pub mod document_create {
     };
     use std::convert::TryInto;
 
-    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+    #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct DocumentCreateValue {
         pub(crate) name: Option<DocumentName>,
         pub(crate) shared_with: Vec<AccessGrant>,
     }
 
-    #[derive(Clone, Debug, PartialEq, Serialize)]
+    #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
     pub struct DocumentCreateRequest {
         pub(crate) id: DocumentId,
         pub(crate) value: DocumentCreateValue,

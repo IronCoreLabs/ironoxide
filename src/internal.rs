@@ -426,7 +426,7 @@ impl DeviceContext {
 }
 
 /// Newtype wrapper around Recrypt TransformKey type
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct TransformKey(recrypt::api::TransformKey);
 impl From<recrypt::api::TransformKey> for TransformKey {
     fn from(tk: recrypt::api::TransformKey) -> Self {
@@ -440,7 +440,7 @@ impl Hashable for TransformKey {
 }
 
 /// Newtype wrapper around Recrypt SchnorrSignature type
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct SchnorrSignature(recrypt::api::SchnorrSignature);
 impl From<recrypt::api::SchnorrSignature> for SchnorrSignature {
     fn from(s: recrypt::api::SchnorrSignature) -> Self {
@@ -675,7 +675,7 @@ impl<'de> Deserialize<'de> for DeviceSigningKeyPair {
 }
 
 /// Newtype wrapper around a string which represents the users master private key escrow password
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Password(String);
 impl TryFrom<&str> for Password {
     type Error = IronOxideErr;

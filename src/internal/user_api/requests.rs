@@ -19,7 +19,7 @@ use std::convert::TryFrom;
 use time::OffsetDateTime;
 
 use crate::internal::auth_v2::AuthV2Builder;
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EncryptedPrivateKey(#[serde(with = "Base64Standard")] pub Vec<u8>);
 
 impl From<EncryptedMasterKey> for EncryptedPrivateKey {
@@ -48,7 +48,7 @@ pub mod user_verify {
 
     use super::*;
 
-    #[derive(Debug, PartialEq, Deserialize)]
+    #[derive(Debug, PartialEq, Eq, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct UserVerifyResponse {
         pub(crate) id: String,
@@ -134,7 +134,7 @@ pub mod user_get {
     use super::*;
     use crate::internal::group_api::GroupId;
 
-    #[derive(Debug, PartialEq, Deserialize)]
+    #[derive(Debug, PartialEq, Eq, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct CurrentUserResponse {
         pub(in crate::internal) current_key_id: u64,
@@ -170,7 +170,7 @@ pub mod user_update_private_key {
         augmentation_factor: AugmentationFactor,
     }
 
-    #[derive(Debug, PartialEq, Deserialize)]
+    #[derive(Debug, PartialEq, Eq, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct UserUpdatePrivateKeyResponse {
         current_key_id: u64,
@@ -218,7 +218,7 @@ pub mod user_create {
 
     use super::*;
 
-    #[derive(Debug, PartialEq, Deserialize)]
+    #[derive(Debug, PartialEq, Eq, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct UserCreateResponse {
         id: String,
@@ -276,7 +276,7 @@ pub mod user_update {
 
     use super::*;
 
-    #[derive(Debug, PartialEq, Deserialize)]
+    #[derive(Debug, PartialEq, Eq, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct UserUpdateResponse {
         id: String,
@@ -429,7 +429,7 @@ pub mod device_list {
 
     use super::*;
 
-    #[derive(Debug, PartialEq, Deserialize)]
+    #[derive(Debug, PartialEq, Eq, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct DeviceListItem {
         #[serde(rename = "id")]
@@ -442,7 +442,7 @@ pub mod device_list {
         is_current_device: bool,
     }
 
-    #[derive(Debug, PartialEq, Deserialize)]
+    #[derive(Debug, PartialEq, Eq, Deserialize)]
     pub struct DeviceListResponse {
         pub(in crate::internal) result: Vec<DeviceListItem>,
     }

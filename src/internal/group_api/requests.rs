@@ -26,7 +26,7 @@ pub enum Permission {
     Admin,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupBasicApiResponse {
     pub(crate) id: GroupId,
@@ -59,7 +59,7 @@ impl TryFrom<GroupBasicApiResponse> for GroupMetaResult {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupGetApiResponse {
     pub(crate) id: GroupId,
@@ -100,7 +100,7 @@ impl TryFrom<GroupGetApiResponse> for GroupGetResult {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupCreateApiResponse {
     pub(in crate::internal) id: GroupId,
@@ -137,14 +137,14 @@ impl TryFrom<GroupCreateApiResponse> for GroupCreateResult {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Eq, Serialize)]
 pub struct GroupAdmin {
     pub(in crate::internal) user: User,
     #[serde(flatten)]
     pub(in crate::internal) encrypted_msg: EncryptedOnceValue,
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupMember {
     pub(in crate::internal) user_id: UserId,
@@ -152,7 +152,7 @@ pub struct GroupMember {
     pub(in crate::internal) user_master_public_key: PublicKey,
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct User {
     pub(in crate::internal) user_id: UserId,
@@ -290,7 +290,7 @@ pub mod group_update_private_key {
         augmentation_factor: AugmentationFactor,
     }
 
-    #[derive(Debug, PartialEq, Deserialize)]
+    #[derive(Debug, PartialEq, Eq, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct GroupUpdatePrivateKeyResponse {
         group_key_id: u64,
