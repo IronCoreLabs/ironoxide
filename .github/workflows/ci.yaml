@@ -17,27 +17,27 @@ jobs:
       fail-fast: false
       matrix:
         # different operating systems
-        os: [ubuntu-18.04, ubuntu-20.04, macos-10.15, windows-2019]
+        os: [ubuntu-22.04, macos-10.15, windows-2019]
         features: [default]
         toolchain: [stable]
         include:
           # different features combinations
-          - os: ubuntu-18.04
+          - os: ubuntu-22.04
             features: beta
-          - os: ubuntu-18.04
+          - os: ubuntu-22.04
             features: blocking
-          - os: ubuntu-18.04
+          - os: ubuntu-22.04
             features: "blocking beta"
           # different tls implementations
-          - os: ubuntu-18.04
+          - os: ubuntu-22.04
             features: tls-rustls --no-default-features
-          - os: ubuntu-18.04
+          - os: ubuntu-22.04
             features: tls-vendored-openssl --no-default-features
-          - os: ubuntu-18.04
+          - os: ubuntu-22.04
             toolchain: beta
             features: default
           # MSRV
-          - os: ubuntu-18.04
+          - os: ubuntu-22.04
             toolchain: 1.60.0
             features: default
     steps:
@@ -92,7 +92,7 @@ jobs:
           - x86_64-linux-android
           - x86_64-unknown-linux-musl
         os:
-          - ubuntu-18.04
+          - ubuntu-22.04
         include:
           - target: aarch64-apple-ios
             os: macos-10.15
@@ -129,7 +129,7 @@ jobs:
           -F "payload={\"text\": \"Failed a run of <$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID|$GITHUB_REPOSITORY>.\"}"
 
   format:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
