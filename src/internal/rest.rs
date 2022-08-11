@@ -35,7 +35,7 @@ lazy_static! {
     };
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ServerError {
     message: String,
     code: u32,
@@ -870,7 +870,7 @@ pub mod json {
         }
     }
 
-    #[derive(Debug, PartialEq, Serialize)]
+    #[derive(Debug, PartialEq, Eq, Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct TransformKey {
         ephemeral_public_key: PublicKey,
@@ -914,7 +914,7 @@ pub mod json {
         public_signing_key: Vec<u8>,
     }
 
-    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
     pub struct AugmentationFactor(#[serde(with = "Base64Standard")] pub Vec<u8>);
 
     impl From<internal::AugmentationFactor> for AugmentationFactor {
