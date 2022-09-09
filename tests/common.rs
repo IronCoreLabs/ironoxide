@@ -79,10 +79,14 @@ pub fn gen_jwt(account_id: Option<&str>) -> (Jwt, String) {
         sub: sub.to_string(),
         iat: iat_seconds,
         exp: iat_seconds + 120,
-        pid: CONFIG.project_id,
-        sid: CONFIG.segment_id.clone(),
-        kid: CONFIG.identity_assertion_key_id,
+        pid: Some(CONFIG.project_id),
+        sid: Some(CONFIG.segment_id.clone()),
+        kid: Some(CONFIG.identity_assertion_key_id),
         uid: None,
+        prefixed_pid: None,
+        prefixed_sid: None,
+        prefixed_kid: None,
+        prefixed_uid: None,
     };
     let header = Header::new(Algorithm::ES256);
     let pem = std::fs::read_to_string(&KEYPATH.1).expect("Failed to open PEM file.");
