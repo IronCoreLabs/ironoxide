@@ -288,17 +288,29 @@ pub struct JwtClaims {
     /// and it will automatically reject JWTs that are received more than 120 seconds past `iat`.
     pub exp: u64,
     /// Project ID
-    #[serde(alias = "http://ironcore/pid")]
-    pub pid: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pid: Option<u32>,
+    #[serde(rename = "http://ironcore/pid")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prefixed_pid: Option<u32>,
     /// Segment ID
-    #[serde(alias = "http://ironcore/sid")]
-    pub sid: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sid: Option<String>,
+    #[serde(rename = "http://ironcore/sid")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prefixed_sid: Option<String>,
     /// Service key ID
-    #[serde(alias = "http://ironcore/kid")]
-    pub kid: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kid: Option<u32>,
+    #[serde(rename = "http://ironcore/kid")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prefixed_kid: Option<u32>,
     /// User ID
-    #[serde(alias = "http://ironcore/uid")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub uid: Option<String>,
+    #[serde(rename = "http://ironcore/uid")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prefixed_uid: Option<String>,
 }
 
 /// IronCore JWT.
@@ -328,18 +340,44 @@ impl Jwt {
         // to catch issues earlier.
         let token_data = jsonwebtoken::decode::<JwtClaims>(jwt, &bogus_key, &validation)
             .map_err(|e| IronOxideErr::ValidationError("jwt".to_string(), e.to_string()))?;
-        let alg = token_data.header.alg;
-        if alg == Algorithm::ES256 || alg == Algorithm::RS256 {
-            Ok(Jwt {
-                jwt: jwt.to_string(),
-                header: token_data.header,
-                claims: token_data.claims,
-            })
-        } else {
-            Err(IronOxideErr::ValidationError(
+        let JwtClaims {
+            pid,
+            prefixed_pid,
+            sid,
+            prefixed_sid,
+            kid,
+            prefixed_kid,
+            ..
+        } = &token_data.claims;
+        let error_message = |claim: &str| -> IronOxideErr {
+            IronOxideErr::ValidationError(
                 "jwt".to_string(),
-                "Unsupported JWT algorithm. Supported algorithms: ES256 and RS256.".to_string(),
-            ))
+                format!(
+                    "Missing required claim: `{}`/`http://ironcore/{}",
+                    claim, claim
+                ),
+            )
+        };
+        if pid.is_none() && prefixed_pid.is_none() {
+            Err(error_message("pid"))
+        } else if sid.is_none() && prefixed_sid.is_none() {
+            Err(error_message("sid"))
+        } else if kid.is_none() && prefixed_kid.is_none() {
+            Err(error_message("kid"))
+        } else {
+            let alg = token_data.header.alg;
+            if alg == Algorithm::ES256 || alg == Algorithm::RS256 {
+                Ok(Jwt {
+                    jwt: jwt.to_string(),
+                    header: token_data.header,
+                    claims: token_data.claims,
+                })
+            } else {
+                Err(IronOxideErr::ValidationError(
+                    "jwt".to_string(),
+                    "Unsupported JWT algorithm. Supported algorithms: ES256 and RS256.".to_string(),
+                ))
+            }
         }
     }
 
@@ -914,5 +952,15 @@ pub(crate) mod tests {
         //    "sub": "github|11368122", "aud": "hGELxuBKD64ltS4VNaIy2mzVwtqgJa5f", "iat": 1593130255, "exp": 1593133855 }
         let jwt = Jwt::try_from("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IlEwWXhNekUwTlVJeE9UVTNRakZFTlRZM01rVkNRakE0UkVNMk1UTkZOVGRETVRBNE9EQTVNUSJ9.eyJodHRwOi8vaXJvbmNvcmUxL3BpZCI6MSwiaHR0cDovL2lyb25jb3JlMS9raWQiOjE4NTksImh0dHA6Ly9pcm9uY29yZTEvc2lkIjoiSXJvbkhpZGUiLCJodHRwOi8vaXJvbmNvcmUxL3VpZCI6ImJvYi53YWxsQGlyb25jb3JlbGFicy5jb20iLCJpc3MiOiJodHRwczovL2lyb25jb3JlbGFicy5hdXRoMC5jb20vIiwic3ViIjoiZ2l0aHVifDExMzY4MTIyIiwiYXVkIjoiaEdFTHh1QktENjRsdFM0Vk5hSXkybXpWd3RxZ0phNWYiLCJpYXQiOjE1OTMxMzAyNTUsImV4cCI6MTU5MzEzMzg1NX0.J9sPgSFjucLQHpGOsEJ3xJf66nNK6Rf1n-C4YTsqWjPGwHlA8qyY4YIfNhwAjSstwvx2ImUb-Rf2Ghjq_4gpnArVfzkqa2HN06p_kRvwlL_kJoKTP8fo9LSpceNAbv75S4_EzOAWHTTNzDVjriQ1sjZYCYuD9BBjCG7ie0vSATb9uE4BtE_fSrlRkXlEW_608PDajNpwcCzSC-rMcWa1vDCYEuk405MzxkMJIi65ghMs9AEi6QotEhimf1gbrSaJFyyAqVKBPwA5--z64cK1vSwsX3mO2bCWIKbqLgXXWU0zr7saP9jVeMKXXetBW5KHHjYKRZ6lY9CquhtsnjSxvQ");
         assert!(!jwt.is_ok())
+    }
+
+    #[test]
+    fn valid_jwt_duplicate_aliases() {
+        // This is a JWT generated with the following claims:
+        // { "http://ironcore1/pid": 1, "pid": 2, "http://ironcore1/kid": 1859, "kid": 1860, "http://ironcore1/sid": "IronHide", "sid": "IronHide2",
+        //    "http://ironcore1/uid": "bob.wall@ironcorelabs.com", "iss": "https://ironcorelabs.auth0.com/",
+        //    "sub": "github|11368122", "aud": "hGELxuBKD64ltS4VNaIy2mzVwtqgJa5f", "iat": 1593130255, "exp": 1593133855 }
+        let jwt = Jwt::try_from("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vaXJvbmNvcmUvcGlkIjoxLCJwaWQiOjIsImh0dHA6Ly9pcm9uY29yZS9raWQiOjE4NTksImtpZCI6MTg2MCwiaHR0cDovL2lyb25jb3JlL3NpZCI6Iklyb25IaWRlIiwic2lkIjoiSXJvbkhpZGUyIiwiaHR0cDovL2lyb25jb3JlL3VpZCI6ImJvYi53YWxsQGlyb25jb3JlbGFicy5jb20iLCJpc3MiOiJodHRwczovL2lyb25jb3JlbGFicy5hdXRoMC5jb20vIiwic3ViIjoiZ2l0aHVifDExMzY4MTIyIiwiYXVkIjoiaEdFTHh1QktENjRsdFM0Vk5hSXkybXpWd3RxZ0phNWYiLCJpYXQiOjE1OTMxMzAyNTUsImV4cCI6MTU5MzEzMzg1NX0.cnNGAJca0zhqO5tvm8NNqW6PlbUV4mCKLN4Yom86Wsyrhq7Y5mzBgcxiG2icKtAM4-Xk1hURwSqBpXk-ZepzlMJmkdH8FxPf7Ms0VNrw8KR0KRtO829tktXAxr8UN4MitJynN_C2FFAZn1-28H98Tc_ZUSTCdLrZ5Ct1cHWGwlGJVejitxSD-6fmiFIKYZJYyzvvot8br9cO3GrJAXa1PJqIGiN2oQVxPV_rYLvQRbwCQVcmvtH_rhnDThJUgNNpHLpk3Wt-5vJR2wFeWU7HvQMyAv_ZNyFufqtdYZz6mFMkWozVFaqXifZeRBjyn4eO-RXZGaHlkE9AITrv5vXwDw");
+        assert!(jwt.is_ok())
     }
 }
