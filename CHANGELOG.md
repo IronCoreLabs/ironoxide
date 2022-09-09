@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.0.0
 
 - [[#274](https://github.com/IronCoreLabs/ironoxide/pull/274)] Bump MSRV to 1.60.0.
 - [[#281](https://github.com/IronCoreLabs/ironoxide/pull/274)] Make `JwtClaims` deserialization more lenient.
