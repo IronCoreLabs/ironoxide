@@ -957,10 +957,10 @@ pub(crate) mod tests {
     #[test]
     fn valid_jwt_duplicate_aliases() {
         // This is a JWT generated with the following claims:
-        // { "http://ironcore1/pid": 1, "http://ironcore1/kid": 1859, "http://ironcore1/sid": "IronHide", "sid": "IronHide",
+        // { "http://ironcore1/pid": 1, "pid": 2, "http://ironcore1/kid": 1859, "kid": 1860, "http://ironcore1/sid": "IronHide", "sid": "IronHide2",
         //    "http://ironcore1/uid": "bob.wall@ironcorelabs.com", "iss": "https://ironcorelabs.auth0.com/",
         //    "sub": "github|11368122", "aud": "hGELxuBKD64ltS4VNaIy2mzVwtqgJa5f", "iat": 1593130255, "exp": 1593133855 }
-        let jwt = Jwt::try_from("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vaXJvbmNvcmUvcGlkIjoxLCJodHRwOi8vaXJvbmNvcmUva2lkIjoxODU5LCJodHRwOi8vaXJvbmNvcmUvc2lkIjoiSXJvbkhpZGUiLCJzaWQiOiJJcm9uSGlkZSIsImh0dHA6Ly9pcm9uY29yZS91aWQiOiJib2Iud2FsbEBpcm9uY29yZWxhYnMuY29tIiwiaXNzIjoiaHR0cHM6Ly9pcm9uY29yZWxhYnMuYXV0aDAuY29tLyIsInN1YiI6ImdpdGh1YnwxMTM2ODEyMiIsImF1ZCI6ImhHRUx4dUJLRDY0bHRTNFZOYUl5Mm16Vnd0cWdKYTVmIiwiaWF0IjoxNTkzMTMwMjU1LCJleHAiOjE1OTMxMzM4NTV9.Bp5aXzT0k0busaETapSaOUyrEq1zkW-iLCyVEFP7ngEOJY1eU3BAuuDsIZmpW53oVCcCrgGt43VRse6oYegoz_ZsR2Zn2GjQ5JMPRdTZxrV5rjATJeCl9LZwwLktur0ik5j1KLDSA_hAlp8oaHfS50gtxh5qfG3e42o72jvdBcC9cOT45e2xEVPD67x7Ijt2NKPG7HQOyvKILMFuQtH1M0ywo9yNwJe4xS5n_B8F_PYZLe-EElSQY-ydXukfn0k1sQxt8VhgHZRUnKgmKVej5Z6_OtvgKONATIKJSnv1aI7C6il2yG7Di-b5YZr8R2hej57adBeISVoUdbOpgBON4g");
+        let jwt = Jwt::try_from("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vaXJvbmNvcmUvcGlkIjoxLCJwaWQiOjIsImh0dHA6Ly9pcm9uY29yZS9raWQiOjE4NTksImtpZCI6MTg2MCwiaHR0cDovL2lyb25jb3JlL3NpZCI6Iklyb25IaWRlIiwic2lkIjoiSXJvbkhpZGUyIiwiaHR0cDovL2lyb25jb3JlL3VpZCI6ImJvYi53YWxsQGlyb25jb3JlbGFicy5jb20iLCJpc3MiOiJodHRwczovL2lyb25jb3JlbGFicy5hdXRoMC5jb20vIiwic3ViIjoiZ2l0aHVifDExMzY4MTIyIiwiYXVkIjoiaEdFTHh1QktENjRsdFM0Vk5hSXkybXpWd3RxZ0phNWYiLCJpYXQiOjE1OTMxMzAyNTUsImV4cCI6MTU5MzEzMzg1NX0.cnNGAJca0zhqO5tvm8NNqW6PlbUV4mCKLN4Yom86Wsyrhq7Y5mzBgcxiG2icKtAM4-Xk1hURwSqBpXk-ZepzlMJmkdH8FxPf7Ms0VNrw8KR0KRtO829tktXAxr8UN4MitJynN_C2FFAZn1-28H98Tc_ZUSTCdLrZ5Ct1cHWGwlGJVejitxSD-6fmiFIKYZJYyzvvot8br9cO3GrJAXa1PJqIGiN2oQVxPV_rYLvQRbwCQVcmvtH_rhnDThJUgNNpHLpk3Wt-5vJR2wFeWU7HvQMyAv_ZNyFufqtdYZz6mFMkWozVFaqXifZeRBjyn4eO-RXZGaHlkE9AITrv5vXwDw");
         assert!(jwt.is_ok())
     }
 }
