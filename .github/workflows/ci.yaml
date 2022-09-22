@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         # different operating systems
-        os: [ubuntu-22.04, macos-10.15, windows-2019]
+        os: [ubuntu-22.04, macos-12, windows-2019]
         features: [default]
         toolchain: [stable]
         include:
@@ -47,21 +47,13 @@ jobs:
         with:
           toolchain: ${{ matrix.toolchain }}
           override: true
-      # This was disabled because of intermittent failures after a cache hit in macos-10.15
-      #
-      # - name: Generate Cargo.lock so we can cache from it
-      #   run: cargo generate-lockfile
-      # - uses: actions/cache@v2
-      #   with:
-      #     path: |
-      #       ~/.cargo/registry
-      #       ~/.cargo/git
-      #       target
-      #     key: ${{ github.workflow }}-rust-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock') }}
-      #     restore-keys: |
-      #       ${{ github.workflow }}-rust-${{ matrix.os }}-
+      - uses: Swatinem/rust-cache@v1
+        id: rust-cache
       - name: Decrypt test keys
-        run: openssl aes-256-cbc -d -K ${{ secrets.OPENSSL_KEY }} -iv ${{ secrets.OPENSSL_IV }} -in tests/testkeys/iak-dev.pem.enc -out tests/testkeys/iak-dev.pem
+        uses: IronCoreLabs/ironhide-actions/decrypt@v2
+        with:
+          keys: ${{ secrets.IRONHIDE_KEYS }}
+          input: tests/testkeys/iak-dev.pem.iron
       # Generate the Cargo.lock that will be used for the tests so we can upload it as an artifact
       - name: Generate lockfile
         run: cargo generate-lockfile
@@ -95,7 +87,7 @@ jobs:
           - ubuntu-22.04
         include:
           - target: aarch64-apple-ios
-            os: macos-10.15
+            os: macos-12
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
@@ -103,19 +95,8 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
           override: true
-      # This was disabled because of intermittent failures after a cache hit in macos-10.15
-      #
-      # - name: Generate Cargo.lock so we can cache from it
-      #   run: cargo generate-lockfile
-      # - uses: actions/cache@v2
-      #   with:
-      #     path: |
-      #       ~/.cargo/registry
-      #       ~/.cargo/git
-      #       target
-      #     key: ${{ github.workflow }}-rust-arch-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
-      #     restore-keys: |
-      #       ${{ github.workflow }}-rust-arch-${{ matrix.target }}-
+      - uses: Swatinem/rust-cache@v1
+        id: rust-cache
       - uses: actions-rs/cargo@v1
         with:
           # `cross` will work on all our targets except aarch64-apple-ios. We can still use `cross` everywhere, because it transparently falls back to `cargo`.
