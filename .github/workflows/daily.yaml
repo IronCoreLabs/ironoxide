@@ -15,7 +15,10 @@ jobs:
         with:
           path: Cargo.lock
       - name: Decrypt test keys
-        run: openssl aes-256-cbc -d -K ${{ secrets.OPENSSL_KEY }} -iv ${{ secrets.OPENSSL_IV }} -in tests/testkeys/iak-dev.pem.enc -out tests/testkeys/iak-dev.pem
+        uses: IronCoreLabs/ironhide-actions/decrypt@v2
+        with:
+          keys: ${{ secrets.IRONHIDE_KEYS }}
+          input: tests/testkeys/iak-stage.pem.iron
       - run: cargo test --features beta
         env:
-          IRONCORE_ENV: dev
+          IRONCORE_ENV: stage
