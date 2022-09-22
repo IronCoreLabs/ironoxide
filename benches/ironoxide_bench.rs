@@ -6,17 +6,16 @@ use tokio::runtime::Runtime;
 lazy_static! {
     /// The ICL environment to run benchmarks against.
     ///
-    /// Reads from the environment variable IRONCORE_ENV. Supports `dev`, `stage`, and `prod`.
-    /// An unset environment variable will be interpreted as `dev`.
+    /// Reads from the environment variable IRONCORE_ENV. Supports `stage`, and `prod`.
+    /// An unset environment variable will be interpreted as `stage`.
     /// An invalid environment variable will result in a panic.
     pub static ref ENV: String = match std::env::var("IRONCORE_ENV") {
         Ok(url) => match url.to_lowercase().as_str() {
-            "dev" => "dev",
             "stage" => "stage",
             "prod" => "prod",
-            _ => panic!("IRONCORE_ENV can only be set to `dev`, `stage`, or `prod` when running the benchmarks.")
+            _ => panic!("IRONCORE_ENV can only be set to `stage` or `prod` when running the benchmarks.")
         },
-        _ => "dev",
+        _ => "stage",
     }
     .to_string();
 }

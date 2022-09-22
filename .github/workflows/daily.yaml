@@ -15,12 +15,10 @@ jobs:
         with:
           path: Cargo.lock
       - name: Decrypt test keys
-        run: openssl aes-256-cbc -d -K ${{ secrets.OPENSSL_KEY }} -iv ${{ secrets.OPENSSL_IV }} -in tests/testkeys/iak-dev.pem.enc -out tests/testkeys/iak-dev.pem
+        uses: IronCoreLabs/ironhide-actions/decrypt@v2
+        with:
+          keys: ${{ secrets.IRONHIDE_KEYS }}
+          input: tests/testkeys/iak-stage.pem.iron
       - run: cargo test --features beta
         env:
-          IRONCORE_ENV: dev
-      - name: Post to Slack on failure
-        if: failure()
-        run: |
-          curl -L -X POST '${{ secrets.SLACK_WEBHOOK }}' \
-          -F "payload={\"text\": \"Failed a run of <$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID|$GITHUB_REPOSITORY>.\"}"
+          IRONCORE_ENV: stage

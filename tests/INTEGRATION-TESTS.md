@@ -22,9 +22,8 @@ Integration tests run against IronCore environments require some test keys and c
 
 ### Running the Tests
 
-The environment you would like to test against is specified in the environment variable `IRONCORE_ENV`. This variable can be set to `dev`, `stage`, or `prod` - this will cause the tests to use one set of the pre-generated key and config files (i.e. iak-dev.pem and ironcore-config-dev.json). To test against these, run one of the following:
+The environment you would like to test against is specified in the environment variable `IRONCORE_ENV`. This variable can be set to `stage` or `prod` - this will cause the tests to use one set of the pre-generated key and config files (i.e. iak-stage.pem and ironcore-config-stage.json). To test against these, run one of the following:
 
-- Development: `IRONCORE_ENV=dev cargo t`
 - Staging: `IRONCORE_ENV=stage cargo t`
 - Production: `IRONCORE_ENV=prod cargo t`
 
@@ -44,7 +43,7 @@ An IronCore Config file can be downloaded from the admin console on creation of 
 {
   "projectId": YOUR_PROJECT_ID,
   "segmentId": "YOUR_SEGMENT_ID",
-  "identityAssertionKeyId": YOUR_IDENTITY_ASSERION_KEY_ID
+  "identityAssertionKeyId": YOUR_IDENTITY_ASSERTION_KEY_ID
 }
 ```
 

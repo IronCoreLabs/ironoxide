@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- [[#284](https://github.com/IronCoreLabs/ironoxide/pull/284)] Remove `dev` as an option for `IRONCORE_ENV`.
+
 ## 2.0.0
 
 - [[#274](https://github.com/IronCoreLabs/ironoxide/pull/274)] Bump MSRV to 1.60.0.
