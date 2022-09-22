@@ -13,7 +13,7 @@ lazy_static! {
         Ok(url) => match url.to_lowercase().as_str() {
             "stage" => "stage",
             "prod" => "prod",
-            _ => panic!("IRONCORE_ENV can only be set to `stage`, or `prod` when running the benchmarks.")
+            _ => panic!("IRONCORE_ENV can only be set to `stage` or `prod` when running the benchmarks.")
         },
         _ => "stage",
     }
