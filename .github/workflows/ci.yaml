@@ -27,7 +27,7 @@ jobs:
           - os: ubuntu-22.04
             features: blocking
           - os: ubuntu-22.04
-            features: "blocking beta"
+            features: blocking,beta
           # different tls implementations
           - os: ubuntu-22.04
             features: tls-rustls --no-default-features
