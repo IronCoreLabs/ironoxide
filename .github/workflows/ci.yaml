@@ -117,4 +117,4 @@ jobs:
       - run: cargo-sort-ck
       - name: Cancel workflow
         if: failure()
-        uses: andymckay/cancel-action@0.2
+        uses: andymckay/cancel-action@0.3
