@@ -47,7 +47,7 @@ jobs:
         with:
           toolchain: ${{ matrix.toolchain }}
           override: true
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
         id: rust-cache
       - name: Decrypt test keys
         uses: IronCoreLabs/ironhide-actions/decrypt@v2
@@ -90,7 +90,7 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
           override: true
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
         id: rust-cache
       - uses: actions-rs/cargo@v1
         with:
