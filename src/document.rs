@@ -131,7 +131,8 @@ impl Default for DocumentEncryptOpts {
 /// # Key Terms
 /// - ID     - The ID representing a document. It must be unique within the document's segment and will **not** be encrypted.
 /// - Name   - The human-readable name of a document. It does not need to be unique and will **not** be encrypted.
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait DocumentOps {
     /// Encrypts the provided document bytes.
     ///
@@ -366,7 +367,8 @@ pub trait DocumentOps {
     ) -> Result<DocumentAccessResult>;
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl DocumentOps for crate::IronOxide {
     async fn document_encrypt(
         &self,

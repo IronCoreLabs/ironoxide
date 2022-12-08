@@ -69,13 +69,15 @@ impl EncryptedBlindIndexSalt {
 }
 
 ///Trait which gives the ability to create a blind index.
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait BlindIndexSearchInitialize {
     ///Create an index and encrypt it to the provided group_id.
     async fn create_blind_index(&self, group_id: &GroupId) -> Result<EncryptedBlindIndexSalt>;
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl BlindIndexSearchInitialize for IronOxide {
     async fn create_blind_index(&self, group_id: &GroupId) -> Result<EncryptedBlindIndexSalt> {
         let salt = {

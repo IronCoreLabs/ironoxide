@@ -172,7 +172,8 @@ impl Default for GroupCreateOpts {
 /// - Rotation - Changing a group's private key while leaving its public key unchanged. This can be accomplished by calling
 ///     [group_rotate_private_key](trait.GroupOps.html#tymethod.group_rotate_private_key).
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait GroupOps {
     /// Creates a group.
     ///
@@ -433,7 +434,8 @@ pub trait GroupOps {
     async fn group_delete(&self, id: &GroupId) -> Result<GroupId>;
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl GroupOps for crate::IronOxide {
     async fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupCreateResult> {
         let standard_opts = opts.clone().standardize(self.device.auth().account_id())?;

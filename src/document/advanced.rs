@@ -19,7 +19,8 @@ use itertools::EitherOrBoth;
 /// # Key Terms
 /// - EDEKs - Encrypted document encryption keys produced by unmanaged document encryption and required for unmanaged
 ///      document decryption.
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait DocumentAdvancedOps {
     /// Encrypts the provided document bytes without being managed by the IronCore service.
     ///
@@ -54,7 +55,8 @@ pub trait DocumentAdvancedOps {
     ) -> Result<DocumentDecryptUnmanagedResult>;
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl DocumentAdvancedOps for crate::IronOxide {
     async fn document_encrypt_unmanaged(
         &self,

@@ -75,7 +75,8 @@ impl Default for UserCreateOpts {
 /// - Password - The string used to encrypt and escrow a user's private key.
 /// - Rotation - Changing a user's private key while leaving their public key unchanged. This can be accomplished by calling
 ///     [user_rotate_private_key](trait.UserOps.html#tymethod.user_rotate_private_key).
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait UserOps {
     /// Creates a user.
     ///
@@ -277,7 +278,8 @@ pub trait UserOps {
     ) -> Result<UserUpdateResult>;
 }
 
-#[async_trait]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl UserOps for IronOxide {
     async fn user_create(
         jwt: &Jwt,
