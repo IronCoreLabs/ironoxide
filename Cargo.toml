@@ -67,7 +67,7 @@ protobuf-codegen = "3.0"
 
 [features]
 beta = [ "ironcore-search-helpers" ]
-blocking = [ "tokio/rt", "tls-default" ]
+blocking = [ ]
 
 # NOTE: ironoxide requires a TLS implementation. Choose one of the following
 
