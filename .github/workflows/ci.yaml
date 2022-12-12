@@ -50,7 +50,7 @@ jobs:
       - uses: Swatinem/rust-cache@v1
         id: rust-cache
       - name: Decrypt test keys
-        uses: IronCoreLabs/ironhide-actions/decrypt@v2
+        uses: IronCoreLabs/ironhide-actions/decrypt@v3
         with:
           keys: ${{ secrets.IRONHIDE_KEYS }}
           input: tests/testkeys/iak-stage.pem.iron
