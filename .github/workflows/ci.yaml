@@ -54,6 +54,7 @@ jobs:
           os: ubuntu-22.04
           version: latest
       - name: Setup sccache env variables
+        shell: bash
         run: |
           echo "CC=$(which cc)" >> $GITHUB_ENV
           echo "RUSTC_WRAPPER=$HOME/.cargo/bin/sccache" >> $GITHUB_ENV
@@ -112,6 +113,7 @@ jobs:
           os: ubuntu-22.04
           version: latest
       - name: Setup sccache env variables
+        shell: bash
         run: |
           echo "CC=$(which cc)" >> $GITHUB_ENV
           echo "RUSTC_WRAPPER=$HOME/.cargo/bin/sccache" >> $GITHUB_ENV
