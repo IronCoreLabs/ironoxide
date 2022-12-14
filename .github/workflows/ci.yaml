@@ -45,23 +45,6 @@ jobs:
         with:
           toolchain: ${{ matrix.toolchain }}
           override: true
-      - name: Install sccache
-        uses: IronCoreLabs/rust-install@v0.1.0
-        with:
-          crate: sccache
-          accesskey: AKIAU2WBY6VDTC563V7G
-          secretkey: ${{ secrets.TOOL_CACHE_SECRET_KEY }}
-          os: ${{ matrix.os }}
-          version: latest
-      - name: Setup sccache env variables
-        shell: bash
-        run: |
-          echo "CC=$(which cc)" >> $GITHUB_ENV
-          echo "RUSTC_WRAPPER=$HOME/.cargo/bin/sccache" >> $GITHUB_ENV
-          echo "AWS_ACCESS_KEY_ID=AKIAU2WBY6VDVHUO5WSN" >> $GITHUB_ENV
-          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.SCCACHE_AWS_SECRET }}" >> $GITHUB_ENV
-          echo "SCCACHE_BUCKET=sccache-rust" >> $GITHUB_ENV
-          echo "SCCACHE_S3_USE_SSL=true" >> $GITHUB_ENV
       - uses: Swatinem/rust-cache@v2
       - name: Decrypt test keys
         uses: IronCoreLabs/ironhide-actions/decrypt@v3
@@ -104,23 +87,6 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
           override: true
-      - name: Install sccache
-        uses: IronCoreLabs/rust-install@v0.1.0
-        with:
-          crate: sccache
-          accesskey: AKIAU2WBY6VDTC563V7G
-          secretkey: ${{ secrets.TOOL_CACHE_SECRET_KEY }}
-          os: ${{ matrix.os }}
-          version: latest
-      - name: Setup sccache env variables
-        shell: bash
-        run: |
-          echo "CC=$(which cc)" >> $GITHUB_ENV
-          echo "RUSTC_WRAPPER=$HOME/.cargo/bin/sccache" >> $GITHUB_ENV
-          echo "AWS_ACCESS_KEY_ID=AKIAU2WBY6VDVHUO5WSN" >> $GITHUB_ENV
-          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.SCCACHE_AWS_SECRET }}" >> $GITHUB_ENV
-          echo "SCCACHE_BUCKET=sccache-rust" >> $GITHUB_ENV
-          echo "SCCACHE_S3_USE_SSL=true" >> $GITHUB_ENV
       - uses: Swatinem/rust-cache@v2
       - uses: actions-rs/cargo@v1
         with:
