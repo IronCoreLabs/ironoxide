@@ -51,7 +51,7 @@ jobs:
           crate: sccache
           accesskey: AKIAU2WBY6VDTC563V7G
           secretkey: ${{ secrets.TOOL_CACHE_SECRET_KEY }}
-          os: ubuntu-22.04
+          os: ${{ matrix.os }}
           version: latest
       - name: Setup sccache env variables
         shell: bash
@@ -110,7 +110,7 @@ jobs:
           crate: sccache
           accesskey: AKIAU2WBY6VDTC563V7G
           secretkey: ${{ secrets.TOOL_CACHE_SECRET_KEY }}
-          os: ubuntu-22.04
+          os: ${{ matrix.os }}
           version: latest
       - name: Setup sccache env variables
         shell: bash
