@@ -317,7 +317,8 @@ pub struct JwtClaims {
 ///
 /// Must be either ES256 or RS256 and have a payload similar to [JwtClaims](struct.JwtClaims.html), but could be
 /// generated from an external source.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Hash)]
 pub struct Jwt {
     jwt: String,
     header: jsonwebtoken::Header,
