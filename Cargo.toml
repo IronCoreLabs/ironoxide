@@ -1,12 +1,12 @@
 [package]
 name = "ironoxide"
 version = "2.0.0"
-authors = [ "IronCore Labs <info@ironcorelabs.com>" ]
+authors = ["IronCore Labs <info@ironcorelabs.com>"]
 readme = "README.md"
 license = "AGPL-3.0-only"
 repository = "https://github.com/IronCoreLabs/ironoxide"
 documentation = "https://docs.rs/ironoxide"
-categories = [ "cryptography" ]
+categories = ["cryptography"]
 keywords = [
     "cryptography",
     "proxy-re-encryption",
@@ -66,19 +66,18 @@ itertools = "0.10"
 protobuf-codegen = "3.0"
 
 [features]
-beta = [ "ironcore-search-helpers" ]
+beta = ["ironcore-search-helpers"]
 blocking = []
-
 # NOTE: ironoxide requires a TLS implementation. Choose one of the following
 
 # enable to use statically compiled openssl on supported OpenSSL platforms; use with 'default-features = false'
-tls-vendored-openssl = [ "reqwest/native-tls-vendored" ]
+tls-vendored-openssl = ["reqwest/native-tls-vendored"]
 # enable to use rustls-tls; use with 'default-features = false'
-tls-rustls = [ "reqwest/rustls-tls" ]
+tls-rustls = ["reqwest/rustls-tls"]
 # dynamically use the target platform's native TLS
-tls-default = [ "reqwest/default-tls" ]
+tls-default = ["reqwest/default-tls"]
 
-default = [ "tls-default", "tokio/rt-multi-thread" ]
+default = ["tls-default", "tokio/rt-multi-thread"]
 
 [profile.dev]
 opt-level = 2
@@ -95,7 +94,7 @@ lto = true
 
 [[example]]
 name = "enc-search-sample"
-required-features = [ "beta" ]
+required-features = ["beta"]
 
 [[example]]
 name = "encrypting"

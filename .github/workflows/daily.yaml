@@ -15,10 +15,27 @@ jobs:
         with:
           path: Cargo.lock
       - name: Decrypt test keys
-        uses: IronCoreLabs/ironhide-actions/decrypt@v2
+        uses: IronCoreLabs/ironhide-actions/decrypt@v3
         with:
           keys: ${{ secrets.IRONHIDE_KEYS }}
           input: tests/testkeys/iak-stage.pem.iron
+      - name: Install sccache
+        uses: IronCoreLabs/rust-install@v0.1.0
+        with:
+          crate: sccache
+          accesskey: AKIAU2WBY6VDTC563V7G
+          secretkey: ${{ secrets.TOOL_CACHE_SECRET_KEY }}
+          os: ubuntu-22.04
+          version: latest
+      - name: Setup sccache env variables
+        run: |
+          echo "CC=$(which cc)" >> $GITHUB_ENV
+          echo "RUSTC_WRAPPER=$HOME/.cargo/bin/sccache" >> $GITHUB_ENV
+          echo "AWS_ACCESS_KEY_ID=AKIAU2WBY6VDVHUO5WSN" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.SCCACHE_AWS_SECRET }}" >> $GITHUB_ENV
+          echo "SCCACHE_BUCKET=sccache-rust" >> $GITHUB_ENV
+          echo "SCCACHE_S3_USE_SSL=true" >> $GITHUB_ENV
+      - uses: Swatinem/rust-cache@v2
       - run: cargo test --features beta
         env:
           IRONCORE_ENV: stage

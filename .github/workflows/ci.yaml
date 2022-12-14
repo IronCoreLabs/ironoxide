@@ -10,8 +10,6 @@ on:
 
 jobs:
   cargo-test:
-    env:
-      IRONCORE_ENV: stage
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -47,10 +45,9 @@ jobs:
         with:
           toolchain: ${{ matrix.toolchain }}
           override: true
-      - uses: Swatinem/rust-cache@v1
-        id: rust-cache
+      - uses: Swatinem/rust-cache@v2
       - name: Decrypt test keys
-        uses: IronCoreLabs/ironhide-actions/decrypt@v2
+        uses: IronCoreLabs/ironhide-actions/decrypt@v3
         with:
           keys: ${{ secrets.IRONHIDE_KEYS }}
           input: tests/testkeys/iak-stage.pem.iron
@@ -66,6 +63,8 @@ jobs:
         run: cargo install protobuf-codegen
       - name: Cargo test
         run: cargo test --features ${{ matrix.features }}
+        env:
+          IRONCORE_ENV: stage
 
   cargo-build:
     runs-on: ${{ matrix.os }}
@@ -90,14 +89,26 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
           override: true
-      - uses: Swatinem/rust-cache@v1
-        id: rust-cache
+      - uses: Swatinem/rust-cache@v2
       - uses: actions-rs/cargo@v1
         with:
           # `cross` will work on all our targets except aarch64-apple-ios. We can still use `cross` everywhere, because it transparently falls back to `cargo`.
           use-cross: true
           command: build
           args: --target ${{ matrix.target }} --features "beta blocking tls-rustls" --no-default-features
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: clippy
+      - run: cargo clippy -- -D warnings
 
   format:
     runs-on: ubuntu-22.04
@@ -109,12 +120,16 @@ jobs:
           toolchain: stable
           override: true
           components: rustfmt
-      - uses: actions-rs/install@v0.1
-        with:
-          crate: cargo-sort-ck
-          version: latest
       - run: cargo fmt --all -- --check
-      - run: cargo-sort-ck
+      - name: Install cargo-sort
+        uses: IronCoreLabs/rust-install@v0.1.0
+        with:
+          crate: cargo-sort
+          accesskey: AKIAU2WBY6VDTC563V7G
+          secretkey: ${{ secrets.TOOL_CACHE_SECRET_KEY }}
+          os: ubuntu-22.04
+          version: latest
+      - run: cargo sort --check
       - name: Cancel workflow
         if: failure()
-        uses: andymckay/cancel-action@0.2
+        uses: andymckay/cancel-action@0.3
