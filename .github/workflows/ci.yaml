@@ -108,10 +108,7 @@ jobs:
           toolchain: stable
           override: true
           components: clippy
-      - uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: -- -D warnings
+      - run: cargo clippy -- -D warnings
 
   format:
     runs-on: ubuntu-22.04
