@@ -10,8 +10,6 @@ on:
 
 jobs:
   cargo-test:
-    env:
-      IRONCORE_ENV: stage
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -47,8 +45,23 @@ jobs:
         with:
           toolchain: ${{ matrix.toolchain }}
           override: true
-      - uses: Swatinem/rust-cache@v1
-        id: rust-cache
+      - name: Install sccache
+        uses: IronCoreLabs/rust-install@v0.1.0
+        with:
+          crate: sccache
+          accesskey: AKIAU2WBY6VDTC563V7G
+          secretkey: ${{ secrets.TOOL_CACHE_SECRET_KEY }}
+          os: ubuntu-22.04
+          version: latest
+      - name: Setup sccache env variables
+        run: |
+          echo "CC=$(which cc)" >> $GITHUB_ENV
+          echo "RUSTC_WRAPPER=$HOME/.cargo/bin/sccache" >> $GITHUB_ENV
+          echo "AWS_ACCESS_KEY_ID=AKIAU2WBY6VDVHUO5WSN" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.SCCACHE_AWS_SECRET }}" >> $GITHUB_ENV
+          echo "SCCACHE_BUCKET=sccache-rust" >> $GITHUB_ENV
+          echo "SCCACHE_S3_USE_SSL=true" >> $GITHUB_ENV
+      - uses: Swatinem/rust-cache@v2
       - name: Decrypt test keys
         uses: IronCoreLabs/ironhide-actions/decrypt@v3
         with:
@@ -65,7 +78,7 @@ jobs:
       - name: Install protobuf-codegen
         run: cargo install protobuf-codegen
       - name: Cargo test
-        run: cargo test --features ${{ matrix.features }}
+        run: IRONCORE_ENV=stage cargo test --features ${{ matrix.features }}
 
   cargo-build:
     runs-on: ${{ matrix.os }}
@@ -90,8 +103,23 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
           override: true
-      - uses: Swatinem/rust-cache@v1
-        id: rust-cache
+      - name: Install sccache
+        uses: IronCoreLabs/rust-install@v0.1.0
+        with:
+          crate: sccache
+          accesskey: AKIAU2WBY6VDTC563V7G
+          secretkey: ${{ secrets.TOOL_CACHE_SECRET_KEY }}
+          os: ubuntu-22.04
+          version: latest
+      - name: Setup sccache env variables
+        run: |
+          echo "CC=$(which cc)" >> $GITHUB_ENV
+          echo "RUSTC_WRAPPER=$HOME/.cargo/bin/sccache" >> $GITHUB_ENV
+          echo "AWS_ACCESS_KEY_ID=AKIAU2WBY6VDVHUO5WSN" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.SCCACHE_AWS_SECRET }}" >> $GITHUB_ENV
+          echo "SCCACHE_BUCKET=sccache-rust" >> $GITHUB_ENV
+          echo "SCCACHE_S3_USE_SSL=true" >> $GITHUB_ENV
+      - uses: Swatinem/rust-cache@v2
       - uses: actions-rs/cargo@v1
         with:
           # `cross` will work on all our targets except aarch64-apple-ios. We can still use `cross` everywhere, because it transparently falls back to `cargo`.
@@ -109,12 +137,16 @@ jobs:
           toolchain: stable
           override: true
           components: rustfmt
-      - uses: actions-rs/install@v0.1
-        with:
-          crate: cargo-sort-ck
-          version: latest
       - run: cargo fmt --all -- --check
-      - run: cargo-sort-ck
+      - name: Install cargo-sort
+        uses: IronCoreLabs/rust-install@v0.1.0
+        with:
+          crate: cargo-sort
+          accesskey: AKIAU2WBY6VDTC563V7G
+          secretkey: ${{ secrets.TOOL_CACHE_SECRET_KEY }}
+          os: ubuntu-22.04
+          version: latest
+      - run: cargo sort --check
       - name: Cancel workflow
         if: failure()
-        uses: andymckay/cancel-action@0.2
+        uses: andymckay/cancel-action@0.3
