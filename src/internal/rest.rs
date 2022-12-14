@@ -218,7 +218,7 @@ impl HeaderIronCoreUserContext {
             as_unix_timestamp_millis(self.timestamp),
             self.segment_id,
             self.user_id.id(),
-            base64::encode(&self.public_signing_key)
+            base64::encode(self.public_signing_key)
         )
     }
 
