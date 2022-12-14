@@ -62,7 +62,9 @@ jobs:
       - name: Install protobuf-codegen
         run: cargo install protobuf-codegen
       - name: Cargo test
-        run: IRONCORE_ENV=stage cargo test --features ${{ matrix.features }}
+        run: cargo test --features ${{ matrix.features }}
+        env:
+          IRONCORE_ENV: stage
 
   cargo-build:
     runs-on: ${{ matrix.os }}
