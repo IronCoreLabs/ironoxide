@@ -1261,7 +1261,7 @@ mod tests {
         // signature matches known value
         let expected_request_sig = "7zvbj5mGKir4LxrQCcHCNc6md/487MMiBokumIIq4wEk+kJEFIKP1iBRK2cX8cs9h4XrdvXju3kEh0xdJBTlBw==";
         assert_eq!(
-            base64::encode(&request_sig.signature().to_vec()),
+            base64::encode(request_sig.signature()),
             expected_request_sig
         );
 
@@ -1374,9 +1374,9 @@ mod tests {
         let ts = OffsetDateTime::from_unix_timestamp_nanos(1_638_576_000_001_999_999).unwrap();
 
         let ts_nanos = ts.unix_timestamp_nanos();
-        let ts_millis = as_unix_timestamp_millis(ts.clone());
+        let ts_millis = as_unix_timestamp_millis(ts);
         assert_eq!(1_638_576_000_001, ts_millis);
 
-        assert_eq!(ts_nanos as i128 / 1000000, ts_millis);
+        assert_eq!(ts_nanos / 1000000, ts_millis);
     }
 }

@@ -606,7 +606,7 @@ mod tests {
         let opts = GroupCreateOpts::default();
         assert_eq!(None, opts.id);
         assert_eq!(None, opts.name);
-        assert_eq!(true, opts.add_as_member);
+        assert!(opts.add_as_member);
     }
 
     #[test]
@@ -618,7 +618,7 @@ mod tests {
         assert_eq!(std_opts.owner, None);
         assert_eq!(std_opts.admins, [calling_user_id.clone()]);
         assert_eq!(std_opts.members, [calling_user_id]);
-        assert_eq!(std_opts.needs_rotation, false);
+        assert!(!std_opts.needs_rotation);
         Ok(())
     }
 
@@ -641,7 +641,7 @@ mod tests {
         assert_eq!(std_opts.owner, Some(owner.clone()));
         assert_eq!(std_opts.admins, [owner]);
         assert_eq!(std_opts.members, []);
-        assert_eq!(std_opts.needs_rotation, true);
+        assert!(std_opts.needs_rotation);
         Ok(())
     }
 

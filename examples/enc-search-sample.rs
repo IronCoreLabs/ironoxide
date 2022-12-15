@@ -66,8 +66,8 @@ struct EncryptedCustomer {
     id: u32,
     enc_name: Vec<u8>,
     name_keys: Vec<u8>,
-    enc_email: Vec<u8>,
-    email_keys: Vec<u8>,
+    _enc_email: Vec<u8>,
+    _email_keys: Vec<u8>,
 }
 
 #[tokio::main]
@@ -235,8 +235,8 @@ async fn save_customer(
         id: cust.id,
         enc_name: enc_name.encrypted_data().to_vec(),
         name_keys: enc_name.encrypted_deks().to_vec(),
-        enc_email: enc_email.encrypted_data().to_vec(),
-        email_keys: enc_email.encrypted_deks().to_vec(),
+        _enc_email: enc_email.encrypted_data().to_vec(),
+        _email_keys: enc_email.encrypted_deks().to_vec(),
     };
     save_customer_to_app_server(enc_cust, name_tokens, vec![]);
     // end-snippet{indexData}
@@ -284,8 +284,8 @@ async fn save_customer_with_2_indices(
         id: cust.id,
         enc_name: enc_name.encrypted_data().to_vec(),
         name_keys: enc_name.encrypted_deks().to_vec(),
-        enc_email: enc_email.encrypted_data().to_vec(),
-        email_keys: enc_email.encrypted_deks().to_vec(),
+        _enc_email: enc_email.encrypted_data().to_vec(),
+        _email_keys: enc_email.encrypted_deks().to_vec(),
     };
     save_customer_to_app_server(enc_cust, name_tokens, email_tokens);
     // end-snippet{useSecondIndex}

@@ -69,7 +69,7 @@ async fn encrypt_with_policy(sdk: &IronOxide) -> Result<DocumentId> {
 /// If the file cannot be found, this function will panic.
 async fn initialize_sdk_from_file(device_path: &PathBuf) -> Result<(DeviceContext, IronOxide)> {
     if device_path.is_file() {
-        let device_context_file = File::open(&device_path)?;
+        let device_context_file = File::open(device_path)?;
         let device_context: DeviceContext = serde_json::from_reader(device_context_file)?;
         let ironoxide = ironoxide::initialize(&device_context, &Default::default()).await?;
         Ok((device_context, ironoxide))
