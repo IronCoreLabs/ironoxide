@@ -20,7 +20,7 @@ rust-version = "1.60.0"
 
 [dependencies]
 async-trait = "0.1.21"
-base64 = "0.13"
+base64 = "0.20"
 base64-serde = "0.6.1"
 bytes = "1"
 dashmap = "5"
