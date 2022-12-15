@@ -593,7 +593,7 @@ impl<'de> Deserialize<'de> for PrivateKey {
     {
         use serde::de::Error;
         let s = String::deserialize(deserializer)?;
-        let keys_bytes = base64::decode(&s).map_err(|e| Error::custom(e.to_string()))?;
+        let keys_bytes = base64::decode(s).map_err(|e| Error::custom(e.to_string()))?;
         PrivateKey::try_from(&keys_bytes[..]).map_err(|e| Error::custom(e.to_string()))
     }
 }
@@ -668,7 +668,7 @@ impl<'de> Deserialize<'de> for DeviceSigningKeyPair {
     {
         use serde::de::Error;
         let s = String::deserialize(deserializer)?;
-        let keys_bytes = base64::decode(&s).map_err(|e| Error::custom(e.to_string()))?;
+        let keys_bytes = base64::decode(s).map_err(|e| Error::custom(e.to_string()))?;
         DeviceSigningKeyPair::try_from(&keys_bytes[..]).map_err(|e| Error::custom(e.to_string()))
     }
 }
@@ -1022,7 +1022,7 @@ pub(crate) mod tests {
         let p1 = gen_priv_key();
         let p2 = gen_priv_key();
 
-        let p3 = p1.clone().0.augment_minus(&p2.clone().0);
+        let p3 = p1.0.augment_minus(&p2.0);
 
         let aug_p = p1.augment_user(&AugmentationFactor(p2)).unwrap();
         assert_eq!(aug_p.0, p3)

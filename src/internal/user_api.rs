@@ -952,7 +952,7 @@ pub(crate) mod tests {
         //    "http://ironcore1/uid": "bob.wall@ironcorelabs.com", "iss": "https://ironcorelabs.auth0.com/",
         //    "sub": "github|11368122", "aud": "hGELxuBKD64ltS4VNaIy2mzVwtqgJa5f", "iat": 1593130255, "exp": 1593133855 }
         let jwt = Jwt::try_from("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IlEwWXhNekUwTlVJeE9UVTNRakZFTlRZM01rVkNRakE0UkVNMk1UTkZOVGRETVRBNE9EQTVNUSJ9.eyJodHRwOi8vaXJvbmNvcmUxL3BpZCI6MSwiaHR0cDovL2lyb25jb3JlMS9raWQiOjE4NTksImh0dHA6Ly9pcm9uY29yZTEvc2lkIjoiSXJvbkhpZGUiLCJodHRwOi8vaXJvbmNvcmUxL3VpZCI6ImJvYi53YWxsQGlyb25jb3JlbGFicy5jb20iLCJpc3MiOiJodHRwczovL2lyb25jb3JlbGFicy5hdXRoMC5jb20vIiwic3ViIjoiZ2l0aHVifDExMzY4MTIyIiwiYXVkIjoiaEdFTHh1QktENjRsdFM0Vk5hSXkybXpWd3RxZ0phNWYiLCJpYXQiOjE1OTMxMzAyNTUsImV4cCI6MTU5MzEzMzg1NX0.J9sPgSFjucLQHpGOsEJ3xJf66nNK6Rf1n-C4YTsqWjPGwHlA8qyY4YIfNhwAjSstwvx2ImUb-Rf2Ghjq_4gpnArVfzkqa2HN06p_kRvwlL_kJoKTP8fo9LSpceNAbv75S4_EzOAWHTTNzDVjriQ1sjZYCYuD9BBjCG7ie0vSATb9uE4BtE_fSrlRkXlEW_608PDajNpwcCzSC-rMcWa1vDCYEuk405MzxkMJIi65ghMs9AEi6QotEhimf1gbrSaJFyyAqVKBPwA5--z64cK1vSwsX3mO2bCWIKbqLgXXWU0zr7saP9jVeMKXXetBW5KHHjYKRZ6lY9CquhtsnjSxvQ");
-        assert!(!jwt.is_ok())
+        assert!(jwt.is_err())
     }
 
     #[test]

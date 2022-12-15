@@ -417,7 +417,7 @@ fn check_user_mismatch<T: Eq + std::hash::Hash + std::fmt::Debug, X>(
 ) -> Result<HashMap<T, X>, IronOxideErr> {
     if found_users.len() != desired_users.len() {
         let desired_users_set: HashSet<&T> = HashSet::from_iter(desired_users);
-        let found_users_vec: Vec<T> = found_users.into_iter().map(|(x, _)| x).collect();
+        let found_users_vec: Vec<T> = found_users.into_keys().collect();
         let found_users_set: HashSet<&T> = HashSet::from_iter(&found_users_vec);
         let diff: Vec<&&T> = desired_users_set.difference(&found_users_set).collect();
         Err(IronOxideErr::UserDoesNotExist(format!(

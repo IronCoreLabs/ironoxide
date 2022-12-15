@@ -196,12 +196,7 @@ pub async fn create_second_user() -> UserResult {
 }
 
 pub fn create_id_all_classes(prefix: &str) -> String {
-    format!(
-        "{}{}{}",
-        prefix,
-        "abcABC012_.$#|@/:;=+'-",
-        Uuid::new_v4().to_string()
-    )
+    format!("{}{}{}", prefix, "abcABC012_.$#|@/:;=+'-", Uuid::new_v4())
 }
 
 #[allow(dead_code)]

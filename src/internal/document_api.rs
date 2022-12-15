@@ -1573,16 +1573,14 @@ mod tests {
         assert_that!(
             &get_id_from_bytes(&doc_with_wrong_version).unwrap_err(),
             has_structure!(
-                IronOxideErr::DocumentHeaderParseFailure
-                    [contains(&"not a supported version".to_string())]
+                IronOxideErr::DocumentHeaderParseFailure[contains("not a supported version")]
             )
         );
 
         assert_that!(
             &get_id_from_bytes(&doc_with_invalid_json).unwrap_err(),
             has_structure!(
-                IronOxideErr::DocumentHeaderParseFailure
-                    [contains(&"Header value is corrupted".to_string())]
+                IronOxideErr::DocumentHeaderParseFailure[contains("Header value is corrupted")]
             )
         );
     }
@@ -1777,7 +1775,7 @@ mod tests {
         let group: UserOrGroup = gid.borrow().into();
         let (_, pubk) = recr.generate_key_pair()?;
         let with_keys = vec![
-            WithKey::new(user, pubk.clone().into()),
+            WithKey::new(user, pubk.into()),
             WithKey::new(group, pubk.into()),
         ];
         let doc_id = DocumentId("docid".into());
@@ -1819,7 +1817,7 @@ mod tests {
         let group: UserOrGroup = gid.borrow().into();
         let (_, pubk) = recr.generate_key_pair()?;
         let with_keys = vec![
-            WithKey::new(user, pubk.clone().into()),
+            WithKey::new(user, pubk.into()),
             WithKey::new(group, pubk.into()),
         ];
         let doc_id = DocumentId("docid".into());
@@ -1902,7 +1900,7 @@ mod tests {
         let group: UserOrGroup = gid.borrow().into();
         let (_, pubk) = recr.generate_key_pair()?;
         let with_keys = vec![
-            WithKey::new(user, pubk.clone().into()),
+            WithKey::new(user, pubk.into()),
             WithKey::new(group, pubk.into()),
         ];
         let doc_id = DocumentId("docid".into());

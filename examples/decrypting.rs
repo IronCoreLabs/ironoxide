@@ -22,7 +22,7 @@ async fn main() -> Result<()> {
 
 /// From a list of encrypted documents, decrypts a selected document and prints its decrypted data.
 async fn decrypt_as_needed(sdk: &IronOxide, documents: &[&[u8]]) -> Result<()> {
-    print_encrypted_documents(sdk, &documents);
+    print_encrypted_documents(sdk, documents);
     let doc_index = read_usize("\nDocument # to decrypt: ")? - 1;
     // start-snippet{decryptAsNeeded}
     let encrypted_doc = documents.get(doc_index).expect("Index out of range.");
@@ -146,7 +146,7 @@ fn get_new_current_page(
             // Number corresponds to a document on the current page
             if num >= current_min && num <= current_max {
                 let doc = &decrypted_documents[num - current_min];
-                print_decrypted_data(&doc)?;
+                print_decrypted_data(doc)?;
                 None
             }
             // Number is not on the current page

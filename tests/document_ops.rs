@@ -600,7 +600,7 @@ async fn doc_create_and_adjust_name() -> Result<(), IronOxideErr> {
     assert_eq!(doc_result.name().unwrap().name(), &"first name".to_string());
 
     let first_update = sdk
-        .document_update_name(&doc_result.id(), Some(&"second name".try_into()?))
+        .document_update_name(doc_result.id(), Some(&"second name".try_into()?))
         .await?;
 
     assert_eq!(
@@ -608,7 +608,7 @@ async fn doc_create_and_adjust_name() -> Result<(), IronOxideErr> {
         &"second name".to_string()
     );
 
-    let last_update = sdk.document_update_name(&doc_result.id(), None).await?;
+    let last_update = sdk.document_update_name(doc_result.id(), None).await?;
 
     assert!(last_update.name().is_none());
     Ok(())
@@ -623,11 +623,9 @@ async fn doc_encrypt_decrypt_roundtrip() -> Result<(), IronOxideErr> {
         .document_encrypt(doc.into(), &Default::default())
         .await?;
 
-    sdk.document_get_metadata(&encrypted_doc.id()).await?;
+    sdk.document_get_metadata(encrypted_doc.id()).await?;
 
-    let decrypted = sdk
-        .document_decrypt(&encrypted_doc.encrypted_data())
-        .await?;
+    let decrypted = sdk.document_decrypt(encrypted_doc.encrypted_data()).await?;
 
     assert_eq!(doc.to_vec(), decrypted.decrypted_data());
     Ok(())
@@ -656,8 +654,8 @@ async fn doc_decrypt_unmanaged_no_access() -> Result<(), IronOxideErr> {
 
     let decrypt_err = sdk
         .document_decrypt_unmanaged(
-            &encrypted_doc.encrypted_data(),
-            &encrypted_doc.encrypted_deks(),
+            encrypted_doc.encrypted_data(),
+            encrypted_doc.encrypted_deks(),
         )
         .await
         .unwrap_err();
@@ -697,8 +695,8 @@ async fn doc_encrypt_decrypt_unmanaged_roundtrip() -> Result<(), IronOxideErr> {
         .await?;
     let decrypt_result = sdk
         .document_decrypt_unmanaged(
-            &encrypt_result.encrypted_data(),
-            &encrypt_result.encrypted_deks(),
+            encrypt_result.encrypted_data(),
+            encrypt_result.encrypted_deks(),
         )
         .await?;
     assert_eq!(&doc[..], decrypt_result.decrypted_data());
@@ -721,7 +719,7 @@ async fn doc_encrypt_update_and_decrypt() -> Result<(), IronOxideErr> {
     let updated_encrypted_doc = sdk.document_update_bytes(doc_id, doc2.into()).await?;
 
     let decrypted = sdk
-        .document_decrypt(&updated_encrypted_doc.encrypted_data())
+        .document_decrypt(updated_encrypted_doc.encrypted_data())
         .await?;
 
     assert_eq!(doc2.to_vec(), decrypted.decrypted_data());
@@ -763,7 +761,7 @@ async fn doc_grant_access() -> Result<(), IronOxideErr> {
     let grants = sdk
         .document_grant_access(
             &doc_id,
-            &vec![
+            &[
                 UserOrGroup::User {
                     id: user.account_id().clone(),
                 },
@@ -810,7 +808,7 @@ async fn doc_revoke_access() -> Result<(), IronOxideErr> {
     let grants = sdk
         .document_grant_access(
             &doc_id,
-            &vec![
+            &[
                 UserOrGroup::User {
                     id: user.account_id().clone(),
                 },
@@ -825,7 +823,7 @@ async fn doc_revoke_access() -> Result<(), IronOxideErr> {
     let revokes = sdk
         .document_revoke_access(
             &doc_id,
-            &vec![
+            &[
                 UserOrGroup::User {
                     id: user.account_id().clone(),
                 },
