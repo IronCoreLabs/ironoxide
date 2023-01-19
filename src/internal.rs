@@ -7,6 +7,8 @@ use crate::internal::{
     rest::{Authorization, IronCoreRequest, SignatureUrlString},
     user_api::UserId,
 };
+use base64::engine::Engine;
+use base64::prelude::BASE64_STANDARD;
 use futures::Future;
 use lazy_static::lazy_static;
 use log::error;
@@ -583,7 +585,7 @@ impl Serialize for PrivateKey {
     where
         S: Serializer,
     {
-        serializer.serialize_str(&base64::encode(self.0.bytes()))
+        serializer.serialize_str(&BASE64_STANDARD.encode(self.0.bytes()))
     }
 }
 impl<'de> Deserialize<'de> for PrivateKey {
@@ -593,7 +595,9 @@ impl<'de> Deserialize<'de> for PrivateKey {
     {
         use serde::de::Error;
         let s = String::deserialize(deserializer)?;
-        let keys_bytes = base64::decode(s).map_err(|e| Error::custom(e.to_string()))?;
+        let keys_bytes = BASE64_STANDARD
+            .decode(s)
+            .map_err(|e| Error::custom(e.to_string()))?;
         PrivateKey::try_from(&keys_bytes[..]).map_err(|e| Error::custom(e.to_string()))
     }
 }
@@ -657,7 +661,7 @@ impl Serialize for DeviceSigningKeyPair {
     where
         S: Serializer,
     {
-        let base64 = base64::encode(self.0.bytes());
+        let base64 = BASE64_STANDARD.encode(self.0.bytes());
         serializer.serialize_str(&base64)
     }
 }
@@ -668,7 +672,9 @@ impl<'de> Deserialize<'de> for DeviceSigningKeyPair {
     {
         use serde::de::Error;
         let s = String::deserialize(deserializer)?;
-        let keys_bytes = base64::decode(s).map_err(|e| Error::custom(e.to_string()))?;
+        let keys_bytes = BASE64_STANDARD
+            .decode(s)
+            .map_err(|e| Error::custom(e.to_string()))?;
         DeviceSigningKeyPair::try_from(&keys_bytes[..]).map_err(|e| Error::custom(e.to_string()))
     }
 }
@@ -836,7 +842,8 @@ pub(crate) mod tests {
     #[test]
     fn serde_devicecontext_roundtrip() -> Result<(), IronOxideErr> {
         let priv_key: recrypt::api::PrivateKey = recrypt::api::PrivateKey::new_from_slice(
-            base64::decode("bzb0Rlg0u7gx9wDuk1ppRI77OH/0ferXleenJ3Ag6Jg=")
+            BASE64_STANDARD
+                .decode("bzb0Rlg0u7gx9wDuk1ppRI77OH/0ferXleenJ3Ag6Jg=")
                 .unwrap()
                 .as_slice(),
         )?;
