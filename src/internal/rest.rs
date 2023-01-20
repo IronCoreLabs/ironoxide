@@ -5,6 +5,8 @@ use crate::internal::{
     user_api::{Jwt, UserId},
     DeviceSigningKeyPair, IronOxideErr, RequestErrorCode, OUR_REQUEST,
 };
+use base64::engine::Engine;
+use base64::prelude::BASE64_STANDARD;
 use bytes::Bytes;
 use lazy_static::lazy_static;
 use percent_encoding::{AsciiSet, CONTROLS};
@@ -130,7 +132,7 @@ impl<'a> Authorization<'a> {
             } => format!(
                 "IronCore {}.{}",
                 Authorization::VERSION_NUM,
-                base64::encode(user_context.signature(request_sig.signing_keys))
+                BASE64_STANDARD.encode(user_context.signature(request_sig.signing_keys))
             )
             .parse()
             .expect("Auth v2 headers should only contain ASCII"),
@@ -218,7 +220,7 @@ impl HeaderIronCoreUserContext {
             as_unix_timestamp_millis(self.timestamp),
             self.segment_id,
             self.user_id.id(),
-            base64::encode(self.public_signing_key)
+            BASE64_STANDARD.encode(self.public_signing_key)
         )
     }
 
@@ -290,7 +292,8 @@ impl<'a> HeaderIronCoreRequestSig<'a> {
         let mut headers: HeaderMap = Default::default();
         headers.append(
             "X-IronCore-Request-Sig",
-            base64::encode(self.signature())
+            BASE64_STANDARD
+                .encode(self.signature())
                 .parse()
                 .expect("signature as base64 can always be encoded as ASCII"),
         );
@@ -835,11 +838,12 @@ impl From<(url::ParseError, RequestErrorCode)> for IronOxideErr {
 /// Common types for use across different internal apis
 pub mod json {
     use crate::internal::{self, IronOxideErr};
+    use base64::prelude::BASE64_STANDARD;
     use base64_serde::base64_serde_type;
     use serde::{Deserialize, Serialize};
     use std::convert::TryFrom;
 
-    base64_serde_type!(pub Base64Standard, base64::STANDARD);
+    base64_serde_type!(pub Base64Standard, BASE64_STANDARD);
 
     #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
     pub struct PublicKey {
@@ -1261,7 +1265,7 @@ mod tests {
         // signature matches known value
         let expected_request_sig = "7zvbj5mGKir4LxrQCcHCNc6md/487MMiBokumIIq4wEk+kJEFIKP1iBRK2cX8cs9h4XrdvXju3kEh0xdJBTlBw==";
         assert_eq!(
-            base64::encode(request_sig.signature()),
+            BASE64_STANDARD.encode(request_sig.signature()),
             expected_request_sig
         );
 
@@ -1276,8 +1280,10 @@ mod tests {
         // verify that the signature produced matches can be verified
         assert!(signing_keys.0.public_key().verify(
             &request_sig.payload(),
-            &Ed25519Signature::new_from_slice(&base64::decode(expected_request_sig).unwrap())
-                .unwrap()
+            &Ed25519Signature::new_from_slice(
+                &BASE64_STANDARD.decode(expected_request_sig).unwrap()
+            )
+            .unwrap()
         ));
 
         // verify that the authorization header is expected

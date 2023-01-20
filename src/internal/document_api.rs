@@ -1355,7 +1355,8 @@ fn process_policy(
 #[cfg(test)]
 mod tests {
     use crate::internal::tests::contains;
-    use base64::decode;
+    use base64::engine::Engine;
+    use base64::prelude::BASE64_STANDARD;
     use galvanic_assert::{
         matchers::{collection::*, *},
         *,
@@ -1567,8 +1568,8 @@ mod tests {
 
     #[test]
     fn err_on_bad_doc_header() {
-        let doc_with_wrong_version = decode("AQA4eyJfZGlkXyI6ImNjOTIyZTA3NzRhM2MwZWViZTI2NDM2Yzk2ZjdiYzkzIiwiX3NpZF8iOjYwOH1ciL4su5SPZh4eFGuG+5rJ+/I2gDSZAs+2dXw097gU8fBkMWzRo0dDIW0dOxHg/1mio1yMRdDZDA==").unwrap();
-        let doc_with_invalid_json = decode("AgA4Z2NfZGlkXyI6ImNjOTIyZTA3NzRhM2MwZWViZTI2NDM2Yzk2ZjdiYzkzIiwiX3NpZF8iOjYwOH1ciL4su5SPZh4eFGuG+5rJ+/I2gDSZAs+2dXw097gU8fBkMWzRo0dDIW0dOxHg/1mio1yMRdDZDA==").unwrap();
+        let doc_with_wrong_version = BASE64_STANDARD.decode("AQA4eyJfZGlkXyI6ImNjOTIyZTA3NzRhM2MwZWViZTI2NDM2Yzk2ZjdiYzkzIiwiX3NpZF8iOjYwOH1ciL4su5SPZh4eFGuG+5rJ+/I2gDSZAs+2dXw097gU8fBkMWzRo0dDIW0dOxHg/1mio1yMRdDZDA==").unwrap();
+        let doc_with_invalid_json = BASE64_STANDARD.decode("AgA4Z2NfZGlkXyI6ImNjOTIyZTA3NzRhM2MwZWViZTI2NDM2Yzk2ZjdiYzkzIiwiX3NpZF8iOjYwOH1ciL4su5SPZh4eFGuG+5rJ+/I2gDSZAs+2dXw097gU8fBkMWzRo0dDIW0dOxHg/1mio1yMRdDZDA==").unwrap();
 
         assert_that!(
             &get_id_from_bytes(&doc_with_wrong_version).unwrap_err(),
@@ -1587,7 +1588,7 @@ mod tests {
 
     #[test]
     fn read_good_document_header_test() {
-        let enc_doc = decode("AgA4eyJfZGlkXyI6ImNjOTIyZTA3NzRhM2MwZWViZTI2NDM2Yzk2ZjdiYzkzIiwiX3NpZF8iOjYwOH1ciL4su5SPZh4eFGuG+5rJ+/I2gDSZAs+2dXw097gU8fBkMWzRo0dDIW0dOxHg/1mio1yMRdDZDA==").unwrap();
+        let enc_doc = BASE64_STANDARD.decode("AgA4eyJfZGlkXyI6ImNjOTIyZTA3NzRhM2MwZWViZTI2NDM2Yzk2ZjdiYzkzIiwiX3NpZF8iOjYwOH1ciL4su5SPZh4eFGuG+5rJ+/I2gDSZAs+2dXw097gU8fBkMWzRo0dDIW0dOxHg/1mio1yMRdDZDA==").unwrap();
 
         let doc_id = get_id_from_bytes(&enc_doc).unwrap();
 
