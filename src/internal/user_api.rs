@@ -73,7 +73,7 @@ impl TryFrom<u64> for DeviceId {
         if device_id < 1 || device_id > (i64::max_value() as u64) {
             Err(IronOxideErr::ValidationError(
                 "device_id".to_string(),
-                format!("'{}' must be a number greater than 0", device_id),
+                format!("'{device_id}' must be a number greater than 0"),
             ))
         } else {
             Ok(DeviceId(device_id))
@@ -353,10 +353,7 @@ impl Jwt {
         let error_message = |claim: &str| -> IronOxideErr {
             IronOxideErr::ValidationError(
                 "jwt".to_string(),
-                format!(
-                    "Missing required claim: `{}`/`http://ironcore/{}",
-                    claim, claim
-                ),
+                format!("Missing required claim: `{claim}`/`http://ironcore/{claim}"),
             )
         };
         if pid.is_none() && prefixed_pid.is_none() {

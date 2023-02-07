@@ -2,7 +2,7 @@ fn main() {
     let name = "transform";
     protobuf_codegen::Codegen::new()
         .cargo_out_dir("proto")
-        .input(format!("proto/{}.proto", name))
+        .input(format!("proto/{name}.proto"))
         .include("proto")
         .customize(
             protobuf_codegen::Customize::default()

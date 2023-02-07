@@ -116,7 +116,7 @@ pub enum SdkOperation {
 
 impl std::fmt::Display for SdkOperation {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        write!(f, "'{:?}'", self)
+        write!(f, "'{self:?}'")
     }
 }
 
@@ -208,7 +208,7 @@ quick_error! {
 /// A way to turn IronSdkErr into Strings for the Java binding
 impl From<IronOxideErr> for String {
     fn from(err: IronOxideErr) -> Self {
-        format!("{}", err)
+        err.to_string()
     }
 }
 
@@ -220,7 +220,7 @@ impl From<RecryptErr> for IronOxideErr {
             }
             RecryptErr::InvalidPublicKey(_) => IronOxideErr::KeyGenerationError,
             //Fallback for all other error types that Recrypt can have that we don't have specific mappings for
-            other_recrypt_err => IronOxideErr::RecryptError(format!("{}", other_recrypt_err)),
+            other_recrypt_err => IronOxideErr::RecryptError(other_recrypt_err.to_string()),
         }
     }
 }
@@ -254,12 +254,12 @@ pub fn validate_id(id: &str, id_type: &str) -> Result<String, IronOxideErr> {
     if trimmed_id.is_empty() || trimmed_id.len() > NAME_AND_ID_MAX_LEN {
         Err(IronOxideErr::ValidationError(
             id_type.to_string(),
-            format!("'{}' must have length between 1 and 100", trimmed_id),
+            format!("'{trimmed_id}' must have length between 1 and 100"),
         ))
     } else if !id_regex.is_match(trimmed_id) {
         Err(IronOxideErr::ValidationError(
             id_type.to_string(),
-            format!("'{}' contains invalid characters", trimmed_id),
+            format!("'{trimmed_id}' contains invalid characters"),
         ))
     } else {
         Ok(trimmed_id.to_string())
@@ -274,7 +274,7 @@ pub fn validate_name(name: &str, name_type: &str) -> Result<String, IronOxideErr
     if trimmed_name.trim().is_empty() || trimmed_name.len() > NAME_AND_ID_MAX_LEN {
         Err(IronOxideErr::ValidationError(
             name_type.to_string(),
-            format!("'{}' must have length between 1 and 100", trimmed_name),
+            format!("'{trimmed_name}' must have length between 1 and 100"),
         ))
     } else {
         Ok(trimmed_name.trim().to_string())
@@ -652,7 +652,7 @@ impl TryFrom<&[u8]> for DeviceSigningKeyPair {
         RecryptSigningKeypair::from_byte_slice(signing_key_bytes)
             .map(DeviceSigningKeyPair)
             .map_err(|e| {
-                IronOxideErr::ValidationError("DeviceSigningKeyPair".to_string(), format!("{}", e))
+                IronOxideErr::ValidationError("DeviceSigningKeyPair".to_string(), e.to_string())
             })
     }
 }
@@ -727,7 +727,7 @@ impl<T> WithKey<T> {
 ///
 pub(crate) fn take_lock<T>(m: &Mutex<T>) -> MutexGuard<T> {
     m.lock().unwrap_or_else(|e| {
-        let error = format!("Error when acquiring lock: {}", e);
+        let error = format!("Error when acquiring lock: {e}");
         error!("{}", error);
         panic!("{}", error);
     })

@@ -407,7 +407,7 @@ pub mod group_add_member {
             .collect();
         auth.request
             .post(
-                &format!("groups/{}/users", encoded_id),
+                &format!("groups/{encoded_id}/users"),
                 &GroupAddMembersReq {
                     users,
                     signature: signature.into(),
@@ -439,7 +439,7 @@ pub mod group_add_admin {
         let encoded_id = rest::url_encode(&id.0).to_string();
         auth.request
             .post(
-                &format!("groups/{}/admins", encoded_id),
+                &format!("groups/{encoded_id}/admins"),
                 &GroupAddAdminsReq {
                     admins,
                     signature: signature.into(),

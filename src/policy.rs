@@ -174,12 +174,12 @@ fn validate_simple_policy_field_value(field_id: &str, field_type: &str) -> Resul
     if trimmed_id.is_empty() || trimmed_id.len() > NAME_AND_ID_MAX_LEN {
         Err(IronOxideErr::ValidationError(
             field_type.to_string(),
-            format!("'{}' must have length between 1 and 100", trimmed_id),
+            format!("'{trimmed_id}' must have length between 1 and 100"),
         ))
     } else if !simple_policy_field_regex.is_match(trimmed_id) {
         Err(IronOxideErr::ValidationError(
             field_type.to_string(),
-            format!("'{}' contains invalid characters", trimmed_id),
+            format!("'{trimmed_id}' contains invalid characters"),
         ))
     } else {
         Ok(trimmed_id.to_string())

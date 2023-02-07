@@ -421,8 +421,7 @@ fn check_user_mismatch<T: Eq + std::hash::Hash + std::fmt::Debug, X>(
         let found_users_set: HashSet<&T> = HashSet::from_iter(&found_users_vec);
         let diff: Vec<&&T> = desired_users_set.difference(&found_users_set).collect();
         Err(IronOxideErr::UserDoesNotExist(format!(
-            "Failed to find the following users: {:?}",
-            diff
+            "Failed to find the following users: {diff:?}"
         )))
     } else {
         Ok(found_users)
