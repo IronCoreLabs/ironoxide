@@ -14,3 +14,4 @@ java/scala/src/test/resources/service-keys.conf.local
 src/proto/transform.rs
 benches/data/*.json
 example.devcon
+.direnv
