@@ -37,7 +37,7 @@ We test on a variety of architectures (including Linux-x86_64 MacOSX-x86_64, IOS
 
 #### Running Unit Tests
 
-IronCore has integration tests that are not runnable by the public. If you are interested in the results, [Travis runs the integration tests](TODO). If you think you need to run the integration tests on a development machine, please open an issue.
+IronCore has integration tests that are not runnable by the public. If you are interested in the results, [CI runs the integration tests (every test file with *_ops in its name)](https://github.com/IronCoreLabs/ironoxide/actions/workflows/ci.yaml). If you think you need to run the integration tests on a development machine, please open an issue.
 
 To run the unit test suite, use:
 
@@ -48,5 +48,5 @@ To run the unit test suite, use:
 IronOxide is licensed under the [GNU Affero General Public License](LICENSE).
 We also offer commercial licenses - [email](mailto:info@ironcorelabs.com) for more information.
 
-Copyright (c) 2022 IronCore Labs, Inc.
+Copyright (c) 2023 IronCore Labs, Inc.
 All rights reserved.
