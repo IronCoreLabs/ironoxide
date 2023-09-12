@@ -3,6 +3,7 @@ name: Daily runs
 on:
   schedule:
     - cron: "0 14 * * *" # Daily at 2pm UTC
+  workflow_dispatch: {}
 
 jobs:
   test:
@@ -36,7 +37,8 @@ jobs:
           echo "SCCACHE_BUCKET=sccache-rust" >> $GITHUB_ENV
           echo "SCCACHE_S3_USE_SSL=true" >> $GITHUB_ENV
           echo "SCCACHE_REGION=us-west-2" >> $GITHUB_ENV
-      - uses: Swatinem/rust-cache@v2
+      # This causes disk full errors.
+      # - uses: Swatinem/rust-cache@v2
       - run: cargo test --features beta
         env:
           IRONCORE_ENV: stage
