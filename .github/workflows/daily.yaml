@@ -9,7 +9,7 @@ jobs:
   test:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       # Generate the Cargo.lock that will be used for the tests so we can upload it as an artifact
       - run: cargo generate-lockfile
       - uses: actions/upload-artifact@v3
