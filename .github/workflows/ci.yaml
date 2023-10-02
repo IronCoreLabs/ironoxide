@@ -39,7 +39,7 @@ jobs:
             toolchain: 1.67.0
             features: default
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - if: matrix.toolchain != ''
         uses: IronCoreLabs/rust-toolchain@v1
         with:
@@ -82,7 +82,7 @@ jobs:
           - target: aarch64-apple-ios
             os: macos-12
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -100,7 +100,7 @@ jobs:
     name: Clippy
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: IronCoreLabs/rust-toolchain@v1
         with:
           components: clippy
@@ -109,7 +109,7 @@ jobs:
   format:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: IronCoreLabs/rust-toolchain@v1
         with:
           toolchain: stable
