@@ -730,9 +730,9 @@ where
             })
             .map_err(|x| match x {
                 IronOxideErr::RequestError {
-                    http_status: Some(code),
+                    http_status: Some(404),
                     ..
-                } if code == 404 => IronOxideErr::PolicyDoesNotExist,
+                } => IronOxideErr::PolicyDoesNotExist,
                 e => e,
             })
     }

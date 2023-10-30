@@ -521,11 +521,8 @@ pub async fn user_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
         .into();
 
         let (new_priv_key, aug_factor) = augment_private_key_with_retry(recrypt, &priv_key)?;
-        let new_encrypted_priv_key = aes::encrypt_user_master_key(
-            &Mutex::new(OsRng::default()),
-            &password.0,
-            new_priv_key.as_bytes(),
-        )?;
+        let new_encrypted_priv_key =
+            aes::encrypt_user_master_key(&Mutex::new(OsRng), &password.0, new_priv_key.as_bytes())?;
         (
             curr_user_id,
             current_key_id,
@@ -833,11 +830,7 @@ pub async fn user_change_password(
         )?
         .into();
 
-        aes::encrypt_user_master_key(
-            &Mutex::new(OsRng::default()),
-            &new_password.0,
-            priv_key.as_bytes(),
-        )?
+        aes::encrypt_user_master_key(&Mutex::new(OsRng), &new_password.0, priv_key.as_bytes())?
     };
     requests::user_update::user_update(auth, &curr_user_id, Some(new_encrypted_priv_key.into()))
         .await?
