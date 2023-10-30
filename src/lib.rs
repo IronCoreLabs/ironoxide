@@ -445,7 +445,7 @@ impl IronOxide {
             rng: Mutex::new(ReseedingRng::new(
                 rand_chacha::ChaChaCore::from_entropy(),
                 BYTES_BEFORE_RESEEDING,
-                OsRng::default(),
+                OsRng,
             )),
             policy_eval_cache: DashMap::new(),
         }
