@@ -326,16 +326,17 @@ impl DocumentEncryptUnmanagedResult {
         access_errs: Vec<DocAccessEditErr>,
     ) -> Result<Self, IronOxideErr> {
         let edek_bytes = encryption_result.edek_bytes()?;
+        let encrypted_data = encryption_result.edoc_bytes().to_vec();
         Ok(DocumentEncryptUnmanagedResult {
-            id: encryption_result.header.document_id.clone(),
+            id: encryption_result.header.document_id,
             access_errs,
-            encrypted_data: encryption_result.edoc_bytes().to_vec(),
+            encrypted_data,
             encrypted_deks: edek_bytes,
             grants: encryption_result
                 .value
                 .edeks
-                .iter()
-                .map(|edek| edek.grant_to.id.clone())
+                .into_iter()
+                .map(|edek| edek.grant_to.id)
                 .collect(),
         })
     }
@@ -788,10 +789,13 @@ where
         grants,
     )?;
     let enc_result = EncryptedDoc {
-        header: DocumentHeader::new(doc_id.clone(), auth.segment_id),
+        header: DocumentHeader::new(doc_id, auth.segment_id),
         value: r,
     };
-    let access_errs = [&key_errs[..], &enc_result.value.encryption_errs[..]].concat();
+    let access_errs = key_errs
+        .into_iter()
+        .chain(enc_result.value.encryption_errs.clone())
+        .collect();
     DocumentEncryptUnmanagedResult::new(enc_result, access_errs)
 }
 /// Remove any duplicates in the grant list. Uses ids (not keys) for comparison.
@@ -842,9 +846,7 @@ fn recrypt_document<CR: rand::CryptoRng + rand::RngCore>(
                     })
                     .collect(),
                 encrypted_data: encrypted_doc,
-                encryption_errs: vec![encrypt_errs.into_iter().map(|e| e.into()).collect()]
-                    .into_iter()
-                    .concat(),
+                encryption_errs: encrypt_errs.into_iter().map(|e| e.into()).collect(),
             }
         })
     }
@@ -994,21 +996,21 @@ async fn document_create(
     doc_name: &Option<DocumentName>,
     accum_errs: Vec<DocAccessEditErr>,
 ) -> Result<DocumentEncryptResult, IronOxideErr> {
-    let api_resp = document_create::document_create_request(
-        auth,
-        doc_id.clone(),
-        doc_name.clone(),
-        edoc.edek_vec(),
-    )
-    .await?;
+    let api_resp =
+        document_create::document_create_request(auth, doc_id, doc_name.clone(), edoc.edek_vec())
+            .await?;
 
     Ok(DocumentEncryptResult {
         id: api_resp.id,
         name: api_resp.name,
         created: api_resp.created,
         updated: api_resp.updated,
-        encrypted_data: edoc.edoc_bytes().to_vec(),
-        grants: api_resp.shared_with.iter().map(|sw| sw.into()).collect(),
+        encrypted_data: edoc.edoc_bytes(),
+        grants: api_resp
+            .shared_with
+            .into_iter()
+            .map(|sw| sw.into())
+            .collect(),
         access_errs: [accum_errs, edoc.value.encryption_errs].concat(),
     })
 }
@@ -1029,7 +1031,7 @@ pub async fn document_update_bytes<
     let doc_meta = document_get_metadata(auth, document_id).await?;
     let sym_key = transform::decrypt_as_symmetric_key(
         recrypt,
-        doc_meta.0.encrypted_symmetric_key.clone().try_into()?,
+        doc_meta.0.encrypted_symmetric_key.try_into()?,
         device_private_key.recrypt_key(),
     )?;
     Ok(
@@ -1064,7 +1066,7 @@ pub async fn decrypt_document<CR: rand::CryptoRng + rand::RngCore + Send + Sync 
     tokio::task::spawn_blocking(move || {
         let sym_key = transform::decrypt_as_symmetric_key(
             &recrypt,
-            doc_meta.0.encrypted_symmetric_key.clone().try_into()?,
+            doc_meta.0.encrypted_symmetric_key.try_into()?,
             device_private_key.recrypt_key(),
         )?;
 
@@ -1101,7 +1103,7 @@ pub async fn decrypt_document_unmanaged<CR: rand::CryptoRng + rand::RngCore>(
                 parse_document_parts(encrypted_doc)?,
             ))
         },
-        requests::edek_transform::edek_transform(auth, encrypted_deks,)
+        requests::edek_transform::edek_transform(auth, encrypted_deks)
     )?;
 
     edeks_and_header_match_or_err(&proto_edeks, &doc_meta)?;
@@ -1188,13 +1190,11 @@ pub async fn document_grant_access<CR: rand::CryptoRng + rand::RngCore>(
         );
 
         // squish all accumulated errors into one list
-        let other_errs = vec![
-            group_errs,
-            user_errs,
-            grant_errs.into_iter().map(|e| e.into()).collect(),
-        ]
-        .into_iter()
-        .concat();
+        let other_errs = group_errs
+            .into_iter()
+            .chain(user_errs)
+            .chain(grant_errs.into_iter().map(|e| e.into()))
+            .collect_vec();
         (grants, other_errs)
     };
 
@@ -1334,20 +1334,15 @@ fn process_policy(
             });
 
     (
-        [
-            pubkey_errs,
-            policy_result
-                .invalid_users_and_groups
-                .iter()
-                .map(|uog| {
-                    DocAccessEditErr::new(
-                        uog.clone(),
-                        format!("Policy refers to unknown user or group '{}'", &uog),
-                    )
-                })
-                .collect(),
-        ]
-        .concat(),
+        pubkey_errs
+            .into_iter()
+            .chain(policy_result.invalid_users_and_groups.iter().map(|uog| {
+                DocAccessEditErr::new(
+                    uog.clone(),
+                    format!("Policy refers to unknown user or group '{}'", &uog),
+                )
+            }))
+            .collect(),
         policy_eval_results,
     )
 }

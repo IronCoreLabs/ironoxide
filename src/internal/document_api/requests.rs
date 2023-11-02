@@ -122,6 +122,25 @@ impl From<&AccessGrant> for UserOrGroup {
     }
 }
 
+impl From<AccessGrant> for UserOrGroup {
+    fn from(grant: AccessGrant) -> Self {
+        match grant {
+            AccessGrant {
+                user_or_group: UserOrGroupWithKey::User { id, .. },
+                ..
+            } => UserOrGroup::User {
+                id: UserId::unsafe_from_string(id),
+            },
+            AccessGrant {
+                user_or_group: UserOrGroupWithKey::Group { id, .. },
+                ..
+            } => UserOrGroup::Group {
+                id: GroupId::unsafe_from_string(id),
+            },
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentMetaApiResponse {
@@ -419,7 +438,6 @@ pub mod document_access {
             access_resp: DocumentAccessResponse,
             other_errs: Vec<DocAccessEditErr>,
         ) -> DocumentAccessResult {
-            use itertools::Itertools;
             let succeeded = access_resp
                 .succeeded_ids
                 .into_iter()
@@ -429,10 +447,9 @@ pub mod document_access {
             let failed = access_resp
                 .failed_ids
                 .into_iter()
-                .map(DocAccessEditErr::from)
-                .collect();
+                .map(DocAccessEditErr::from);
 
-            DocumentAccessResult::new(succeeded, vec![failed, other_errs].into_iter().concat())
+            DocumentAccessResult::new(succeeded, failed.chain(other_errs).collect())
         }
     }
 

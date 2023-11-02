@@ -18,9 +18,9 @@
         # nix develop
         devShell = pkgs.mkShell {
           buildInputs = with pkgs;
-            [ rusttoolchain openssl pkg-config ]
+            [ rusttoolchain pkg-config openssl  ]
             ++ lib.optionals stdenv.isDarwin
-            [ darwin.apple_sdk.frameworks.Security ];
+            [ darwin.apple_sdk.frameworks.SystemConfiguration ];
         };
 
       });
