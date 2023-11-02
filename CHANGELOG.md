@@ -4,6 +4,8 @@
 
 - [[#284](https://github.com/IronCoreLabs/ironoxide/pull/284)] Remove `dev` as an option for `IRONCORE_ENV`.
 - [[#300](https://github.com/IronCoreLabs/ironoxide/pull/300)] Bump MSRV to 1.67.0.
+- [[#308](https://github.com/IronCoreLabs/ironoxide/pull/308)] Use policy caching in unmanaged encryption.
+- [[#309](https://github.com/IronCoreLabs/ironoxide/pull/309)] Bump MSRV to 1.70.0.
 
 ## 2.0.0
 
