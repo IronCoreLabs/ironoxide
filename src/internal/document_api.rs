@@ -776,7 +776,7 @@ where
             } else {
                 None
             },
-            &policy_cache
+            policy_cache
         )
     )?;
     let r = recrypt_document(
