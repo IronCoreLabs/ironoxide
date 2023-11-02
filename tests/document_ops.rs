@@ -633,8 +633,6 @@ async fn doc_encrypt_decrypt_roundtrip() -> Result<(), IronOxideErr> {
 
 #[tokio::test]
 async fn doc_decrypt_unmanaged_no_access() -> Result<(), IronOxideErr> {
-    use std::borrow::Borrow;
-
     let sdk = initialize_sdk().await?;
 
     let user2 = create_second_user().await;
@@ -647,7 +645,7 @@ async fn doc_decrypt_unmanaged_no_access() -> Result<(), IronOxideErr> {
                 Some(create_id_all_classes("").try_into()?),
                 None,
                 false,
-                vec![user2.account_id().borrow().into()],
+                vec![user2.account_id().into()],
             ),
         )
         .await?;

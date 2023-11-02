@@ -91,6 +91,7 @@ impl DocumentAdvancedOps for crate::IronOxide {
                 &explicit_users,
                 &explicit_groups,
                 policy_grants,
+                &self.policy_eval_cache,
             ),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentEncryptUnmanaged,

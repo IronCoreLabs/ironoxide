@@ -752,12 +752,12 @@ pub async fn encrypt_document_unmanaged<R1, R2>(
     user_grants: &[UserId],
     group_grants: &[GroupId],
     policy_grant: Option<&PolicyGrant>,
+    policy_cache: &PolicyCache,
 ) -> Result<DocumentEncryptUnmanagedResult, IronOxideErr>
 where
     R1: rand::CryptoRng + rand::RngCore,
     R2: rand::CryptoRng + rand::RngCore,
 {
-    let policy_cache = dashmap::DashMap::new();
     let config = IronOxideConfig::default();
 
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
