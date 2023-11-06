@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.0.0 (Unreleased)
+
+- `itertools` will be updated to the latest version and re-exported for use in public functions.
+    - After this change, updates to `itertools` will not automatically be breaking changes.
+
 ## 2.1.0
 
 - [[#284](https://github.com/IronCoreLabs/ironoxide/pull/284)] Remove `dev` as an option for `IRONCORE_ENV`.
