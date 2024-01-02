@@ -333,6 +333,7 @@ impl Jwt {
         let validation = {
             let mut temp: Validation = Default::default();
             temp.insecure_disable_signature_validation();
+            temp.validate_aud = false;
             temp.validate_exp = false;
             temp
         };
