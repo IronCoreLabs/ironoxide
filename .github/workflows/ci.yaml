@@ -116,7 +116,7 @@ jobs:
           components: rustfmt
       - run: cargo fmt --all -- --check
       - name: Install cargo-sort
-        uses: IronCoreLabs/rust-install@v0.1.0
+        uses: IronCoreLabs/rust-install@v0.1.2
         with:
           crate: cargo-sort
           accesskey: AKIAU2WBY6VDTC563V7G
