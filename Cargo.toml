@@ -38,7 +38,7 @@ rand = "0.8"
 rand_chacha = "0.3"
 recrypt = "0.13"
 regex = "1.4"
-reqwest = { version = "0.11", features = ["json"], default-features = false }
+reqwest = { version = "0.12", features = ["json"], default-features = false }
 ring = { version = "0.17", features = ["std"] }
 serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1"
