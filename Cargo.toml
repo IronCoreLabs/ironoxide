@@ -27,7 +27,7 @@ dashmap = "5"
 futures = "0.3.1"
 hex = "0.4"
 ironcore-search-helpers = { version = "0.2", optional = true }
-itertools = "0.10"
+itertools = "0.13"
 jsonwebtoken = "9"
 lazy_static = "1.4"
 log = "0.4"
@@ -62,7 +62,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 uuid = { version = "1.0", features = ["v4"], default-features = false }
 
 [build-dependencies]
-itertools = "0.10"
+itertools = "0.13"
 protobuf-codegen = "3.0"
 
 [features]
