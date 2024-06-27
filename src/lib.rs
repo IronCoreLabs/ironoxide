@@ -214,6 +214,7 @@ pub mod common {
     pub use crate::internal::{
         DeviceContext, DeviceSigningKeyPair, PrivateKey, PublicKey, SdkOperation,
     };
+    pub use itertools::EitherOrBoth;
 }
 
 /// IronOxide SDK configuration

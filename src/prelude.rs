@@ -5,6 +5,8 @@ pub use crate::{
     common::*, config::*, document::advanced::*, document::*, group::*, policy::*, user::*,
     InitAndRotationCheck, IronOxide, IronOxideErr, PrivateKeyRotationCheckResult,
 };
+#[doc(no_inline)]
+pub use itertools::EitherOrBoth;
 
 #[cfg(feature = "blocking")]
 #[doc(no_inline)]

@@ -388,7 +388,6 @@ pub mod device_add {
     pub struct DeviceAddResponse {
         #[serde(rename = "id")]
         pub device_id: DeviceId,
-        pub device_public_key: PublicKey,
         pub name: Option<DeviceName>,
         #[serde(with = "time::serde::rfc3339")]
         pub created: OffsetDateTime,

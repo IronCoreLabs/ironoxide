@@ -55,7 +55,7 @@ impl TryFrom<&str> for UserId {
 ///
 /// # Requirements
 /// - Must be greater than 0.
-/// - Must be less than or equal to `i64::max_value()`.
+/// - Must be less than or equal to `i64::MAX`.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct DeviceId(pub(crate) u64);
 impl DeviceId {
@@ -70,7 +70,7 @@ impl TryFrom<u64> for DeviceId {
         // Validate the range of the device ID to always be positive, but also be
         // less than i64 (i.e. no high bit set) for compatibility with other
         // languages (i.e. Java)
-        if device_id < 1 || device_id > (i64::max_value() as u64) {
+        if device_id < 1 || device_id > (i64::MAX as u64) {
             Err(IronOxideErr::ValidationError(
                 "device_id".to_string(),
                 format!("'{device_id}' must be a number greater than 0"),
