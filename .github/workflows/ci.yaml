@@ -7,6 +7,7 @@ on:
   pull_request:
   schedule:
     - cron: "0 14 * * 1" # Mondays at 2pm UTC
+  workflow_dispatch: null
 
 jobs:
   cargo-test:
