@@ -16,10 +16,9 @@ keywords = [
 ]
 description = "A pure-Rust SDK for accessing IronCore's privacy platform"
 edition = "2021"
-rust-version = "1.74.0"
+rust-version = "1.75.0"
 
 [dependencies]
-async-trait = "0.1.21"
 base64 = "0.22"
 base64-serde = "0.7"
 bytes = "1"
@@ -62,12 +61,13 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 uuid = { version = "1.0", features = ["v4"], default-features = false }
 
 [build-dependencies]
-itertools = "0.10"
+itertools = "0.13"
 protobuf-codegen = "3.0"
 
 [features]
 beta = ["ironcore-search-helpers"]
 blocking = []
+
 # NOTE: ironoxide requires a TLS implementation. Choose one of the following
 
 # enable to use statically compiled openssl on supported OpenSSL platforms; use with 'default-features = false'

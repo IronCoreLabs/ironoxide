@@ -15,7 +15,11 @@ lazy_static! {
             "prod" => "prod",
             _ => panic!("IRONCORE_ENV can only be set to `stage` or `prod` when running the benchmarks.")
         },
-        _ => "stage",
+        _ => {
+            // The core code defaults to `prod`, so we have to set this so the API_URL is set correctly.
+            std::env::set_var("IRONCORE_ENV", "stage");
+            "stage"
+        },
     }
     .to_string();
 }

@@ -12,7 +12,7 @@ use crate::{
     internal::{add_optional_timeout, user_api, OUR_REQUEST},
     IronOxide, Result,
 };
-use async_trait::async_trait;
+use futures::Future;
 use recrypt::api::Recrypt;
 use std::{collections::HashMap, convert::TryInto};
 
@@ -75,7 +75,6 @@ impl Default for UserCreateOpts {
 /// - Password - The string used to encrypt and escrow a user's private key.
 /// - Rotation - Changing a user's private key while leaving their public key unchanged. This can be accomplished by calling
 ///     [user_rotate_private_key](trait.UserOps.html#tymethod.user_rotate_private_key).
-#[async_trait]
 pub trait UserOps {
     /// Creates a user.
     ///
@@ -98,12 +97,12 @@ pub trait UserOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn user_create(
+    fn user_create(
         jwt: &Jwt,
         password: &str,
         user_create_opts: &UserCreateOpts,
         timeout: Option<std::time::Duration>,
-    ) -> Result<UserCreateResult>;
+    ) -> impl Future<Output = Result<UserCreateResult>> + Send;
 
     /// Generates a new device for the user specified in the JWT.
     ///
@@ -132,12 +131,12 @@ pub trait UserOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn generate_new_device(
+    fn generate_new_device(
         jwt: &Jwt,
         password: &str,
         device_create_options: &DeviceCreateOpts,
         timeout: Option<std::time::Duration>,
-    ) -> Result<DeviceAddResult>;
+    ) -> impl Future<Output = Result<DeviceAddResult>> + Send;
 
     /// Verifies the existence of a user using a JWT to identify their user record.
     ///
@@ -158,10 +157,10 @@ pub trait UserOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn user_verify(
+    fn user_verify(
         jwt: &Jwt,
         timeout: Option<std::time::Duration>,
-    ) -> Result<Option<UserResult>>;
+    ) -> impl Future<Output = Result<Option<UserResult>>> + Send;
 
     /// Lists all of the devices for the current user.
     ///
@@ -175,7 +174,7 @@ pub trait UserOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn user_list_devices(&self) -> Result<UserDeviceListResult>;
+    fn user_list_devices(&self) -> impl Future<Output = Result<UserDeviceListResult>> + Send;
 
     /// Gets users' public keys given their IDs.
     ///
@@ -203,7 +202,10 @@ pub trait UserOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>>;
+    fn user_get_public_key(
+        &self,
+        users: &[UserId],
+    ) -> impl Future<Output = Result<HashMap<UserId, PublicKey>>> + Send;
 
     /// Rotates the current user's private key while leaving their public key the same.
     ///
@@ -226,7 +228,10 @@ pub trait UserOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn user_rotate_private_key(&self, password: &str) -> Result<UserUpdatePrivateKeyResult>;
+    fn user_rotate_private_key(
+        &self,
+        password: &str,
+    ) -> impl Future<Output = Result<UserUpdatePrivateKeyResult>> + Send;
 
     /// Deletes a device.
     ///
@@ -249,7 +254,10 @@ pub trait UserOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId>;
+    fn user_delete_device(
+        &self,
+        device_id: Option<&DeviceId>,
+    ) -> impl Future<Output = Result<DeviceId>> + Send;
 
     /// Change the password for the user
     ///
@@ -270,14 +278,13 @@ pub trait UserOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn user_change_password(
+    fn user_change_password(
         &self,
         current_password: &str,
         new_password: &str,
-    ) -> Result<UserUpdateResult>;
+    ) -> impl Future<Output = Result<UserUpdateResult>> + Send;
 }
 
-#[async_trait]
 impl UserOps for IronOxide {
     async fn user_create(
         jwt: &Jwt,

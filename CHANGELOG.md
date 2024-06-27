@@ -1,9 +1,11 @@
 # Changelog
 
-## 3.0.0 (Unreleased)
+## 3.0.0
 
-- `itertools` will be updated to the latest version and re-exported for use in public functions.
-    - After this change, updates to `itertools` will not automatically be breaking changes.
+- [[#321](https://github.com/IronCoreLabs/ironoxide/issues/321)]
+  - Bump MSRV to 1.75.0.
+  - Upgrade dependencies. This includes an update to `itertools`, which is part of the public API.
+  - Re-export `itertools::EitherOrBoth`. Updates to `itertools` will not be considered breaking changes going forward.
 
 ## 2.1.0
 

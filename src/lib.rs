@@ -308,7 +308,7 @@ impl<T> InitAndRotationCheck<T> {
     }
 
     /// Convenience constructor to make an InitAndRotationCheck::RotationNeeded from an IronOxide
-    /// and an EitherOrBoth<UserId, Vec1<GroupId>> directly.
+    /// and an `EitherOrBoth<UserId, Vec1<GroupId>>` directly.
     pub fn new_rotation_needed(
         io: T,
         rotations_needed: EitherOrBoth<UserId, Vec1<GroupId>>,

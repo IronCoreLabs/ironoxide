@@ -22,7 +22,7 @@ use crate::{
     internal::take_lock,
     IronOxide, IronOxideErr, Result,
 };
-use async_trait::async_trait;
+use futures::Future;
 pub use ironcore_search_helpers::transliterate_string;
 use ironcore_search_helpers::{
     generate_hashes_for_string, generate_hashes_for_string_with_padding,
@@ -69,13 +69,14 @@ impl EncryptedBlindIndexSalt {
 }
 
 ///Trait which gives the ability to create a blind index.
-#[async_trait]
 pub trait BlindIndexSearchInitialize {
     ///Create an index and encrypt it to the provided group_id.
-    async fn create_blind_index(&self, group_id: &GroupId) -> Result<EncryptedBlindIndexSalt>;
+    fn create_blind_index(
+        &self,
+        group_id: &GroupId,
+    ) -> impl Future<Output = Result<EncryptedBlindIndexSalt>> + Send;
 }
 
-#[async_trait]
 impl BlindIndexSearchInitialize for IronOxide {
     async fn create_blind_index(&self, group_id: &GroupId) -> Result<EncryptedBlindIndexSalt> {
         let salt = {
