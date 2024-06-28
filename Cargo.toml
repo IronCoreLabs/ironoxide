@@ -69,7 +69,6 @@ beta = ["ironcore-search-helpers"]
 blocking = []
 
 # NOTE: ironoxide requires a TLS implementation. Choose one of the following
-
 # enable to use statically compiled openssl on supported OpenSSL platforms; use with 'default-features = false'
 tls-vendored-openssl = ["reqwest/native-tls-vendored"]
 # enable to use rustls-tls; use with 'default-features = false'
