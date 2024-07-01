@@ -12,7 +12,7 @@ use crate::{
     user::UserId,
     IronOxideErr, Result,
 };
-use async_trait::async_trait;
+use futures::Future;
 use vec1::Vec1;
 
 /// Options for group creation.
@@ -172,7 +172,6 @@ impl Default for GroupCreateOpts {
 /// - Rotation - Changing a group's private key while leaving its public key unchanged. This can be accomplished by calling
 ///     [group_rotate_private_key](trait.GroupOps.html#tymethod.group_rotate_private_key).
 
-#[async_trait]
 pub trait GroupOps {
     /// Creates a group.
     ///
@@ -195,7 +194,10 @@ pub trait GroupOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn group_create(&self, group_create_opts: &GroupCreateOpts) -> Result<GroupCreateResult>;
+    fn group_create(
+        &self,
+        group_create_opts: &GroupCreateOpts,
+    ) -> impl Future<Output = Result<GroupCreateResult>> + Send;
 
     /// Gets the full metadata for a group.
     ///
@@ -215,7 +217,10 @@ pub trait GroupOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn group_get_metadata(&self, id: &GroupId) -> Result<GroupGetResult>;
+    fn group_get_metadata(
+        &self,
+        id: &GroupId,
+    ) -> impl Future<Output = Result<GroupGetResult>> + Send;
 
     /// Lists all of the groups that the current user is an admin or a member of.
     ///
@@ -229,7 +234,7 @@ pub trait GroupOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn group_list(&self) -> Result<GroupListResult>;
+    fn group_list(&self) -> impl Future<Output = Result<GroupListResult>> + Send;
 
     /// Modifies or removes a group's name.
     ///
@@ -251,11 +256,11 @@ pub trait GroupOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn group_update_name(
+    fn group_update_name(
         &self,
         id: &GroupId,
         name: Option<&GroupName>,
-    ) -> Result<GroupMetaResult>;
+    ) -> impl Future<Output = Result<GroupMetaResult>> + Send;
 
     /// Rotates a group's private key while leaving its public key unchanged.
     ///
@@ -279,7 +284,10 @@ pub trait GroupOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn group_rotate_private_key(&self, id: &GroupId) -> Result<GroupUpdatePrivateKeyResult>;
+    fn group_rotate_private_key(
+        &self,
+        id: &GroupId,
+    ) -> impl Future<Output = Result<GroupUpdatePrivateKeyResult>> + Send;
 
     /// Adds members to a group.
     ///
@@ -307,11 +315,11 @@ pub trait GroupOps {
     /// # Errors
     /// This operation supports partial success. If the request succeeds, then the resulting `GroupAccessEditResult`
     /// will indicate which additions succeeded and which failed, and it will provide an explanation for each failure.
-    async fn group_add_members(
+    fn group_add_members(
         &self,
         id: &GroupId,
         users: &[UserId],
-    ) -> Result<GroupAccessEditResult>;
+    ) -> impl Future<Output = Result<GroupAccessEditResult>> + Send;
 
     /// Removes members from a group.
     ///
@@ -339,11 +347,11 @@ pub trait GroupOps {
     /// # Errors
     /// This operation supports partial success. If the request succeeds, then the resulting `GroupAccessEditResult`
     /// will indicate which removals succeeded and which failed, and it will provide an explanation for each failure.
-    async fn group_remove_members(
+    fn group_remove_members(
         &self,
         id: &GroupId,
         revoke_list: &[UserId],
-    ) -> Result<GroupAccessEditResult>;
+    ) -> impl Future<Output = Result<GroupAccessEditResult>> + Send;
 
     /// Adds administrators to a group.
     ///
@@ -371,11 +379,11 @@ pub trait GroupOps {
     /// # Errors
     /// This operation supports partial success. If the request succeeds, then the resulting `GroupAccessEditResult`
     /// will indicate which additions succeeded and which failed, and it will provide an explanation for each failure.
-    async fn group_add_admins(
+    fn group_add_admins(
         &self,
         id: &GroupId,
         users: &[UserId],
-    ) -> Result<GroupAccessEditResult>;
+    ) -> impl Future<Output = Result<GroupAccessEditResult>> + Send;
 
     /// Removes administrators from a group.
     ///
@@ -403,11 +411,11 @@ pub trait GroupOps {
     /// # Errors
     /// This operation supports partial success. If the request succeeds, then the resulting `GroupAccessEditResult`
     /// will indicate which removals succeeded and which failed, and it will provide an explanation for each failure.
-    async fn group_remove_admins(
+    fn group_remove_admins(
         &self,
         id: &GroupId,
         revoke_list: &[UserId],
-    ) -> Result<GroupAccessEditResult>;
+    ) -> impl Future<Output = Result<GroupAccessEditResult>> + Send;
 
     /// Deletes a group.
     ///
@@ -430,10 +438,9 @@ pub trait GroupOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn group_delete(&self, id: &GroupId) -> Result<GroupId>;
+    fn group_delete(&self, id: &GroupId) -> impl Future<Output = Result<GroupId>> + Send;
 }
 
-#[async_trait]
 impl GroupOps for crate::IronOxide {
     async fn group_create(&self, opts: &GroupCreateOpts) -> Result<GroupCreateResult> {
         let standard_opts = opts.clone().standardize(self.device.auth().account_id())?;

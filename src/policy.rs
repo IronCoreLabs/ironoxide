@@ -3,7 +3,7 @@
 //! Policies are a list of rules which map data labels to a list of users/groups. This allows the
 //! separation of concerns when it comes to labeling data vs defining who to encrypt to.
 //!
-//! Policies are defined using the ironcore admin console: https://admin.ironcorelabs.com/policy
+//! Policies are defined using the ironcore admin console: <https://admin.ironcorelabs.com/policy>
 //! and are stored on the server. This allows a policy to be updated independently of any application code.
 //!
 //! Data labeling is provided in three dimensions (category, sensitivity, dataSubject).
@@ -78,11 +78,11 @@
 //! # }
 //! ```
 //! If the current user of the sdk is "alice@ironcorelabs" and the PolicyGrant above is evaluated, it will match the
-//! second-to-last rule in the example policy above and will return users: [joe@ironcorelabs, alice@ironcorelabs] and
-//! groups [group_alice@ironcorelabs, data_recovery"]
+//! second-to-last rule in the example policy above and will return users: `[joe@ironcorelabs, alice@ironcorelabs]` and
+//! groups `[group_alice@ironcorelabs, data_recovery"]`
 //!
 //! The PolicyGrant `PolicyGrant::new(None, None, None, None)` will match the last rule in the example and will return
-//! the group \[data_recovery\]
+//! the group `[data_recovery]`
 //!
 use crate::{internal::user_api::UserId, IronOxideErr, Result};
 use regex::Regex;

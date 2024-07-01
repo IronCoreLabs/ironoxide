@@ -15,7 +15,7 @@ use crate::{
     user::UserId,
     Result,
 };
-use async_trait::async_trait;
+use futures::Future;
 use itertools::{Either, EitherOrBoth, Itertools};
 
 pub mod advanced;
@@ -131,7 +131,6 @@ impl Default for DocumentEncryptOpts {
 /// # Key Terms
 /// - ID     - The ID representing a document. It must be unique within the document's segment and will **not** be encrypted.
 /// - Name   - The human-readable name of a document. It does not need to be unique and will **not** be encrypted.
-#[async_trait]
 pub trait DocumentOps {
     /// Encrypts the provided document bytes.
     ///
@@ -159,11 +158,11 @@ pub trait DocumentOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn document_encrypt(
+    fn document_encrypt(
         &self,
         document_data: Vec<u8>,
         encrypt_opts: &DocumentEncryptOpts,
-    ) -> Result<DocumentEncryptResult>;
+    ) -> impl Future<Output = Result<DocumentEncryptResult>> + Send;
 
     /// Decrypts an IronCore encrypted document.
     ///
@@ -188,7 +187,10 @@ pub trait DocumentOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn document_decrypt(&self, encrypted_document: &[u8]) -> Result<DocumentDecryptResult>;
+    fn document_decrypt(
+        &self,
+        encrypted_document: &[u8],
+    ) -> impl Future<Output = Result<DocumentDecryptResult>> + Send;
 
     /// Lists metadata for all of the encrypted documents that the calling user can read or decrypt.
     ///
@@ -202,7 +204,7 @@ pub trait DocumentOps {
     /// let documents: Vec<DocumentListMeta> = document_data.result().to_vec();
     /// # Ok(())
     /// # }
-    async fn document_list(&self) -> Result<DocumentListResult>;
+    fn document_list(&self) -> impl Future<Output = Result<DocumentListResult>> + Send;
 
     /// Returns the metadata for an encrypted document.
     ///
@@ -222,7 +224,10 @@ pub trait DocumentOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn document_get_metadata(&self, id: &DocumentId) -> Result<DocumentMetadataResult>;
+    fn document_get_metadata(
+        &self,
+        id: &DocumentId,
+    ) -> impl Future<Output = Result<DocumentMetadataResult>> + Send;
 
     /// Returns the document ID from the bytes of an encrypted document.
     ///
@@ -267,11 +272,11 @@ pub trait DocumentOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn document_update_bytes(
+    fn document_update_bytes(
         &self,
         id: &DocumentId,
         new_document_data: Vec<u8>,
-    ) -> Result<DocumentEncryptResult>;
+    ) -> impl Future<Output = Result<DocumentEncryptResult>> + Send;
 
     /// Modifies or removes a document's name.
     ///
@@ -293,11 +298,11 @@ pub trait DocumentOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn document_update_name(
+    fn document_update_name(
         &self,
         id: &DocumentId,
         name: Option<&DocumentName>,
-    ) -> Result<DocumentMetadataResult>;
+    ) -> impl Future<Output = Result<DocumentMetadataResult>> + Send;
 
     /// Grants decryption access to a document for the provided users and/or groups.
     ///
@@ -326,11 +331,11 @@ pub trait DocumentOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn document_grant_access(
+    fn document_grant_access(
         &self,
         document_id: &DocumentId,
         grant_list: &[UserOrGroup],
-    ) -> Result<DocumentAccessResult>;
+    ) -> impl Future<Output = Result<DocumentAccessResult>> + Send;
 
     /// Revokes decryption access to a document for the provided users and/or groups.
     ///
@@ -359,14 +364,13 @@ pub trait DocumentOps {
     /// # Ok(())
     /// # }
     /// ```
-    async fn document_revoke_access(
+    fn document_revoke_access(
         &self,
         document_id: &DocumentId,
         revoke_list: &[UserOrGroup],
-    ) -> Result<DocumentAccessResult>;
+    ) -> impl Future<Output = Result<DocumentAccessResult>> + Send;
 }
 
-#[async_trait]
 impl DocumentOps for crate::IronOxide {
     async fn document_encrypt(
         &self,

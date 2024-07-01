@@ -11,7 +11,7 @@ use crate::{
     internal::add_optional_timeout,
     Result, SdkOperation,
 };
-use async_trait::async_trait;
+use futures::Future;
 use itertools::EitherOrBoth;
 
 /// IronOxide Advanced Document Operations
@@ -19,7 +19,6 @@ use itertools::EitherOrBoth;
 /// # Key Terms
 /// - EDEKs - Encrypted document encryption keys produced by unmanaged document encryption and required for unmanaged
 ///      document decryption.
-#[async_trait]
 pub trait DocumentAdvancedOps {
     /// Encrypts the provided document bytes without being managed by the IronCore service.
     ///
@@ -31,11 +30,11 @@ pub trait DocumentAdvancedOps {
     /// - `data` - Bytes of the document to encrypt
     /// - `encrypt_opts` - Document encryption parameters. Default values are provided with
     ///      [DocumentEncryptOpts::default()](../struct.DocumentEncryptOpts.html#method.default).
-    async fn document_encrypt_unmanaged(
+    fn document_encrypt_unmanaged(
         &self,
         data: Vec<u8>,
         encrypt_opts: &DocumentEncryptOpts,
-    ) -> Result<DocumentEncryptUnmanagedResult>;
+    ) -> impl Future<Output = Result<DocumentEncryptUnmanagedResult>> + Send;
 
     /// Decrypts a document not managed by the IronCore service.
     ///
@@ -47,14 +46,13 @@ pub trait DocumentAdvancedOps {
     /// # Arguments
     /// - `encrypted_data` - Bytes of the encrypted document
     /// - `encrypted_deks` - EDEKs associated with the encrypted document
-    async fn document_decrypt_unmanaged(
+    fn document_decrypt_unmanaged(
         &self,
         encrypted_data: &[u8],
         encrypted_deks: &[u8],
-    ) -> Result<DocumentDecryptUnmanagedResult>;
+    ) -> impl Future<Output = Result<DocumentDecryptUnmanagedResult>> + Send;
 }
 
-#[async_trait]
 impl DocumentAdvancedOps for crate::IronOxide {
     async fn document_encrypt_unmanaged(
         &self,

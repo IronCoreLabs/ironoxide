@@ -1,6 +1,6 @@
 [package]
 name = "ironoxide"
-version = "2.1.0"
+version = "3.0.0"
 authors = ["IronCore Labs <info@ironcorelabs.com>"]
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -16,10 +16,9 @@ keywords = [
 ]
 description = "A pure-Rust SDK for accessing IronCore's privacy platform"
 edition = "2021"
-rust-version = "1.74.0"
+rust-version = "1.75.0"
 
 [dependencies]
-async-trait = "0.1.21"
 base64 = "0.22"
 base64-serde = "0.7"
 bytes = "1"
@@ -68,8 +67,8 @@ protobuf-codegen = "3.0"
 [features]
 beta = ["ironcore-search-helpers"]
 blocking = []
-# NOTE: ironoxide requires a TLS implementation. Choose one of the following
 
+# NOTE: ironoxide requires a TLS implementation. Choose one of the following
 # enable to use statically compiled openssl on supported OpenSSL platforms; use with 'default-features = false'
 tls-vendored-openssl = ["reqwest/native-tls-vendored"]
 # enable to use rustls-tls; use with 'default-features = false'
