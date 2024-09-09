@@ -18,6 +18,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     borrow::BorrowMut,
     fmt::{Display, Error, Formatter},
+    hash::Hash,
     marker::PhantomData,
     ops::Deref,
 };
@@ -302,9 +303,15 @@ impl<'a> HeaderIronCoreRequestSig<'a> {
 }
 
 ///A struct which holds the basic info that will be needed for making requests to an ironcore service. Currently just the base_url.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct IronCoreRequest {
     base_url: &'static str,
+    #[serde(skip_serializing, skip_deserializing, default = "default_client")]
+    client: &'static reqwest::Client,
+}
+
+fn default_client() -> &'static reqwest::Client {
+    OUR_REQUEST.client
 }
 
 impl Default for IronCoreRequest {
@@ -312,10 +319,21 @@ impl Default for IronCoreRequest {
         *OUR_REQUEST
     }
 }
+impl Hash for IronCoreRequest {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.base_url.hash(state);
+    }
+}
+impl PartialEq for IronCoreRequest {
+    fn eq(&self, other: &Self) -> bool {
+        self.base_url == other.base_url
+    }
+}
+impl Eq for IronCoreRequest {}
 
 impl IronCoreRequest {
-    pub const fn new(base_url: &'static str) -> IronCoreRequest {
-        IronCoreRequest { base_url }
+    pub const fn new(base_url: &'static str, client: &'static reqwest::Client) -> IronCoreRequest {
+        IronCoreRequest { base_url, client }
     }
 
     pub fn base_url(&self) -> &str {
@@ -1031,6 +1049,14 @@ mod tests {
 
     use recrypt::api::{Ed25519Signature, PublicSigningKey};
 
+    lazy_static! {
+        static ref SHARED_CLIENT: reqwest::Client = reqwest::Client::new();
+        static ref TEST_REQUEST: IronCoreRequest = IronCoreRequest {
+            base_url: "https://example.com",
+            client: &SHARED_CLIENT
+        };
+    }
+
     #[test]
     fn deserialize_errors() {
         let raw_string = r#"[{"message":"foo","code":2},{"message":"bar","code":3}]"#;
@@ -1350,10 +1376,9 @@ mod tests {
 
     #[test]
     fn query_params_encoded_correctly() {
-        let icl_req = IronCoreRequest::new("https://example.com");
         let mut req = Request::new(
             Method::GET,
-            url::Url::parse(&format!("{}/{}", icl_req.base_url(), "users")).unwrap(),
+            url::Url::parse(&format!("{}/{}", TEST_REQUEST.base_url(), "users")).unwrap(),
         );
         let q = "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
         IronCoreRequest::req_add_query(&mut req, &[("id".to_string(), url_encode(q))]);
@@ -1364,10 +1389,9 @@ mod tests {
 
     #[test]
     fn empty_query_params_encoded_correctly() {
-        let icl_req = IronCoreRequest::new("https://example.com");
         let mut req = Request::new(
             Method::GET,
-            url::Url::parse(&format!("{}/{}", icl_req.base_url(), "policies")).unwrap(),
+            url::Url::parse(&format!("{}/{}", TEST_REQUEST.base_url(), "policies")).unwrap(),
         );
         IronCoreRequest::req_add_query(&mut req, &[]);
         assert_eq!(req.url().query(), None);
