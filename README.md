@@ -48,5 +48,5 @@ To run the unit test suite, use:
 IronOxide is licensed under the [GNU Affero General Public License](LICENSE).
 We also offer commercial licenses - [email](mailto:info@ironcorelabs.com) for more information.
 
-Copyright (c) 2023 IronCore Labs, Inc.
+Copyright (c) 2024 IronCore Labs, Inc.
 All rights reserved.
