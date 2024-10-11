@@ -12,7 +12,7 @@ use lazy_static::lazy_static;
 use percent_encoding::{AsciiSet, CONTROLS};
 use reqwest::{
     header::{HeaderMap, HeaderValue, CONTENT_TYPE},
-    Client, Method, Request, RequestBuilder, StatusCode, Url,
+    Method, Request, RequestBuilder, StatusCode, Url,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
@@ -415,7 +415,7 @@ impl IronCoreRequest {
             replace_headers(req.headers_mut(), auth.to_auth_header());
             replace_headers(req.headers_mut(), request_sig.to_header());
 
-            Self::send_req(req, error_code, move |server_resp| {
+            self.send_req(req, error_code, move |server_resp| {
                 IronCoreRequest::deserialize_body(server_resp, error_code)
             })
             .await
@@ -551,7 +551,7 @@ impl IronCoreRequest {
         Q: Serialize + ?Sized,
         F: FnOnce(&Bytes) -> Result<B, IronOxideErr>,
     {
-        let client = Client::new();
+        let client = self.client.clone();
         let mut builder = client.request(
             method,
             format!("{}{}", self.base_url, relative_url).as_str(),
@@ -632,7 +632,7 @@ impl IronCoreRequest {
             replace_headers(req.headers_mut(), auth.to_auth_header());
             replace_headers(req.headers_mut(), request_sig.to_header());
 
-            Self::send_req(req, error_code, resp_handler).await
+            self.send_req(req, error_code, resp_handler).await
         } else {
             panic!("authorized requests must use version 2 of API authentication")
         }
@@ -653,6 +653,7 @@ impl IronCoreRequest {
     }
 
     async fn send_req<B, F>(
+        &self,
         req: Request,
         error_code: RequestErrorCode,
         resp_handler: F,
@@ -661,7 +662,7 @@ impl IronCoreRequest {
         B: DeserializeOwned,
         F: FnOnce(&Bytes) -> Result<B, IronOxideErr>,
     {
-        let client = Client::new();
+        let client = self.client.clone();
         let server_res = client.execute(req).await;
         let res = server_res.map_err(|e| (e, error_code))?;
         //Parse the body content into bytes
