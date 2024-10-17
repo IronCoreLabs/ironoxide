@@ -9,8 +9,8 @@ pub use crate::internal::user_api::{
 };
 use crate::{
     common::{PublicKey, SdkOperation},
-    internal::{add_optional_timeout, user_api, OUR_REQUEST},
-    IronOxide, Result,
+    internal::{add_optional_timeout, user_api},
+    IronCoreRequest, IronOxide, Result,
 };
 use futures::Future;
 use recrypt::api::Recrypt;
@@ -299,7 +299,7 @@ impl UserOps for IronOxide {
                 jwt,
                 password.try_into()?,
                 user_create_opts.needs_rotation,
-                *OUR_REQUEST,
+                IronCoreRequest::default(),
             ),
             timeout,
             SdkOperation::UserCreate,
@@ -324,7 +324,7 @@ impl UserOps for IronOxide {
                 password.try_into()?,
                 device_create_options.device_name,
                 &std::time::SystemTime::now().into(),
-                &OUR_REQUEST,
+                &IronCoreRequest::default(),
             ),
             timeout,
             SdkOperation::GenerateNewDevice,
@@ -337,7 +337,7 @@ impl UserOps for IronOxide {
         timeout: Option<std::time::Duration>,
     ) -> Result<Option<UserResult>> {
         add_optional_timeout(
-            user_api::user_verify(jwt, *OUR_REQUEST),
+            user_api::user_verify(jwt, IronCoreRequest::default()),
             timeout,
             SdkOperation::UserVerify,
         )

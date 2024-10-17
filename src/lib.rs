@@ -177,7 +177,7 @@ pub mod search;
 #[cfg(feature = "blocking")]
 pub mod blocking;
 
-pub use crate::internal::IronOxideErr;
+pub use crate::internal::{IronCoreRequest, IronOxideErr};
 
 use crate::{
     common::{DeviceContext, DeviceSigningKeyPair, PublicKey, SdkOperation},
