@@ -14,10 +14,21 @@ use crate::{
     InitAndRotationCheck::{NoRotationNeeded, RotationNeeded},
     Result,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 #[cfg(feature = "beta")]
 use crate::search::{BlindIndexSearchInitialize, EncryptedBlindIndexSalt};
+use tokio::runtime::Runtime;
+
+/// Struct that is used to hold the regular DeviceContext as well as a runtime that will be used
+/// when initializing a BlockingIronOxide. This was added to fix a bug where initializing multiple
+/// SDK instances with a single device would hang indefinitely (as each initialization call would
+/// create its own runtime but share a request client)
+#[derive(Clone, Debug)]
+pub struct BlockingDeviceContext {
+    pub device: DeviceContext,
+    pub(crate) rt: Arc<Runtime>,
+}
 
 /// Struct that is used to make authenticated requests to the IronCore API. Instantiated with the details
 /// of an account's various ids, device, and signing keys. Once instantiated all operations will be
@@ -25,7 +36,7 @@ use crate::search::{BlindIndexSearchInitialize, EncryptedBlindIndexSalt};
 #[derive(Debug)]
 pub struct BlockingIronOxide {
     pub(crate) ironoxide: IronOxide,
-    pub(crate) runtime: tokio::runtime::Runtime,
+    pub(crate) runtime: Arc<tokio::runtime::Runtime>,
 }
 
 impl BlockingIronOxide {
@@ -237,14 +248,20 @@ impl BlockingIronOxide {
         password: &str,
         device_create_options: &DeviceCreateOpts,
         timeout: Option<std::time::Duration>,
-    ) -> Result<DeviceAddResult> {
+    ) -> Result<BlockingDeviceContext> {
         let rt = create_runtime();
-        rt.block_on(IronOxide::generate_new_device(
-            jwt,
-            password,
-            device_create_options,
-            timeout,
-        ))
+        let device: DeviceContext = rt
+            .block_on(IronOxide::generate_new_device(
+                jwt,
+                password,
+                device_create_options,
+                timeout,
+            ))?
+            .into();
+        Ok(BlockingDeviceContext {
+            device,
+            rt: Arc::new(rt),
+        })
     }
     /// See [ironoxide::user::UserOps::user_delete_device](trait.UserOps.html#tymethod.user_delete_device)
     pub fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId> {
@@ -293,14 +310,15 @@ fn create_runtime() -> tokio::runtime::Runtime {
 /// Initialize the BlockingIronOxide SDK with a device. Verifies that the provided user/segment exists and the provided device
 /// keys are valid and exist for the provided account. If successful, returns instance of the BlockingIronOxide SDK.
 pub fn initialize(
-    device_context: &DeviceContext,
+    device_context: &BlockingDeviceContext,
     config: &IronOxideConfig,
 ) -> Result<BlockingIronOxide> {
-    let rt = create_runtime();
-    let maybe_io = rt.block_on(crate::initialize(device_context, config));
+    let maybe_io = device_context
+        .rt
+        .block_on(crate::initialize(&device_context.device, config));
     maybe_io.map(|io| BlockingIronOxide {
         ironoxide: io,
-        runtime: rt,
+        runtime: device_context.rt.clone(),
     })
 }
 
@@ -308,20 +326,22 @@ pub fn initialize(
 /// marked for private key rotation, or if any of the groups that the user is an admin of are marked
 /// for private key rotation.
 pub fn initialize_check_rotation(
-    device_context: &DeviceContext,
+    device_context: &BlockingDeviceContext,
     config: &IronOxideConfig,
 ) -> Result<InitAndRotationCheck<BlockingIronOxide>> {
-    let rt = create_runtime();
-    let maybe_init = rt.block_on(crate::initialize_check_rotation(device_context, config));
+    let maybe_init = device_context.rt.block_on(crate::initialize_check_rotation(
+        &device_context.device,
+        config,
+    ));
     maybe_init.map(|init| match init {
         NoRotationNeeded(io) => NoRotationNeeded(BlockingIronOxide {
             ironoxide: io,
-            runtime: rt,
+            runtime: device_context.rt.clone(),
         }),
         RotationNeeded(io, rot) => RotationNeeded(
             BlockingIronOxide {
                 ironoxide: io,
-                runtime: rt,
+                runtime: device_context.rt.clone(),
             },
             rot,
         ),

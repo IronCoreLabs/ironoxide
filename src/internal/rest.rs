@@ -307,7 +307,7 @@ impl<'a> HeaderIronCoreRequestSig<'a> {
 pub struct IronCoreRequest {
     base_url: &'static str,
     #[serde(skip_serializing, skip_deserializing, default = "default_client")]
-    client: reqwest::Client,
+    pub(crate) client: reqwest::Client,
 }
 
 fn default_client() -> reqwest::Client {
