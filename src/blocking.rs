@@ -37,6 +37,22 @@ impl BlockingDeviceContext {
             rt: Arc::new(create_runtime()),
         }
     }
+    /// ID of the device's owner
+    pub fn account_id(&self) -> &UserId {
+        &self.device.auth().account_id()
+    }
+    /// ID of the segment
+    pub fn segment_id(&self) -> usize {
+        self.device.auth().segment_id()
+    }
+    /// Private signing key of the device
+    pub fn signing_private_key(&self) -> &DeviceSigningKeyPair {
+        &self.device.auth().signing_private_key()
+    }
+    /// Private encryption key of the device
+    pub fn device_private_key(&self) -> &PrivateKey {
+        &self.device.device_private_key()
+    }
 }
 
 /// Struct that is used to make authenticated requests to the IronCore API. Instantiated with the details
