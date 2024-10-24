@@ -3,7 +3,7 @@ mod common;
 // Note: The blocking functions need minimal testing as they primarily just call their async counterparts
 
 #[cfg(feature = "blocking")]
-mod integration_tests {
+mod blocking_integration_tests {
     use crate::common::{create_id_all_classes, gen_jwt, USER_PASSWORD};
     use galvanic_assert::{matchers::*, *};
     use ironoxide::prelude::*;
@@ -23,7 +23,7 @@ mod integration_tests {
         )?
         .into();
         let creator_sdk = ironoxide::blocking::initialize(&device, &Default::default())?;
-        // making non-default groups so I can specify needs_rotation of true
+        // // making non-default groups so I can specify needs_rotation of true
         let group_create = creator_sdk.group_create(&GroupCreateOpts::new(
             None,
             None,

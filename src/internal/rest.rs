@@ -3,7 +3,7 @@
 use crate::internal::{
     auth_v2::AuthV2Builder,
     user_api::{Jwt, UserId},
-    DeviceSigningKeyPair, IronOxideErr, RequestErrorCode, OUR_REQUEST,
+    DeviceSigningKeyPair, IronOxideErr, RequestErrorCode, URL_STRING,
 };
 use base64::engine::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -303,20 +303,20 @@ impl<'a> HeaderIronCoreRequestSig<'a> {
 }
 
 ///A struct which holds the basic info that will be needed for making requests to an ironcore service. Currently just the base_url.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct IronCoreRequest {
     base_url: &'static str,
     #[serde(skip_serializing, skip_deserializing, default = "default_client")]
-    client: &'static reqwest::Client,
+    pub(crate) client: reqwest::Client,
 }
 
-fn default_client() -> &'static reqwest::Client {
-    OUR_REQUEST.client
+fn default_client() -> reqwest::Client {
+    Client::new()
 }
 
 impl Default for IronCoreRequest {
     fn default() -> Self {
-        *OUR_REQUEST
+        IronCoreRequest::new(&URL_STRING, default_client())
     }
 }
 impl Hash for IronCoreRequest {
@@ -332,7 +332,7 @@ impl PartialEq for IronCoreRequest {
 impl Eq for IronCoreRequest {}
 
 impl IronCoreRequest {
-    pub const fn new(base_url: &'static str, client: &'static reqwest::Client) -> IronCoreRequest {
+    pub const fn new(base_url: &'static str, client: reqwest::Client) -> IronCoreRequest {
         IronCoreRequest { base_url, client }
     }
 
@@ -415,7 +415,7 @@ impl IronCoreRequest {
             replace_headers(req.headers_mut(), auth.to_auth_header());
             replace_headers(req.headers_mut(), request_sig.to_header());
 
-            Self::send_req(req, error_code, move |server_resp| {
+            self.send_req(req, error_code, move |server_resp| {
                 IronCoreRequest::deserialize_body(server_resp, error_code)
             })
             .await
@@ -551,7 +551,7 @@ impl IronCoreRequest {
         Q: Serialize + ?Sized,
         F: FnOnce(&Bytes) -> Result<B, IronOxideErr>,
     {
-        let client = Client::new();
+        let client = self.client.clone();
         let mut builder = client.request(
             method,
             format!("{}{}", self.base_url, relative_url).as_str(),
@@ -632,7 +632,7 @@ impl IronCoreRequest {
             replace_headers(req.headers_mut(), auth.to_auth_header());
             replace_headers(req.headers_mut(), request_sig.to_header());
 
-            Self::send_req(req, error_code, resp_handler).await
+            self.send_req(req, error_code, resp_handler).await
         } else {
             panic!("authorized requests must use version 2 of API authentication")
         }
@@ -653,6 +653,7 @@ impl IronCoreRequest {
     }
 
     async fn send_req<B, F>(
+        &self,
         req: Request,
         error_code: RequestErrorCode,
         resp_handler: F,
@@ -661,7 +662,7 @@ impl IronCoreRequest {
         B: DeserializeOwned,
         F: FnOnce(&Bytes) -> Result<B, IronOxideErr>,
     {
-        let client = Client::new();
+        let client = self.client.clone();
         let server_res = client.execute(req).await;
         let res = server_res.map_err(|e| (e, error_code))?;
         //Parse the body content into bytes
@@ -1049,12 +1050,11 @@ mod tests {
 
     use recrypt::api::{Ed25519Signature, PublicSigningKey};
 
-    lazy_static! {
-        static ref SHARED_CLIENT: reqwest::Client = reqwest::Client::new();
-        static ref TEST_REQUEST: IronCoreRequest = IronCoreRequest {
+    fn create_test_request() -> IronCoreRequest {
+        IronCoreRequest {
             base_url: "https://example.com",
-            client: &SHARED_CLIENT
-        };
+            client: Client::new(),
+        }
     }
 
     #[test]
@@ -1238,7 +1238,8 @@ mod tests {
             public_signing_key: signing_keys.public_key(),
         };
 
-        let build_url = |relative_url| format!("{}{}", OUR_REQUEST.base_url(), relative_url);
+        let build_url =
+            |relative_url| format!("{}{}", IronCoreRequest::default().base_url(), relative_url);
         let signing_url_string = SignatureUrlString::new(&build_url("users?id=user-10")).unwrap();
 
         // note that this and the expected value must correspond
@@ -1378,7 +1379,7 @@ mod tests {
     fn query_params_encoded_correctly() {
         let mut req = Request::new(
             Method::GET,
-            url::Url::parse(&format!("{}/{}", TEST_REQUEST.base_url(), "users")).unwrap(),
+            url::Url::parse(&format!("{}/{}", create_test_request().base_url(), "users")).unwrap(),
         );
         let q = "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
         IronCoreRequest::req_add_query(&mut req, &[("id".to_string(), url_encode(q))]);
@@ -1391,7 +1392,12 @@ mod tests {
     fn empty_query_params_encoded_correctly() {
         let mut req = Request::new(
             Method::GET,
-            url::Url::parse(&format!("{}/{}", TEST_REQUEST.base_url(), "policies")).unwrap(),
+            url::Url::parse(&format!(
+                "{}/{}",
+                create_test_request().base_url(),
+                "policies"
+            ))
+            .unwrap(),
         );
         IronCoreRequest::req_add_query(&mut req, &[]);
         assert_eq!(req.url().query(), None);

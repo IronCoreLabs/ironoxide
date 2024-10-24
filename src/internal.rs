@@ -4,7 +4,7 @@
 
 use crate::internal::{
     group_api::GroupId,
-    rest::{Authorization, IronCoreRequest, SignatureUrlString},
+    rest::{Authorization, SignatureUrlString},
     user_api::UserId,
 };
 use base64::engine::Engine;
@@ -34,6 +34,7 @@ pub mod document_api;
 pub mod group_api;
 mod rest;
 pub mod user_api;
+pub use rest::IronCoreRequest;
 
 lazy_static! {
     pub static ref URL_STRING: String = match std::env::var("IRONCORE_ENV") {
@@ -45,9 +46,6 @@ lazy_static! {
         .to_string(),
         _ => "https://api.ironcorelabs.com/api/1/".to_string(),
     };
-    static ref SHARED_CLIENT: reqwest::Client = reqwest::Client::new();
-    pub static ref OUR_REQUEST: IronCoreRequest =
-        IronCoreRequest::new(URL_STRING.as_str(), &SHARED_CLIENT);
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
