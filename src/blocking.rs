@@ -30,6 +30,15 @@ pub struct BlockingDeviceContext {
     pub(crate) rt: Arc<Runtime>,
 }
 
+impl From<DeviceAddResult> for BlockingDeviceContext {
+    fn from(value: DeviceAddResult) -> Self {
+        Self {
+            device: value.into(),
+            rt: Arc::new(create_runtime()),
+        }
+    }
+}
+
 impl BlockingDeviceContext {
     pub fn new(device: DeviceContext) -> Self {
         Self {
@@ -273,20 +282,14 @@ impl BlockingIronOxide {
         password: &str,
         device_create_options: &DeviceCreateOpts,
         timeout: Option<std::time::Duration>,
-    ) -> Result<BlockingDeviceContext> {
+    ) -> Result<DeviceAddResult> {
         let rt = create_runtime();
-        let device: DeviceContext = rt
-            .block_on(IronOxide::generate_new_device(
-                jwt,
-                password,
-                device_create_options,
-                timeout,
-            ))?
-            .into();
-        Ok(BlockingDeviceContext {
-            device,
-            rt: Arc::new(rt),
-        })
+        rt.block_on(IronOxide::generate_new_device(
+            jwt,
+            password,
+            device_create_options,
+            timeout,
+        ))
     }
     /// See [ironoxide::user::UserOps::user_delete_device](trait.UserOps.html#tymethod.user_delete_device)
     pub fn user_delete_device(&self, device_id: Option<&DeviceId>) -> Result<DeviceId> {
