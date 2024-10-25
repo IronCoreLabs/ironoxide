@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         # different operating systems
-        os: [ubuntu-22.04, macos-12, windows-2019]
+        os: [ubuntu-22.04, macos-13, windows-2019]
         features: [default]
         toolchain: [stable]
         include:
@@ -81,7 +81,7 @@ jobs:
           - ubuntu-22.04
         include:
           - target: aarch64-apple-ios
-            os: macos-12
+            os: macos-13
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
