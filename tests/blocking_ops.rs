@@ -3,7 +3,7 @@ mod common;
 // Note: The blocking functions need minimal testing as they primarily just call their async counterparts
 
 #[cfg(feature = "blocking")]
-mod integration_tests {
+mod blocking_integration_tests {
     use crate::common::{create_id_all_classes, gen_jwt, USER_PASSWORD};
     use galvanic_assert::{matchers::*, *};
     use ironoxide::prelude::*;
