@@ -23,7 +23,7 @@ mod blocking_integration_tests {
         )?
         .into();
         let creator_sdk = ironoxide::blocking::initialize(&device, &Default::default())?;
-        // // making non-default groups so I can specify needs_rotation of true
+        // making non-default groups so I can specify needs_rotation of true
         let group_create = creator_sdk.group_create(&GroupCreateOpts::new(
             None,
             None,
