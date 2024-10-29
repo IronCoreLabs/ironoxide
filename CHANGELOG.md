@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.0
+
+- [[#327](https://github.com/IronCoreLabs/ironoxide/pull/327)]
+  - Reuse the reqwest `Client` for all calls. This increases performance significantly if making multiple calls with the same IronOxide.
+  - Change `DeviceContext` to `BlockingDeviceContext` for the blocking api. This allows the reuse of the runtime for all calls.
+
 ## 3.0.0
 
 - [[#321](https://github.com/IronCoreLabs/ironoxide/issues/321)]
