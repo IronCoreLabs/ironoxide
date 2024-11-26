@@ -780,6 +780,47 @@ async fn doc_grant_access() -> Result<(), IronOxideErr> {
 }
 
 #[tokio::test]
+async fn doc_add_remove_access() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
+
+    let doc = [0u8; 64];
+    let doc_result = sdk
+        .document_encrypt(doc.into(), &Default::default())
+        .await?;
+    let doc_id = doc_result.id().clone();
+    assert_eq!(doc_result.grants().len(), 1);
+
+    // create a second user to grant access to the document
+    let user = create_second_user().await;
+
+    let grants = sdk
+        .document_grant_access(
+            &doc_id,
+            &[UserOrGroup::User {
+                id: user.account_id().clone(),
+            }],
+        )
+        .await?;
+    assert_eq!(1, grants.succeeded().len());
+    assert_eq!(0, grants.failed().len());
+    let doc_get = sdk.document_get_metadata(&doc_id).await?;
+    assert_eq!(doc_get.visible_to_users().len(), 2);
+    let removals = sdk
+        .document_revoke_access(
+            &doc_id,
+            &[UserOrGroup::User {
+                id: user.account_id().clone(),
+            }],
+        )
+        .await?;
+    assert_eq!(1, removals.succeeded().len());
+    assert_eq!(0, removals.failed().len());
+    let doc_get = sdk.document_get_metadata(&doc_id).await?;
+    assert_eq!(doc_get.visible_to_users().len(), 1);
+    Ok(())
+}
+
+#[tokio::test]
 async fn doc_revoke_access() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
 
