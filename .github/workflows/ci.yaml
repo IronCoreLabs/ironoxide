@@ -37,7 +37,7 @@ jobs:
             features: default
           # MSRV
           - os: ubuntu-22.04
-            toolchain: 1.75.0
+            toolchain: 1.81.0
             features: default
     steps:
       - uses: actions/checkout@v4
