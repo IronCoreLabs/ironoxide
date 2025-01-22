@@ -188,8 +188,8 @@ use crate::{
     policy::PolicyGrant,
     user::{UserId, UserResult, UserUpdatePrivateKeyResult},
 };
-use dashmap::DashMap;
 use itertools::EitherOrBoth;
+use papaya::HashMap;
 use rand::{
     rngs::{adapter::ReseedingRng, OsRng},
     SeedableRng,
@@ -205,7 +205,7 @@ use vec1::Vec1;
 
 /// A `Result` alias where the Err case is `IronOxideErr`
 pub type Result<T> = std::result::Result<T, IronOxideErr>;
-type PolicyCache = DashMap<PolicyGrant, Vec<WithKey<UserOrGroup>>>;
+type PolicyCache = HashMap<PolicyGrant, Vec<WithKey<UserOrGroup>>>;
 
 // This is where we export structs that don't fit into a single module.
 // They were previously exported at the top level, but added clutter to the docs landing page.
@@ -428,7 +428,7 @@ impl IronOxide {
     /// Returns the number of entries cleared from the cache.
     pub fn clear_policy_cache(&self) -> usize {
         let size = self.policy_eval_cache.len();
-        self.policy_eval_cache.clear();
+        self.policy_eval_cache.pin().clear();
         size
     }
 
@@ -448,7 +448,7 @@ impl IronOxide {
                 BYTES_BEFORE_RESEEDING,
                 OsRng,
             )),
-            policy_eval_cache: DashMap::new(),
+            policy_eval_cache: HashMap::new(),
         }
     }
 
