@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.1
+
+- [[#335](https://github.com/IronCoreLabs/ironoxide/pull/335)]
+  - Switch from `dashmap` to `papaya` for policy caching.
+
 ## 4.0.0
 
 - [[#327](https://github.com/IronCoreLabs/ironoxide/pull/327)]
