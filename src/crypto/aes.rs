@@ -3,7 +3,7 @@ use std::{fmt, num::NonZeroU32};
 use rand::{self, CryptoRng, RngCore};
 use ring::{aead, aead::BoundKey, digest, error::Unspecified, pbkdf2};
 
-use crate::internal::{take_lock, IronOxideErr};
+use crate::internal::{IronOxideErr, take_lock};
 use std::{convert::TryFrom, ops::DerefMut, sync::Mutex};
 
 //There is no way this can fail. Value is most definitely not less than one.

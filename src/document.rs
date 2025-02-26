@@ -8,12 +8,12 @@ pub use crate::internal::document_api::{
     DocumentMetadataResult, DocumentName, UserOrGroup, VisibleGroup, VisibleUser,
 };
 use crate::{
+    Result,
     common::SdkOperation,
     group::GroupId,
     internal::{add_optional_timeout, document_api},
     policy::PolicyGrant,
     user::UserId,
-    Result,
 };
 use futures::Future;
 use itertools::{Either, EitherOrBoth, Itertools};

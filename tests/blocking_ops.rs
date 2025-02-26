@@ -4,7 +4,7 @@ mod common;
 
 #[cfg(feature = "blocking")]
 mod blocking_integration_tests {
-    use crate::common::{create_id_all_classes, gen_jwt, USER_PASSWORD};
+    use crate::common::{USER_PASSWORD, create_id_all_classes, gen_jwt};
     use galvanic_assert::{matchers::*, *};
     use ironoxide::prelude::*;
     use std::{convert::TryInto, time::Duration};

@@ -1,5 +1,5 @@
 use crate::internal::{
-    self,
+    self, IronOxideErr, RequestAuth, RequestErrorCode, SchnorrSignature,
     auth_v2::AuthV2Builder,
     group_api::{
         GroupCreateResult, GroupEntity, GroupGetResult, GroupId, GroupMetaResult, GroupName, UserId,
@@ -10,7 +10,6 @@ use crate::internal::{
             Base64Standard, EncryptedOnceValue, PublicKey, TransformKey, TransformedEncryptedValue,
         },
     },
-    IronOxideErr, RequestAuth, RequestErrorCode, SchnorrSignature,
 };
 use serde::{Deserialize, Serialize};
 use std::{

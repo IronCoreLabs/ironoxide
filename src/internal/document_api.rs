@@ -1,35 +1,34 @@
 use crate::{
+    DeviceSigningKeyPair, PolicyCache,
     config::{IronOxideConfig, PolicyCachingConfig},
     crypto::{
         aes::{self, AesEncryptedValue},
         transform,
     },
     internal::{
-        self,
+        self, IronOxideErr, PrivateKey, PublicKey, RequestAuth, WithKey,
         document_api::requests::UserOrGroupWithKey,
         group_api::{GroupId, GroupName},
         take_lock,
         user_api::UserId,
-        validate_id, validate_name, IronOxideErr, PrivateKey, PublicKey, RequestAuth, WithKey,
+        validate_id, validate_name,
     },
     policy::PolicyGrant,
     proto::transform::{
         EncryptedDek as EncryptedDekP, EncryptedDekData as EncryptedDekDataP,
         EncryptedDeks as EncryptedDeksP,
     },
-    DeviceSigningKeyPair, PolicyCache,
 };
-use futures::{try_join, Future};
+use futures::{Future, try_join};
 use hex::encode;
 use itertools::{Either, Itertools};
 use protobuf::Message;
 use rand::{self, CryptoRng, RngCore};
 use recrypt::{api::Plaintext, prelude::*};
 use requests::{
-    document_create,
+    DocumentMetaApiResponse, document_create,
     document_list::{DocumentListApiResponse, DocumentListApiResponseItem},
     policy_get::PolicyResponse,
-    DocumentMetaApiResponse,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -1505,7 +1504,9 @@ mod tests {
     fn document_id_rejects_invalid() {
         let doc_id1 = DocumentId::try_from("not a good ID!");
         let doc_id2 = DocumentId::try_from("!!");
-        let doc_id3 = DocumentId::try_from("01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567891");
+        let doc_id3 = DocumentId::try_from(
+            "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567891",
+        );
 
         assert_that!(
             &doc_id1.unwrap_err(),
@@ -1557,7 +1558,9 @@ mod tests {
 
     #[test]
     fn doc_name_rejects_too_long() {
-        let doc_name = DocumentName::try_from("01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567891");
+        let doc_name = DocumentName::try_from(
+            "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567891",
+        );
 
         assert_that!(
             &doc_name.unwrap_err(),
@@ -1804,7 +1807,7 @@ mod tests {
     #[test]
     pub fn unmanaged_edoc_compare_grants() -> Result<(), IronOxideErr> {
         use crate::proto::transform::{
-            user_or_group::UserOrGroupId as UserOrGroupIdP, UserOrGroup as UserOrGroupP,
+            UserOrGroup as UserOrGroupP, user_or_group::UserOrGroupId as UserOrGroupIdP,
         };
         use recrypt::prelude::*;
 

@@ -14,13 +14,13 @@
 use crate::blocking::BlockingIronOxide;
 
 use crate::{
+    IronOxide, IronOxideErr, Result,
     document::{
-        advanced::{DocumentAdvancedOps, DocumentEncryptUnmanagedResult},
         DocumentEncryptOpts,
+        advanced::{DocumentAdvancedOps, DocumentEncryptUnmanagedResult},
     },
     group::GroupId,
     internal::take_lock,
-    IronOxide, IronOxideErr, Result,
 };
 use futures::Future;
 pub use ironcore_search_helpers::transliterate_string;
@@ -28,9 +28,8 @@ use ironcore_search_helpers::{
     generate_hashes_for_string, generate_hashes_for_string_with_padding,
 };
 use rand::{
-    self,
-    rngs::{adapter::ReseedingRng, OsRng},
-    RngCore, SeedableRng,
+    self, RngCore, SeedableRng,
+    rngs::{OsRng, adapter::ReseedingRng},
 };
 use rand_chacha::ChaChaCore;
 use serde::{Deserialize, Serialize};

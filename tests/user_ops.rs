@@ -124,14 +124,16 @@ async fn user_change_password() -> Result<(), IronOxideErr> {
     );
 
     //Make sure we can't add a device with the old password.
-    assert!(IronOxide::generate_new_device(
-        &gen_jwt(Some(account_id.id())).0,
-        first_password,
-        &Default::default(),
-        None,
-    )
-    .await
-    .is_err());
+    assert!(
+        IronOxide::generate_new_device(
+            &gen_jwt(Some(account_id.id())).0,
+            first_password,
+            &Default::default(),
+            None,
+        )
+        .await
+        .is_err()
+    );
 
     //Make sure we can add a new device with the new password
     IronOxide::generate_new_device(

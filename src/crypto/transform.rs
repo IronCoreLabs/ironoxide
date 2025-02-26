@@ -1,6 +1,6 @@
 use crate::internal::{
-    document_api::{DocAccessEditErr, UserOrGroup},
     IronOxideErr, PublicKey, WithKey,
+    document_api::{DocAccessEditErr, UserOrGroup},
 };
 use itertools::{Either, Itertools};
 use recrypt::{

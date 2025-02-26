@@ -4,14 +4,12 @@
 use crate::{
     crypto::aes::EncryptedMasterKey,
     internal::{
-        self,
+        self, IronOxideErr, RequestAuth, RequestErrorCode,
         rest::{
-            self,
+            self, Authorization, IronCoreRequest,
             json::{Base64Standard, PublicKey},
-            Authorization, IronCoreRequest,
         },
         user_api::{DeviceName, Jwt, UserId},
-        IronOxideErr, RequestAuth, RequestErrorCode,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -214,7 +212,7 @@ pub mod user_update_private_key {
 }
 
 pub mod user_create {
-    use crate::internal::{user_api::UserCreateResult, TryInto};
+    use crate::internal::{TryInto, user_api::UserCreateResult};
 
     use super::*;
 
@@ -272,7 +270,7 @@ pub mod user_create {
 }
 
 pub mod user_update {
-    use crate::internal::{user_api::UserCreateResult, TryInto};
+    use crate::internal::{TryInto, user_api::UserCreateResult};
 
     use super::*;
 
@@ -361,7 +359,7 @@ pub mod user_key_list {
 pub mod device_add {
     use crate::internal::{
         rest::json::TransformKey,
-        user_api::{requests::PublicKey, DeviceAdd, DeviceId, Jwt},
+        user_api::{DeviceAdd, DeviceId, Jwt, requests::PublicKey},
     };
 
     use super::*;
@@ -471,7 +469,7 @@ pub mod device_list {
 
 pub mod device_delete {
     use super::*;
-    use crate::{internal::user_api::DeviceId, IronOxideErr};
+    use crate::{IronOxideErr, internal::user_api::DeviceId};
 
     #[derive(Deserialize)]
     pub struct DeviceDeleteResponse {
