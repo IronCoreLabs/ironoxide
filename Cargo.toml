@@ -15,8 +15,8 @@ keywords = [
     "transform-encryption",
 ]
 description = "A pure-Rust SDK for accessing IronCore's privacy platform"
-edition = "2021"
-rust-version = "1.81.0"
+edition = "2024"
+rust-version = "1.85.0"
 
 [dependencies]
 base64 = "0.22"

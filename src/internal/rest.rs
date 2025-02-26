@@ -1,9 +1,9 @@
 //! Helpers for talking to the ironcore service.
 
 use crate::internal::{
+    DeviceSigningKeyPair, IronOxideErr, RequestErrorCode, URL_STRING,
     auth_v2::AuthV2Builder,
     user_api::{Jwt, UserId},
-    DeviceSigningKeyPair, IronOxideErr, RequestErrorCode, URL_STRING,
 };
 use base64::engine::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -11,10 +11,10 @@ use bytes::Bytes;
 use lazy_static::lazy_static;
 use percent_encoding::{AsciiSet, CONTROLS};
 use reqwest::{
-    header::{HeaderMap, HeaderValue, CONTENT_TYPE},
     Client, Method, Request, RequestBuilder, StatusCode, Url,
+    header::{CONTENT_TYPE, HeaderMap, HeaderValue},
 };
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
     borrow::BorrowMut,
     fmt::{Display, Error, Formatter},
@@ -85,7 +85,7 @@ const ICL_ENCODE_SET: &AsciiSet = &CONTROLS
     .add(b'{') // 0x7b: {
     .add(b'|') // 0x7c: |
     .add(b'}'); //0x7d: }
-                //0x7e: ~ ... no encode ...
+//0x7e: ~ ... no encode ...
 
 #[derive(Clone, Debug)]
 /// Newtype for strings that have been percent encoded
@@ -260,7 +260,7 @@ pub struct HeaderIronCoreRequestSig<'a> {
     signing_keys: &'a DeviceSigningKeyPair,
 }
 
-impl<'a> HeaderIronCoreRequestSig<'a> {
+impl HeaderIronCoreRequestSig<'_> {
     /// Payload of the header
     fn payload(&self) -> Vec<u8> {
         let HeaderIronCoreRequestSig {
@@ -1305,13 +1305,15 @@ mod tests {
         assert_eq!(&request_sig.to_header(), &header);
 
         // verify that the signature produced matches can be verified
-        assert!(signing_keys.0.public_key().verify(
-            &request_sig.payload(),
-            &Ed25519Signature::new_from_slice(
-                &BASE64_STANDARD.decode(expected_request_sig).unwrap()
+        assert!(
+            signing_keys.0.public_key().verify(
+                &request_sig.payload(),
+                &Ed25519Signature::new_from_slice(
+                    &BASE64_STANDARD.decode(expected_request_sig).unwrap()
+                )
+                .unwrap()
             )
-            .unwrap()
-        ));
+        );
 
         // verify that the authorization header is expected
         let auth = Authorization::create_signatures_v2(
@@ -1385,7 +1387,12 @@ mod tests {
         IronCoreRequest::req_add_query(&mut req, &[("id".to_string(), url_encode(q))]);
         //NOTE: This is not the same as SignatureUrlString's encoding, but is being documented here so we know if
         //it changes. `'` is being encoded in this case, but should not be according to the spec we have for v2 signatures.
-        assert_eq!(req.url().query(), Some("id=!%22%23%24%25%26%27()*%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"))
+        assert_eq!(
+            req.url().query(),
+            Some(
+                "id=!%22%23%24%25%26%27()*%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~"
+            )
+        )
     }
 
     #[test]
