@@ -1,8 +1,8 @@
 mod common;
 
 use common::{
-    create_id_all_classes, create_second_user, gen_jwt, init_sdk_get_user, initialize_sdk,
-    USER_PASSWORD,
+    USER_PASSWORD, create_id_all_classes, create_second_user, gen_jwt, init_sdk_get_user,
+    initialize_sdk,
 };
 use galvanic_assert::{assert_that, is_variant};
 use ironoxide::prelude::*;
@@ -172,7 +172,7 @@ async fn group_rotate_private_key_non_admin() -> Result<(), IronOxideErr> {
 
 #[tokio::test]
 async fn rotate_all() -> Result<(), IronOxideErr> {
-    use ironoxide::{user::UserCreateOpts, InitAndRotationCheck};
+    use ironoxide::{InitAndRotationCheck, user::UserCreateOpts};
     let account_id: UserId = create_id_all_classes("").try_into()?;
     let jwt = gen_jwt(Some(account_id.id())).0;
     IronOxide::user_create(&jwt, USER_PASSWORD, &UserCreateOpts::new(true), None).await?;

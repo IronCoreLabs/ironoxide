@@ -782,7 +782,7 @@ fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
         user_public_key: &'a PublicKey,
     }
 
-    impl<'a> recrypt::api::Hashable for SignedMessage<'a> {
+    impl recrypt::api::Hashable for SignedMessage<'_> {
         fn to_bytes(&self) -> Vec<u8> {
             let mut vec: Vec<u8> = vec![];
             vec.extend_from_slice(
@@ -875,7 +875,9 @@ pub(crate) mod tests {
     fn user_id_rejects_invalid() {
         let user_id1 = UserId::try_from("not a good ID!");
         let user_id2 = UserId::try_from("!!");
-        let user_id3 = UserId::try_from("01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567891");
+        let user_id3 = UserId::try_from(
+            "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567891",
+        );
 
         assert_that!(
             &user_id1.unwrap_err(),
@@ -916,13 +918,17 @@ pub(crate) mod tests {
 
     #[test]
     fn invalid_jwt_format() {
-        let jwt = Jwt::try_from("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ");
+        let jwt = Jwt::try_from(
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ",
+        );
         assert!(jwt.is_err())
     }
 
     #[test]
     fn valid_jwt_construction() {
-        let jwt = Jwt::try_from("eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJhYmNBQkMwMTJfLiQjfEAvOjs9KyctZDEyMjZkMWItNGMzOS00OWRhLTkzM2MtNjQyZTIzYWMxOTQ1IiwicGlkIjo0MzgsInNpZCI6Imlyb25veGlkZS1kZXYxIiwia2lkIjo1OTMsImlhdCI6MTU5MTkwMTc0MCwiZXhwIjoxNTkxOTAxODYwfQ.wgs_tnh89SlKnIkoQHdlC0REjkxTl1P8qtDSQwWTFKwo8KQKXUQdpp4BfwqUqLcxA0BW6_XfVRlqMX5zcvCc6w");
+        let jwt = Jwt::try_from(
+            "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJhYmNBQkMwMTJfLiQjfEAvOjs9KyctZDEyMjZkMWItNGMzOS00OWRhLTkzM2MtNjQyZTIzYWMxOTQ1IiwicGlkIjo0MzgsInNpZCI6Imlyb25veGlkZS1kZXYxIiwia2lkIjo1OTMsImlhdCI6MTU5MTkwMTc0MCwiZXhwIjoxNTkxOTAxODYwfQ.wgs_tnh89SlKnIkoQHdlC0REjkxTl1P8qtDSQwWTFKwo8KQKXUQdpp4BfwqUqLcxA0BW6_XfVRlqMX5zcvCc6w",
+        );
         assert!(jwt.is_ok())
     }
 
@@ -932,7 +938,9 @@ pub(crate) mod tests {
         // { "http://ironcore/pid": 1, "http://ironcore/kid": 1859, "http://ironcore/sid": "IronHide",
         //    "http://ironcore/uid": "bob.wall@ironcorelabs.com", "iss": "https://ironcorelabs.auth0.com/",
         //    "sub": "github|11368122", "aud": "hGELxuBKD64ltS4VNaIy2mzVwtqgJa5f", "iat": 1593130255, "exp": 1593133855 }
-        let jwt = Jwt::try_from("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IlEwWXhNekUwTlVJeE9UVTNRakZFTlRZM01rVkNRakE0UkVNMk1UTkZOVGRETVRBNE9EQTVNUSJ9.eyJodHRwOi8vaXJvbmNvcmUvcGlkIjoxLCJodHRwOi8vaXJvbmNvcmUva2lkIjoxODU5LCJodHRwOi8vaXJvbmNvcmUvc2lkIjoiSXJvbkhpZGUiLCJodHRwOi8vaXJvbmNvcmUvdWlkIjoiYm9iLndhbGxAaXJvbmNvcmVsYWJzLmNvbSIsImlzcyI6Imh0dHBzOi8vaXJvbmNvcmVsYWJzLmF1dGgwLmNvbS8iLCJzdWIiOiJnaXRodWJ8MTEzNjgxMjIiLCJhdWQiOiJoR0VMeHVCS0Q2NGx0UzRWTmFJeTJtelZ3dHFnSmE1ZiIsImlhdCI6MTU5MzEzMDI1NSwiZXhwIjoxNTkzMTMzODU1fQ.Y3DsoS-TctytMNpEFnewJ5TT33yRblRmNkNPIQ2EDmfka070y5egpMsVtjqqck05cpdShxfZG2n2JWr5LQF6--jEa8mHy73V36ZbBHkcvjhEcHdH3OxhQQPUNwrXN-jIFOD58G7K5ZNCZub8IsEpWPD8PwghWlwiLKSFMb_j12SEs1rQwoVs1NaYsVZk04G6fWwooyrpuulXVc6S8g8Cr6_FeHDkb8747UY2GmL3Qp0R3iCPjao0ESSqP9gwPMroQGiNhjfJhYwxM8_sin4skfWoEirj0IRk2M8LAEOszI6gTdMcFX8Bw-0kFw4LWYBOi1eHcmvzNFMgCJUB5I4rcg");
+        let jwt = Jwt::try_from(
+            "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IlEwWXhNekUwTlVJeE9UVTNRakZFTlRZM01rVkNRakE0UkVNMk1UTkZOVGRETVRBNE9EQTVNUSJ9.eyJodHRwOi8vaXJvbmNvcmUvcGlkIjoxLCJodHRwOi8vaXJvbmNvcmUva2lkIjoxODU5LCJodHRwOi8vaXJvbmNvcmUvc2lkIjoiSXJvbkhpZGUiLCJodHRwOi8vaXJvbmNvcmUvdWlkIjoiYm9iLndhbGxAaXJvbmNvcmVsYWJzLmNvbSIsImlzcyI6Imh0dHBzOi8vaXJvbmNvcmVsYWJzLmF1dGgwLmNvbS8iLCJzdWIiOiJnaXRodWJ8MTEzNjgxMjIiLCJhdWQiOiJoR0VMeHVCS0Q2NGx0UzRWTmFJeTJtelZ3dHFnSmE1ZiIsImlhdCI6MTU5MzEzMDI1NSwiZXhwIjoxNTkzMTMzODU1fQ.Y3DsoS-TctytMNpEFnewJ5TT33yRblRmNkNPIQ2EDmfka070y5egpMsVtjqqck05cpdShxfZG2n2JWr5LQF6--jEa8mHy73V36ZbBHkcvjhEcHdH3OxhQQPUNwrXN-jIFOD58G7K5ZNCZub8IsEpWPD8PwghWlwiLKSFMb_j12SEs1rQwoVs1NaYsVZk04G6fWwooyrpuulXVc6S8g8Cr6_FeHDkb8747UY2GmL3Qp0R3iCPjao0ESSqP9gwPMroQGiNhjfJhYwxM8_sin4skfWoEirj0IRk2M8LAEOszI6gTdMcFX8Bw-0kFw4LWYBOi1eHcmvzNFMgCJUB5I4rcg",
+        );
         assert!(jwt.is_ok())
     }
 
@@ -942,7 +950,9 @@ pub(crate) mod tests {
         // { "http://ironcore1/pid": 1, "http://ironcore1/kid": 1859, "http://ironcore1/sid": "IronHide",
         //    "http://ironcore1/uid": "bob.wall@ironcorelabs.com", "iss": "https://ironcorelabs.auth0.com/",
         //    "sub": "github|11368122", "aud": "hGELxuBKD64ltS4VNaIy2mzVwtqgJa5f", "iat": 1593130255, "exp": 1593133855 }
-        let jwt = Jwt::try_from("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IlEwWXhNekUwTlVJeE9UVTNRakZFTlRZM01rVkNRakE0UkVNMk1UTkZOVGRETVRBNE9EQTVNUSJ9.eyJodHRwOi8vaXJvbmNvcmUxL3BpZCI6MSwiaHR0cDovL2lyb25jb3JlMS9raWQiOjE4NTksImh0dHA6Ly9pcm9uY29yZTEvc2lkIjoiSXJvbkhpZGUiLCJodHRwOi8vaXJvbmNvcmUxL3VpZCI6ImJvYi53YWxsQGlyb25jb3JlbGFicy5jb20iLCJpc3MiOiJodHRwczovL2lyb25jb3JlbGFicy5hdXRoMC5jb20vIiwic3ViIjoiZ2l0aHVifDExMzY4MTIyIiwiYXVkIjoiaEdFTHh1QktENjRsdFM0Vk5hSXkybXpWd3RxZ0phNWYiLCJpYXQiOjE1OTMxMzAyNTUsImV4cCI6MTU5MzEzMzg1NX0.J9sPgSFjucLQHpGOsEJ3xJf66nNK6Rf1n-C4YTsqWjPGwHlA8qyY4YIfNhwAjSstwvx2ImUb-Rf2Ghjq_4gpnArVfzkqa2HN06p_kRvwlL_kJoKTP8fo9LSpceNAbv75S4_EzOAWHTTNzDVjriQ1sjZYCYuD9BBjCG7ie0vSATb9uE4BtE_fSrlRkXlEW_608PDajNpwcCzSC-rMcWa1vDCYEuk405MzxkMJIi65ghMs9AEi6QotEhimf1gbrSaJFyyAqVKBPwA5--z64cK1vSwsX3mO2bCWIKbqLgXXWU0zr7saP9jVeMKXXetBW5KHHjYKRZ6lY9CquhtsnjSxvQ");
+        let jwt = Jwt::try_from(
+            "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IlEwWXhNekUwTlVJeE9UVTNRakZFTlRZM01rVkNRakE0UkVNMk1UTkZOVGRETVRBNE9EQTVNUSJ9.eyJodHRwOi8vaXJvbmNvcmUxL3BpZCI6MSwiaHR0cDovL2lyb25jb3JlMS9raWQiOjE4NTksImh0dHA6Ly9pcm9uY29yZTEvc2lkIjoiSXJvbkhpZGUiLCJodHRwOi8vaXJvbmNvcmUxL3VpZCI6ImJvYi53YWxsQGlyb25jb3JlbGFicy5jb20iLCJpc3MiOiJodHRwczovL2lyb25jb3JlbGFicy5hdXRoMC5jb20vIiwic3ViIjoiZ2l0aHVifDExMzY4MTIyIiwiYXVkIjoiaEdFTHh1QktENjRsdFM0Vk5hSXkybXpWd3RxZ0phNWYiLCJpYXQiOjE1OTMxMzAyNTUsImV4cCI6MTU5MzEzMzg1NX0.J9sPgSFjucLQHpGOsEJ3xJf66nNK6Rf1n-C4YTsqWjPGwHlA8qyY4YIfNhwAjSstwvx2ImUb-Rf2Ghjq_4gpnArVfzkqa2HN06p_kRvwlL_kJoKTP8fo9LSpceNAbv75S4_EzOAWHTTNzDVjriQ1sjZYCYuD9BBjCG7ie0vSATb9uE4BtE_fSrlRkXlEW_608PDajNpwcCzSC-rMcWa1vDCYEuk405MzxkMJIi65ghMs9AEi6QotEhimf1gbrSaJFyyAqVKBPwA5--z64cK1vSwsX3mO2bCWIKbqLgXXWU0zr7saP9jVeMKXXetBW5KHHjYKRZ6lY9CquhtsnjSxvQ",
+        );
         assert!(jwt.is_err())
     }
 
@@ -952,7 +962,9 @@ pub(crate) mod tests {
         // { "http://ironcore1/pid": 1, "pid": 2, "http://ironcore1/kid": 1859, "kid": 1860, "http://ironcore1/sid": "IronHide", "sid": "IronHide2",
         //    "http://ironcore1/uid": "bob.wall@ironcorelabs.com", "iss": "https://ironcorelabs.auth0.com/",
         //    "sub": "github|11368122", "aud": "hGELxuBKD64ltS4VNaIy2mzVwtqgJa5f", "iat": 1593130255, "exp": 1593133855 }
-        let jwt = Jwt::try_from("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vaXJvbmNvcmUvcGlkIjoxLCJwaWQiOjIsImh0dHA6Ly9pcm9uY29yZS9raWQiOjE4NTksImtpZCI6MTg2MCwiaHR0cDovL2lyb25jb3JlL3NpZCI6Iklyb25IaWRlIiwic2lkIjoiSXJvbkhpZGUyIiwiaHR0cDovL2lyb25jb3JlL3VpZCI6ImJvYi53YWxsQGlyb25jb3JlbGFicy5jb20iLCJpc3MiOiJodHRwczovL2lyb25jb3JlbGFicy5hdXRoMC5jb20vIiwic3ViIjoiZ2l0aHVifDExMzY4MTIyIiwiYXVkIjoiaEdFTHh1QktENjRsdFM0Vk5hSXkybXpWd3RxZ0phNWYiLCJpYXQiOjE1OTMxMzAyNTUsImV4cCI6MTU5MzEzMzg1NX0.cnNGAJca0zhqO5tvm8NNqW6PlbUV4mCKLN4Yom86Wsyrhq7Y5mzBgcxiG2icKtAM4-Xk1hURwSqBpXk-ZepzlMJmkdH8FxPf7Ms0VNrw8KR0KRtO829tktXAxr8UN4MitJynN_C2FFAZn1-28H98Tc_ZUSTCdLrZ5Ct1cHWGwlGJVejitxSD-6fmiFIKYZJYyzvvot8br9cO3GrJAXa1PJqIGiN2oQVxPV_rYLvQRbwCQVcmvtH_rhnDThJUgNNpHLpk3Wt-5vJR2wFeWU7HvQMyAv_ZNyFufqtdYZz6mFMkWozVFaqXifZeRBjyn4eO-RXZGaHlkE9AITrv5vXwDw");
+        let jwt = Jwt::try_from(
+            "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vaXJvbmNvcmUvcGlkIjoxLCJwaWQiOjIsImh0dHA6Ly9pcm9uY29yZS9raWQiOjE4NTksImtpZCI6MTg2MCwiaHR0cDovL2lyb25jb3JlL3NpZCI6Iklyb25IaWRlIiwic2lkIjoiSXJvbkhpZGUyIiwiaHR0cDovL2lyb25jb3JlL3VpZCI6ImJvYi53YWxsQGlyb25jb3JlbGFicy5jb20iLCJpc3MiOiJodHRwczovL2lyb25jb3JlbGFicy5hdXRoMC5jb20vIiwic3ViIjoiZ2l0aHVifDExMzY4MTIyIiwiYXVkIjoiaEdFTHh1QktENjRsdFM0Vk5hSXkybXpWd3RxZ0phNWYiLCJpYXQiOjE1OTMxMzAyNTUsImV4cCI6MTU5MzEzMzg1NX0.cnNGAJca0zhqO5tvm8NNqW6PlbUV4mCKLN4Yom86Wsyrhq7Y5mzBgcxiG2icKtAM4-Xk1hURwSqBpXk-ZepzlMJmkdH8FxPf7Ms0VNrw8KR0KRtO829tktXAxr8UN4MitJynN_C2FFAZn1-28H98Tc_ZUSTCdLrZ5Ct1cHWGwlGJVejitxSD-6fmiFIKYZJYyzvvot8br9cO3GrJAXa1PJqIGiN2oQVxPV_rYLvQRbwCQVcmvtH_rhnDThJUgNNpHLpk3Wt-5vJR2wFeWU7HvQMyAv_ZNyFufqtdYZz6mFMkWozVFaqXifZeRBjyn4eO-RXZGaHlkE9AITrv5vXwDw",
+        );
         assert!(jwt.is_ok())
     }
 }

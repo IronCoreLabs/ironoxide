@@ -1,15 +1,15 @@
 use crate::{
     crypto::transform,
     internal::{
-        self,
+        self, DeviceSigningKeyPair, IronOxideErr, PrivateKey, PublicKey, RequestAuth,
+        SchnorrSignature, TransformKey, WithKey,
         group_api::requests::{
-            group_get::group_get_request, group_list::GroupListResponse, GroupAdmin,
-            GroupUserEditResponse, User,
+            GroupAdmin, GroupUserEditResponse, User, group_get::group_get_request,
+            group_list::GroupListResponse,
         },
         rest::json::{AugmentationFactor, EncryptedOnceValue, TransformedEncryptedValue},
         user_api::{self, UserId},
-        validate_id, validate_name, DeviceSigningKeyPair, IronOxideErr, PrivateKey, PublicKey,
-        RequestAuth, SchnorrSignature, TransformKey, WithKey,
+        validate_id, validate_name,
     },
 };
 use core::convert::identity;
@@ -966,7 +966,9 @@ pub(crate) mod tests {
     fn group_id_rejects_invalid() {
         let group_id1 = GroupId::try_from("not a good ID!");
         let group_id2 = GroupId::try_from("!!");
-        let group_id3 = GroupId::try_from("01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567891");
+        let group_id3 = GroupId::try_from(
+            "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567891",
+        );
 
         assert_that!(
             &group_id1.unwrap_err(),
@@ -1026,7 +1028,9 @@ pub(crate) mod tests {
 
     #[test]
     fn group_name_rejects_too_long() {
-        let group_name = GroupName::try_from("01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567891");
+        let group_name = GroupName::try_from(
+            "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567891",
+        );
 
         assert_that!(
             &group_name.unwrap_err(),
@@ -1152,9 +1156,11 @@ pub(crate) mod tests {
             })
             .collect();
         let first_admin = admin_plaintexts.first().unwrap();
-        assert!(admin_plaintexts
-            .iter()
-            .all(|text| text.bytes()[..] == first_admin.bytes()[..]));
+        assert!(
+            admin_plaintexts
+                .iter()
+                .all(|text| text.bytes()[..] == first_admin.bytes()[..])
+        );
 
         // using the first admin to test, verify that the augmentation factor plus the
         // decrypted plaintext's private key equals the group's private key

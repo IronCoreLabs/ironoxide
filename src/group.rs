@@ -7,10 +7,10 @@ pub use crate::internal::group_api::{
     GroupListResult, GroupMetaResult, GroupName, GroupUpdatePrivateKeyResult,
 };
 use crate::{
+    IronOxideErr, Result,
     common::SdkOperation,
     internal::{add_optional_timeout, group_api, group_api::GroupCreateOptsStd},
     user::UserId,
-    IronOxideErr, Result,
 };
 use futures::Future;
 use vec1::Vec1;
@@ -171,7 +171,6 @@ impl Default for GroupCreateOpts {
 ///            a group admin.
 /// - Rotation - Changing a group's private key while leaving its public key unchanged. This can be accomplished by calling
 ///     [group_rotate_private_key](trait.GroupOps.html#tymethod.group_rotate_private_key).
-
 pub trait GroupOps {
     /// Creates a group.
     ///
@@ -605,7 +604,7 @@ impl GroupOps for crate::IronOxide {
 mod tests {
     use crate::{
         group::GroupCreateOpts,
-        internal::{user_api::UserId, IronOxideErr},
+        internal::{IronOxideErr, user_api::UserId},
     };
 
     #[test]

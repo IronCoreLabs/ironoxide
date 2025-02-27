@@ -184,15 +184,15 @@ use crate::{
     config::IronOxideConfig,
     document::UserOrGroup,
     group::{GroupId, GroupUpdatePrivateKeyResult},
-    internal::{add_optional_timeout, WithKey},
+    internal::{WithKey, add_optional_timeout},
     policy::PolicyGrant,
     user::{UserId, UserResult, UserUpdatePrivateKeyResult},
 };
 use itertools::EitherOrBoth;
 use papaya::HashMap;
 use rand::{
-    rngs::{adapter::ReseedingRng, OsRng},
     SeedableRng,
+    rngs::{OsRng, adapter::ReseedingRng},
 };
 use rand_chacha::ChaChaCore;
 use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};

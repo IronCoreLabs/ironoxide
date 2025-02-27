@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use ironoxide::prelude::*;
 use lazy_static::*;
 use tokio::runtime::Runtime;
@@ -17,7 +17,9 @@ lazy_static! {
         },
         _ => {
             // The core code defaults to `prod`, so we have to set this so the API_URL is set correctly.
-            std::env::set_var("IRONCORE_ENV", "stage");
+            unsafe {
+                std::env::set_var("IRONCORE_ENV", "stage");
+            }
             "stage"
         },
     }

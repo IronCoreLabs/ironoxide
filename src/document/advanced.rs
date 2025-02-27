@@ -6,10 +6,10 @@ pub use crate::internal::document_api::{
     DocumentDecryptUnmanagedResult, DocumentEncryptUnmanagedResult,
 };
 use crate::{
-    document::{partition_user_or_group, DocumentEncryptOpts},
+    Result, SdkOperation,
+    document::{DocumentEncryptOpts, partition_user_or_group},
     internal,
     internal::add_optional_timeout,
-    Result, SdkOperation,
 };
 use futures::Future;
 use itertools::EitherOrBoth;

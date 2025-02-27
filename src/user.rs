@@ -8,9 +8,9 @@ pub use crate::internal::user_api::{
     UserUpdatePrivateKeyResult, UserUpdateResult,
 };
 use crate::{
+    IronCoreRequest, IronOxide, Result,
     common::{PublicKey, SdkOperation},
     internal::{add_optional_timeout, user_api},
-    IronCoreRequest, IronOxide, Result,
 };
 use futures::Future;
 use recrypt::api::Recrypt;

@@ -295,8 +295,8 @@ pub mod auth_v2 {
         pub(in crate::internal::auth_v2) timestamp: OffsetDateTime,
     }
 
-    impl<'a> AuthV2Builder<'a> {
-        pub fn new(req_auth: &'a RequestAuth, timestamp: OffsetDateTime) -> AuthV2Builder {
+    impl AuthV2Builder<'_> {
+        pub fn new(req_auth: &RequestAuth, timestamp: OffsetDateTime) -> AuthV2Builder {
             AuthV2Builder {
                 req_auth,
                 timestamp,
@@ -312,8 +312,8 @@ pub mod auth_v2 {
         /// # Returns
         /// Authorization::Version2 that contains all the information necessary to make an
         /// IronCore authenticated request to the webservice.
-        pub fn finish_with(
-            &self,
+        pub fn finish_with<'a>(
+            &'a self,
             sig_url: SignatureUrlString,
             method: Method,
             body_bytes: Option<&'a [u8]>,
@@ -805,7 +805,7 @@ pub(crate) mod tests {
     use vec1::vec1;
 
     /// String contains matcher to assert that the provided substring exists in the provided value
-    pub fn contains<'a>(expected: &'a str) -> Box<dyn Matcher<String> + 'a> {
+    pub fn contains(expected: &str) -> Box<dyn Matcher<String> + '_> {
         Box::new(move |actual: &String| {
             let builder = MatchResultBuilder::for_("contains");
             if actual.contains(expected) {
@@ -818,7 +818,7 @@ pub(crate) mod tests {
     }
 
     /// Length matcher to assert that the provided iterable value has the expected size
-    pub fn length<'a, I, T>(expected: &'a usize) -> Box<dyn Matcher<I> + 'a>
+    pub fn length<'a, I, T>(expected: &'a usize) -> Box<dyn Matcher<'a, I> + 'a>
     where
         T: 'a,
         &'a I: Debug + Sized + IntoIterator<Item = &'a T> + 'a,
@@ -1200,11 +1200,10 @@ pub(crate) mod tests {
     #[test]
     fn init_and_rotation_user_and_groups() -> Result<(), IronOxideErr> {
         use crate::{
-            check_groups_and_collect_rotation,
+            InitAndRotationCheck, IronOxide, check_groups_and_collect_rotation,
             internal::{
                 group_api::tests::create_group_meta_result, user_api::tests::create_user_result,
             },
-            InitAndRotationCheck, IronOxide,
         };
         let recrypt = recrypt::api::Recrypt::new();
         let (_, pub_key) = recrypt.generate_key_pair()?;

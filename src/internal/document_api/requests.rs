@@ -1,6 +1,6 @@
 use super::{AssociationType, DocumentId, DocumentName};
 use crate::internal::{
-    self,
+    self, IronOxideErr, RequestAuth, RequestErrorCode,
     auth_v2::AuthV2Builder,
     document_api::{EncryptedDek, UserOrGroup, VisibleGroup, VisibleUser, WithKey},
     group_api::GroupId,
@@ -9,7 +9,6 @@ use crate::internal::{
         json::{EncryptedOnceValue, PublicKey, TransformedEncryptedValue},
     },
     user_api::UserId,
-    IronOxideErr, RequestAuth, RequestErrorCode,
 };
 use serde::{Deserialize, Serialize};
 use std::convert::{TryFrom, TryInto};
@@ -292,7 +291,7 @@ pub mod document_create {
 pub mod policy_get {
     use super::*;
     use crate::{
-        internal::rest::{url_encode, PercentEncodedString},
+        internal::rest::{PercentEncodedString, url_encode},
         policy::{Category, DataSubject, PolicyGrant, Sensitivity},
     };
 
@@ -367,7 +366,7 @@ pub mod document_access {
     use super::*;
     use crate::internal::{
         auth_v2::AuthV2Builder,
-        document_api::{requests::document_access::resp::*, UserOrGroup, WithKey},
+        document_api::{UserOrGroup, WithKey, requests::document_access::resp::*},
     };
     use std::convert::TryInto;
 

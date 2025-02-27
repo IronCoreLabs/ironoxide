@@ -84,7 +84,7 @@
 //! The PolicyGrant `PolicyGrant::new(None, None, None, None)` will match the last rule in the example and will return
 //! the group `[data_recovery]`
 //!
-use crate::{internal::user_api::UserId, IronOxideErr, Result};
+use crate::{IronOxideErr, Result, internal::user_api::UserId};
 use regex::Regex;
 use std::convert::{TryFrom, TryInto};
 

@@ -36,7 +36,7 @@
 // Copyright (c) 2020  IronCore Labs, Inc.
 // =============================================================================
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ironoxide::prelude::*;
 use lazy_static::lazy_static;
 use mut_static::MutStatic;
