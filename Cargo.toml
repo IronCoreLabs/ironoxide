@@ -29,7 +29,7 @@ itertools = "0.14"
 jsonwebtoken = "9"
 lazy_static = "1.4"
 log = "0.4"
-papaya = "0.1.8"
+papaya = "0.2.0"
 percent-encoding = "2.1"
 protobuf = { version = "3.0", features = ["with-bytes"] }
 quick-error = "2"
