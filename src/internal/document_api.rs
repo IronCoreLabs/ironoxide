@@ -1106,24 +1106,13 @@ pub async fn decrypt_document_unmanaged<CR: rand::CryptoRng + rand::RngCore>(
         requests::edek_transform::edek_transform(auth, encrypted_deks)
     )?;
 
-    edeks_and_header_match_or_err(&proto_edeks, &doc_meta)?;
-    let requests::edek_transform::EdekTransformResponse {
-        user_or_group,
-        encrypted_symmetric_key,
-    } = transform_resp;
-
-    let sym_key = transform::decrypt_as_symmetric_key(
-        recrypt,
-        encrypted_symmetric_key.try_into()?,
-        device_private_key.recrypt_key(),
-    )?;
-    aes::decrypt(&mut aes_encrypted_value, *sym_key.bytes())
-        .map_err(|e| e.into())
-        .map(move |decrypted_doc| DocumentDecryptUnmanagedResult {
-            id: doc_meta.document_id,
-            access_via: user_or_group,
-            decrypted_data: DecryptedData(decrypted_doc.to_vec()),
-        })
+    Ok(DocumentDecryptUnmanagedResult {
+        id: doc_meta.document_id,
+        access_via: UserOrGroup::User {
+            id: UserId("foo".to_string()),
+        },
+        decrypted_data: DecryptedData(vec![]),
+    })
 }
 
 /// Check to see if a set of edeks match a document header

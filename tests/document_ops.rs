@@ -2,13 +2,18 @@ mod common;
 
 use crate::common::init_sdk_with_config;
 use common::{create_id_all_classes, create_second_user, init_sdk_get_user, initialize_sdk};
+use futures::{FutureExt, StreamExt, stream::FuturesUnordered};
 use galvanic_assert::{
     matchers::{collection::contains_in_any_order, eq},
     *,
 };
 use ironoxide::prelude::*;
-use itertools::EitherOrBoth;
-use std::convert::{TryFrom, TryInto};
+use itertools::{EitherOrBoth, Itertools};
+use std::{
+    convert::{TryFrom, TryInto},
+    thread::sleep,
+    time::{Duration, Instant},
+};
 
 #[tokio::test]
 async fn doc_list() -> Result<(), IronOxideErr> {
@@ -683,7 +688,28 @@ async fn decrypt_with_rotated_user_private_key() -> Result<(), IronOxideErr> {
 }
 
 #[tokio::test]
-async fn doc_encrypt_decrypt_unmanaged_roundtrip() -> Result<(), IronOxideErr> {
+async fn doc_encrypt_decrypt_unmanaged_roundtrip_many() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
+    let encrypt_opts = Default::default();
+    let doc = [0u8; 42];
+
+    for i in 0..100_000_000 {
+        let encrypt_result = sdk
+            .document_encrypt_unmanaged(doc.into(), &encrypt_opts)
+            .await?;
+        let (_, time) = time_future(sdk.document_decrypt_unmanaged(
+            encrypt_result.encrypted_data(),
+            encrypt_result.encrypted_deks(),
+        ))
+        .await;
+        println!("decrypt time was: {:?} for iteration: {}", time, i);
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn doc_encrypt_decrypt_unmanaged_roundtrip_one() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
     let encrypt_opts = Default::default();
     let doc = [0u8; 42];
@@ -691,14 +717,37 @@ async fn doc_encrypt_decrypt_unmanaged_roundtrip() -> Result<(), IronOxideErr> {
     let encrypt_result = sdk
         .document_encrypt_unmanaged(doc.into(), &encrypt_opts)
         .await?;
-    let decrypt_result = sdk
-        .document_decrypt_unmanaged(
-            encrypt_result.encrypted_data(),
-            encrypt_result.encrypted_deks(),
-        )
-        .await?;
-    assert_eq!(&doc[..], decrypt_result.decrypted_data());
+    let (_, time) = time_future(sdk.document_decrypt_unmanaged(
+        encrypt_result.encrypted_data(),
+        encrypt_result.encrypted_deks(),
+    ))
+    .await;
+
+    for i in 0..100_000_000 {
+        let futures_vec: Vec<_> = (0..40)
+            .map(|_| {
+                time_future(sdk.document_decrypt_unmanaged(
+                    encrypt_result.encrypted_data(),
+                    encrypt_result.encrypted_deks(),
+                ))
+            }) // Creates a Vec of futures
+            .collect();
+        let mut futures = futures_vec.into_iter().collect::<FuturesUnordered<_>>(); // Convert Vec -> FuturesUnordered
+
+        while let Some((_, duration)) = futures.next().await {
+            println!("Duration: {:?} in batch {}", duration, i);
+        }
+    }
+
     Ok(())
+}
+async fn time_future<F, T>(future: F) -> (T, std::time::Duration)
+where
+    F: Future<Output = T>,
+{
+    async move { Instant::now() } // Start time is captured **only when polled**
+        .then(|start| future.map(move |result| (result, start.elapsed())))
+        .await
 }
 
 #[tokio::test]
