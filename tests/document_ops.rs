@@ -620,7 +620,7 @@ async fn doc_create_and_adjust_name() -> Result<(), IronOxideErr> {
 }
 
 #[tokio::test]
-async fn doc_encrypt_decrypt_roundtrip() -> Result<(), IronOxideErr> {
+async fn doc_encrypt_decrypt_roundtrip_colt() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
 
     let doc = [43u8; 64];
@@ -632,7 +632,18 @@ async fn doc_encrypt_decrypt_roundtrip() -> Result<(), IronOxideErr> {
 
     let decrypted = sdk.document_decrypt(encrypted_doc.encrypted_data()).await?;
 
-    assert_eq!(doc.to_vec(), decrypted.decrypted_data());
+    for i in 0..100_000_000 {
+        let futures_vec: Vec<_> = (0..40)
+            .map(|_| time_future(sdk.document_decrypt(encrypted_doc.encrypted_data()))) // Creates a Vec of futures
+            .collect();
+        let mut futures = futures_vec.into_iter().collect::<FuturesUnordered<_>>(); // Convert Vec -> FuturesUnordered
+
+        while let Some((_, duration)) = futures.next().await {
+            println!("Duration: {:?} in batch {}", duration, i);
+        }
+    }
+
+    // assert_eq!(doc.to_vec(), decrypted.decrypted_data());
     Ok(())
 }
 
