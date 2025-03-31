@@ -633,10 +633,9 @@ async fn doc_encrypt_decrypt_roundtrip_colt() -> Result<(), IronOxideErr> {
     let decrypted = sdk.document_decrypt(encrypted_doc.encrypted_data()).await?;
 
     for i in 0..100_000_000 {
-        let futures_vec: Vec<_> = (0..40)
+        let mut futures = futures::stream::iter(0..1000)
             .map(|_| time_future(sdk.document_decrypt(encrypted_doc.encrypted_data()))) // Creates a Vec of futures
-            .collect();
-        let mut futures = futures_vec.into_iter().collect::<FuturesUnordered<_>>(); // Convert Vec -> FuturesUnordered
+            .buffer_unordered(20);
 
         while let Some((_, duration)) = futures.next().await {
             println!("Duration: {:?} in batch {}", duration, i);
