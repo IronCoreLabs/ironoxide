@@ -755,6 +755,8 @@ impl IronCoreRequest {
         error_code: RequestErrorCode,
         body: &[u8],
     ) -> IronOxideErr {
+        dbg!(std::str::from_utf8(body));
+
         if status_code.is_server_error() {
             IronCoreRequest::create_request_err(
                 "Server encountered error attempting to make request.".to_string(),

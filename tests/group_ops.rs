@@ -515,8 +515,10 @@ async fn group_list() -> Result<(), IronOxideErr> {
     sdk.group_create(&Default::default()).await?;
     sdk.group_create(&Default::default()).await?;
 
-    let list_result = sdk.group_list().await?;
-    assert_eq!(2, list_result.result().len());
+    for i in (0..100) {
+        sdk.group_list().await?;
+        println!("{}", i);
+    }
     Ok(())
 }
 

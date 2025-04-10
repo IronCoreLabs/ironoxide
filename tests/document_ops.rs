@@ -2,7 +2,7 @@ mod common;
 
 use crate::common::init_sdk_with_config;
 use common::{create_id_all_classes, create_second_user, init_sdk_get_user, initialize_sdk};
-use futures::{FutureExt, StreamExt, stream::FuturesUnordered};
+use futures::{FutureExt, StreamExt, TryFutureExt, stream::FuturesUnordered};
 use galvanic_assert::{
     matchers::{collection::contains_in_any_order, eq},
     *,
@@ -624,22 +624,23 @@ async fn doc_encrypt_decrypt_roundtrip_colt() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
 
     let doc = [43u8; 64];
-    let encrypted_doc = sdk
-        .document_encrypt(doc.into(), &Default::default())
-        .await?;
-
-    sdk.document_get_metadata(encrypted_doc.id()).await?;
-
-    let decrypted = sdk.document_decrypt(encrypted_doc.encrypted_data()).await?;
-
     for i in 0..100_000_000 {
-        let mut futures = futures::stream::iter(0..1000)
-            .map(|_| time_future(sdk.document_decrypt(encrypted_doc.encrypted_data()))) // Creates a Vec of futures
-            .buffer_unordered(20);
+        let encrypted_doc = sdk
+            .document_encrypt(doc.into(), &Default::default())
+            .await?;
 
-        while let Some((_, duration)) = futures.next().await {
-            println!("Duration: {:?} in batch {}", duration, i);
-        }
+        sdk.document_get_metadata(encrypted_doc.id()).await?;
+
+        let decrypted = sdk.document_decrypt(encrypted_doc.encrypted_data()).await?;
+
+        // let mut futures = futures::stream::iter(0..5000)
+        //     .map(|_| time_future(sdk.document_decrypt(encrypted_doc.encrypted_data()))) // Creates a Vec of futures
+        //     .buffer_unordered(500);
+
+        // while let Some((r, duration)) = futures.next().await {
+        //     r?;
+        //     println!("Duration: {:?} in batch {}", duration, i);
+        // }
     }
 
     // assert_eq!(doc.to_vec(), decrypted.decrypted_data());
@@ -718,35 +719,48 @@ async fn doc_encrypt_decrypt_unmanaged_roundtrip_many() -> Result<(), IronOxideE
     Ok(())
 }
 
-#[tokio::test]
-async fn doc_encrypt_decrypt_unmanaged_roundtrip_one() -> Result<(), IronOxideErr> {
-    let sdk = initialize_sdk().await?;
+async fn foo(sdk: &IronOxide) -> Result<Duration, IronOxideErr> {
     let encrypt_opts = Default::default();
     let doc = [0u8; 42];
-
     let encrypt_result = sdk
         .document_encrypt_unmanaged(doc.into(), &encrypt_opts)
         .await?;
-    let (_, time) = time_future(sdk.document_decrypt_unmanaged(
+
+    let (r, time) = time_future(sdk.document_decrypt_unmanaged(
         encrypt_result.encrypted_data(),
         encrypt_result.encrypted_deks(),
     ))
     .await;
 
-    for i in 0..100_000_000 {
-        let futures_vec: Vec<_> = (0..40)
-            .map(|_| {
-                time_future(sdk.document_decrypt_unmanaged(
-                    encrypt_result.encrypted_data(),
-                    encrypt_result.encrypted_deks(),
-                ))
-            }) // Creates a Vec of futures
-            .collect();
-        let mut futures = futures_vec.into_iter().collect::<FuturesUnordered<_>>(); // Convert Vec -> FuturesUnordered
+    r?;
+    Ok(time)
+}
 
-        while let Some((_, duration)) = futures.next().await {
+#[tokio::test]
+async fn doc_encrypt_decrypt_unmanaged_roundtrip_one() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
+
+    for i in 0..100_000_000 {
+        let mut futures = futures::stream::iter(0..5000)
+            .map(|_| foo(&sdk))
+            .buffer_unordered(10);
+
+        while let Some(duration) = futures.next().await {
             println!("Duration: {:?} in batch {}", duration, i);
         }
+        // let futures_vec: Vec<_> = (0..40)
+        //     .map(|_| {
+        //         time_future(sdk.document_decrypt_unmanaged(
+        //             encrypt_result.encrypted_data(),
+        //             encrypt_result.encrypted_deks(),
+        //         ))
+        //     }) // Creates a Vec of futures
+        //     .collect();
+        // let mut futures = futures_vec.into_iter().collect::<FuturesUnordered<_>>(); // Convert Vec -> FuturesUnordered
+
+        // while let Some((_, duration)) = futures.next().await {
+        //     println!("Duration: {:?} in batch {}", duration, i);
+        // }
     }
 
     Ok(())
