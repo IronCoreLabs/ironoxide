@@ -32,8 +32,8 @@ jobs:
         run: |
           echo "CC=$(which cc)" >> $GITHUB_ENV
           echo "RUSTC_WRAPPER=$HOME/.cargo/bin/sccache" >> $GITHUB_ENV
-          echo "AWS_ACCESS_KEY_ID=AKIAU2WBY6VDVHUO5WSN" >> $GITHUB_ENV
-          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.SCCACHE_AWS_SECRET }}" >> $GITHUB_ENV
+          echo "AWS_ACCESS_KEY_ID=${{ vars.SCCACHE_AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.SCCACHE_AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
           echo "SCCACHE_BUCKET=sccache-rust" >> $GITHUB_ENV
           echo "SCCACHE_S3_USE_SSL=true" >> $GITHUB_ENV
           echo "SCCACHE_REGION=us-west-2" >> $GITHUB_ENV
