@@ -24,7 +24,7 @@ jobs:
         uses: IronCoreLabs/rust-install@v0.1.2
         with:
           crate: sccache
-          accesskey: AKIAU2WBY6VDTC563V7G
+          accesskey: ${{ vars.TOOL_CACHE_ACCESS_KEY_ID }}
           secretkey: ${{ secrets.TOOL_CACHE_SECRET_KEY }}
           os: ubuntu-22.04
           version: latest
