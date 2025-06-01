@@ -53,7 +53,7 @@ vec1 = "1.6"
 
 [dev-dependencies]
 anyhow = "1"
-criterion = "0.5"
+criterion = "0.6"
 double = "0.2.4"
 galvanic-assert = "0.8"
 mut_static = "5"
