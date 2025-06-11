@@ -18,6 +18,23 @@ description = "A pure-Rust SDK for accessing IronCore's privacy platform"
 edition = "2024"
 rust-version = "1.85.0"
 
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+beta = ["ironcore-search-helpers"]
+blocking = []
+
+# NOTE: ironoxide requires a TLS implementation. Choose one of the following
+# enable to use statically compiled openssl on supported OpenSSL platforms; use with 'default-features = false'
+tls-vendored-openssl = ["reqwest/native-tls-vendored"]
+# enable to use rustls-tls; use with 'default-features = false'
+tls-rustls = ["reqwest/rustls-tls"]
+# dynamically use the target platform's native TLS
+tls-default = ["reqwest/default-tls"]
+
+default = ["tls-default", "tokio/rt-multi-thread"]
+
 [dependencies]
 base64 = "0.22"
 base64-serde = "0.8"
@@ -51,6 +68,10 @@ tokio = { version = "1", features = ["time"] }
 url = "2.2"
 vec1 = "1.6"
 
+[build-dependencies]
+itertools = "0.14"
+protobuf-codegen = "3.0"
+
 [dev-dependencies]
 anyhow = "1"
 criterion = "0.6"
@@ -59,24 +80,6 @@ galvanic-assert = "0.8"
 mut_static = "5"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 uuid = { version = "1.0", features = ["v4"], default-features = false }
-
-[build-dependencies]
-itertools = "0.14"
-protobuf-codegen = "3.0"
-
-[features]
-beta = ["ironcore-search-helpers"]
-blocking = []
-
-# NOTE: ironoxide requires a TLS implementation. Choose one of the following
-# enable to use statically compiled openssl on supported OpenSSL platforms; use with 'default-features = false'
-tls-vendored-openssl = ["reqwest/native-tls-vendored"]
-# enable to use rustls-tls; use with 'default-features = false'
-tls-rustls = ["reqwest/rustls-tls"]
-# dynamically use the target platform's native TLS
-tls-default = ["reqwest/default-tls"]
-
-default = ["tls-default", "tokio/rt-multi-thread"]
 
 [profile.dev]
 opt-level = 2
@@ -104,6 +107,3 @@ name = "decrypting"
 [[bench]]
 name = "ironoxide_bench"
 harness = false
-
-[package.metadata.docs.rs]
-all-features = true
