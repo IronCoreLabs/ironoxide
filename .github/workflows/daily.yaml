@@ -3,11 +3,11 @@ name: Daily runs
 on:
   schedule:
     - cron: "0 14 * * *" # Daily at 2pm UTC
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       # Generate the Cargo.lock that will be used for the tests so we can upload it as an artifact
@@ -26,7 +26,7 @@ jobs:
           crate: sccache
           accesskey: ${{ vars.TOOL_CACHE_ACCESS_KEY_ID }}
           secretkey: ${{ secrets.TOOL_CACHE_SECRET_KEY }}
-          os: ubuntu-22.04
+          os: ubuntu-24.04
           version: latest
       - name: Setup sccache env variables
         run: |

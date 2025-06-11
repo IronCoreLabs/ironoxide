@@ -7,7 +7,7 @@ use crate::internal::{IronOxideErr, take_lock};
 use std::{convert::TryFrom, ops::DerefMut, sync::Mutex};
 
 //There is no way this can fail. Value is most definitely not less than one.
-const PBKDF2_ITERATIONS: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(250_000) };
+const PBKDF2_ITERATIONS: NonZeroU32 = NonZeroU32::new(250_000).unwrap();
 const PBKDF2_SALT_LEN: usize = 32;
 const AES_GCM_TAG_LEN: usize = 16;
 const AES_IV_LEN: usize = 12;
