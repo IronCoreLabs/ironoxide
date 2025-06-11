@@ -166,11 +166,11 @@ impl Default for GroupCreateOpts {
 /// - Name   - The human-readable name of a group. It does not need to be unique and will **not** be encrypted.
 /// - Member - A user who is able to encrypt and decrypt data using the group.
 /// - Admin  - A user who is able to manage the group's member and admin lists. An admin cannot encrypt or decrypt data using the group
-///            unless they first add themselves as group members or are added by another admin.
+///   unless they first add themselves as group members or are added by another admin.
 /// - Owner  - The user who owns the group. The owner has the same permissions as a group admin, but is protected from being removed as
-///            a group admin.
+///   a group admin.
 /// - Rotation - Changing a group's private key while leaving its public key unchanged. This can be accomplished by calling
-///     [group_rotate_private_key](trait.GroupOps.html#tymethod.group_rotate_private_key).
+///   [group_rotate_private_key](trait.GroupOps.html#tymethod.group_rotate_private_key).
 pub trait GroupOps {
     /// Creates a group.
     ///

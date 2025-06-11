@@ -103,7 +103,7 @@ impl DocumentEncryptOpts {
     /// - `id` - ID to use for the document.
     /// - `name` - Name to use for the document.
     /// - `policy` - Policy to determine which users and groups will have access to read and decrypt this document.
-    ///              See the [policy](../policy/index.html) module for more information.
+    ///   See the [policy](../policy/index.html) module for more information.
     pub fn with_policy_grants(
         id: Option<DocumentId>,
         name: Option<DocumentName>,
@@ -145,7 +145,7 @@ pub trait DocumentOps {
     /// # Arguments
     /// - `document_data` - Bytes of the document to encrypt
     /// - `encrypt_opts` - Document encryption parameters. Default values are provided with
-    ///      [DocumentEncryptOpts::default()](struct.DocumentEncryptOpts.html#method.default).
+    ///   [DocumentEncryptOpts::default()](struct.DocumentEncryptOpts.html#method.default).
     ///
     /// # Examples
     /// ```

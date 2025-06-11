@@ -70,11 +70,11 @@ impl Default for UserCreateOpts {
 ///
 /// # Key Terms
 /// - Device - The only entity in the Data Control Platform that can decrypt data. A device is authorized using a user’s private key,
-///     therefore a device is tightly bound to a user.
+///   therefore a device is tightly bound to a user.
 /// - ID - The ID representing a user or device. It must be unique within its segment and will **not** be encrypted.
 /// - Password - The string used to encrypt and escrow a user's private key.
 /// - Rotation - Changing a user's private key while leaving their public key unchanged. This can be accomplished by calling
-///     [user_rotate_private_key](trait.UserOps.html#tymethod.user_rotate_private_key).
+///   [user_rotate_private_key](trait.UserOps.html#tymethod.user_rotate_private_key).
 pub trait UserOps {
     /// Creates a user.
     ///
@@ -82,7 +82,7 @@ pub trait UserOps {
     /// - `jwt`              - Valid IronCore or Auth0 JWT
     /// - `password`         - Password to use for encrypting and escrowing the user's private key
     /// - `user_create_opts` - User creation parameters. Default values are provided with
-    ///      [UserCreateOpts::default()](struct.UserCreateOpts.html#method.default)
+    ///   [UserCreateOpts::default()](struct.UserCreateOpts.html#method.default)
     /// - `timeout`          - Timeout for this operation or `None` for no timeout
     ///
     /// # Examples
@@ -113,7 +113,7 @@ pub trait UserOps {
     /// - `jwt`                   - Valid IronCore or Auth0 JWT
     /// - `password`              - Password for the user specified in the JWT
     /// - `device_create_options` - Device creation parameters. Default values are provided with
-    ///      [DeviceCreateOpts::default()](struct.DeviceCreateOpts.html#method.default)
+    ///   [DeviceCreateOpts::default()](struct.DeviceCreateOpts.html#method.default)
     /// - `timeout`               - Timeout for this operation or `None` for no timeout
     ///
     /// # Examples

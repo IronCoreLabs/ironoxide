@@ -461,7 +461,7 @@ impl IronOxide {
     /// - `rotations` - PrivateKeyRotationCheckResult that holds all users and groups to be rotated
     /// - `password` - Password to unlock the current user's user master key
     /// - `timeout` - timeout for rotate_all. This is a separate timeout from the SDK-wide timeout as it is
-    ///     expected that this operation might take significantly longer than other operations.
+    ///   expected that this operation might take significantly longer than other operations.
     pub async fn rotate_all(
         &self,
         rotations: &PrivateKeyRotationCheckResult,
