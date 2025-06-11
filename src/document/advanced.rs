@@ -18,7 +18,7 @@ use itertools::EitherOrBoth;
 ///
 /// # Key Terms
 /// - EDEKs - Encrypted document encryption keys produced by unmanaged document encryption and required for unmanaged
-///      document decryption.
+///   document decryption.
 pub trait DocumentAdvancedOps {
     /// Encrypts the provided document bytes without being managed by the IronCore service.
     ///
@@ -29,7 +29,7 @@ pub trait DocumentAdvancedOps {
     /// # Arguments
     /// - `data` - Bytes of the document to encrypt
     /// - `encrypt_opts` - Document encryption parameters. Default values are provided with
-    ///      [DocumentEncryptOpts::default()](../struct.DocumentEncryptOpts.html#method.default).
+    ///   [DocumentEncryptOpts::default()](../struct.DocumentEncryptOpts.html#method.default).
     fn document_encrypt_unmanaged(
         &self,
         data: Vec<u8>,

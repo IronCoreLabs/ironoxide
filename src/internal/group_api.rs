@@ -479,7 +479,7 @@ fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
 /// # Arguments
 /// - `recrypt` - recrypt instance to use for cryptographic operations
 /// - `auth` - Auth context details for making API requests. The user associated with this device will be an admin
-///     of the newly created group,
+///   of the newly created group,
 /// - `user_master_pub_key` - public key of the user creating this group.
 /// - `group_id` - unique id for the group within the segment.
 /// - `name` - name for the group. Does not need to be unique.

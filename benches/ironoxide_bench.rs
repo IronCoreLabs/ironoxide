@@ -1,6 +1,7 @@
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
 use ironoxide::prelude::*;
 use lazy_static::*;
+use std::hint::black_box;
 use tokio::runtime::Runtime;
 
 lazy_static! {
@@ -39,11 +40,8 @@ async fn setup_env() -> IronOxide {
         .unwrap_or_else(|_| panic!("Invalid DeviceContext in {}.", filename));
     ironoxide::initialize(&d, &IronOxideConfig::default())
         .await
-        .unwrap_or_else(|_| {
-            panic!(
-                "Failed to initialize IronOxide using the device in {}.",
-                filename
-            )
+        .unwrap_or_else(|e| {
+            panic!("Failed to initialize IronOxide using the device in {filename}: {e}")
         })
 }
 
