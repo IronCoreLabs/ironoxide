@@ -74,7 +74,7 @@ protobuf-codegen = "3.0"
 
 [dev-dependencies]
 anyhow = "1"
-criterion = "0.6"
+criterion = "0.7"
 double = "0.2.4"
 galvanic-assert = "0.8"
 mut_static = "5"
