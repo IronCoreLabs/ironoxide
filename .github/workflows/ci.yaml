@@ -117,13 +117,7 @@ jobs:
           components: rustfmt
       - run: cargo fmt --all -- --check
       - name: Install cargo-sort
-        uses: IronCoreLabs/rust-install@v0.1.2
-        with:
-          crate: cargo-sort
-          accesskey: ${{ vars.TOOL_CACHE_ACCESS_KEY_ID }}
-          secretkey: ${{ secrets.TOOL_CACHE_SECRET_KEY }}
-          os: ubuntu-24.04
-          version: latest
+        uses: taiki-e/install-action@cargo-sort
       - run: cargo sort --check
       - name: Cancel workflow
         if: failure()
