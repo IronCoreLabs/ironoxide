@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v5
       # Generate the Cargo.lock that will be used for the tests so we can upload it as an artifact
       - run: cargo generate-lockfile
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           path: Cargo.lock
       - name: Decrypt test keys
