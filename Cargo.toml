@@ -43,7 +43,7 @@ futures = "0.3.1"
 hex = "0.4"
 ironcore-search-helpers = { version = "0.2", optional = true }
 itertools = "0.14"
-jsonwebtoken = "9"
+jsonwebtoken = "10"
 lazy_static = "1.4"
 log = "0.4"
 papaya = "0.2.0"
