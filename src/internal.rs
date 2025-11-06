@@ -296,7 +296,7 @@ pub mod auth_v2 {
     }
 
     impl AuthV2Builder<'_> {
-        pub fn new(req_auth: &RequestAuth, timestamp: OffsetDateTime) -> AuthV2Builder {
+        pub fn new(req_auth: &RequestAuth, timestamp: OffsetDateTime) -> AuthV2Builder<'_> {
             AuthV2Builder {
                 req_auth,
                 timestamp,
@@ -725,7 +725,7 @@ impl<T> WithKey<T> {
 /// }; // lock released here
 /// ```
 ///
-pub(crate) fn take_lock<T>(m: &Mutex<T>) -> MutexGuard<T> {
+pub(crate) fn take_lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| {
         let error = format!("Error when acquiring lock: {e}");
         error!("{}", error);
