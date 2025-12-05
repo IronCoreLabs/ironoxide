@@ -16,7 +16,7 @@ keywords = [
 ]
 description = "A pure-Rust SDK for accessing IronCore's privacy platform"
 edition = "2024"
-rust-version = "1.86.0"
+rust-version = "1.88.0"
 
 [package.metadata.docs.rs]
 all-features = true

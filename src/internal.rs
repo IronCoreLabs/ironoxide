@@ -805,7 +805,7 @@ pub(crate) mod tests {
     use vec1::vec1;
 
     /// String contains matcher to assert that the provided substring exists in the provided value
-    pub fn contains(expected: &str) -> Box<dyn Matcher<String> + '_> {
+    pub fn contains(expected: &str) -> Box<dyn Matcher<'_, String> + '_> {
         Box::new(move |actual: &String| {
             let builder = MatchResultBuilder::for_("contains");
             if actual.contains(expected) {
