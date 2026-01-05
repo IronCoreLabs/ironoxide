@@ -8,11 +8,11 @@ repository = "https://github.com/IronCoreLabs/ironoxide"
 documentation = "https://docs.rs/ironoxide"
 categories = ["cryptography"]
 keywords = [
-  "cryptography",
-  "proxy-re-encryption",
-  "PRE",
-  "ECC",
-  "transform-encryption",
+    "cryptography",
+    "proxy-re-encryption",
+    "PRE",
+    "ECC",
+    "transform-encryption",
 ]
 description = "A pure-Rust SDK for accessing IronCore's privacy platform"
 edition = "2024"
@@ -55,17 +55,17 @@ rand_chacha = "0.3"
 recrypt = "0.14"
 regex = "1.4"
 reqwest = { version = "0.13", features = [
-  "json",
-  "query",
+    "json",
+    "query",
 ], default-features = false }
 ring = { version = "0.17", features = ["std"] }
 serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1"
 time = { version = "0.3.6", features = [
-  "std",
-  "serde-human-readable",
-  "serde-well-known",
-  "parsing",
+    "std",
+    "serde-human-readable",
+    "serde-well-known",
+    "parsing",
 ] }
 tokio = { version = "1", features = ["time"] }
 url = "2.2"
