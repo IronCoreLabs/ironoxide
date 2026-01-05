@@ -55,7 +55,7 @@ jobs:
       - name: Generate lockfile
         run: cargo generate-lockfile
       - name: Upload Cargo.lock
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.os }}-${{ matrix.features }}-${{ matrix.toolchain }}-Cargo.lock
           path: Cargo.lock
