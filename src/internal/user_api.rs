@@ -333,9 +333,8 @@ impl Jwt {
         // This insecure decode is acceptable here because the server will do the actual
         // signature verification and validation. We just want to do a little initial validation
         // to catch issues earlier.
-        let token_data =
-            jsonwebtoken::dangerous::insecure_decode::<JwtClaims>(jwt)
-                .map_err(|e| IronOxideErr::ValidationError("jwt".to_string(), e.to_string()))?;
+        let token_data = jsonwebtoken::dangerous::insecure_decode::<JwtClaims>(jwt)
+            .map_err(|e| IronOxideErr::ValidationError("jwt".to_string(), e.to_string()))?;
         let JwtClaims {
             pid,
             prefixed_pid,
