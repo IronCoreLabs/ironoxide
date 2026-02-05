@@ -1,6 +1,6 @@
 [package]
 name = "ironoxide"
-version = "4.1.0"
+version = "4.1.1"
 authors = ["IronCore Labs <info@ironcorelabs.com>"]
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -36,7 +36,6 @@ tls-default = ["reqwest/native-tls"]
 default = ["tls-default", "tokio/rt-multi-thread"]
 
 [dependencies]
-aws-lc-rs = "1"
 base64 = "0.22"
 base64-serde = "0.8"
 bytes = "1"
@@ -60,6 +59,7 @@ reqwest = { version = "0.13", features = [
   "query",
   "http2",
 ], default-features = false }
+ring = { version = "0.17", features = ["std"] }
 serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1"
 time = { version = "0.3.6", features = [

@@ -1,7 +1,7 @@
 use std::{fmt, num::NonZeroU32};
 
-use aws_lc_rs::{aead, aead::BoundKey, digest, error::Unspecified, pbkdf2};
 use rand::{self, CryptoRng, RngCore};
+use ring::{aead, aead::BoundKey, digest, error::Unspecified, pbkdf2};
 
 use crate::internal::{IronOxideErr, take_lock};
 use std::{convert::TryFrom, ops::DerefMut, sync::Mutex};
@@ -112,7 +112,7 @@ impl TryFrom<&[u8]> for AesEncryptedValue {
     }
 }
 
-impl From<aws_lc_rs::error::Unspecified> for IronOxideErr {
+impl From<ring::error::Unspecified> for IronOxideErr {
     fn from(ring_err: Unspecified) -> Self {
         IronOxideErr::AesError(ring_err)
     }

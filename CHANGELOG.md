@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.1.1
+
+- [[#363](https://github.com/IronCoreLabs/ironoxide/pull/363)]
+  - Switch back to ring to avoid breaking ironoxide-swig-bindings native compilation on arm64.
+
 ## 4.1.0
 
 - [[#339](https://github.com/IronCoreLabs/ironoxide/pull/339)]
