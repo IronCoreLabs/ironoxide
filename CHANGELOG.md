@@ -1,5 +1,21 @@
 # Changelog
 
+## 4.1.0
+
+- [[#339](https://github.com/IronCoreLabs/ironoxide/pull/339)]
+  - Update to Rust 2024 edition.
+- [[#340](https://github.com/IronCoreLabs/ironoxide/pull/340)]
+  - Update papaya to 0.2.0.
+- [[#355](https://github.com/IronCoreLabs/ironoxide/pull/355)]
+  - Bump MSRV to 1.88.0.
+  - Update criterion to 0.7.
+- [[#361](https://github.com/IronCoreLabs/ironoxide/pull/361)]
+  - Update to jsonwebtoken 10.
+  - Update to recrypt 0.15.
+  - Update reqwest to 0.12.
+  - Switch from `ring` to `aws-lc-rs` for AES.
+  - Change `Hash` on `Jwt` (jsonwebtoken's `Header` no longer implements `Hash`).
+
 ## 4.0.1
 
 - [[#335](https://github.com/IronCoreLabs/ironoxide/pull/335)]
