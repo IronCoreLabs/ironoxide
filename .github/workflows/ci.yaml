@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         # different operating systems
-        os: [ubuntu-24.04, macos-15-intel, windows-2025]
+        os: [ubuntu-24.04, macos-15-intel, macos-15, windows-2025]
         features: [default]
         toolchain: [stable]
         include:
