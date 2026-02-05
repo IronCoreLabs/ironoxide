@@ -11,8 +11,7 @@
   - Update criterion to 0.7.
 - [[#361](https://github.com/IronCoreLabs/ironoxide/pull/361)]
   - Update to jsonwebtoken 10.
-  - Update to recrypt 0.15.
-  - Update reqwest to 0.12.
+  - Update reqwest to 0.13.
   - Switch from `ring` to `aws-lc-rs` for AES.
   - Change `Hash` on `Jwt` (jsonwebtoken's `Header` no longer implements `Hash`).
 
