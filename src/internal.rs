@@ -136,7 +136,7 @@ quick_error! {
         KeyGenerationError {
             display("Key generation failed")
         }
-        AesError(err: ring::error::Unspecified) {
+        AesError(err: aws_lc_rs::error::Unspecified) {
             source(err)
         }
         AesEncryptedDocSizeError{
