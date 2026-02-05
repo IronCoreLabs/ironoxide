@@ -81,7 +81,7 @@ jobs:
           - ubuntu-24.04
         include:
           - target: aarch64-apple-ios
-            os: macos-15-intel
+            os: macos-15
     steps:
       - uses: actions/checkout@v6
       - uses: actions-rs/toolchain@v1
