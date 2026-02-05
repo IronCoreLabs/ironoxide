@@ -36,7 +36,7 @@ tls-default = ["reqwest/native-tls"]
 default = ["tls-default", "tokio/rt-multi-thread"]
 
 [dependencies]
-aws-lc-rs = { version = "1" }
+aws-lc-rs = "1"
 base64 = "0.22"
 base64-serde = "0.8"
 bytes = "1"
