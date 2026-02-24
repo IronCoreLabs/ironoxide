@@ -3,7 +3,7 @@ use crate::{
     internal::{rest::IronCoreRequest, *},
 };
 use itertools::{Either, Itertools};
-use jsonwebtoken::{Algorithm, DecodingKey, Validation};
+use jsonwebtoken::Algorithm;
 use rand::rngs::OsRng;
 use recrypt::prelude::*;
 use std::{
@@ -318,29 +318,22 @@ pub struct JwtClaims {
 /// Must be either ES256 or RS256 and have a payload similar to [JwtClaims](struct.JwtClaims.html), but could be
 /// generated from an external source.
 #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Hash)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Jwt {
     jwt: String,
     header: jsonwebtoken::Header,
     claims: JwtClaims,
 }
+
 impl Jwt {
     /// Constructs a new Jwt.
     ///
     /// Verifies that the provided jwt uses a compatible algorithm and contains the required claims.
     pub fn new(jwt: &str) -> Result<Jwt, IronOxideErr> {
-        let bogus_key = DecodingKey::from_secret(&[]);
-        let validation = {
-            let mut temp: Validation = Default::default();
-            temp.insecure_disable_signature_validation();
-            temp.validate_aud = false;
-            temp.validate_exp = false;
-            temp
-        };
-        // This suspect key/validation is acceptable here because the server will do the actual
+        // This insecure decode is acceptable here because the server will do the actual
         // signature verification and validation. We just want to do a little initial validation
         // to catch issues earlier.
-        let token_data = jsonwebtoken::decode::<JwtClaims>(jwt, &bogus_key, &validation)
+        let token_data = jsonwebtoken::dangerous::insecure_decode::<JwtClaims>(jwt)
             .map_err(|e| IronOxideErr::ValidationError("jwt".to_string(), e.to_string()))?;
         let JwtClaims {
             pid,
@@ -414,6 +407,12 @@ impl TryFrom<&str> for Jwt {
 impl std::fmt::Display for Jwt {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.jwt)
+    }
+}
+impl std::hash::Hash for Jwt {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Header and claims are derived from the string
+        self.jwt.hash(state);
     }
 }
 
