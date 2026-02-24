@@ -169,7 +169,7 @@ impl BlockingIronOxide {
         self.runtime
             .block_on(self.ironoxide.document_revoke_access(id, revoke_list))
     }
-    /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_encrypt_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged)
+    /// See [ironoxide::document::unmanaged::DocumentUnmanagedOps::document_encrypt](trait.DocumentUnmanagedOps.html#tymethod.document_encrypt_unmanaged)
     pub fn document_encrypt_unmanaged(
         &self,
         data: Vec<u8>,
@@ -180,7 +180,7 @@ impl BlockingIronOxide {
                 .document_encrypt_unmanaged(data, encrypt_opts),
         )
     }
-    /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_decrypt_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_decrypt_unmanaged)
+    /// See [ironoxide::document::unmanaged::DocumentUnmanagedOps::document_decrypt](trait.DocumentUnmanagedOps.html#tymethod.document_decrypt_unmanaged)
     pub fn document_decrypt_unmanaged(
         &self,
         encrypted_data: &[u8],

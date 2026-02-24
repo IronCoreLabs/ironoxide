@@ -1,6 +1,6 @@
-//! Advanced document API
+//! Unmanaged document API
 //!
-//! See [DocumentAdvancedOps](trait.DocumentAdvancedOps.html) for advanced document functions and key terms.
+//! See [DocumentUnmanagedOps](trait.DocumentUnmanagedOps.html) for unmanaged document functions and key terms.
 
 pub use crate::internal::document_api::{
     DocumentDecryptUnmanagedResult, DocumentEncryptUnmanagedResult,
@@ -16,15 +16,20 @@ use itertools::EitherOrBoth;
 
 /// IronOxide Advanced Document Operations
 ///
-/// # Key Terms
-/// - EDEKs - Encrypted document encryption keys produced by unmanaged document encryption and required for unmanaged
-///   document decryption.
+/// These are just the encrypt and decrypt functions from the DocumentUnmanaged API, included
+/// for backward compatibility.
+///
 pub trait DocumentAdvancedOps {
-    /// Encrypts the provided document bytes without being managed by the IronCore service.
+    /// Encrypts the provided document bytes without using EDEKs managed by the IronCore service.
     ///
     /// The webservice is still needed for looking up public keys and evaluating policies, but no
-    /// document is created and the EDEKs are not stored. An additional burden is put on the caller
-    /// in that both the encrypted data and the EDEKs must be provided for decryption.
+    /// document is created and the EDEKs are not stored. Note that if you initialize the SDK with
+    /// the public keys for the users and/or groups you are encrypting to and if you call encrypt
+    /// with explicit grants instead of policy grants, you can do the encryption offline (without
+    /// contacting the server).
+    ///
+    /// An additional burden is put on the caller in that both the encrypted data and the EDEKs must
+    /// be stored together, so they can be provided for decryption.
     ///
     /// # Arguments
     /// - `data` - Bytes of the document to encrypt
@@ -41,7 +46,8 @@ pub trait DocumentAdvancedOps {
     /// Requires the encrypted data and EDEKs returned from
     /// [document_encrypt_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged).
     ///
-    /// The webservice is still needed to transform a chosen EDEK so it can be decrypted by the caller's private key.
+    /// The webservice is still needed to transform a chosen EDEK so it can be decrypted by the caller's
+    /// private key, so offline decryption is not possible.
     ///
     /// # Arguments
     /// - `encrypted_data` - Bytes of the encrypted document

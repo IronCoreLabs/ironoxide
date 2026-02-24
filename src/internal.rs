@@ -426,6 +426,34 @@ impl DeviceContext {
     }
 }
 
+/// A cache recording the (id, public key) pairs that have been seen by the API. There are
+/// separate lists for users and groups.
+pub struct PublicKeyCache {
+    user_keys: KeyCache,
+    group_keys: KeyCache,
+}
+
+impl PublicKeyCache {
+    /// Constructs a `PublicKeyCache` with empty caches of user and group keys.
+    ///
+    pub fn new() -> PublicKeyCache {
+        user_keys = KeyCache.new();
+        group_keys = KeyCache.new();
+    }
+    pub fn deserialize(serialized_cache: vec<u8>) -> PublicKeyCache {
+    }
+    pub fn user_keys(&self) -> KeyCache {
+        self.user_keys
+    }
+    pub fn group_keys(&self) -> KeyCache {
+        self.group_keys
+    }
+    pub fn serialize(&self) -> Vec<u8> {
+        /// Serialize the cache to bytes that can be persisted and reloaded
+        /// when the SDK is initialized
+    }
+}
+
 /// Newtype wrapper around Recrypt TransformKey type
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct TransformKey(recrypt::api::TransformKey);

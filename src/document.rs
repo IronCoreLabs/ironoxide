@@ -19,6 +19,7 @@ use futures::Future;
 use itertools::{Either, EitherOrBoth, Itertools};
 
 pub mod advanced;
+pub mod unmanaged;
 
 /// List of users and groups that should have access to decrypt a document.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -139,8 +140,8 @@ pub trait DocumentOps {
     /// in order to decrypt the document.
     ///
     /// Metadata about the document will be stored by IronCore, but the encrypted bytes of the document will not. To encrypt
-    /// without any document information being stored by IronCore, consider using
-    /// [document_encrypt_unmanaged](advanced/trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged) instead.
+    /// without any document information being stored by IronCore, consider using the unmanaged
+    /// [document_encrypt](unmanaged/trait.DocumentUnmanagedOps.html#tymethod.document_encrypt) instead.
     ///
     /// # Arguments
     /// - `document_data` - Bytes of the document to encrypt
