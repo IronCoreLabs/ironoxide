@@ -610,6 +610,88 @@ async fn group_remove_admin() -> Result<(), IronOxideErr> {
 }
 
 #[tokio::test]
+async fn group_remove_owner_as_admin_fails() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
+    let account_id = sdk.device().account_id().clone();
+
+    let group_result = sdk.group_create(&GroupCreateOpts::default()).await?;
+    let group_id = group_result.id().clone();
+
+    // Attempting to remove the owner as an admin should fail server-side.
+    let remove_result = sdk
+        .group_remove_admins(&group_id, &[account_id.clone()])
+        .await?;
+    assert_eq!(remove_result.succeeded().len(), 0);
+    assert_eq!(remove_result.failed().len(), 1);
+    assert_eq!(remove_result.failed()[0].user(), &account_id);
+    Ok(())
+}
+
+#[tokio::test]
+async fn group_remove_owner_as_member_succeeds() -> Result<(), IronOxideErr> {
+    let sdk = initialize_sdk().await?;
+    let account_id = sdk.device().account_id().clone();
+
+    let group_result = sdk.group_create(&GroupCreateOpts::default()).await?;
+    let group_id = group_result.id().clone();
+
+    // The owner CAN be removed as a member (unlike admin removal, which is protected).
+    let remove_result = sdk
+        .group_remove_members(&group_id, &[account_id.clone()])
+        .await?;
+    assert_eq!(remove_result.succeeded().len(), 1);
+    assert_eq!(&remove_result.succeeded()[0], &account_id);
+    assert_eq!(remove_result.failed().len(), 0);
+    Ok(())
+}
+
+#[tokio::test]
+async fn group_non_admin_member_can_remove_self() -> Result<(), IronOxideErr> {
+    let admin_sdk = initialize_sdk().await?;
+    let member_sdk = initialize_sdk().await?;
+    let member_id = member_sdk.device().account_id().clone();
+
+    let group_result = admin_sdk.group_create(&GroupCreateOpts::default()).await?;
+    let group_id = group_result.id().clone();
+
+    // Add the second user as a member (not an admin).
+    let add_result = admin_sdk
+        .group_add_members(&group_id, &[member_id.clone()])
+        .await?;
+    assert_eq!(add_result.succeeded().len(), 1);
+
+    // A non-admin member should be able to remove themselves.
+    let remove_result = member_sdk
+        .group_remove_members(&group_id, &[member_id.clone()])
+        .await?;
+    assert_eq!(remove_result.succeeded().len(), 1);
+    assert_eq!(&remove_result.succeeded()[0], &member_id);
+    assert_eq!(remove_result.failed().len(), 0);
+    Ok(())
+}
+
+#[tokio::test]
+async fn group_non_owner_admin_can_delete() -> Result<(), IronOxideErr> {
+    let owner_sdk = initialize_sdk().await?;
+    let admin_sdk = initialize_sdk().await?;
+    let admin_id = admin_sdk.device().account_id().clone();
+
+    let group_result = owner_sdk.group_create(&GroupCreateOpts::default()).await?;
+    let group_id = group_result.id().clone();
+
+    // Add the second user as an admin.
+    let add_admin_result = owner_sdk
+        .group_add_admins(&group_id, &[admin_id])
+        .await?;
+    assert_eq!(add_admin_result.succeeded().len(), 1);
+
+    // A non-owner admin should be able to delete the group.
+    let delete_result = admin_sdk.group_delete(&group_id).await?;
+    assert_eq!(delete_result, group_id);
+    Ok(())
+}
+
+#[tokio::test]
 async fn group_get_not_url_safe_id() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
 
