@@ -680,9 +680,7 @@ async fn group_non_owner_admin_can_delete() -> Result<(), IronOxideErr> {
     let group_id = group_result.id().clone();
 
     // Add the second user as an admin.
-    let add_admin_result = owner_sdk
-        .group_add_admins(&group_id, &[admin_id])
-        .await?;
+    let add_admin_result = owner_sdk.group_add_admins(&group_id, &[admin_id]).await?;
     assert_eq!(add_admin_result.succeeded().len(), 1);
 
     // A non-owner admin should be able to delete the group.
