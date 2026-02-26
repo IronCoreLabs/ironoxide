@@ -436,10 +436,33 @@ type UserPublicKeyCache = HashMap<UserId, PublicKey>;
 type GroupPublicKeyCache = HashMap<GroupId, PublicKey>;
 /// A cache recording the (id, public key) pairs that have been seen by the API. There are
 /// separate lists for users and groups.
+// TODO(murph): expiration? size limits?
 #[derive(Serialize, Deserialize, Default)]
 pub(crate) struct PublicKeyCache {
+    #[serde(serialize_with = "serialize_papaya_map")]
     user_keys: UserPublicKeyCache,
+    #[serde(serialize_with = "serialize_papaya_map")]
     group_keys: GroupPublicKeyCache,
+}
+
+/// `papaya` can't provide `size_hint` (due to being concurrent, no reliable upper bound) to indicate to serde's
+/// `serialize_seq` how long it is during serialization. `postcard` (our data format) requires a length on
+/// `serialize_seq` or it errors. This manual serialization gets around `papaya`'s lack of `size_hint` by serializing
+/// individual entries till it runs out, which dodges some concurrency issues (something already serialized could get
+/// tombstoned while writing and be out of date).
+/// The default `deserialize` in papaya still works fine with this output.
+fn serialize_papaya_map<S, K, V>(map: &HashMap<K, V>, serializer: S) -> StdResult<S::Ok, S::Error>
+where
+    S: Serializer,
+    K: Serialize + core::hash::Hash + Eq,
+    V: Serialize,
+{
+    use serde::ser::SerializeMap;
+    let mut ser_map = serializer.serialize_map(Some(map.len()))?;
+    for (k, v) in map.pin().iter() {
+        ser_map.serialize_entry(k, v)?;
+    }
+    ser_map.end()
 }
 
 impl PublicKeyCache {
@@ -623,6 +646,9 @@ impl Serialize for PublicKey {
 impl<'de> Deserialize<'de> for PublicKey {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> StdResult<Self, D::Error> {
         let bytes: Vec<u8> = Deserialize::deserialize(deserializer)?;
+        if bytes.len() != 64 {
+            return Err(serde::de::Error::invalid_length(bytes.len(), &"64 bytes"));
+        }
         let (x, y) = bytes.split_at(32);
         PublicKey::new_from_slice((x, y)).map_err(serde::de::Error::custom)
     }
@@ -915,6 +941,7 @@ pub(crate) mod tests {
     use super::*;
     use double::*;
     use galvanic_assert::{matchers::*, *};
+    use recrypt::api::Ed25519Ops;
     use std::fmt::Debug;
     use tokio::time::Duration;
     use vec1::vec1;
@@ -1102,6 +1129,23 @@ pub(crate) mod tests {
             (&proto_pubk.x.to_vec(), &proto_pubk.y.to_vec())
         );
         Ok(())
+    }
+    #[test]
+    fn public_key_postcard_roundtrip() {
+        let recr = Recrypt::new();
+        let (_, re_pubk) = recr.generate_key_pair().unwrap();
+        let pubk: PublicKey = re_pubk.into();
+
+        let bytes = postcard::to_stdvec(&pubk).unwrap();
+        let deserialized: PublicKey = postcard::from_bytes(&bytes).unwrap();
+        assert_eq!(pubk, deserialized);
+    }
+
+    #[test]
+    fn public_key_deserialize_wrong_length_fails() {
+        let bytes = postcard::to_stdvec(&vec![0u8; 30]).unwrap(); // too short for a public key
+        let result: StdResult<PublicKey, _> = postcard::from_bytes(&bytes);
+        assert!(result.is_err());
     }
 
     #[test]
@@ -1451,5 +1495,78 @@ pub(crate) mod tests {
             is_variant!(IronOxideErr::OperationTimedOut)
         );
         Ok(())
+    }
+    #[test]
+    fn signing_key_sign_then_verify() {
+        let recrypt = Recrypt::new();
+        let signing_keypair = recrypt.generate_ed25519_key_pair();
+        let device_keypair = DeviceSigningKeyPair::from(signing_keypair);
+
+        let message = b"test payload";
+        let signature = device_keypair.sign(message);
+        assert!(
+            device_keypair
+                .verify(&message.as_slice(), &signature)
+                .unwrap()
+        );
+    }
+    #[test]
+    fn signing_key_verify_wrong_message_fails() {
+        let recrypt = Recrypt::new();
+        let signing_keypair = recrypt.generate_ed25519_key_pair();
+        let device_keypair = DeviceSigningKeyPair::from(signing_keypair);
+
+        let signature = device_keypair.sign(b"original");
+        assert!(
+            !device_keypair
+                .verify(&b"tampered".as_slice(), &signature)
+                .unwrap()
+        );
+    }
+    #[test]
+    fn signing_key_verify_bad_signature_length_fails() {
+        let recrypt = Recrypt::new();
+        let signing_keypair = recrypt.generate_ed25519_key_pair();
+        let device_keypair = DeviceSigningKeyPair::from(signing_keypair);
+
+        let result = device_keypair.verify(&b"message".as_slice(), &[0u8; 32]);
+        assert!(result.is_err());
+    }
+    #[test]
+    fn empty_public_key_cache_roundtrip() {
+        let cache = PublicKeyCache::default();
+        let bytes = cache.serialize().unwrap();
+        let deserialized = PublicKeyCache::deserialize(&bytes).unwrap();
+        assert_eq!(deserialized.user_keys().len(), 0);
+        assert_eq!(deserialized.group_keys().len(), 0);
+    }
+    #[test]
+    fn populated_public_key_cache_roundtrip() {
+        let recrypt = Recrypt::new();
+        let (_, pub1) = recrypt.generate_key_pair().unwrap();
+        let (_, pub2) = recrypt.generate_key_pair().unwrap();
+
+        let cache = PublicKeyCache::default();
+        cache
+            .user_keys()
+            .pin()
+            .insert(UserId::unsafe_from_string("user1".into()), pub1.into());
+        cache
+            .group_keys()
+            .pin()
+            .insert(GroupId::unsafe_from_string("group1".into()), pub2.into());
+
+        let bytes = cache.serialize().unwrap();
+        let deserialized = PublicKeyCache::deserialize(&bytes).unwrap();
+
+        let user_id = UserId::unsafe_from_string("user1".into());
+        let group_id = GroupId::unsafe_from_string("group1".into());
+        assert!(deserialized.user_keys().pin().get(&user_id).is_some());
+        assert!(deserialized.group_keys().pin().get(&group_id).is_some());
+    }
+    #[test]
+    fn public_key_cache_deserialize_garbage_bytes_fails() {
+        let result = PublicKeyCache::deserialize(b"deadbeef");
+        assert!(result.is_err());
     }
 }
