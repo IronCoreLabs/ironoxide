@@ -169,7 +169,7 @@ impl BlockingIronOxide {
         self.runtime
             .block_on(self.ironoxide.document_revoke_access(id, revoke_list))
     }
-    /// See [ironoxide::document::unmanaged::DocumentUnmanagedOps::document_encrypt](trait.DocumentUnmanagedOps.html#tymethod.document_encrypt_unmanaged)
+    /// See [ironoxide::document::unmanaged::DocumentAdvancedOps::document_encrypt](trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged)
     pub fn document_encrypt_unmanaged(
         &self,
         data: Vec<u8>,
@@ -180,7 +180,7 @@ impl BlockingIronOxide {
                 .document_encrypt_unmanaged(data, encrypt_opts),
         )
     }
-    /// See [ironoxide::document::unmanaged::DocumentUnmanagedOps::document_decrypt](trait.DocumentUnmanagedOps.html#tymethod.document_decrypt_unmanaged)
+    /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_decrypt_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_decrypt_unmanaged)
     pub fn document_decrypt_unmanaged(
         &self,
         encrypted_data: &[u8],
@@ -190,6 +190,55 @@ impl BlockingIronOxide {
             self.ironoxide
                 .document_decrypt_unmanaged(encrypted_data, encrypted_deks),
         )
+    }
+    /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_get_metadata_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_get_metadata_unmanaged)
+    pub fn document_get_metadata_unmanaged(
+        &self,
+        encrypted_deks: &[u8],
+    ) -> Result<DocumentMetadataResult> {
+        self.runtime.block_on(
+            self.ironoxide
+                .document_get_metadata_unmanaged(encrypted_deks),
+        )
+    }
+    /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_get_id_from_bytes_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_get_id_from_bytes_unmanaged)
+    pub fn document_get_id_from_bytes_unmanaged(
+        &self,
+        encrypted_document: &[u8],
+    ) -> Result<DocumentId> {
+        self.ironoxide
+            .document_get_id_from_bytes_unmanaged(encrypted_document)
+    }
+    /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_get_id_from_edeks_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_get_id_from_edeks_unmanaged)
+    pub fn document_get_id_from_edeks_unmanaged(&self, edeks: &[u8]) -> Result<DocumentId> {
+        self.ironoxide
+            .document_get_id_from_edeks_unmanaged(edeks)
+    }
+    /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_grant_access_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_grant_access_unmanaged)
+    pub fn document_grant_access_unmanaged(
+        &self,
+        edeks: &[u8],
+        grant_list: &[UserOrGroup],
+    ) -> Result<DocumentAccessResult> {
+        self.runtime.block_on(
+            self.ironoxide
+                .document_grant_access_unmanaged(edeks, grant_list),
+        )
+    }
+    /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_revoke_access_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_revoke_access_unmanaged)
+    pub fn document_revoke_access_unmanaged(
+        &self,
+        edeks: &[u8],
+        revoke_list: &[UserOrGroup],
+    ) -> Result<DocumentAccessResult> {
+        self.runtime.block_on(
+            self.ironoxide
+                .document_revoke_access_unmanaged(edeks, revoke_list),
+        )
+    }
+    /// See [ironoxide::IronOxide::export_public_key_cache](../struct.IronOxide.html#method.export_public_key_cache)
+    pub fn export_public_key_cache(&self) -> Result<Vec<u8>> {
+        self.ironoxide.export_public_key_cache()
     }
     /// See [ironoxide::group::GroupOps::group_list](trait.GroupOps.html#tymethod.group_list)
     pub fn group_list(&self) -> Result<GroupListResult> {
@@ -347,6 +396,60 @@ pub fn initialize(
     maybe_io.map(|io| BlockingIronOxide {
         ironoxide: io,
         runtime: device_context.rt.clone(),
+    })
+}
+
+/// Initialize the BlockingIronOxide SDK with a device and cached public keys, enabling offline encryption immediately.
+///
+/// Verifies that the provided user/segment exists and the provided device keys are valid and
+/// exist for the provided account. Verifies the public key cache has not been tampered with.
+pub fn initialize_with_public_keys(
+    device_context: &BlockingDeviceContext,
+    config: &IronOxideConfig,
+    public_key_cache: Vec<u8>,
+) -> Result<BlockingIronOxide> {
+    let maybe_io = device_context.rt.block_on(crate::initialize_with_public_keys(
+        &device_context.device,
+        config,
+        public_key_cache,
+    ));
+    maybe_io.map(|io| BlockingIronOxide {
+        ironoxide: io,
+        runtime: device_context.rt.clone(),
+    })
+}
+
+/// Initialize the BlockingIronOxide SDK with a device and cached public keys, and check for
+/// necessary private key rotations.
+///
+/// Verifies that the provided user/segment exists and the provided device keys are valid and
+/// exist for the provided account. Verifies the public key cache has not been tampered with.
+/// Also checks if the user or any groups they admin are marked for private key rotation.
+pub fn initialize_with_public_keys_and_check_rotation(
+    device_context: &BlockingDeviceContext,
+    config: &IronOxideConfig,
+    public_key_cache: Vec<u8>,
+) -> Result<InitAndRotationCheck<BlockingIronOxide>> {
+    let maybe_init =
+        device_context
+            .rt
+            .block_on(crate::initialize_with_public_keys_and_check_rotation(
+                &device_context.device,
+                config,
+                public_key_cache,
+            ));
+    maybe_init.map(|init| match init {
+        NoRotationNeeded(io) => NoRotationNeeded(BlockingIronOxide {
+            ironoxide: io,
+            runtime: device_context.rt.clone(),
+        }),
+        RotationNeeded(io, rot) => RotationNeeded(
+            BlockingIronOxide {
+                ironoxide: io,
+                runtime: device_context.rt.clone(),
+            },
+            rot,
+        ),
     })
 }
 

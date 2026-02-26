@@ -389,6 +389,43 @@ pub async fn initialize_with_public_keys(
     .map_err(|e: IronOxideErr| IronOxideErr::InitializeError(e.to_string()))
 }
 
+/// Initializes the IronOxide SDK with a device and cached public keys, and checks for necessary
+/// private key rotations.
+///
+/// Verifies that the provided user/segment exists and the provided device keys are valid and
+/// exist for the provided account. Verifies the public key cache has not been tampered with.
+/// Also checks if the user or any groups they admin are marked for private key rotation.
+pub async fn initialize_with_public_keys_and_check_rotation(
+    device_context: &DeviceContext,
+    config: &IronOxideConfig,
+    public_key_cache: Vec<u8>,
+) -> Result<InitAndRotationCheck<IronOxide>> {
+    let (curr_user, group_list_result) = add_optional_timeout(
+        futures::future::try_join(
+            internal::user_api::user_get_current(device_context.auth()),
+            internal::group_api::list(device_context.auth(), None),
+        ),
+        config.sdk_operation_timeout,
+        SdkOperation::InitializeSdkCheckRotation,
+    )
+    .await??;
+
+    let verified_cache =
+        PublicKeyCache::deserialize_signed_public_key_cache(device_context, &public_key_cache)
+            .map_err(|e| IronOxideErr::InitializeError(e.to_string()))?;
+    let ironoxide =
+        IronOxide::create_with_public_key_cache(&curr_user, device_context, config, verified_cache)
+            .map_err(|e| IronOxideErr::InitializeError(e.to_string()))?;
+    let user_groups = group_list_result.result();
+
+    Ok(check_groups_and_collect_rotation(
+        user_groups,
+        curr_user.needs_rotation(),
+        curr_user.account_id().to_owned(),
+        ironoxide,
+    ))
+}
+
 /// Finds the groups that the caller is an admin of that need rotation and
 /// forms an InitAndRotationCheck from the user/groups needing rotation.
 fn check_groups_and_collect_rotation<T>(
