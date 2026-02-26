@@ -3,7 +3,7 @@
 #[doc(no_inline)]
 pub use crate::{
     InitAndRotationCheck, IronOxide, IronOxideErr, PrivateKeyRotationCheckResult, common::*,
-    config::*, document::unmanaged::*, document::*, group::*, policy::*, user::*,
+    config::*, document::advanced::*, document::*, group::*, policy::*, user::*,
 };
 #[doc(no_inline)]
 pub use itertools::EitherOrBoth;

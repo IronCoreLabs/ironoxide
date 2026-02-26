@@ -362,36 +362,6 @@ impl DocumentEncryptUnmanagedResult {
     }
 }
 
-/// Full metadata for an unmanaged document.
-///
-/// Result from [document_get_metadata](trait.DocumentUnmanagedOps.html#tymethod.document_get_metadata).
-// TODO(murph): do we need this? It seems like it's fully the same as the normal response
-// #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-// pub struct DocumentMetadataUnmanagedResult(DocumentMetaApiResponse);
-// impl DocumentMetadataUnmanagedResult {
-//     /// ID of the document
-//     pub fn id(&self) -> &DocumentId {
-//         &self.0.id
-//     }
-//     /// How the requesting user has access to the document
-//     pub fn association_type(&self) -> &AssociationType {
-//         &self.0.association.typ
-//     }
-//     /// List of users who have access to the document
-//     pub fn visible_to_users(&self) -> &Vec<VisibleUser> {
-//         &self.0.visible_to.users
-//     }
-//     /// List of groups that have access to the document
-//     pub fn visible_to_groups(&self) -> &Vec<VisibleGroup> {
-//         &self.0.visible_to.groups
-//     }
-
-//     // Not exposed outside of the crate
-//     fn to_encrypted_symmetric_key(&self) -> Result<recrypt::api::EncryptedValue, IronOxideErr> {
-//         self.0.encrypted_symmetric_key.clone().try_into()
-//     }
-// }
-
 /// Encrypted document bytes and metadata.
 ///
 /// Result from [document_encrypt](trait.DocumentOps.html#tymethod.document_encrypt) and
@@ -755,6 +725,9 @@ where
             .map(|policy_resp| {
                 let (errs, public_keys) = process_policy(&policy_resp);
                 if errs.is_empty() {
+                    // TODO(breaking): we should not do this, replacing something would make a lot more sense than
+                    //   blowing up their active cache. We also _do_ want things to time expire in case the policy
+                    //   structure has updated.
                     //if the cache has grown too large, clear it prior to adding new entries
                     let policy_pin = policy_cache.pin();
                     if policy_cache.len() >= config.max_entries {
