@@ -115,7 +115,7 @@ async fn generate_encrypted_documents(
 
 /// Decrypts a single document, explicitly printing when the decryption takes place.
 async fn decrypt_document(sdk: &IronOxide, document: &[u8]) -> Result<DocumentDecryptResult> {
-    let id = sdk.document_get_id_from_bytes(document)?;
+    let id = sdk.document_get_id_from_bytes_unmanaged(document)?;
     println!("Decrypting document with ID {}", id.id());
     let decrypted_document = sdk.document_decrypt(document).await?;
     Ok(decrypted_document)
@@ -206,7 +206,7 @@ fn print_encrypted_documents(sdk: &IronOxide, encrypted_documents: &[&[u8]]) {
         .enumerate()
         .for_each(|(offset, doc)| {
             let id = sdk
-                .document_get_id_from_bytes(doc)
+                .document_get_id_from_bytes_unmanaged(doc)
                 .expect("Invalid document bytes");
             println!("#{}: {}", offset + 1, id.id())
         });

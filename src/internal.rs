@@ -2,39 +2,42 @@
 //! If it can be defined in API specific file, it should go there to keep this file's
 //! size to a minimum.
 
-use crate::internal::{
-    group_api::GroupId,
-    rest::{Authorization, SignatureUrlString},
-    user_api::UserId,
-};
+use crate::Result;
 use base64::engine::Engine;
 use base64::prelude::BASE64_STANDARD;
 use futures::Future;
+use group_api::GroupId;
+use itertools::{Either, Itertools};
 use lazy_static::lazy_static;
 use log::error;
+use papaya::HashMap;
 use protobuf::{self, Error as ProtobufError};
 use quick_error::quick_error;
 use recrypt::api::{
-    CryptoOps, Ed25519, Hashable, KeyGenOps, Plaintext, PrivateKey as RecryptPrivateKey,
-    PublicKey as RecryptPublicKey, RandomBytes, Recrypt, RecryptErr, Sha256,
-    SigningKeypair as RecryptSigningKeypair,
+    CryptoOps, Ed25519, Ed25519Signature, Hashable, KeyGenOps, Plaintext,
+    PrivateKey as RecryptPrivateKey, PublicKey as RecryptPublicKey, RandomBytes, Recrypt,
+    RecryptErr, Sha256, SigningKeypair as RecryptSigningKeypair,
 };
 use regex::Regex;
 use reqwest::Method;
+use rest::{Authorization, SignatureUrlString};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     convert::{TryFrom, TryInto},
     fmt::{Error, Formatter},
-    result::Result,
+    result::Result as StdResult,
     sync::{Mutex, MutexGuard},
 };
 use time::OffsetDateTime;
+use user_api::UserId;
 
 pub mod document_api;
 pub mod group_api;
 mod rest;
 pub mod user_api;
 pub use rest::IronCoreRequest;
+
+const DEVICE_SIGNATURE_LENGTH: usize = 64;
 
 lazy_static! {
     pub static ref URL_STRING: String = match std::env::var("IRONCORE_ENV") {
@@ -115,7 +118,7 @@ pub enum SdkOperation {
 }
 
 impl std::fmt::Display for SdkOperation {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> StdResult<(), Error> {
         write!(f, "'{self:?}'")
     }
 }
@@ -202,6 +205,9 @@ quick_error! {
         JoinError(msg: String) {
             display("{}", msg)
         }
+        CacheSerdeError(error: postcard::Error) {
+            source(error)
+        }
     }
 }
 
@@ -248,7 +254,7 @@ const NAME_AND_ID_MAX_LEN: usize = 100;
 /// Validate that the provided id is valid for our user/document/group IDs. Validates that the
 /// ID has a length and that it matches our restricted set of characters. Also takes the readable
 /// type of ID for usage within any resulting error messages.
-pub fn validate_id(id: &str, id_type: &str) -> Result<String, IronOxideErr> {
+pub fn validate_id(id: &str, id_type: &str) -> Result<String> {
     let id_regex = Regex::new("^[a-zA-Z0-9_.$#|@/:;=+'-]+$").expect("regex is valid");
     let trimmed_id = id.trim();
     if trimmed_id.is_empty() || trimmed_id.len() > NAME_AND_ID_MAX_LEN {
@@ -269,7 +275,7 @@ pub fn validate_id(id: &str, id_type: &str) -> Result<String, IronOxideErr> {
 /// Validate that the provided document/group name is valid. Ensures that the length of
 /// the name is between 1-100 characters. Also takes the readable type of the name for
 /// usage within any resulting error messages.
-pub fn validate_name(name: &str, name_type: &str) -> Result<String, IronOxideErr> {
+pub fn validate_name(name: &str, name_type: &str) -> Result<String> {
     let trimmed_name = name.trim();
     if trimmed_name.trim().is_empty() || trimmed_name.len() > NAME_AND_ID_MAX_LEN {
         Err(IronOxideErr::ValidationError(
@@ -426,32 +432,103 @@ impl DeviceContext {
     }
 }
 
+type UserPublicKeyCache = HashMap<UserId, PublicKey>;
+type GroupPublicKeyCache = HashMap<GroupId, PublicKey>;
 /// A cache recording the (id, public key) pairs that have been seen by the API. There are
 /// separate lists for users and groups.
-pub struct PublicKeyCache {
-    user_keys: KeyCache,
-    group_keys: KeyCache,
+#[derive(Serialize, Deserialize, Default)]
+pub(crate) struct PublicKeyCache {
+    user_keys: UserPublicKeyCache,
+    group_keys: GroupPublicKeyCache,
 }
 
 impl PublicKeyCache {
-    /// Constructs a `PublicKeyCache` with empty caches of user and group keys.
-    ///
-    pub fn new() -> PublicKeyCache {
-        user_keys = KeyCache.new();
-        group_keys = KeyCache.new();
+    /// Serialize the cache to bytes that can be persisted and reloaded
+    /// when the SDK is initialized
+    pub(crate) fn serialize(&self) -> Result<Vec<u8>> {
+        postcard::to_stdvec(&self).map_err(IronOxideErr::CacheSerdeError)
     }
-    pub fn deserialize(serialized_cache: vec<u8>) -> PublicKeyCache {
+    pub(crate) fn deserialize(serialized_cache: &[u8]) -> Result<Self> {
+        postcard::from_bytes(serialized_cache).map_err(IronOxideErr::CacheSerdeError)
     }
-    pub fn user_keys(&self) -> KeyCache {
-        self.user_keys
+    pub(crate) fn user_keys(&self) -> &HashMap<UserId, PublicKey> {
+        &self.user_keys
     }
-    pub fn group_keys(&self) -> KeyCache {
-        self.group_keys
+    pub(crate) fn group_keys(&self) -> &HashMap<GroupId, PublicKey> {
+        &self.group_keys
     }
-    pub fn serialize(&self) -> Vec<u8> {
-        /// Serialize the cache to bytes that can be persisted and reloaded
-        /// when the SDK is initialized
+    pub(crate) fn deserialize_signed_public_key_cache(
+        device: &DeviceContext,
+        signed_cache_bytes: &[u8],
+    ) -> Result<PublicKeyCache> {
+        if signed_cache_bytes.len() < DEVICE_SIGNATURE_LENGTH {
+            return Err(IronOxideErr::WrongSizeError(
+                Some(signed_cache_bytes.len()),
+                Some(DEVICE_SIGNATURE_LENGTH),
+            ));
+        }
+        let (signature, cache) = signed_cache_bytes.split_at(DEVICE_SIGNATURE_LENGTH);
+        if device.signing_private_key().verify(&cache, signature)? {
+            Self::deserialize(cache)
+        } else {
+            Err(IronOxideErr::ValidationError(
+                "signed public key cache".to_string(),
+                "The signed public key cache failed signature verification.".to_string(),
+            ))
+        }
     }
+}
+
+// helper function for getting keys from an API via a cache first, and updating the cache after.
+pub(crate) async fn get_keys_with_cache<Id, F, Op>(
+    ids: &[Id],
+    cache: &HashMap<Id, PublicKey>,
+    fetch: F,
+) -> Result<(Vec<Id>, Vec<WithKey<Id>>)>
+where
+    Id: Clone + Eq + core::hash::Hash,
+    F: FnOnce(Vec<Id>) -> Op,
+    Op: Future<Output = Result<std::collections::HashMap<Id, PublicKey>>>,
+{
+    // if there aren't any ids in the list, just return with empty results
+    if ids.is_empty() {
+        return Ok((vec![], vec![]));
+    }
+
+    let (cached, uncached): (Vec<_>, Vec<_>) = ids.iter().cloned().partition_map(|id| match cache
+        .pin()
+        .get(&id)
+    {
+        Some(pk) => Either::Left(WithKey::new(id, pk.clone())),
+        None => Either::Right(id),
+    });
+
+    // everything requested was cached, we can return without making an API call
+    if uncached.is_empty() {
+        return Ok((vec![], cached));
+    }
+
+    // call the API for remaining missing ids
+    let ids_with_keys = fetch(uncached.clone()).await?;
+    let (not_found, found): (Vec<_>, Vec<_>) =
+        uncached
+            .into_iter()
+            .partition_map(|id| match ids_with_keys.get(&id).cloned() {
+                Some(pk) => {
+                    cache.pin().insert(id.clone(), pk.clone());
+                    Either::Right(WithKey::new(id, pk))
+                }
+                None => Either::Left(id),
+            });
+
+    // cache the newly returned API values
+    for id_with_key in &found {
+        cache
+            .pin()
+            .insert(id_with_key.id.clone(), id_with_key.public_key.clone());
+    }
+
+    Ok((not_found, [cached, found].concat()))
 }
 
 /// Newtype wrapper around Recrypt TransformKey type
@@ -490,7 +567,7 @@ impl PublicKey {
         let (x, y) = self.0.bytes_x_y();
         (x.to_vec(), y.to_vec())
     }
-    pub fn new_from_slice(bytes: (&[u8], &[u8])) -> Result<Self, IronOxideErr> {
+    pub fn new_from_slice(bytes: (&[u8], &[u8])) -> Result<Self> {
         let re_pub = RecryptPublicKey::new_from_slice(bytes)?;
         Ok(PublicKey(re_pub))
     }
@@ -527,7 +604,7 @@ impl From<PublicKey> for crate::proto::transform::PublicKey {
 }
 impl TryFrom<&[u8]> for PublicKey {
     type Error = IronOxideErr;
-    fn try_from(key_bytes: &[u8]) -> Result<PublicKey, IronOxideErr> {
+    fn try_from(key_bytes: &[u8]) -> Result<PublicKey> {
         if key_bytes.len() == RecryptPublicKey::ENCODED_SIZE_BYTES {
             PublicKey::new_from_slice(key_bytes.split_at(RecryptPublicKey::ENCODED_SIZE_BYTES / 2))
         } else {
@@ -536,6 +613,18 @@ impl TryFrom<&[u8]> for PublicKey {
                 Some(key_bytes.len()),
             ))
         }
+    }
+}
+impl Serialize for PublicKey {
+    fn serialize<S: Serializer>(&self, serializer: S) -> StdResult<S::Ok, S::Error> {
+        self.as_bytes().serialize(serializer)
+    }
+}
+impl<'de> Deserialize<'de> for PublicKey {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> StdResult<Self, D::Error> {
+        let bytes: Vec<u8> = Deserialize::deserialize(deserializer)?;
+        let (x, y) = bytes.split_at(32);
+        PublicKey::new_from_slice((x, y)).map_err(serde::de::Error::custom)
     }
 }
 
@@ -556,7 +645,7 @@ impl PrivateKey {
         &self,
         augmenting_key: &AugmentationFactor,
         error_fn: F,
-    ) -> Result<PrivateKey, IronOxideErr> {
+    ) -> Result<PrivateKey> {
         let zero: RecryptPrivateKey = RecryptPrivateKey::new([0u8; 32]);
         if RecryptPrivateKey::from(augmenting_key.clone()) == zero {
             Err(error_fn("Augmenting key cannot be zero".into()))
@@ -571,17 +660,11 @@ impl PrivateKey {
         }
     }
     /// A convenience function to pass a user rotation error to `augment()`
-    fn augment_user(
-        &self,
-        augmenting_key: &AugmentationFactor,
-    ) -> Result<PrivateKey, IronOxideErr> {
+    fn augment_user(&self, augmenting_key: &AugmentationFactor) -> Result<PrivateKey> {
         self.augment(augmenting_key, IronOxideErr::UserPrivateKeyRotationError)
     }
     /// A convenience function to pass a user rotation error to `augment()`
-    fn augment_group(
-        &self,
-        augmenting_key: &AugmentationFactor,
-    ) -> Result<PrivateKey, IronOxideErr> {
+    fn augment_group(&self, augmenting_key: &AugmentationFactor) -> Result<PrivateKey> {
         self.augment(augmenting_key, IronOxideErr::GroupPrivateKeyRotationError)
     }
 }
@@ -602,14 +685,14 @@ impl From<[u8; 32]> for PrivateKey {
 }
 impl TryFrom<&[u8]> for PrivateKey {
     type Error = IronOxideErr;
-    fn try_from(key_bytes: &[u8]) -> Result<PrivateKey, IronOxideErr> {
+    fn try_from(key_bytes: &[u8]) -> Result<PrivateKey> {
         RecryptPrivateKey::new_from_slice(key_bytes)
             .map(PrivateKey)
             .map_err(|e| e.into())
     }
 }
 impl Serialize for PrivateKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> StdResult<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -617,7 +700,7 @@ impl Serialize for PrivateKey {
     }
 }
 impl<'de> Deserialize<'de> for PrivateKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> StdResult<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -653,7 +736,7 @@ impl From<AugmentationFactor> for RecryptPrivateKey {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DeviceSigningKeyPair(RecryptSigningKeypair);
 impl DeviceSigningKeyPair {
-    pub fn sign(&self, payload: &[u8]) -> [u8; 64] {
+    pub fn sign(&self, payload: &[u8]) -> [u8; DEVICE_SIGNATURE_LENGTH] {
         self.0.sign(&payload).into()
     }
     /// Bytes of the signing key pair
@@ -662,6 +745,10 @@ impl DeviceSigningKeyPair {
     }
     pub fn public_key(&self) -> [u8; 32] {
         self.0.public_key().into()
+    }
+    pub fn verify<A: Hashable>(&self, message: &A, signature: &[u8]) -> Result<bool> {
+        let ed25519_signature = Ed25519Signature::new_from_slice(signature)?;
+        Ok(self.0.public_key().verify(message, &ed25519_signature))
     }
 }
 impl From<&DeviceSigningKeyPair> for RecryptSigningKeypair {
@@ -676,7 +763,7 @@ impl From<RecryptSigningKeypair> for DeviceSigningKeyPair {
 }
 impl TryFrom<&[u8]> for DeviceSigningKeyPair {
     type Error = IronOxideErr;
-    fn try_from(signing_key_bytes: &[u8]) -> Result<DeviceSigningKeyPair, Self::Error> {
+    fn try_from(signing_key_bytes: &[u8]) -> Result<DeviceSigningKeyPair> {
         RecryptSigningKeypair::from_byte_slice(signing_key_bytes)
             .map(DeviceSigningKeyPair)
             .map_err(|e| {
@@ -685,7 +772,7 @@ impl TryFrom<&[u8]> for DeviceSigningKeyPair {
     }
 }
 impl Serialize for DeviceSigningKeyPair {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> StdResult<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -694,7 +781,7 @@ impl Serialize for DeviceSigningKeyPair {
     }
 }
 impl<'de> Deserialize<'de> for DeviceSigningKeyPair {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> StdResult<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -712,7 +799,7 @@ impl<'de> Deserialize<'de> for DeviceSigningKeyPair {
 pub struct Password(String);
 impl TryFrom<&str> for Password {
     type Error = IronOxideErr;
-    fn try_from(maybe_password: &str) -> Result<Self, Self::Error> {
+    fn try_from(maybe_password: &str) -> Result<Self> {
         if !maybe_password.trim().is_empty() {
             Ok(Password(maybe_password.to_string()))
         } else {
@@ -767,7 +854,7 @@ pub(crate) fn take_lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 fn augment_private_key_with_retry<R: KeyGenOps>(
     recrypt: &R,
     priv_key: &PrivateKey,
-) -> Result<(PrivateKey, AugmentationFactor), IronOxideErr> {
+) -> Result<(PrivateKey, AugmentationFactor)> {
     let aug_private_key = || {
         let aug_factor = AugmentationFactor::generate_new(recrypt);
         priv_key.augment_user(&aug_factor).map(|p| (p, aug_factor))
@@ -783,8 +870,8 @@ fn augment_private_key_with_retry<R: KeyGenOps>(
 fn gen_plaintext_and_aug_with_retry<R: CryptoOps>(
     recrypt: &R,
     priv_key: &PrivateKey,
-) -> Result<(Plaintext, AugmentationFactor), IronOxideErr> {
-    let aug_private_key = || -> Result<(Plaintext, AugmentationFactor), IronOxideErr> {
+) -> Result<(Plaintext, AugmentationFactor)> {
+    let aug_private_key = || -> Result<(Plaintext, AugmentationFactor)> {
         let new_plaintext = recrypt.gen_plaintext();
         let new_group_private_key = recrypt.derive_private_key(&new_plaintext);
         let new_key_aug = AugmentationFactor(new_group_private_key.into());
@@ -804,7 +891,7 @@ pub async fn add_optional_timeout<F: Future>(
     f: F,
     timeout: Option<std::time::Duration>,
     op: SdkOperation,
-) -> Result<F::Output, IronOxideErr> {
+) -> Result<F::Output> {
     use futures::future::TryFutureExt;
     let result = match timeout {
         Some(d) => {
@@ -868,7 +955,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn serde_devicecontext_roundtrip() -> Result<(), IronOxideErr> {
+    fn serde_devicecontext_roundtrip() -> Result<()> {
         let priv_key: recrypt::api::PrivateKey = recrypt::api::PrivateKey::new_from_slice(
             BASE64_STANDARD
                 .decode("bzb0Rlg0u7gx9wDuk1ppRI77OH/0ferXleenJ3Ag6Jg=")
@@ -1004,7 +1091,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn encode_proto_public_key() -> Result<(), IronOxideErr> {
+    fn encode_proto_public_key() -> Result<()> {
         let recr = recrypt::api::Recrypt::new();
         let (_, re_pubk) = recr.generate_key_pair()?;
         let pubk: PublicKey = re_pubk.into();
@@ -1018,7 +1105,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn public_key_try_from_slice() -> Result<(), IronOxideErr> {
+    fn public_key_try_from_slice() -> Result<()> {
         let recr = recrypt::api::Recrypt::new();
         let (_, re_pubk) = recr.generate_key_pair()?;
         let pubk: PublicKey = re_pubk.into();
@@ -1030,7 +1117,7 @@ pub(crate) mod tests {
     #[test]
     fn public_key_try_from_slice_invalid() {
         let bytes = [1u8; 8];
-        let maybe_public_key: Result<PublicKey, IronOxideErr> = bytes[..].try_into();
+        let maybe_public_key: Result<PublicKey> = bytes[..].try_into();
         assert!(maybe_public_key.is_err())
     }
 
@@ -1083,13 +1170,15 @@ pub(crate) mod tests {
         fn compute_public_key(
             &self,
             _private_key: &RecryptPrivateKey,
-        ) -> Result<RecryptPublicKey, RecryptErr> {
+        ) -> StdResult<RecryptPublicKey, RecryptErr> {
             unimplemented!()
         }
 
         mock_method!(random_private_key(&self) -> RecryptPrivateKey);
 
-        fn generate_key_pair(&self) -> Result<(RecryptPrivateKey, RecryptPublicKey), RecryptErr> {
+        fn generate_key_pair(
+            &self,
+        ) -> StdResult<(RecryptPrivateKey, RecryptPublicKey), RecryptErr> {
             unimplemented!()
         }
 
@@ -1098,7 +1187,7 @@ pub(crate) mod tests {
             _from_private_key: &RecryptPrivateKey,
             _to_public_key: &RecryptPublicKey,
             _signing_keypair: &recrypt::api::SigningKeypair,
-        ) -> Result<recrypt::api::TransformKey, RecryptErr> {
+        ) -> StdResult<recrypt::api::TransformKey, RecryptErr> {
             unimplemented!()
         }
     }
@@ -1118,14 +1207,14 @@ pub(crate) mod tests {
             _: recrypt::api::EncryptedValue,
             _: recrypt::api::TransformKey,
             _: &recrypt::api::SigningKeypair,
-        ) -> std::result::Result<recrypt::api::EncryptedValue, RecryptErr> {
+        ) -> StdResult<recrypt::api::EncryptedValue, RecryptErr> {
             unimplemented!()
         }
         fn decrypt(
             &self,
             _: recrypt::api::EncryptedValue,
             _: &recrypt::api::PrivateKey,
-        ) -> std::result::Result<recrypt::api::Plaintext, RecryptErr> {
+        ) -> StdResult<recrypt::api::Plaintext, RecryptErr> {
             unimplemented!()
         }
         fn encrypt(
@@ -1133,7 +1222,7 @@ pub(crate) mod tests {
             _: &recrypt::api::Plaintext,
             _: &recrypt::api::PublicKey,
             _: &recrypt::api::SigningKeypair,
-        ) -> std::result::Result<recrypt::api::EncryptedValue, RecryptErr> {
+        ) -> StdResult<recrypt::api::EncryptedValue, RecryptErr> {
             unimplemented!()
         }
         fn derive_private_key(&self, pt: &recrypt::api::Plaintext) -> recrypt::api::PrivateKey {
@@ -1226,7 +1315,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn init_and_rotation_user_and_groups() -> Result<(), IronOxideErr> {
+    fn init_and_rotation_user_and_groups() -> Result<()> {
         use crate::{
             InitAndRotationCheck, IronOxide, check_groups_and_collect_rotation,
             internal::{
@@ -1274,7 +1363,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn run_maybe_timed_sdk_op_no_timeout() -> Result<(), IronOxideErr> {
+    async fn run_maybe_timed_sdk_op_no_timeout() -> Result<()> {
         async fn get_42() -> u8 {
             tokio::time::sleep(Duration::from_millis(100)).await;
             42
@@ -1293,7 +1382,7 @@ pub(crate) mod tests {
         .await?;
         assert_eq!(result, 42);
 
-        async fn get_err() -> Result<(), IronOxideErr> {
+        async fn get_err() -> Result<()> {
             tokio::time::sleep(Duration::from_millis(100)).await;
             Err(IronOxideErr::MissingTransformBlocks)
         }
@@ -1323,7 +1412,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn run_maybe_timed_sdk_op_with_timeout() -> Result<(), IronOxideErr> {
+    async fn run_maybe_timed_sdk_op_with_timeout() -> Result<()> {
         async fn get_42() -> u8 {
             // allow other futures to run, like the timer
             // without this the future will run to completion, regardless of the timer
@@ -1344,7 +1433,7 @@ pub(crate) mod tests {
             is_variant!(IronOxideErr::OperationTimedOut)
         );
 
-        async fn get_err() -> Result<u8, IronOxideErr> {
+        async fn get_err() -> Result<u8> {
             tokio::time::sleep(Duration::from_millis(100)).await;
             Err(IronOxideErr::MissingTransformBlocks)
         }

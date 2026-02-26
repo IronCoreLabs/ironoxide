@@ -3,29 +3,29 @@
 //! See [DocumentUnmanagedOps](trait.DocumentUnmanagedOps.html) for unmanaged document functions and key terms.
 
 pub use crate::internal::document_api::{
-    DocumentAccessResult, DocumentDecryptUnmanagedResult, DocumentEncryptUnmanagedResult, DocumentId,
-    DocumentMetadataUnmanagedResult, UserOrGroup
+    DocumentAccessResult, DocumentDecryptUnmanagedResult, DocumentEncryptUnmanagedResult,
+    DocumentId, UserOrGroup,
 };
 use crate::{
-    Result, SdkOperation,
+    IronOxideErr, Result, SdkOperation,
     document::{DocumentEncryptOpts, partition_user_or_group},
-    internal,
-    internal::add_optional_timeout,
+    internal::{self, add_optional_timeout, document_api},
+    prelude::DocumentMetadataResult,
+    proto::transform::EncryptedDeks as EncryptedDeksP,
 };
-use futures::Future;
 use itertools::EitherOrBoth;
-
+use protobuf::Message;
 
 /// IronOxide Unmanaged Document Operations
 ///
 /// These versions of the document operations allow the API consumer to manage the encrypted document encryption keys
 /// (EDEKs) produced by document encryption and required for document decryption.
 ///
-/// The managed version of encryption and stores the EDEKs for each document on the server, and
+/// The managed version of encryption stores the EDEKs for each document on the server, and
 /// decryption determines which of the EDEKs for a document the caller can decrypt and returns that one to be
 /// decrypted by the SDK.
 ///
-/// These unmanaged functions allow the API consumer to store and managed the EDEKs, which in
+/// These unmanaged functions allow the API consumer to store and manage the EDEKs, which in
 /// particular allows for offline encryption operations (if you provide the public keys for the
 /// users / groups to which you want to encrypt).
 ///
@@ -45,7 +45,7 @@ pub trait DocumentUnmanagedOps {
     /// - `data` - Bytes of the document to encrypt
     /// - `encrypt_opts` - Document encryption parameters. Default values are provided with
     ///   [DocumentEncryptOpts::default()](../struct.DocumentEncryptOpts.html#method.default).
-    fn document_encrypt(
+    fn document_encrypt_unmanaged(
         &self,
         data: Vec<u8>,
         encrypt_opts: &DocumentEncryptOpts,
@@ -62,7 +62,7 @@ pub trait DocumentUnmanagedOps {
     /// # Arguments
     /// - `encrypted_data` - Bytes of the encrypted document
     /// - `encrypted_deks` - EDEKs associated with the encrypted document
-    fn document_decrypt(
+    fn document_decrypt_unmanaged(
         &self,
         encrypted_data: &[u8],
         encrypted_deks: &[u8],
@@ -72,11 +72,11 @@ pub trait DocumentUnmanagedOps {
     ///
     /// This metadata is extracted from the EDEKs bytes that were produced when the
     /// document was encrypted.
-    fn document_get_metadata(
+    fn document_get_metadata_unmanaged(
         &self,
         encrypted_deks: &[u8],
-    ) -> impl Future<Output = Result<DocumentMetadataUnmanagedResult>> + Send;
- 
+    ) -> impl Future<Output = Result<DocumentMetadataResult>> + Send;
+
     /// Returns the document ID from the bytes of an encrypted document.
     ///
     /// This is the same ID returned by `DocumentEncryptResult.id()`.
@@ -94,11 +94,12 @@ pub trait DocumentUnmanagedOps {
     /// # let sdk: IronOxide = unimplemented!();
     /// # let bytes: Vec<u8> = vec![];
     /// // with `bytes` returned from `document_encrypt`
-    /// let document_id = sdk.document_get_id_from_bytes(&bytes)?;
+    /// let document_id = sdk.document_get_id_from_bytes_unmanaged(&bytes)?;
     /// # Ok(())
     /// # }
     /// ```
-    fn document_get_id_from_bytes(&self, encrypted_document: &[u8]) -> impl Future<Output = Result<DocumentId>> + Send;
+    fn document_get_id_from_bytes_unmanaged(&self, encrypted_document: &[u8])
+    -> Result<DocumentId>;
 
     /// Returns the document ID from the EDEKs of an encrypted document.
     ///
@@ -117,11 +118,11 @@ pub trait DocumentUnmanagedOps {
     /// # let sdk: IronOxide = unimplemented!();
     /// # let edeks: Vec<u8> = vec![];
     /// // with `bytes` returned from `document_encrypt`
-    /// let document_id = sdk.document_get_id_from_edeks(&edeks)?;
+    /// let document_id = sdk.document_get_id_from_edeks_unmanaged(&edeks)?;
     /// # Ok(())
     /// # }
     /// ```
-    fn document_get_id_from_edeks(&self, edeks: &[u8]) -> impl Future<Output = Result<DocumentId>> + Send;
+    fn document_get_id_from_edeks_unmanaged(&self, edeks: &[u8]) -> Result<DocumentId>;
 
     /// Grants decryption access to a document to additional provided users and/or groups after
     /// the document was encrypted.
@@ -150,11 +151,11 @@ pub trait DocumentUnmanagedOps {
     /// use ironoxide::document::UserOrGroup;
     /// // from a list of UserIds, `users`
     /// let users_or_groups: Vec<UserOrGroup> = users.iter().map(|user| user.into()).collect();
-    /// let access_result = sdk.document_grant_access(&edeks, &users_or_groups).await?;
+    /// let access_result = sdk.document_grant_access_unmanaged(&edeks, &users_or_groups).await?;
     /// # Ok(())
     /// # }
     /// ```
-    fn document_grant_access(
+    fn document_grant_access_unmanaged(
         &self,
         edeks: &[u8],
         grant_list: &[UserOrGroup],
@@ -183,11 +184,11 @@ pub trait DocumentUnmanagedOps {
     /// use ironoxide::document::UserOrGroup;
     /// // from a list of UserIds, `users`
     /// let users_or_groups: Vec<UserOrGroup> = users.iter().map(|user| user.into()).collect();
-    /// let access_result = sdk.document_revoke_access(&edeks, &users_or_groups).await?;
+    /// let access_result = sdk.document_revoke_access_unmanaged(&edeks, &users_or_groups).await?;
     /// # Ok(())
     /// # }
     /// ```
-    fn document_revoke_access(
+    fn document_revoke_access_unmanaged(
         &self,
         edeks: &[u8],
         revoke_list: &[UserOrGroup],
@@ -195,7 +196,7 @@ pub trait DocumentUnmanagedOps {
 }
 
 impl DocumentUnmanagedOps for crate::IronOxide {
-    async fn document_encrypt(
+    async fn document_encrypt_unmanaged(
         &self,
         data: Vec<u8>,
         encrypt_opts: &DocumentEncryptOpts,
@@ -231,6 +232,7 @@ impl DocumentUnmanagedOps for crate::IronOxide {
                 &explicit_groups,
                 policy_grants,
                 &self.policy_eval_cache,
+                &self.public_key_cache,
             ),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentEncryptUnmanaged,
@@ -238,7 +240,7 @@ impl DocumentUnmanagedOps for crate::IronOxide {
         .await?
     }
 
-    async fn document_decrypt(
+    async fn document_decrypt_unmanaged(
         &self,
         encrypted_data: &[u8],
         encrypted_deks: &[u8],
@@ -257,36 +259,71 @@ impl DocumentUnmanagedOps for crate::IronOxide {
         .await?
     }
 
-    async fn document_get_metadata(
+    async fn document_get_metadata_unmanaged(
         &self,
-        encrypted_deks: &[u8],
-    ) -> Result<DocumentMetadataUnmanagedResult> {
+        edeks: &[u8],
+    ) -> Result<DocumentMetadataResult> {
+        add_optional_timeout(
+            document_api::document_get_metadata(
+                self.device.auth(),
+                &self.document_get_id_from_edeks_unmanaged(edeks)?,
+            ),
+            self.config.sdk_operation_timeout,
+            SdkOperation::DocumentGetMetadata,
+        )
+        .await?
     }
 
-    async fn document_get_id_from_bytes(
+    fn document_get_id_from_bytes_unmanaged(
         &self,
-        encrypted_document: &[u8]
+        encrypted_document: &[u8],
     ) -> Result<DocumentId> {
+        document_api::get_id_from_bytes(encrypted_document)
     }
 
-    async fn document_get_id_from_edeks(
-        &self,
-        edeks: &[u8]
-    ) -> Result<DocumentId> {
+    fn document_get_id_from_edeks_unmanaged(&self, edeks: &[u8]) -> Result<DocumentId> {
+        let proto_edeks = EncryptedDeksP::parse_from_bytes(edeks).map_err(IronOxideErr::from)?;
+        (*proto_edeks.documentId).try_into()
     }
 
-    async fn document_grant_access(
+    async fn document_grant_access_unmanaged(
         &self,
         edeks: &[u8],
         grant_list: &[UserOrGroup],
     ) -> Result<DocumentAccessResult> {
+        let (users, groups) = partition_user_or_group(grant_list);
+
+        add_optional_timeout(
+            document_api::document_grant_access(
+                self.device.auth(),
+                &self.recrypt,
+                &self.document_get_id_from_edeks_unmanaged(edeks)?,
+                &self.user_master_pub_key,
+                self.device.device_private_key(),
+                &users,
+                &groups,
+                &self.public_key_cache,
+            ),
+            self.config.sdk_operation_timeout,
+            SdkOperation::DocumentGrantAccess,
+        )
+        .await?
     }
 
-    async fn document_revoke_access(
+    async fn document_revoke_access_unmanaged(
         &self,
         edeks: &[u8],
         revoke_list: &[UserOrGroup],
     ) -> Result<DocumentAccessResult> {
+        add_optional_timeout(
+            document_api::document_revoke_access(
+                self.device.auth(),
+                &self.document_get_id_from_edeks_unmanaged(edeks)?,
+                revoke_list,
+            ),
+            self.config.sdk_operation_timeout,
+            SdkOperation::DocumentRevokeAccess,
+        )
+        .await?
     }
 }
-

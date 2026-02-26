@@ -1,8 +1,9 @@
 use crate::{
     crypto::transform,
     internal::{
-        self, DeviceSigningKeyPair, IronOxideErr, PrivateKey, PublicKey, RequestAuth,
-        SchnorrSignature, TransformKey, WithKey,
+        self, DeviceSigningKeyPair, GroupPublicKeyCache, IronOxideErr, PrivateKey, PublicKey,
+        RequestAuth, SchnorrSignature, TransformKey, UserPublicKeyCache, WithKey,
+        get_keys_with_cache,
         group_api::requests::{
             GroupAdmin, GroupUserEditResponse, User, group_get::group_get_request,
             group_list::GroupListResponse,
@@ -379,36 +380,20 @@ pub async fn list(
 
 /// Get the keys for groups. The result should be either a failure for a specific UserId (Left) or the id with their public key (Right).
 /// The resulting lists will have the same combined size as the incoming list.
-/// Calling this with an empty `groups` list will not result in a call to the server.
+/// Calling this with an empty `groups` list or entirely cached group ids will not result in a call to the server.
 pub(crate) async fn get_group_keys(
     auth: &RequestAuth,
     groups: &[GroupId],
+    group_public_key_cache: &GroupPublicKeyCache,
 ) -> Result<(Vec<GroupId>, Vec<WithKey<GroupId>>), IronOxideErr> {
-    // if there aren't any groups in the list, just return with empty results
-    if groups.is_empty() {
-        return Ok((vec![], vec![]));
-    }
-
-    let cloned_groups: Vec<GroupId> = groups.to_vec();
-    let GroupListResult { result } = list(auth, Some(groups)).await?;
-    let ids_with_keys =
-        result
+    get_keys_with_cache(groups, &group_public_key_cache, |uncached| async move {
+        let GroupListResult { result } = list(auth, Some(&uncached.as_slice())).await?;
+        Ok(result
             .iter()
-            .fold(HashMap::with_capacity(groups.len()), |mut acc, group| {
-                let public_key = group.group_master_public_key();
-                acc.insert(group.id().clone(), public_key.clone());
-                acc
-            });
-    Ok(cloned_groups.into_iter().partition_map(move |group_id| {
-        let maybe_public_key = ids_with_keys.get(&group_id).cloned();
-        match maybe_public_key {
-            Some(public_key) => Either::Right(WithKey {
-                id: group_id,
-                public_key,
-            }),
-            None => Either::Left(group_id),
-        }
-    }))
+            .map(|g| (g.id().clone(), g.group_master_public_key().clone()))
+            .collect())
+    })
+    .await
 }
 
 fn check_user_mismatch<T: Eq + std::hash::Hash + std::fmt::Debug, X>(
@@ -706,9 +691,12 @@ pub async fn group_add_members<CR: rand::CryptoRng + rand::RngCore>(
     device_private_key: &PrivateKey,
     group_id: &GroupId,
     users: &[UserId],
+    user_public_key_cache: &UserPublicKeyCache,
 ) -> Result<GroupAccessEditResult, IronOxideErr> {
-    let (group_get, (mut acc_fails, successes)) =
-        try_join!(get_metadata(auth, group_id), get_user_keys(auth, users))?;
+    let (group_get, (mut acc_fails, successes)) = try_join!(
+        get_metadata(auth, group_id),
+        get_user_keys(auth, users, user_public_key_cache)
+    )?;
     //At this point the acc_fails list is just the key fetch failures. We append to it as we go.
     let encrypted_group_key = group_get
         .encrypted_private_key
@@ -768,9 +756,12 @@ pub async fn group_add_admins<CR: rand::CryptoRng + rand::RngCore>(
     device_private_key: &PrivateKey,
     group_id: &GroupId,
     users: &[UserId],
+    user_public_key_cache: &UserPublicKeyCache,
 ) -> Result<GroupAccessEditResult, IronOxideErr> {
-    let (group_get, (mut acc_fails, successes)) =
-        try_join!(get_metadata(auth, group_id), get_user_keys(auth, users))?;
+    let (group_get, (mut acc_fails, successes)) = try_join!(
+        get_metadata(auth, group_id),
+        get_user_keys(auth, users, user_public_key_cache)
+    )?;
     //At this point the acc_fails list is just the key fetch failures. We append to it as we go.
     let encrypted_group_key = group_get
         .encrypted_private_key
@@ -820,8 +811,10 @@ pub async fn group_add_admins<CR: rand::CryptoRng + rand::RngCore>(
 async fn get_user_keys(
     auth: &RequestAuth,
     users: &[UserId],
+    user_public_key_cache: &UserPublicKeyCache,
 ) -> Result<(Vec<GroupAccessEditErr>, Vec<WithKey<UserId>>), IronOxideErr> {
-    let (failed_ids, succeeded_ids) = user_api::get_user_keys(auth, users).await?;
+    let (failed_ids, succeeded_ids) =
+        user_api::get_user_keys(auth, users, user_public_key_cache).await?;
     let failed_ids_result = failed_ids
         .into_iter()
         .map(|user| GroupAccessEditErr::new(user, "User does not exist".to_string()))

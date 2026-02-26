@@ -17,7 +17,7 @@ use crate::{
     IronOxide, IronOxideErr, Result,
     document::{
         DocumentEncryptOpts,
-        unmanaged::{DocumentUnmanagedOps, DocumentEncryptUnmanagedResult},
+        unmanaged::{DocumentEncryptUnmanagedResult, DocumentUnmanagedOps},
     },
     group::GroupId,
     internal::take_lock,

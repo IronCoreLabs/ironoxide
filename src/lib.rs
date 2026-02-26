@@ -184,7 +184,7 @@ use crate::{
     config::IronOxideConfig,
     document::UserOrGroup,
     group::{GroupId, GroupUpdatePrivateKeyResult},
-    internal::{WithKey, add_optional_timeout},
+    internal::{PublicKeyCache, WithKey, add_optional_timeout},
     policy::PolicyGrant,
     user::{UserId, UserResult, UserUpdatePrivateKeyResult},
 };
@@ -274,6 +274,7 @@ pub struct IronOxide {
     pub(crate) device: DeviceContext,
     pub(crate) rng: Mutex<ReseedingRng<ChaChaCore, OsRng>>,
     pub(crate) policy_eval_cache: PolicyCache,
+    pub(crate) public_key_cache: PublicKeyCache,
 }
 
 /// Manual implementation of Debug without the `recrypt` or `rng` fields
@@ -357,6 +358,34 @@ pub async fn initialize(
     )
     .await?
     .map(|current_user| IronOxide::create(&current_user, device_context, config))
+    .map_err(|e: IronOxideErr| IronOxideErr::InitializeError(e.to_string()))
+}
+
+/// Initializes the IronOxide SDK with a device and cached public keys, enabling offline encryption immediately.
+///
+/// Verifies that the provided user/segment exists and the provided device keys are valid and
+/// exist for the provided account. Verifies the public key cache has not been tampered with.
+pub async fn initialize_with_public_keys(
+    device_context: &DeviceContext,
+    config: &IronOxideConfig,
+    public_key_cache: Vec<u8>,
+) -> Result<IronOxide> {
+    internal::add_optional_timeout(
+        internal::user_api::user_get_current(device_context.auth()),
+        config.sdk_operation_timeout,
+        SdkOperation::InitializeSdk,
+    )
+    .await?
+    .and_then(|current_user| {
+        let verified_cache =
+            PublicKeyCache::deserialize_signed_public_key_cache(device_context, &public_key_cache)?;
+        IronOxide::create_with_public_key_cache(
+            &current_user,
+            device_context,
+            config,
+            verified_cache,
+        )
+    })
     .map_err(|e: IronOxideErr| IronOxideErr::InitializeError(e.to_string()))
 }
 
@@ -449,7 +478,31 @@ impl IronOxide {
                 OsRng,
             )),
             policy_eval_cache: HashMap::new(),
+            public_key_cache: Default::default(),
         }
+    }
+
+    /// Create an IronOxide instance, prefilling its public key cache. Depends on the system having enough entropy to
+    /// seed a RNG. The public key cache signature will be verified.
+    fn create_with_public_key_cache(
+        curr_user: &UserResult,
+        device_context: &DeviceContext,
+        config: &IronOxideConfig,
+        public_key_cache: PublicKeyCache,
+    ) -> Result<IronOxide> {
+        Ok(IronOxide {
+            config: config.clone(),
+            recrypt: Arc::new(Recrypt::new()),
+            device: device_context.clone(),
+            user_master_pub_key: curr_user.user_public_key().to_owned(),
+            rng: Mutex::new(ReseedingRng::new(
+                rand_chacha::ChaChaCore::from_entropy(),
+                BYTES_BEFORE_RESEEDING,
+                OsRng,
+            )),
+            policy_eval_cache: HashMap::new(),
+            public_key_cache,
+        })
     }
 
     /// Rotate the private key of the calling user and all groups they are an administrator of where needs_rotation is true.
@@ -506,5 +559,18 @@ impl IronOxide {
             user_opt_result.transpose()?,
             group_opt_result_vec.transpose()?,
         ))
+    }
+
+    /// Export this SDK instance's public key cache to bytes, for external storage and use with
+    /// `initialize_with_public_keys`. Signed over to prevent tampering with public key values.
+    pub fn export_public_key_cache(&self) -> Result<Vec<u8>> {
+        self.public_key_cache.serialize().map(|cache_bytes| {
+            // sign the bytes, then create a result of signature + cache
+            let signature = &self.device.signing_private_key().sign(&cache_bytes);
+            let mut signed_cache = Vec::new();
+            signed_cache.extend_from_slice(signature);
+            signed_cache.extend(cache_bytes);
+            signed_cache
+        })
     }
 }

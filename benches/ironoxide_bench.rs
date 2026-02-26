@@ -53,7 +53,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
         // encrypted data to user to decrypt
         let enc_result = io
-            .document_encrypt(data.into(), &Default::default())
+            .document_encrypt_unmanaged(data.into(), &Default::default())
             .await
             .expect("encryption failed");
         let enc_data = enc_result.encrypted_data().to_vec();
@@ -126,7 +126,9 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     c.bench_function("document encrypt [self]", |b| {
-        b.iter(|| rt.block_on(io.document_encrypt(black_box(data.into()), &Default::default())))
+        b.iter(|| {
+            rt.block_on(io.document_encrypt_unmanaged(black_box(data.into()), &Default::default()))
+        })
     });
 
     c.bench_function("document encrypt (unmanaged) [self]", |b| {
@@ -143,7 +145,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 true,
                 vec![group1.clone().into()],
             );
-            rt.block_on(io.document_encrypt(black_box(data.into()), &opts))
+            rt.block_on(io.document_encrypt_unmanaged(black_box(data.into()), &opts))
         })
     });
 
@@ -155,7 +157,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 true,
                 vec![group1.clone().into(), group2.clone().into()],
             );
-            rt.block_on(io.document_encrypt(black_box(data.into()), &opts))
+            rt.block_on(io.document_encrypt_unmanaged(black_box(data.into()), &opts))
         })
     });
 
