@@ -436,8 +436,8 @@ type UserPublicKeyCache = HashMap<UserId, PublicKey>;
 type GroupPublicKeyCache = HashMap<GroupId, PublicKey>;
 /// A cache recording the (id, public key) pairs that have been seen by the API. There are
 /// separate lists for users and groups.
-// TODO(murph): expiration? size limits?
-#[derive(Serialize, Deserialize, Default)]
+// Public keys don't go bad, so we don't need expiration, but we may want a default limit on size in the future.
+#[derive(Serialize, Deserialize, Default, Debug)]
 pub(crate) struct PublicKeyCache {
     #[serde(serialize_with = "serialize_papaya_map")]
     user_keys: UserPublicKeyCache,
@@ -522,7 +522,7 @@ where
         .pin()
         .get(&id)
     {
-        Some(pk) => Either::Left(WithKey::new(id, pk.clone())),
+        Some(pub_key) => Either::Left(WithKey::new(id, pub_key.clone())),
         None => Either::Right(id),
     });
 
@@ -537,9 +537,9 @@ where
         uncached
             .into_iter()
             .partition_map(|id| match ids_with_keys.get(&id).cloned() {
-                Some(pk) => {
-                    cache.pin().insert(id.clone(), pk.clone());
-                    Either::Right(WithKey::new(id, pk))
+                Some(pub_key) => {
+                    cache.pin().insert(id.clone(), pub_key.clone());
+                    Either::Right(WithKey::new(id, pub_key))
                 }
                 None => Either::Left(id),
             });
@@ -1674,13 +1674,13 @@ pub(crate) mod tests {
         fn export_then_deserialize_signed_roundtrip() -> Result<()> {
             let device = create_test_device_context();
             let recr = Recrypt::new();
-            let (_, pk) = recr.generate_key_pair().unwrap();
+            let (_, pubk) = recr.generate_key_pair().unwrap();
 
             let io = create_test_sdk()?;
             io.public_key_cache
                 .user_keys()
                 .pin()
-                .insert(UserId::unsafe_from_string("user1".into()), pk.into());
+                .insert(UserId::unsafe_from_string("user1".into()), pubk.into());
 
             let exported = io.export_public_key_cache().unwrap();
             let reimported =

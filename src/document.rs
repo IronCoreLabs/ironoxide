@@ -139,8 +139,8 @@ pub trait DocumentOps {
     /// in order to decrypt the document.
     ///
     /// Metadata about the document will be stored by IronCore, but the encrypted bytes of the document will not. To encrypt
-    /// without any document information being stored by IronCore, consider using the unmanaged
-    /// [document_encrypt](unmanaged/trait.DocumentUnmanagedOps.html#tymethod.document_encrypt) instead.
+    /// without any document information being stored by IronCore, consider using
+    /// [document_encrypt_unmanaged](advanced/trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged) instead.
     ///
     /// # Arguments
     /// - `document_data` - Bytes of the document to encrypt

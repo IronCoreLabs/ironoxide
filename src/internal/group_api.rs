@@ -386,8 +386,8 @@ pub(crate) async fn get_group_keys(
     groups: &[GroupId],
     group_public_key_cache: &GroupPublicKeyCache,
 ) -> Result<(Vec<GroupId>, Vec<WithKey<GroupId>>), IronOxideErr> {
-    get_keys_with_cache(groups, &group_public_key_cache, |uncached| async move {
-        let GroupListResult { result } = list(auth, Some(&uncached.as_slice())).await?;
+    get_keys_with_cache(groups, group_public_key_cache, |uncached| async move {
+        let GroupListResult { result } = list(auth, Some(uncached.as_slice())).await?;
         Ok(result
             .iter()
             .map(|g| (g.id().clone(), g.group_master_public_key().clone()))

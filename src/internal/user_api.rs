@@ -715,7 +715,7 @@ pub(crate) async fn get_user_keys(
     users: &[UserId],
     user_public_key_cache: &UserPublicKeyCache,
 ) -> Result<(Vec<UserId>, Vec<WithKey<UserId>>), IronOxideErr> {
-    get_keys_with_cache(users, &user_public_key_cache, |uncached| async move {
+    get_keys_with_cache(users, user_public_key_cache, |uncached| async move {
         user_api::user_key_list(auth, &uncached).await
     })
     .await

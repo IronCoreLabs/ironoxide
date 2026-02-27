@@ -169,7 +169,7 @@ impl BlockingIronOxide {
         self.runtime
             .block_on(self.ironoxide.document_revoke_access(id, revoke_list))
     }
-    /// See [ironoxide::document::unmanaged::DocumentAdvancedOps::document_encrypt](trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged)
+    /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_encrypt](trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged)
     pub fn document_encrypt_unmanaged(
         &self,
         data: Vec<u8>,
@@ -211,8 +211,7 @@ impl BlockingIronOxide {
     }
     /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_get_id_from_edeks_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_get_id_from_edeks_unmanaged)
     pub fn document_get_id_from_edeks_unmanaged(&self, edeks: &[u8]) -> Result<DocumentId> {
-        self.ironoxide
-            .document_get_id_from_edeks_unmanaged(edeks)
+        self.ironoxide.document_get_id_from_edeks_unmanaged(edeks)
     }
     /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_grant_access_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_grant_access_unmanaged)
     pub fn document_grant_access_unmanaged(
@@ -408,11 +407,13 @@ pub fn initialize_with_public_keys(
     config: &IronOxideConfig,
     public_key_cache: Vec<u8>,
 ) -> Result<BlockingIronOxide> {
-    let maybe_io = device_context.rt.block_on(crate::initialize_with_public_keys(
-        &device_context.device,
-        config,
-        public_key_cache,
-    ));
+    let maybe_io = device_context
+        .rt
+        .block_on(crate::initialize_with_public_keys(
+            &device_context.device,
+            config,
+            public_key_cache,
+        ));
     maybe_io.map(|io| BlockingIronOxide {
         ironoxide: io,
         runtime: device_context.rt.clone(),

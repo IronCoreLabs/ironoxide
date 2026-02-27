@@ -20,7 +20,7 @@ async fn encrypt_to_group(sdk: &IronOxide) -> Result<DocumentId> {
     let group_id = create_group(sdk).await?;
     let message = "This is my secret which a whole group should see.".to_string();
     let encrypted_result = sdk
-        .document_encrypt_unmanaged(
+        .document_encrypt(
             message.into_bytes(),
             &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![(&group_id).into()]),
         )
@@ -34,7 +34,7 @@ async fn encrypt_to_user(sdk: &IronOxide, user_id: &UserId) -> Result<DocumentId
     // start-snippet{encryptToUser}
     let message = "This is my secret for a single user.".to_string();
     let encrypted_result = sdk
-        .document_encrypt_unmanaged(
+        .document_encrypt(
             message.into_bytes(),
             &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![user_id.into()]),
         )
@@ -55,7 +55,7 @@ async fn encrypt_with_policy(sdk: &IronOxide) -> Result<DocumentId> {
         None,
     );
     let encrypted_result = sdk
-        .document_encrypt_unmanaged(
+        .document_encrypt(
             message.into_bytes(),
             &DocumentEncryptOpts::with_policy_grants(None, None, data_labels),
         )
