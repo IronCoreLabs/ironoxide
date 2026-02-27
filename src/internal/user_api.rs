@@ -2,7 +2,6 @@ use crate::{
     crypto::aes::{self, EncryptedMasterKey},
     internal::{rest::IronCoreRequest, *},
 };
-use itertools::{Either, Itertools};
 use jsonwebtoken::Algorithm;
 use rand::rngs::OsRng;
 use recrypt::prelude::*;
@@ -710,27 +709,16 @@ pub async fn user_key_list(
 
 /// Get the keys for users. The result should be either a failure for a specific UserId (Left) or the id with their public key (Right).
 /// The resulting lists will have the same combined size as the incoming list.
-/// Calling this with an empty `users` list will not result in a call to the server.
+/// Calling this with an empty `users` list or entirely cached user ids will not result in a call to the server.
 pub(crate) async fn get_user_keys(
     auth: &RequestAuth,
     users: &[UserId],
+    user_public_key_cache: &UserPublicKeyCache,
 ) -> Result<(Vec<UserId>, Vec<WithKey<UserId>>), IronOxideErr> {
-    // if there aren't any users in the list, just return with empty results
-    if users.is_empty() {
-        Ok((vec![], vec![]))
-    } else {
-        user_api::user_key_list(auth, users)
-            .await
-            .map(|ids_with_keys| {
-                users.iter().cloned().partition_map(|user_id| {
-                    let maybe_public_key = ids_with_keys.get(&user_id).cloned();
-                    match maybe_public_key {
-                        Some(pk) => Either::Right(WithKey::new(user_id, pk)),
-                        None => Either::Left(user_id),
-                    }
-                })
-            })
-    }
+    get_keys_with_cache(users, user_public_key_cache, |uncached| async move {
+        user_api::user_key_list(auth, &uncached).await
+    })
+    .await
 }
 
 /// Generate all the necessary device keys, transform keys, and signatures to be able to add a new user device.

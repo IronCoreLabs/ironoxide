@@ -6,7 +6,7 @@ use crate::{
         transform,
     },
     internal::{
-        self, IronOxideErr, PrivateKey, PublicKey, RequestAuth, WithKey,
+        self, IronOxideErr, PrivateKey, PublicKey, PublicKeyCache, RequestAuth, WithKey,
         document_api::requests::UserOrGroupWithKey,
         group_api::{GroupId, GroupName},
         take_lock,
@@ -596,6 +596,7 @@ pub async fn encrypt_document<
     group_grants: &[GroupId],
     policy_grant: Option<&PolicyGrant>,
     policy_cache: &PolicyCache,
+    public_key_cache: &PublicKeyCache,
 ) -> Result<DocumentEncryptResult, IronOxideErr> {
     let (dek, doc_sym_key) = transform::generate_new_doc_key(recrypt);
     let doc_id = document_id.unwrap_or_else(|| DocumentId::goo_id(rng));
@@ -613,7 +614,8 @@ pub async fn encrypt_document<
             } else {
                 None
             },
-            policy_cache
+            policy_cache,
+            public_key_cache
         )
     )?;
     let r = recrypt_document(
@@ -658,9 +660,12 @@ async fn resolve_keys_for_grants(
     policy_grant: Option<&PolicyGrant>,
     maybe_user_master_pub_key: Option<&UserMasterPublicKey>,
     policy_cache: &PolicyCache,
+    public_key_cache: &PublicKeyCache,
 ) -> Result<(Vec<WithKey<UserOrGroup>>, Vec<DocAccessEditErr>), IronOxideErr> {
-    let get_user_keys_f = internal::user_api::get_user_keys(auth, user_grants);
-    let get_group_keys_f = internal::group_api::get_group_keys(auth, group_grants);
+    let get_user_keys_f =
+        internal::user_api::get_user_keys(auth, user_grants, public_key_cache.user_keys());
+    let get_group_keys_f =
+        internal::group_api::get_group_keys(auth, group_grants, public_key_cache.group_keys());
 
     let maybe_policy_grants_f =
         policy_grant.map(|p| (p, requests::policy_get::policy_get_request(auth, p)));
@@ -720,6 +725,9 @@ where
             .map(|policy_resp| {
                 let (errs, public_keys) = process_policy(&policy_resp);
                 if errs.is_empty() {
+                    // TODO(breaking): we should not do this, replacing something would make a lot more sense than
+                    //   blowing up their active cache. We also _do_ want things to time expire in case the policy
+                    //   structure has updated.
                     //if the cache has grown too large, clear it prior to adding new entries
                     let policy_pin = policy_cache.pin();
                     if policy_cache.len() >= config.max_entries {
@@ -754,6 +762,7 @@ pub async fn encrypt_document_unmanaged<R1, R2>(
     group_grants: &[GroupId],
     policy_grant: Option<&PolicyGrant>,
     policy_cache: &PolicyCache,
+    public_key_cache: &PublicKeyCache,
 ) -> Result<DocumentEncryptUnmanagedResult, IronOxideErr>
 where
     R1: rand::CryptoRng + rand::RngCore,
@@ -777,7 +786,8 @@ where
             } else {
                 None
             },
-            policy_cache
+            policy_cache,
+            public_key_cache
         )
     )?;
     let r = recrypt_document(
@@ -1095,7 +1105,6 @@ pub async fn decrypt_document_unmanaged<CR: rand::CryptoRng + rand::RngCore>(
     encrypted_deks: &[u8],
 ) -> Result<DocumentDecryptUnmanagedResult, IronOxideErr> {
     // attempt to parse the proto as fail-fast validation. If it fails decrypt will fail
-
     let ((proto_edeks, (doc_meta, mut aes_encrypted_value)), transform_resp) = try_join!(
         async {
             Ok((
@@ -1165,12 +1174,13 @@ pub async fn document_grant_access<CR: rand::CryptoRng + rand::RngCore>(
     priv_device_key: &PrivateKey,
     user_grants: &[UserId],
     group_grants: &[GroupId],
+    public_key_cache: &PublicKeyCache,
 ) -> Result<DocumentAccessResult, IronOxideErr> {
     let (doc_meta, users, groups) = try_join!(
         document_get_metadata(auth, id),
         // and the public keys for the users and groups
-        internal::user_api::get_user_keys(auth, user_grants),
-        internal::group_api::get_group_keys(auth, group_grants),
+        internal::user_api::get_user_keys(auth, user_grants, public_key_cache.user_keys()),
+        internal::group_api::get_group_keys(auth, group_grants, public_key_cache.group_keys()),
     )?;
     let (grants, other_errs) = {
         // decrypt the dek
