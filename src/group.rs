@@ -652,11 +652,70 @@ mod tests {
     }
 
     #[test]
-    fn group_create_opts_standardize_invalid() -> Result<(), IronOxideErr> {
+    fn group_create_opts_standardize_no_admins_fails() {
         let calling_user_id = UserId::unsafe_from_string("test_user".to_string());
+        // add_as_admin=false and no explicit admins → empty admins list → error
         let opts = GroupCreateOpts::new(None, None, false, true, None, vec![], vec![], false);
-        let std_opts = opts.standardize(&calling_user_id);
-        assert!(std_opts.is_err());
-        Ok(())
+        let result = opts.standardize(&calling_user_id);
+        match result {
+            Err(IronOxideErr::ValidationError(field_name, err)) => {
+                assert_eq!(field_name, "admins");
+                assert!(err.contains("empty"), "expected 'empty' error, got: {err}");
+            }
+            Ok(_) => panic!("expected ValidationError, got Ok"),
+            Err(e) => panic!("expected ValidationError, got: {e}"),
+        }
+    }
+
+    #[test]
+    fn group_create_opts_standardize_owner_must_be_admin() {
+        let calling_user_id = UserId::unsafe_from_string("test_user".to_string());
+        let other_admin = UserId::unsafe_from_string("other_admin".to_string());
+        // Default owner is calling_user, but add_as_admin=false and only other_admin
+        // is in the explicit admins list. The owner (calling_user) is not an admin → error.
+        let opts = GroupCreateOpts::new(
+            None,
+            None,
+            false,
+            false,
+            None,
+            vec![other_admin],
+            vec![],
+            false,
+        );
+        let result = opts.standardize(&calling_user_id);
+        match result {
+            Err(IronOxideErr::ValidationError(field_name, err)) => {
+                assert_eq!(field_name, "admins");
+                assert!(
+                    err.contains("owner"),
+                    "expected error about owner, got: {err}"
+                );
+            }
+            Ok(_) => panic!("expected ValidationError, got Ok"),
+            Err(e) => panic!("expected ValidationError, got: {e}"),
+        }
+    }
+
+    #[test]
+    fn group_create_opts_standardize_explicit_owner_auto_added_to_admins() {
+        let calling_user_id = UserId::unsafe_from_string("test_user".to_string());
+        let owner = UserId::unsafe_from_string("owner".to_string());
+        let other_admin = UserId::unsafe_from_string("other_admin".to_string());
+        // Explicit owner provided but only `other_admin` is in the admins list.
+        // The owner should be auto-added to the admins list by `standardize`.
+        let opts = GroupCreateOpts::new(
+            None,
+            None,
+            false,
+            false,
+            Some(owner.clone()),
+            vec![other_admin.clone()],
+            vec![],
+            false,
+        );
+        let std_opts = opts.standardize(&calling_user_id).unwrap();
+        assert!(std_opts.admins.contains(&owner));
+        assert!(std_opts.admins.contains(&other_admin));
     }
 }
