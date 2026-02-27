@@ -983,24 +983,7 @@ pub(crate) mod tests {
 
     #[test]
     fn serde_devicecontext_roundtrip() -> Result<()> {
-        let priv_key: recrypt::api::PrivateKey = recrypt::api::PrivateKey::new_from_slice(
-            BASE64_STANDARD
-                .decode("bzb0Rlg0u7gx9wDuk1ppRI77OH/0ferXleenJ3Ag6Jg=")
-                .unwrap()
-                .as_slice(),
-        )?;
-        let dev_keys = recrypt::api::SigningKeypair::from_byte_slice(&[
-            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-            1, 1, 1, 138, 136, 227, 221, 116, 9, 241, 149, 253, 82, 219, 45, 60, 186, 93, 114, 202,
-            103, 9, 191, 29, 148, 18, 27, 243, 116, 136, 1, 180, 15, 111, 92,
-        ])
-        .unwrap();
-        let context = DeviceContext::new(
-            "account_id".try_into()?,
-            22,
-            priv_key.into(),
-            DeviceSigningKeyPair::from(dev_keys),
-        );
+        let context = create_test_device_context();
         let json = serde_json::to_string(&context).unwrap();
         let expect_json = r#"{"accountId":"account_id","segmentId":22,"signingPrivateKey":"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQGKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXA==","devicePrivateKey":"bzb0Rlg0u7gx9wDuk1ppRI77OH/0ferXleenJ3Ag6Jg="}"#;
 
@@ -1568,5 +1551,241 @@ pub(crate) mod tests {
     fn public_key_cache_deserialize_garbage_bytes_fails() {
         let result = PublicKeyCache::deserialize(b"deadbeef");
         assert!(result.is_err());
+    }
+    fn create_test_device_context() -> DeviceContext {
+        let priv_key: recrypt::api::PrivateKey = recrypt::api::PrivateKey::new_from_slice(
+            BASE64_STANDARD
+                .decode("bzb0Rlg0u7gx9wDuk1ppRI77OH/0ferXleenJ3Ag6Jg=")
+                .unwrap()
+                .as_slice(),
+        )
+        .unwrap();
+        let dev_keys = recrypt::api::SigningKeypair::from_byte_slice(&[
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 138, 136, 227, 221, 116, 9, 241, 149, 253, 82, 219, 45, 60, 186, 93, 114, 202,
+            103, 9, 191, 29, 148, 18, 27, 243, 116, 136, 1, 180, 15, 111, 92,
+        ])
+        .unwrap();
+        DeviceContext::new(
+            "account_id".try_into().unwrap(),
+            22,
+            priv_key.into(),
+            DeviceSigningKeyPair::from(dev_keys),
+        )
+    }
+
+    mod signed {
+        use super::*;
+        use crate::{IronOxide, internal::user_api::tests::create_user_result};
+        fn create_test_sdk() -> Result<IronOxide> {
+            let recrypt = Recrypt::new();
+            let device = super::create_test_device_context();
+            let user_id = UserId::try_from("account_id")?;
+            let (_, pubk) = recrypt.generate_key_pair()?;
+            let user = create_user_result(user_id.clone(), 22, pubk.into(), true);
+            let io = IronOxide::create(&user, &device, &Default::default());
+            Ok(io)
+        }
+        #[test]
+        fn signed_cache_roundtrip() -> Result<()> {
+            let io = create_test_sdk()?;
+            let recrypt = Recrypt::new();
+            let device = super::create_test_device_context();
+            let (_, pubk) = recrypt.generate_key_pair()?;
+
+            let cache = PublicKeyCache::default();
+            cache
+                .user_keys()
+                .pin()
+                .insert(UserId::unsafe_from_string("user1".into()), pubk.into());
+
+            let signed = io.export_public_key_cache()?;
+            let result = PublicKeyCache::deserialize_signed_public_key_cache(&device, &signed);
+            assert!(result.is_ok());
+            Ok(())
+        }
+        #[test]
+        fn signed_cache_tampered_payload_fails() -> Result<()> {
+            let io = create_test_sdk()?;
+            let mut signed = io.export_public_key_cache()?;
+            // flip a byte in the cache portion
+            let last = signed.len() - 1;
+            signed[last] ^= 0xFF;
+
+            let result = PublicKeyCache::deserialize_signed_public_key_cache(io.device(), &signed);
+            assert!(result.is_err());
+            Ok(())
+        }
+        #[test]
+        fn signed_cache_tampered_signature_fails() -> Result<()> {
+            let io = create_test_sdk()?;
+            let mut signed = io.export_public_key_cache()?;
+            // flip a byte in the signature portion
+            signed[0] ^= 0xFF;
+
+            let result = PublicKeyCache::deserialize_signed_public_key_cache(io.device(), &signed);
+            assert!(result.is_err());
+            Ok(())
+        }
+        #[test]
+        fn signed_cache_wrong_device_fails() -> Result<()> {
+            let io = create_test_sdk()?;
+            let signed = io.export_public_key_cache()?;
+            let priv_key: recrypt::api::PrivateKey = recrypt::api::PrivateKey::new_from_slice(
+                BASE64_STANDARD
+                    .decode("bzb0Rlg0u7gx9wHuk1ppRI77OH/0ferXleenJ3Ag6Jg=")
+                    .unwrap()
+                    .as_slice(),
+            )
+            .unwrap();
+            let dev_keys = recrypt::api::SigningKeypair::from_byte_slice(&[
+                170, 222, 254, 96, 86, 46, 15, 233, 203, 170, 231, 41, 118, 13, 34, 45, 185, 234,
+                6, 174, 28, 76, 100, 181, 86, 227, 113, 24, 4, 72, 162, 110, 16, 178, 40, 148, 87,
+                243, 110, 163, 178, 75, 158, 100, 181, 167, 187, 6, 174, 69, 7, 78, 176, 97, 96,
+                106, 28, 101, 179, 30, 150, 195, 24, 28,
+            ])
+            .unwrap();
+            let wrong_device = DeviceContext::new(
+                "account_id_2".try_into().unwrap(),
+                23,
+                priv_key.into(),
+                DeviceSigningKeyPair::from(dev_keys),
+            );
+            let result =
+                PublicKeyCache::deserialize_signed_public_key_cache(&wrong_device, &signed);
+            assert!(result.is_err());
+            Ok(())
+        }
+        #[test]
+        fn signed_cache_too_short_fails() {
+            let device = create_test_device_context();
+            let result = PublicKeyCache::deserialize_signed_public_key_cache(&device, &[0u8; 32]);
+            assert!(matches!(result, Err(IronOxideErr::WrongSizeError(_, _))));
+        }
+        #[test]
+        fn signed_cache_exactly_64_bytes_no_payload_fails() {
+            let device = create_test_device_context();
+            let result = PublicKeyCache::deserialize_signed_public_key_cache(&device, &[0u8; 64]);
+            // signature over empty payload won't match, or deserialization of empty bytes fails
+            assert!(result.is_err());
+        }
+        #[test]
+        // Build an IronOxide with a populated cache, export, then verify+deserialize
+        fn export_then_deserialize_signed_roundtrip() -> Result<()> {
+            let device = create_test_device_context();
+            let recr = Recrypt::new();
+            let (_, pk) = recr.generate_key_pair().unwrap();
+
+            let io = create_test_sdk()?;
+            io.public_key_cache
+                .user_keys()
+                .pin()
+                .insert(UserId::unsafe_from_string("user1".into()), pk.into());
+
+            let exported = io.export_public_key_cache().unwrap();
+            let reimported =
+                PublicKeyCache::deserialize_signed_public_key_cache(&device, &exported);
+            assert!(reimported.is_ok());
+            Ok(())
+        }
+    }
+    #[tokio::test]
+    async fn cache_lookup_empty_input_returns_empty() {
+        let cache: HashMap<UserId, PublicKey> = HashMap::new();
+        let (not_found, found) = get_keys_with_cache(&[], &cache, |_| async {
+            panic!("fetch should not be called")
+        })
+        .await
+        .unwrap();
+        assert!(not_found.is_empty());
+        assert!(found.is_empty());
+    }
+    #[tokio::test]
+    async fn cache_lookup_all_cached_skips_fetch() {
+        let recr = Recrypt::new();
+        let (_, pubk) = recr.generate_key_pair().unwrap();
+        let uid = UserId::unsafe_from_string("user1".into());
+
+        let cache: HashMap<UserId, PublicKey> = HashMap::new();
+        cache.pin().insert(uid.clone(), pubk.into());
+
+        let (not_found, found) = get_keys_with_cache(&[uid.clone()], &cache, |_| async {
+            panic!("fetch should not be called when fully cached")
+        })
+        .await
+        .unwrap();
+
+        assert!(not_found.is_empty());
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].id, uid);
+    }
+    #[tokio::test]
+    async fn cache_lookup_partial_cache_only_fetches_misses() {
+        let recr = Recrypt::new();
+        let (_, pub1) = recr.generate_key_pair().unwrap();
+        let (_, pub2) = recr.generate_key_pair().unwrap();
+        let cached_user = UserId::unsafe_from_string("cached".into());
+        let uncached_user = UserId::unsafe_from_string("uncached".into());
+        let io_pub2: PublicKey = pub2.into();
+
+        let cache: HashMap<UserId, PublicKey> = HashMap::new();
+        cache.pin().insert(cached_user.clone(), pub1.into());
+
+        let pub2_clone = io_pub2.clone();
+        let uncached_clone = uncached_user.clone();
+        let (not_found, found) = get_keys_with_cache(
+            &[cached_user.clone(), uncached_user.clone()],
+            &cache,
+            move |ids| async move {
+                assert_eq!(ids.len(), 1, "should only try to fetch uncached ids");
+                assert_eq!(ids[0], uncached_clone);
+                let mut map = std::collections::HashMap::new();
+                map.insert(uncached_clone, pub2_clone);
+                Ok(map)
+            },
+        )
+        .await
+        .unwrap();
+
+        assert!(not_found.is_empty());
+        assert_eq!(found.len(), 2);
+    }
+    #[tokio::test]
+    async fn cache_lookup_populates_cache_from_fetch() {
+        let recr = Recrypt::new();
+        let (_, pubk) = recr.generate_key_pair().unwrap();
+        let uid = UserId::unsafe_from_string("user1".into());
+        let io_pub: PublicKey = pubk.into();
+
+        let cache: HashMap<UserId, PublicKey> = HashMap::new();
+        assert!(cache.pin().get(&uid).is_none());
+
+        let pub_clone = io_pub.clone();
+        let uid_clone = uid.clone();
+        get_keys_with_cache(&[uid.clone()], &cache, move |_| async move {
+            let mut map = std::collections::HashMap::new();
+            map.insert(uid_clone, pub_clone);
+            Ok(map)
+        })
+        .await
+        .unwrap();
+
+        // cache should now contain the fetched key
+        assert!(cache.pin().get(&uid).is_some());
+    }
+    #[tokio::test]
+    async fn cache_lookup_fetch_returns_not_found() {
+        let uid = UserId::unsafe_from_string("nonexistent".into());
+        let cache: HashMap<UserId, PublicKey> = HashMap::new();
+
+        let (not_found, found) = get_keys_with_cache(&[uid.clone()], &cache, |_| async {
+            Ok(std::collections::HashMap::new())
+        })
+        .await
+        .unwrap();
+
+        assert_eq!(not_found.len(), 1);
+        assert_eq!(not_found[0], uid);
+        assert!(found.is_empty());
     }
 }
