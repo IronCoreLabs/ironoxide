@@ -52,7 +52,7 @@ percent-encoding = "2.1"
 protobuf = { version = "3.0", features = ["with-bytes"] }
 quick-error = "2"
 rand = "0.8"
-rand_chacha = "0.3"
+rand_chacha = "0.10"
 recrypt = "0.14"
 regex = "1.4"
 reqwest = { version = "0.13", features = [
