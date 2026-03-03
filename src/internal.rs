@@ -1558,7 +1558,7 @@ pub(crate) mod tests {
         let result = PublicKeyCache::deserialize(b"deadbeef");
         assert!(result.is_err());
     }
-    fn create_test_device_context() -> DeviceContext {
+    pub(crate) fn create_test_device_context() -> DeviceContext {
         let priv_key: recrypt::api::PrivateKey = recrypt::api::PrivateKey::new_from_slice(
             BASE64_STANDARD
                 .decode("bzb0Rlg0u7gx9wDuk1ppRI77OH/0ferXleenJ3Ag6Jg=")
@@ -1580,18 +1580,19 @@ pub(crate) mod tests {
         )
     }
 
+    pub(crate) fn create_test_sdk() -> Result<crate::IronOxide> {
+        use crate::{IronOxide, internal::user_api::tests::create_user_result};
+        let recrypt = Recrypt::new();
+        let device = create_test_device_context();
+        let user_id = UserId::try_from("account_id")?;
+        let (_, pubk) = recrypt.generate_key_pair()?;
+        let user = create_user_result(user_id.clone(), 22, pubk.into(), true);
+        let io = IronOxide::create(&user, &device, &Default::default());
+        Ok(io)
+    }
+
     mod signed {
         use super::*;
-        use crate::{IronOxide, internal::user_api::tests::create_user_result};
-        fn create_test_sdk() -> Result<IronOxide> {
-            let recrypt = Recrypt::new();
-            let device = super::create_test_device_context();
-            let user_id = UserId::try_from("account_id")?;
-            let (_, pubk) = recrypt.generate_key_pair()?;
-            let user = create_user_result(user_id.clone(), 22, pubk.into(), true);
-            let io = IronOxide::create(&user, &device, &Default::default());
-            Ok(io)
-        }
         #[test]
         fn signed_cache_roundtrip() -> Result<()> {
             let io = create_test_sdk()?;
@@ -1798,5 +1799,120 @@ pub(crate) mod tests {
         assert_eq!(not_found.len(), 1);
         assert_eq!(not_found[0], uid);
         assert!(found.is_empty());
+    }
+    #[tokio::test]
+    async fn cache_lookup_fetch_error_propagates() {
+        let uid = UserId::unsafe_from_string("user1".into());
+        let cache: HashMap<UserId, PublicKey> = HashMap::new();
+
+        let result = get_keys_with_cache(&[uid], &cache, |_| async {
+            Err(IronOxideErr::InitializeError(
+                "simulated fetch failure".into(),
+            ))
+        })
+        .await;
+
+        assert!(result.is_err());
+    }
+
+    mod papaya_serde {
+        use super::*;
+
+        #[test]
+        fn multi_user_multi_group_roundtrip() {
+            let recrypt = Recrypt::new();
+            let cache = PublicKeyCache::default();
+
+            // insert multiple users
+            for i in 0..5 {
+                let (_, pubk) = recrypt.generate_key_pair().unwrap();
+                cache
+                    .user_keys()
+                    .pin()
+                    .insert(UserId::unsafe_from_string(format!("user_{i}")), pubk.into());
+            }
+            // insert multiple groups
+            for i in 0..3 {
+                let (_, pubk) = recrypt.generate_key_pair().unwrap();
+                cache.group_keys().pin().insert(
+                    GroupId::unsafe_from_string(format!("group_{i}")),
+                    pubk.into(),
+                );
+            }
+
+            let bytes = cache.serialize().unwrap();
+            let deserialized = PublicKeyCache::deserialize(&bytes).unwrap();
+
+            assert_eq!(deserialized.user_keys().len(), 5);
+            assert_eq!(deserialized.group_keys().len(), 3);
+
+            // verify specific entries survived
+            for i in 0..5 {
+                let uid = UserId::unsafe_from_string(format!("user_{i}"));
+                let orig = cache.user_keys().pin().get(&uid).unwrap().clone();
+                let deser = deserialized.user_keys().pin().get(&uid).unwrap().clone();
+                assert_eq!(orig, deser);
+            }
+            for i in 0..3 {
+                let gid = GroupId::unsafe_from_string(format!("group_{i}"));
+                let orig = cache.group_keys().pin().get(&gid).unwrap().clone();
+                let deser = deserialized.group_keys().pin().get(&gid).unwrap().clone();
+                assert_eq!(orig, deser);
+            }
+        }
+
+        #[test]
+        fn same_key_different_ids_roundtrip() {
+            let recrypt = Recrypt::new();
+            let (_, shared_pubk) = recrypt.generate_key_pair().unwrap();
+            let shared_pk: PublicKey = shared_pubk.into();
+
+            let cache = PublicKeyCache::default();
+            cache.user_keys().pin().insert(
+                UserId::unsafe_from_string("alice".into()),
+                shared_pk.clone(),
+            );
+            cache
+                .user_keys()
+                .pin()
+                .insert(UserId::unsafe_from_string("bob".into()), shared_pk.clone());
+
+            let bytes = cache.serialize().unwrap();
+            let deserialized = PublicKeyCache::deserialize(&bytes).unwrap();
+
+            assert_eq!(deserialized.user_keys().len(), 2);
+            let alice = deserialized
+                .user_keys()
+                .pin()
+                .get(&UserId::unsafe_from_string("alice".into()))
+                .unwrap()
+                .clone();
+            let bob = deserialized
+                .user_keys()
+                .pin()
+                .get(&UserId::unsafe_from_string("bob".into()))
+                .unwrap()
+                .clone();
+            assert_eq!(alice, bob);
+            assert_eq!(alice, shared_pk);
+        }
+
+        #[test]
+        fn truncated_bytes_fail_deserialization() {
+            let recrypt = Recrypt::new();
+            let (_, pubk) = recrypt.generate_key_pair().unwrap();
+
+            let cache = PublicKeyCache::default();
+            cache
+                .user_keys()
+                .pin()
+                .insert(UserId::unsafe_from_string("user1".into()), pubk.into());
+
+            let bytes = cache.serialize().unwrap();
+            // truncate to half the bytes
+            let truncated = &bytes[..bytes.len() / 2];
+            let result = PublicKeyCache::deserialize(truncated);
+            assert!(result.is_err());
+        }
     }
 }

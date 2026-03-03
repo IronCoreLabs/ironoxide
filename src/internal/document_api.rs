@@ -2205,4 +2205,270 @@ mod tests {
 
         Ok(())
     }
+
+    /// Helper: create EDEK proto bytes with the given user/group grants for a document.
+    fn make_edek_bytes(
+        user_ids: &[&str],
+        group_ids: &[&str],
+        doc_id: &str,
+        seg_id: i32,
+    ) -> Result<Vec<u8>, IronOxideErr> {
+        use recrypt::prelude::*;
+        let recr = recrypt::api::Recrypt::new();
+        let signingkeys = DeviceSigningKeyPair::from(recr.generate_ed25519_key_pair());
+        let (_, pubk) = recr.generate_key_pair()?;
+
+        let mut with_keys: Vec<WithKey<UserOrGroup>> = Vec::new();
+        for uid_str in user_ids {
+            let uid = UserId::unsafe_from_string(uid_str.to_string());
+            with_keys.push(WithKey::new(uid.borrow().into(), pubk.into()));
+        }
+        for gid_str in group_ids {
+            let gid = GroupId::unsafe_from_string(gid_str.to_string());
+            with_keys.push(WithKey::new(gid.borrow().into(), pubk.into()));
+        }
+
+        let doc_id = DocumentId(doc_id.into());
+        let aes_value = AesEncryptedValue::try_from(&[42u8; 32][..])?;
+        let encryption_result = recrypt_document(
+            &signingkeys,
+            &recr,
+            recr.gen_plaintext(),
+            &doc_id,
+            with_keys,
+        )?
+        .into_edoc(DocumentHeader::new(doc_id, seg_id as usize), aes_value);
+
+        encryption_result.edek_bytes()
+    }
+
+    mod revoke_access_unmanaged {
+        use super::*;
+
+        #[test]
+        fn revoke_user_succeeds() {
+            let edek_bytes = make_edek_bytes(&["user1", "user2"], &[], "doc1", 1).unwrap();
+            let revoke_list = vec![UserOrGroup::User {
+                id: UserId::unsafe_from_string("user1".into()),
+            }];
+            let result = document_revoke_access_unmanaged(&edek_bytes, &revoke_list).unwrap();
+
+            assert!(result.access_via().is_none());
+            assert_eq!(result.succeeded().len(), 1);
+            assert_eq!(
+                result.succeeded()[0],
+                UserOrGroup::User {
+                    id: UserId::unsafe_from_string("user1".into())
+                }
+            );
+            assert!(result.failed().is_empty());
+
+            // verify the remaining EDEKs only contain user2
+            let remaining = EncryptedDeksP::parse_from_bytes(result.encrypted_deks()).unwrap();
+            assert_eq!(remaining.edeks.len(), 1);
+        }
+
+        #[test]
+        fn revoke_group_succeeds() {
+            let edek_bytes = make_edek_bytes(&[], &["group1", "group2"], "doc1", 1).unwrap();
+            let revoke_list = vec![UserOrGroup::Group {
+                id: GroupId::unsafe_from_string("group2".into()),
+            }];
+            let result = document_revoke_access_unmanaged(&edek_bytes, &revoke_list).unwrap();
+
+            assert_eq!(result.succeeded().len(), 1);
+            assert_eq!(
+                result.succeeded()[0],
+                UserOrGroup::Group {
+                    id: GroupId::unsafe_from_string("group2".into())
+                }
+            );
+            assert!(result.failed().is_empty());
+
+            let remaining = EncryptedDeksP::parse_from_bytes(result.encrypted_deks()).unwrap();
+            assert_eq!(remaining.edeks.len(), 1);
+        }
+
+        #[test]
+        fn revoke_nonexistent_user_reports_failure() {
+            let edek_bytes = make_edek_bytes(&["user1"], &[], "doc1", 1).unwrap();
+            let revoke_list = vec![UserOrGroup::User {
+                id: UserId::unsafe_from_string("no_such_user".into()),
+            }];
+            let result = document_revoke_access_unmanaged(&edek_bytes, &revoke_list).unwrap();
+
+            assert!(result.succeeded().is_empty());
+            assert_eq!(result.failed().len(), 1);
+            assert_eq!(
+                result.failed()[0].user_or_group,
+                UserOrGroup::User {
+                    id: UserId::unsafe_from_string("no_such_user".into())
+                }
+            );
+            assert!(result.failed()[0].err.contains("not found in EDEK grants"));
+
+            // original EDEKs should be unmodified in count
+            let remaining = EncryptedDeksP::parse_from_bytes(result.encrypted_deks()).unwrap();
+            assert_eq!(remaining.edeks.len(), 1);
+        }
+
+        #[test]
+        fn revoke_mixed_success_and_failure() {
+            let edek_bytes = make_edek_bytes(&["user1"], &["group1"], "doc1", 1).unwrap();
+            let revoke_list = vec![
+                UserOrGroup::User {
+                    id: UserId::unsafe_from_string("user1".into()),
+                },
+                UserOrGroup::Group {
+                    id: GroupId::unsafe_from_string("nonexistent_group".into()),
+                },
+            ];
+            let result = document_revoke_access_unmanaged(&edek_bytes, &revoke_list).unwrap();
+
+            assert_eq!(result.succeeded().len(), 1);
+            assert_eq!(
+                result.succeeded()[0],
+                UserOrGroup::User {
+                    id: UserId::unsafe_from_string("user1".into())
+                }
+            );
+            assert_eq!(result.failed().len(), 1);
+            assert_eq!(
+                result.failed()[0].user_or_group,
+                UserOrGroup::Group {
+                    id: GroupId::unsafe_from_string("nonexistent_group".into())
+                }
+            );
+
+            let remaining = EncryptedDeksP::parse_from_bytes(result.encrypted_deks()).unwrap();
+            assert_eq!(remaining.edeks.len(), 1); // only group1 remains
+        }
+
+        #[test]
+        fn revoke_all_grants_leaves_empty_edeks() {
+            let edek_bytes = make_edek_bytes(&["user1"], &["group1"], "doc1", 1).unwrap();
+            let revoke_list = vec![
+                UserOrGroup::User {
+                    id: UserId::unsafe_from_string("user1".into()),
+                },
+                UserOrGroup::Group {
+                    id: GroupId::unsafe_from_string("group1".into()),
+                },
+            ];
+            let result = document_revoke_access_unmanaged(&edek_bytes, &revoke_list).unwrap();
+
+            assert_eq!(result.succeeded().len(), 2);
+            assert!(result.failed().is_empty());
+
+            let remaining = EncryptedDeksP::parse_from_bytes(result.encrypted_deks()).unwrap();
+            assert_eq!(remaining.edeks.len(), 0);
+        }
+
+        #[test]
+        fn revoke_empty_list_is_noop() {
+            let edek_bytes = make_edek_bytes(&["user1"], &["group1"], "doc1", 1).unwrap();
+            let result = document_revoke_access_unmanaged(&edek_bytes, &[]).unwrap();
+
+            assert!(result.succeeded().is_empty());
+            assert!(result.failed().is_empty());
+
+            let remaining = EncryptedDeksP::parse_from_bytes(result.encrypted_deks()).unwrap();
+            assert_eq!(remaining.edeks.len(), 2);
+        }
+
+        #[test]
+        fn revoke_preserves_document_id_and_segment() {
+            let edek_bytes = make_edek_bytes(&["user1", "user2"], &[], "my_doc_42", 99).unwrap();
+            let revoke_list = vec![UserOrGroup::User {
+                id: UserId::unsafe_from_string("user1".into()),
+            }];
+            let result = document_revoke_access_unmanaged(&edek_bytes, &revoke_list).unwrap();
+
+            let remaining = EncryptedDeksP::parse_from_bytes(result.encrypted_deks()).unwrap();
+            assert_eq!(remaining.documentId.to_string(), "my_doc_42");
+            assert_eq!(remaining.segmentId, 99);
+        }
+
+        #[test]
+        fn revoke_garbage_bytes_fails() {
+            let result = document_revoke_access_unmanaged(b"not_valid_proto", &[]);
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn revoke_empty_bytes_is_noop() {
+            // empty bytes parse as an empty proto (no edeks, empty doc id, segment 0)
+            let result = document_revoke_access_unmanaged(&[], &[]).unwrap();
+            assert!(result.succeeded().is_empty());
+            assert!(result.failed().is_empty());
+        }
+    }
+
+    mod get_id_from_edeks {
+        use super::*;
+        use crate::document::advanced::DocumentAdvancedOps;
+        use crate::internal::tests::create_test_sdk;
+
+        #[test]
+        fn extracts_document_id_from_valid_edeks() {
+            let edek_bytes = make_edek_bytes(&["user1"], &[], "test_doc_id", 1).unwrap();
+            let sdk = create_test_sdk().unwrap();
+            let doc_id = sdk
+                .document_get_id_from_edeks_unmanaged(&edek_bytes)
+                .unwrap();
+            assert_eq!(doc_id.id(), "test_doc_id");
+        }
+
+        #[test]
+        fn empty_bytes_returns_err_for_missing_doc_id() {
+            let sdk = create_test_sdk().unwrap();
+            // empty proto has empty string documentId which should fail DocumentId validation
+            let result = sdk.document_get_id_from_edeks_unmanaged(&[]);
+            assert!(result.is_err());
+        }
+    }
+
+    mod edeks_to_proto_roundtrip {
+        use super::*;
+
+        #[test]
+        fn roundtrip_preserves_doc_id_segment_and_edek_count() {
+            let recr = recrypt::api::Recrypt::new();
+            let signingkeys = DeviceSigningKeyPair::from(recr.generate_ed25519_key_pair());
+            let (_, pubk) = recr.generate_key_pair().unwrap();
+            let uid = UserId::unsafe_from_string("user1".into());
+            let gid = GroupId::unsafe_from_string("group1".into());
+            let with_keys = vec![
+                WithKey::new(UserOrGroup::from(uid), pubk.into()),
+                WithKey::new(UserOrGroup::from(gid), pubk.into()),
+            ];
+            let doc_id = DocumentId("roundtrip_doc".into());
+
+            let recryption_result = recrypt_document(
+                &signingkeys,
+                &recr,
+                recr.gen_plaintext(),
+                &doc_id,
+                with_keys,
+            )
+            .unwrap();
+
+            let bytes =
+                edeks_to_edeks_proto(&recryption_result.edeks, "roundtrip_doc", 77).unwrap();
+            let parsed = EncryptedDeksP::parse_from_bytes(&bytes).unwrap();
+
+            assert_eq!(parsed.documentId.to_string(), "roundtrip_doc");
+            assert_eq!(parsed.segmentId, 77);
+            assert_eq!(parsed.edeks.len(), 2);
+        }
+
+        #[test]
+        fn empty_edeks_produces_valid_proto() {
+            let bytes = edeks_to_edeks_proto(&[], "empty_doc", 5).unwrap();
+            let parsed = EncryptedDeksP::parse_from_bytes(&bytes).unwrap();
+            assert_eq!(parsed.documentId.to_string(), "empty_doc");
+            assert_eq!(parsed.segmentId, 5);
+            assert_eq!(parsed.edeks.len(), 0);
+        }
+    }
 }
