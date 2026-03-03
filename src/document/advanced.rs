@@ -302,7 +302,7 @@ impl DocumentAdvancedOps for crate::IronOxide {
                 self.device.auth(),
                 &self.recrypt,
                 &self.user_master_pub_key,
-                &self.device.device_private_key(),
+                self.device.device_private_key(),
                 edeks,
                 &users,
                 &groups,
