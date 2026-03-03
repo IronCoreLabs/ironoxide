@@ -169,7 +169,7 @@ impl BlockingIronOxide {
         self.runtime
             .block_on(self.ironoxide.document_revoke_access(id, revoke_list))
     }
-    /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_encrypt](trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged)
+    /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_encrypt_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged)
     pub fn document_encrypt_unmanaged(
         &self,
         data: Vec<u8>,
@@ -218,7 +218,7 @@ impl BlockingIronOxide {
         &self,
         edeks: &[u8],
         grant_list: &[UserOrGroup],
-    ) -> Result<DocumentAccessResult> {
+    ) -> Result<DocumentAccessUnmanagedResult> {
         self.runtime.block_on(
             self.ironoxide
                 .document_grant_access_unmanaged(edeks, grant_list),
@@ -229,11 +229,9 @@ impl BlockingIronOxide {
         &self,
         edeks: &[u8],
         revoke_list: &[UserOrGroup],
-    ) -> Result<DocumentAccessResult> {
-        self.runtime.block_on(
-            self.ironoxide
-                .document_revoke_access_unmanaged(edeks, revoke_list),
-        )
+    ) -> Result<DocumentAccessUnmanagedResult> {
+        self.ironoxide
+            .document_revoke_access_unmanaged(edeks, revoke_list)
     }
     /// See [ironoxide::IronOxide::export_public_key_cache](../struct.IronOxide.html#method.export_public_key_cache)
     pub fn export_public_key_cache(&self) -> Result<Vec<u8>> {

@@ -3,13 +3,16 @@
 //! See [DocumentAdvancedOps](trait.DocumentAdvancedOps.html) for unmanaged document functions and key terms.
 
 pub use crate::internal::document_api::{
-    DocumentAccessResult, DocumentDecryptUnmanagedResult, DocumentEncryptUnmanagedResult,
+    DocumentAccessUnmanagedResult, DocumentDecryptUnmanagedResult, DocumentEncryptUnmanagedResult,
     DocumentId, UserOrGroup,
 };
 use crate::{
     IronOxideErr, Result, SdkOperation,
     document::{DocumentEncryptOpts, partition_user_or_group},
-    internal::{self, add_optional_timeout, document_api},
+    internal::{
+        self, add_optional_timeout,
+        document_api::{self},
+    },
     prelude::DocumentMetadataResult,
     proto::transform::EncryptedDeks as EncryptedDeksP,
 };
@@ -139,7 +142,7 @@ pub trait DocumentAdvancedOps {
     ///
     /// # Errors
     /// This operation supports partial success. If the request succeeds, then the resulting
-    /// `DocumentAccessResult` will indicate which grants succeeded and which failed, and it
+    /// `DocumentAccessUnmanagedResult` will indicate which grants succeeded and which failed, and it
     /// will provide an explanation for each failure.
     ///
     /// # Examples
@@ -160,11 +163,11 @@ pub trait DocumentAdvancedOps {
         &self,
         edeks: &[u8],
         grant_list: &[UserOrGroup],
-    ) -> impl Future<Output = Result<DocumentAccessResult>> + Send;
+    ) -> impl Future<Output = Result<DocumentAccessUnmanagedResult>> + Send;
 
     /// Revokes decryption access to a document for the provided users and/or groups.
     ///
-    /// This operation can be done offline (without access to the IronCore service).
+    /// This operation is fully offline (no server calls are needed).
     ///
     /// # Arguments
     /// - `edeks` - the EDEKs of the document whose access is being modified
@@ -172,12 +175,12 @@ pub trait DocumentAdvancedOps {
     ///
     /// # Errors
     /// This operation supports partial success. If the request succeeds, then the resulting
-    /// `DocumentAccessResult` will indicate which revocations succeeded and which failed, and it
+    /// `DocumentAccessUnmanagedResult` will indicate which revocations succeeded and which failed, and it
     /// will provide an explanation for each failure.
     ///
     /// # Examples
     /// ```
-    /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+    /// # fn run() -> Result<(), ironoxide::IronOxideErr> {
     /// # use ironoxide::prelude::*;
     /// # let sdk: IronOxide = unimplemented!();
     /// # let edeks: Vec<u8> = vec![];
@@ -185,7 +188,7 @@ pub trait DocumentAdvancedOps {
     /// use ironoxide::document::UserOrGroup;
     /// // from a list of UserIds, `users`
     /// let users_or_groups: Vec<UserOrGroup> = users.iter().map(|user| user.into()).collect();
-    /// let access_result = sdk.document_revoke_access_unmanaged(&edeks, &users_or_groups).await?;
+    /// let access_result = sdk.document_revoke_access_unmanaged(&edeks, &users_or_groups)?;
     /// # Ok(())
     /// # }
     /// ```
@@ -193,7 +196,7 @@ pub trait DocumentAdvancedOps {
         &self,
         edeks: &[u8],
         revoke_list: &[UserOrGroup],
-    ) -> impl Future<Output = Result<DocumentAccessResult>> + Send;
+    ) -> Result<DocumentAccessUnmanagedResult>;
 }
 
 impl DocumentAdvancedOps for crate::IronOxide {
@@ -291,40 +294,32 @@ impl DocumentAdvancedOps for crate::IronOxide {
         &self,
         edeks: &[u8],
         grant_list: &[UserOrGroup],
-    ) -> Result<DocumentAccessResult> {
+    ) -> Result<DocumentAccessUnmanagedResult> {
         let (users, groups) = partition_user_or_group(grant_list);
 
         add_optional_timeout(
-            document_api::document_grant_access(
+            internal::document_api::document_grant_access_unmanaged(
                 self.device.auth(),
                 &self.recrypt,
-                &self.document_get_id_from_edeks_unmanaged(edeks)?,
                 &self.user_master_pub_key,
-                self.device.device_private_key(),
+                &self.device.device_private_key(),
+                edeks,
                 &users,
                 &groups,
                 &self.public_key_cache,
+                self.config.clone(),
             ),
             self.config.sdk_operation_timeout,
-            SdkOperation::DocumentGrantAccess,
+            SdkOperation::DocumentEncryptUnmanaged,
         )
         .await?
     }
 
-    async fn document_revoke_access_unmanaged(
+    fn document_revoke_access_unmanaged(
         &self,
         edeks: &[u8],
         revoke_list: &[UserOrGroup],
-    ) -> Result<DocumentAccessResult> {
-        add_optional_timeout(
-            document_api::document_revoke_access(
-                self.device.auth(),
-                &self.document_get_id_from_edeks_unmanaged(edeks)?,
-                revoke_list,
-            ),
-            self.config.sdk_operation_timeout,
-            SdkOperation::DocumentRevokeAccess,
-        )
-        .await?
+    ) -> Result<DocumentAccessUnmanagedResult> {
+        document_api::document_revoke_access_unmanaged(edeks, revoke_list)
     }
 }

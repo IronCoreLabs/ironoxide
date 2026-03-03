@@ -526,7 +526,7 @@ impl DocumentOps for crate::IronOxide {
     }
 }
 
-fn partition_user_or_group(uog_slice: &[UserOrGroup]) -> (Vec<UserId>, Vec<GroupId>) {
+pub(crate) fn partition_user_or_group(uog_slice: &[UserOrGroup]) -> (Vec<UserId>, Vec<GroupId>) {
     uog_slice
         .iter()
         .partition_map(|access_grant| match access_grant {

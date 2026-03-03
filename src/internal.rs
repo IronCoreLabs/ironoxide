@@ -439,30 +439,42 @@ type GroupPublicKeyCache = HashMap<GroupId, PublicKey>;
 // Public keys don't go bad, so we don't need expiration, but we may want a default limit on size in the future.
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub(crate) struct PublicKeyCache {
-    #[serde(serialize_with = "serialize_papaya_map")]
+    #[serde(
+        serialize_with = "serialize_papaya_map",
+        deserialize_with = "deserialize_papaya_map"
+    )]
     user_keys: UserPublicKeyCache,
-    #[serde(serialize_with = "serialize_papaya_map")]
+    #[serde(
+        serialize_with = "serialize_papaya_map",
+        deserialize_with = "deserialize_papaya_map"
+    )]
     group_keys: GroupPublicKeyCache,
 }
 
 /// `papaya` can't provide `size_hint` (due to being concurrent, no reliable upper bound) to indicate to serde's
 /// `serialize_seq` how long it is during serialization. `postcard` (our data format) requires a length on
-/// `serialize_seq` or it errors. This manual serialization gets around `papaya`'s lack of `size_hint` by serializing
-/// individual entries till it runs out, which dodges some concurrency issues (something already serialized could get
-/// tombstoned while writing and be out of date).
-/// The default `deserialize` in papaya still works fine with this output.
+/// `serialize_seq` or it errors.
+/// This manual serde gets around concurrency issues by snapshotting a Vec of entries at call time and serializing that.
 fn serialize_papaya_map<S, K, V>(map: &HashMap<K, V>, serializer: S) -> StdResult<S::Ok, S::Error>
 where
     S: Serializer,
     K: Serialize + core::hash::Hash + Eq,
     V: Serialize,
 {
-    use serde::ser::SerializeMap;
-    let mut ser_map = serializer.serialize_map(Some(map.len()))?;
-    for (k, v) in map.pin().iter() {
-        ser_map.serialize_entry(k, v)?;
+    serializer.collect_seq(map.pin().iter().collect::<Vec<_>>())
+}
+fn deserialize_papaya_map<'de, D, K, V>(deserializer: D) -> StdResult<HashMap<K, V>, D::Error>
+where
+    D: Deserializer<'de>,
+    K: Deserialize<'de> + core::hash::Hash + Eq,
+    V: Deserialize<'de>,
+{
+    let entries: Vec<(K, V)> = Vec::deserialize(deserializer)?;
+    let map = HashMap::new();
+    for (k, v) in entries {
+        map.pin().insert(k, v);
     }
-    ser_map.end()
+    Ok(map)
 }
 
 impl PublicKeyCache {
@@ -538,18 +550,12 @@ where
             .into_iter()
             .partition_map(|id| match ids_with_keys.get(&id).cloned() {
                 Some(pub_key) => {
+                    // cache the newly returned API values
                     cache.pin().insert(id.clone(), pub_key.clone());
                     Either::Right(WithKey::new(id, pub_key))
                 }
                 None => Either::Left(id),
             });
-
-    // cache the newly returned API values
-    for id_with_key in &found {
-        cache
-            .pin()
-            .insert(id_with_key.id.clone(), id_with_key.public_key.clone());
-    }
 
     Ok((not_found, [cached, found].concat()))
 }
@@ -1593,15 +1599,20 @@ pub(crate) mod tests {
             let device = super::create_test_device_context();
             let (_, pubk) = recrypt.generate_key_pair()?;
 
-            let cache = PublicKeyCache::default();
-            cache
+            let user_id = UserId::unsafe_from_string("user1".into());
+            io.public_key_cache
                 .user_keys()
                 .pin()
-                .insert(UserId::unsafe_from_string("user1".into()), pubk.into());
+                .insert(user_id.clone(), pubk.into());
 
             let signed = io.export_public_key_cache()?;
-            let result = PublicKeyCache::deserialize_signed_public_key_cache(&device, &signed);
-            assert!(result.is_ok());
+            let result = PublicKeyCache::deserialize_signed_public_key_cache(&device, &signed)?;
+            assert!(result.user_keys().len() == 1);
+            let user_keys = result.user_keys().pin();
+            let deser_pubk = user_keys
+                .get(&user_id)
+                .expect("expected inserted user to exist");
+            assert_eq!(pubk, deser_pubk.0);
             Ok(())
         }
         #[test]
