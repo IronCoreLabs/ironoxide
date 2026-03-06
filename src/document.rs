@@ -411,6 +411,7 @@ impl DocumentOps for crate::IronOxide {
                 &explicit_groups,
                 policy_grants.as_ref(),
                 &self.policy_eval_cache,
+                &self.public_key_cache,
             ),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentEncrypt,
@@ -503,6 +504,7 @@ impl DocumentOps for crate::IronOxide {
                 self.device.device_private_key(),
                 &users,
                 &groups,
+                &self.public_key_cache,
             ),
             self.config.sdk_operation_timeout,
             SdkOperation::DocumentGrantAccess,
@@ -524,7 +526,7 @@ impl DocumentOps for crate::IronOxide {
     }
 }
 
-fn partition_user_or_group(uog_slice: &[UserOrGroup]) -> (Vec<UserId>, Vec<GroupId>) {
+pub(crate) fn partition_user_or_group(uog_slice: &[UserOrGroup]) -> (Vec<UserId>, Vec<GroupId>) {
     uog_slice
         .iter()
         .partition_map(|access_grant| match access_grant {

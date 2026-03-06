@@ -953,3 +953,406 @@ impl WithGrantsAndErrs for DocumentEncryptUnmanagedResult {
         self.access_errs()
     }
 }
+
+mod unmanaged {
+    use super::*;
+    use ironoxide::initialize_with_public_keys;
+
+    // Grant Access
+
+    #[tokio::test]
+    async fn grant_access_to_user_and_group() -> Result<(), IronOxideErr> {
+        let (_, sdk1) = init_sdk_get_user().await;
+        let (user2, sdk2) = init_sdk_get_user().await;
+
+        let group = sdk1.group_create(&Default::default()).await?;
+
+        let doc = [42u8; 64];
+        let encrypt_result = sdk1
+            .document_encrypt_unmanaged(
+                doc.into(),
+                &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![]),
+            )
+            .await?;
+
+        let grant_result = sdk1
+            .document_grant_access_unmanaged(
+                encrypt_result.encrypted_deks(),
+                &[user2.clone().into(), group.id().into()],
+            )
+            .await?;
+
+        assert!(grant_result.access_via().is_some());
+        let succeeded_ids: Vec<UserOrGroup> = grant_result.succeeded().to_vec();
+        assert_eq!(succeeded_ids.len(), 2);
+        assert_that!(
+            &succeeded_ids,
+            contains_in_any_order(vec![
+                UserOrGroup::User { id: user2 },
+                UserOrGroup::Group {
+                    id: group.id().clone()
+                },
+            ])
+        );
+        assert!(grant_result.failed().is_empty());
+
+        // user2 should be able to decrypt with the updated EDEKs
+        let decrypt_result = sdk2
+            .document_decrypt_unmanaged(
+                encrypt_result.encrypted_data(),
+                grant_result.encrypted_deks(),
+            )
+            .await?;
+        assert_eq!(decrypt_result.decrypted_data(), &doc[..]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn grant_access_with_failures() -> Result<(), IronOxideErr> {
+        let (_, sdk) = init_sdk_get_user().await;
+        let user2 = create_second_user().await;
+
+        let doc = [42u8; 64];
+        let encrypt_result = sdk
+            .document_encrypt_unmanaged(
+                doc.into(),
+                &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![]),
+            )
+            .await?;
+
+        let bad_user: UserId = create_id_all_classes("nonexistent-user").try_into()?;
+        let bad_group: GroupId = create_id_all_classes("nonexistent-group").try_into()?;
+
+        let grant_result = sdk
+            .document_grant_access_unmanaged(
+                encrypt_result.encrypted_deks(),
+                &[
+                    user2.account_id().into(),
+                    UserOrGroup::User { id: bad_user },
+                    UserOrGroup::Group { id: bad_group },
+                ],
+            )
+            .await?;
+
+        assert_eq!(grant_result.succeeded().len(), 1);
+        assert_that!(
+            &grant_result.succeeded().to_vec(),
+            contains_in_any_order(vec![UserOrGroup::User {
+                id: user2.account_id().clone()
+            },])
+        );
+        assert_eq!(grant_result.failed().len(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn grant_access_deduplicates_existing() -> Result<(), IronOxideErr> {
+        let (user1, sdk) = init_sdk_get_user().await;
+
+        let doc = [42u8; 64];
+        let encrypt_result = sdk
+            .document_encrypt_unmanaged(
+                doc.into(),
+                &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![]),
+            )
+            .await?;
+
+        // Grant to self twice. user1 already has access
+        let grant_result = sdk
+            .document_grant_access_unmanaged(
+                encrypt_result.encrypted_deks(),
+                &[user1.clone().into(), user1.clone().into()],
+            )
+            .await?;
+
+        // Should not duplicate: succeeded has just user1 once
+        let user1_count = grant_result
+            .succeeded()
+            .iter()
+            .filter(|ug| **ug == UserOrGroup::User { id: user1.clone() })
+            .count();
+        assert_eq!(user1_count, 1);
+
+        // Decrypt still works with the new EDEKs
+        let decrypt_result = sdk
+            .document_decrypt_unmanaged(
+                encrypt_result.encrypted_data(),
+                grant_result.encrypted_deks(),
+            )
+            .await?;
+        assert_eq!(decrypt_result.decrypted_data(), &doc[..]);
+        Ok(())
+    }
+
+    // Revoke Access
+
+    #[tokio::test]
+    async fn revoke_access_nonexistent_reports_failure() -> Result<(), IronOxideErr> {
+        let sdk = initialize_sdk().await?;
+
+        let doc = [42u8; 64];
+        let encrypt_result = sdk
+            .document_encrypt_unmanaged(
+                doc.into(),
+                &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![]),
+            )
+            .await?;
+
+        let bad_user: UserId = create_id_all_classes("nonexistent-user").try_into()?;
+        let bad_group: GroupId = create_id_all_classes("nonexistent-group").try_into()?;
+
+        let revoke_result = sdk.document_revoke_access_unmanaged(
+            encrypt_result.encrypted_deks(),
+            &[
+                UserOrGroup::User { id: bad_user },
+                UserOrGroup::Group { id: bad_group },
+            ],
+        )?;
+
+        assert!(revoke_result.succeeded().is_empty());
+        assert_eq!(revoke_result.failed().len(), 2);
+        assert!(revoke_result.access_via().is_none());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn revoke_access_from_group() -> Result<(), IronOxideErr> {
+        let sdk = initialize_sdk().await?;
+        let group = sdk.group_create(&Default::default()).await?;
+
+        let doc = [42u8; 64];
+        let encrypt_result = sdk
+            .document_encrypt_unmanaged(
+                doc.into(),
+                &DocumentEncryptOpts::with_explicit_grants(
+                    None,
+                    None,
+                    true,
+                    vec![group.id().into()],
+                ),
+            )
+            .await?;
+
+        // revoke is synchronous
+        let revoke_result = sdk.document_revoke_access_unmanaged(
+            encrypt_result.encrypted_deks(),
+            &[group.id().into()],
+        )?;
+
+        assert_eq!(revoke_result.succeeded().len(), 1);
+        assert_eq!(
+            revoke_result.succeeded()[0],
+            UserOrGroup::Group {
+                id: group.id().clone()
+            }
+        );
+        assert!(revoke_result.failed().is_empty());
+
+        // Self can still decrypt with updated EDEKs
+        let decrypt_result = sdk
+            .document_decrypt_unmanaged(
+                encrypt_result.encrypted_data(),
+                revoke_result.encrypted_deks(),
+            )
+            .await?;
+        assert_eq!(decrypt_result.decrypted_data(), &doc[..]);
+        Ok(())
+    }
+
+    // Grant + Revoke Lifecycle
+
+    #[tokio::test]
+    async fn grant_then_revoke_roundtrip() -> Result<(), IronOxideErr> {
+        let (_user1, sdk1) = init_sdk_get_user().await;
+        let (user2, sdk2) = init_sdk_get_user().await;
+
+        let doc = [42u8; 64];
+        let encrypt_result = sdk1
+            .document_encrypt_unmanaged(
+                doc.into(),
+                &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![]),
+            )
+            .await?;
+
+        // Grant to user2
+        let grant_result = sdk1
+            .document_grant_access_unmanaged(
+                encrypt_result.encrypted_deks(),
+                &[user2.clone().into()],
+            )
+            .await?;
+
+        // user2 can decrypt
+        let decrypt_result = sdk2
+            .document_decrypt_unmanaged(
+                encrypt_result.encrypted_data(),
+                grant_result.encrypted_deks(),
+            )
+            .await?;
+        assert_eq!(decrypt_result.decrypted_data(), &doc[..]);
+
+        // Revoke user2 from the grant result EDEKs (sync)
+        let revoke_result = sdk1.document_revoke_access_unmanaged(
+            grant_result.encrypted_deks(),
+            &[user2.clone().into()],
+        )?;
+        assert_eq!(revoke_result.succeeded().len(), 1);
+
+        // user2 can no longer decrypt
+        let decrypt_err = sdk2
+            .document_decrypt_unmanaged(
+                encrypt_result.encrypted_data(),
+                revoke_result.encrypted_deks(),
+            )
+            .await;
+        assert!(decrypt_err.is_err());
+
+        // user1 still can
+        let decrypt_ok = sdk1
+            .document_decrypt_unmanaged(
+                encrypt_result.encrypted_data(),
+                revoke_result.encrypted_deks(),
+            )
+            .await?;
+        assert_eq!(decrypt_ok.decrypted_data(), &doc[..]);
+        Ok(())
+    }
+
+    // ID Extraction
+
+    #[tokio::test]
+    async fn get_id_from_bytes_and_edeks() -> Result<(), IronOxideErr> {
+        let sdk = initialize_sdk().await?;
+        let explicit_id: DocumentId = create_id_all_classes("docid").try_into()?;
+
+        let doc = [42u8; 64];
+        let encrypt_result = sdk
+            .document_encrypt_unmanaged(
+                doc.into(),
+                &DocumentEncryptOpts::with_explicit_grants(
+                    Some(explicit_id.clone()),
+                    None,
+                    true,
+                    vec![],
+                ),
+            )
+            .await?;
+
+        let id_from_bytes =
+            sdk.document_get_id_from_bytes_unmanaged(encrypt_result.encrypted_data())?;
+        let id_from_edeks =
+            sdk.document_get_id_from_edeks_unmanaged(encrypt_result.encrypted_deks())?;
+
+        assert_eq!(&id_from_bytes, encrypt_result.id());
+        assert_eq!(&id_from_edeks, encrypt_result.id());
+        assert_eq!(&id_from_bytes, &explicit_id);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn get_id_from_invalid_bytes_fails() -> Result<(), IronOxideErr> {
+        let sdk = initialize_sdk().await?;
+        let garbage = vec![0u8, 1, 2, 3, 4, 5];
+
+        let result_bytes = sdk.document_get_id_from_bytes_unmanaged(&garbage);
+        let result_edeks = sdk.document_get_id_from_edeks_unmanaged(&garbage);
+
+        assert!(result_bytes.is_err());
+        assert!(result_edeks.is_err());
+        Ok(())
+    }
+
+    // Metadata
+
+    #[tokio::test]
+    async fn get_metadata_unmanaged_no_server_record_fails() -> Result<(), IronOxideErr> {
+        let sdk = initialize_sdk().await?;
+
+        let doc = [42u8; 64];
+        let encrypt_result = sdk
+            .document_encrypt_unmanaged(
+                doc.into(),
+                &DocumentEncryptOpts::with_explicit_grants(None, None, true, vec![]),
+            )
+            .await?;
+
+        let metadata = sdk.document_get_metadata_unmanaged(encrypt_result.encrypted_deks())?;
+        assert!(metadata.visible_to_groups().is_empty());
+        assert_eq!(metadata.visible_to_users().len(), 1);
+        Ok(())
+    }
+
+    // Public Key Cache
+
+    #[tokio::test]
+    async fn export_and_reinitialize_with_cache() -> Result<(), IronOxideErr> {
+        let sdk = initialize_sdk().await?;
+        let user2 = create_second_user().await;
+
+        // Encrypt to user2 to populate the cache with their public key
+        let doc = [42u8; 64];
+        let encrypt_result1 = sdk
+            .document_encrypt_unmanaged(
+                doc.into(),
+                &DocumentEncryptOpts::with_explicit_grants(
+                    None,
+                    None,
+                    true,
+                    vec![user2.account_id().into()],
+                ),
+            )
+            .await?;
+        assert_eq!(encrypt_result1.access_errs().len(), 0);
+
+        let cache_bytes = sdk.export_public_key_cache()?;
+        let device = sdk.device().clone();
+        let config = IronOxideConfig::default();
+
+        // Reinitialize with the exported cache
+        let sdk2 = initialize_with_public_keys(&device, &config, cache_bytes).await?;
+
+        // Encrypt to user2 again, which should succeed
+        let encrypt_result2 = sdk2
+            .document_encrypt_unmanaged(
+                doc.into(),
+                &DocumentEncryptOpts::with_explicit_grants(
+                    None,
+                    None,
+                    true,
+                    vec![user2.account_id().into()],
+                ),
+            )
+            .await?;
+
+        assert_that!(
+            &encrypt_result2.grants().to_vec(),
+            contains_in_any_order(vec![
+                UserOrGroup::User {
+                    id: sdk2.device().account_id().clone()
+                },
+                UserOrGroup::User {
+                    id: user2.account_id().clone()
+                },
+            ])
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn export_cache_tampered_fails_initialize() -> Result<(), IronOxideErr> {
+        let sdk = initialize_sdk().await?;
+        let mut cache_bytes = sdk.export_public_key_cache()?;
+
+        // Flip a byte to tamper with the cache
+        if let Some(byte) = cache_bytes.last_mut() {
+            *byte ^= 0xFF;
+        }
+
+        let device = sdk.device().clone();
+        let config = IronOxideConfig::default();
+
+        let result = initialize_with_public_keys(&device, &config, cache_bytes).await;
+        assert!(result.is_err());
+        Ok(())
+    }
+}
