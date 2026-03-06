@@ -601,13 +601,7 @@ impl IronOxide {
     /// Export this SDK instance's public key cache to bytes, for external storage and use with
     /// `initialize_with_public_keys`. Signed over to prevent tampering with public key values.
     pub fn export_public_key_cache(&self) -> Result<Vec<u8>> {
-        self.public_key_cache.serialize().map(|cache_bytes| {
-            // sign the bytes, then create a result of signature + cache
-            let signature = &self.device.signing_private_key().sign(&cache_bytes);
-            let mut signed_cache = Vec::new();
-            signed_cache.extend_from_slice(signature);
-            signed_cache.extend(cache_bytes);
-            signed_cache
-        })
+        self.public_key_cache
+            .serialize_signed_public_key_cache(&self.device)
     }
 }

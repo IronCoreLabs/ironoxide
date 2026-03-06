@@ -304,6 +304,30 @@ impl DocumentMetadataResult {
     }
 }
 
+/// Full metadata for an unmanaged document.
+///
+/// Result from [document_get_metadata_unmanaged](trait.DocumentOps.html#tymethod.document_get_metadata_unmanaged)
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct DocumentMetadataUnmanagedResult {
+    id: DocumentId,
+    user_visibility: Vec<VisibleUser>,
+    group_visibility: Vec<VisibleGroup>,
+}
+impl DocumentMetadataUnmanagedResult {
+    /// ID of the document
+    pub fn id(&self) -> &DocumentId {
+        &self.id
+    }
+    /// List of users who have access to the document
+    pub fn visible_to_users(&self) -> &Vec<VisibleUser> {
+        &self.user_visibility
+    }
+    /// List of groups that have access to the document
+    pub fn visible_to_groups(&self) -> &Vec<VisibleGroup> {
+        &self.group_visibility
+    }
+}
+
 /// Encrypted document bytes and metadata.
 ///
 /// Unmanaged encryption does not store document access information with the webservice,
@@ -1197,6 +1221,8 @@ pub async fn decrypt_document_unmanaged<CR: rand::CryptoRng + rand::RngCore>(
         })
 }
 
+/// Grant access to an unmanaged document.
+/// Cannot be done offline - it needs the IronCore service to determine transform keys.
 pub async fn document_grant_access_unmanaged<CR: rand::CryptoRng + rand::RngCore>(
     auth: &RequestAuth,
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -1214,7 +1240,6 @@ pub async fn document_grant_access_unmanaged<CR: rand::CryptoRng + rand::RngCore
         requests::edek_transform::edek_transform(auth, encrypted_deks)
     )?;
     let document_id = (*proto_edeks.documentId).try_into()?;
-    let segment_id = proto_edeks.segmentId;
 
     // encrypted_symmetric_key is named that way in the response because previously our only usecase of it was to derive
     // the symmetric key from it, but it's actually an encrypted plaintext
@@ -1229,36 +1254,14 @@ pub async fn document_grant_access_unmanaged<CR: rand::CryptoRng + rand::RngCore
         device_private_key.recrypt_key(),
     )?;
 
-    // combine the edek grants with the explicit ones we've recieved, dedupe them
-    let (existing_users, existing_groups): (Vec<_>, Vec<_>) = proto_edeks
-        .edeks
-        .iter()
-        // a failure to parse from proto here means it won't show up in access failures, but we have no ID to provide
-        // a failure for in this case anyway.
-        .filter_map(|edek| edek.userOrGroup.as_ref()?.UserOrGroupId.as_ref())
-        .filter_map(|proto_user_or_group| match proto_user_or_group {
-            UserOrGroupIdP::UserId(u) => UserId::try_from(u.to_string()).ok().map(Either::Left),
-            UserOrGroupIdP::GroupId(g) => GroupId::try_from(g.to_string()).ok().map(Either::Right),
-        })
-        .partition_map(identity);
-    let user_grants: Vec<_> = [existing_users.as_slice(), users]
-        .concat()
-        .into_iter()
-        .unique()
-        .collect();
-    let group_grants: Vec<_> = [existing_groups.as_slice(), groups]
-        .concat()
-        .into_iter()
-        .unique()
-        .collect();
-
+    // encrypt only to explicitly requested grants
     let (recryption_result, access_errs) = encrypt_dek_to(
         auth,
         recrypt,
         user_master_pub_key,
         false,
-        &user_grants,
-        &group_grants,
+        users,
+        groups,
         None,
         &Default::default(),
         public_key_cache,
@@ -1268,24 +1271,90 @@ pub async fn document_grant_access_unmanaged<CR: rand::CryptoRng + rand::RngCore
     )
     .await?;
 
+    // collect the identities that were successfully granted
+    let succeeded: Vec<UserOrGroup> = recryption_result
+        .edeks
+        .iter()
+        .map(|edek| edek.grant_to.id.clone())
+        .collect();
+
+    // convert new edeks to proto entries
+    let new_proto_edeks: Vec<EncryptedDekP> = recryption_result
+        .edeks
+        .iter()
+        .map(|edek| edek.try_into())
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // remove old edeks that were successfully re-granted, keep the rest
+    let mut proto_edeks = proto_edeks;
+    proto_edeks.edeks.retain(|edek| {
+        let proto_id = edek
+            .userOrGroup
+            .as_ref()
+            .and_then(|uog| uog.UserOrGroupId.as_ref());
+        match proto_id {
+            Some(UserOrGroupIdP::UserId(u)) => {
+                let Ok(uid) = UserId::try_from(u.to_string()) else {
+                    return true;
+                };
+                !succeeded.contains(&UserOrGroup::User { id: uid })
+            }
+            Some(UserOrGroupIdP::GroupId(g)) => {
+                let Ok(gid) = GroupId::try_from(g.to_string()) else {
+                    return true;
+                };
+                !succeeded.contains(&UserOrGroup::Group { id: gid })
+            }
+            None => true,
+        }
+    });
+
+    // append new edeks and serialize
+    proto_edeks.edeks.extend(new_proto_edeks);
+    let encrypted_deks = proto_edeks.write_to_bytes()?;
+
     Ok(DocumentAccessUnmanagedResult {
         access_via: Some(user_or_group),
-        encrypted_deks: edeks_to_edeks_proto(
-            &recryption_result.edeks,
-            document_id.id(),
-            segment_id,
-        )?,
-        succeeded: recryption_result
-            .edeks
-            .iter()
-            .map(|edek| edek.grant_to.id.clone())
-            .collect(),
+        encrypted_deks,
+        succeeded,
         failed: access_errs,
     })
 }
 
+/// Extracts metadata from the EDEKs bytes produced during document encryption.
+/// This operation is fully offline - no server calls are needed.
+pub fn document_get_metadata_unmanaged(
+    encrypted_deks: &[u8],
+) -> Result<DocumentMetadataUnmanagedResult, IronOxideErr> {
+    let proto_edeks =
+        EncryptedDeksP::parse_from_bytes(encrypted_deks).map_err(IronOxideErr::from)?;
+    let doc_id: DocumentId = (*proto_edeks.documentId).try_into()?;
+
+    let (users, groups): (Vec<UserId>, Vec<GroupId>) = proto_edeks
+        .edeks
+        .iter()
+        .filter_map(|edek| edek.userOrGroup.as_ref()?.UserOrGroupId.as_ref())
+        .filter_map(|proto_user_or_group| match proto_user_or_group {
+            UserOrGroupIdP::UserId(u) => UserId::try_from(u.to_string()).ok().map(Either::Left),
+            UserOrGroupIdP::GroupId(g) => GroupId::try_from(g.to_string()).ok().map(Either::Right),
+        })
+        .partition_map(identity);
+
+    let user_visibility: Vec<_> = users.into_iter().map(|id| VisibleUser { id }).collect();
+    let group_visibility: Vec<_> = groups
+        .into_iter()
+        .map(|id| VisibleGroup { id, name: None })
+        .collect();
+
+    Ok(DocumentMetadataUnmanagedResult {
+        id: doc_id,
+        user_visibility,
+        group_visibility,
+    })
+}
+
 /// Revokes access from the provided users/groups by removing their EDEKs from the proto bytes.
-/// This operation is fully offline — no server calls are needed.
+/// This operation is fully offline - no server calls are needed.
 pub fn document_revoke_access_unmanaged(
     encrypted_deks: &[u8],
     revoke_list: &[UserOrGroup],
@@ -2207,7 +2276,7 @@ mod tests {
     }
 
     /// Helper: create EDEK proto bytes with the given user/group grants for a document.
-    fn make_edek_bytes(
+    fn build_test_edek_bytes(
         user_ids: &[&str],
         group_ids: &[&str],
         doc_id: &str,
@@ -2228,18 +2297,15 @@ mod tests {
             with_keys.push(WithKey::new(gid.borrow().into(), pubk.into()));
         }
 
-        let doc_id = DocumentId(doc_id.into());
-        let aes_value = AesEncryptedValue::try_from(&[42u8; 32][..])?;
-        let encryption_result = recrypt_document(
+        let document_id = DocumentId(doc_id.into());
+        let recryption_result = recrypt_document(
             &signingkeys,
             &recr,
             recr.gen_plaintext(),
-            &doc_id,
+            &document_id,
             with_keys,
-        )?
-        .into_edoc(DocumentHeader::new(doc_id, seg_id as usize), aes_value);
-
-        encryption_result.edek_bytes()
+        )?;
+        edeks_to_edeks_proto(&recryption_result.edeks, doc_id, seg_id)
     }
 
     mod revoke_access_unmanaged {
@@ -2247,7 +2313,7 @@ mod tests {
 
         #[test]
         fn revoke_user_succeeds() {
-            let edek_bytes = make_edek_bytes(&["user1", "user2"], &[], "doc1", 1).unwrap();
+            let edek_bytes = build_test_edek_bytes(&["user1", "user2"], &[], "doc1", 1).unwrap();
             let revoke_list = vec![UserOrGroup::User {
                 id: UserId::unsafe_from_string("user1".into()),
             }];
@@ -2270,7 +2336,7 @@ mod tests {
 
         #[test]
         fn revoke_group_succeeds() {
-            let edek_bytes = make_edek_bytes(&[], &["group1", "group2"], "doc1", 1).unwrap();
+            let edek_bytes = build_test_edek_bytes(&[], &["group1", "group2"], "doc1", 1).unwrap();
             let revoke_list = vec![UserOrGroup::Group {
                 id: GroupId::unsafe_from_string("group2".into()),
             }];
@@ -2291,7 +2357,7 @@ mod tests {
 
         #[test]
         fn revoke_nonexistent_user_reports_failure() {
-            let edek_bytes = make_edek_bytes(&["user1"], &[], "doc1", 1).unwrap();
+            let edek_bytes = build_test_edek_bytes(&["user1"], &[], "doc1", 1).unwrap();
             let revoke_list = vec![UserOrGroup::User {
                 id: UserId::unsafe_from_string("no_such_user".into()),
             }];
@@ -2314,7 +2380,7 @@ mod tests {
 
         #[test]
         fn revoke_mixed_success_and_failure() {
-            let edek_bytes = make_edek_bytes(&["user1"], &["group1"], "doc1", 1).unwrap();
+            let edek_bytes = build_test_edek_bytes(&["user1"], &["group1"], "doc1", 1).unwrap();
             let revoke_list = vec![
                 UserOrGroup::User {
                     id: UserId::unsafe_from_string("user1".into()),
@@ -2346,7 +2412,7 @@ mod tests {
 
         #[test]
         fn revoke_all_grants_leaves_empty_edeks() {
-            let edek_bytes = make_edek_bytes(&["user1"], &["group1"], "doc1", 1).unwrap();
+            let edek_bytes = build_test_edek_bytes(&["user1"], &["group1"], "doc1", 1).unwrap();
             let revoke_list = vec![
                 UserOrGroup::User {
                     id: UserId::unsafe_from_string("user1".into()),
@@ -2366,7 +2432,7 @@ mod tests {
 
         #[test]
         fn revoke_empty_list_is_noop() {
-            let edek_bytes = make_edek_bytes(&["user1"], &["group1"], "doc1", 1).unwrap();
+            let edek_bytes = build_test_edek_bytes(&["user1"], &["group1"], "doc1", 1).unwrap();
             let result = document_revoke_access_unmanaged(&edek_bytes, &[]).unwrap();
 
             assert!(result.succeeded().is_empty());
@@ -2378,7 +2444,8 @@ mod tests {
 
         #[test]
         fn revoke_preserves_document_id_and_segment() {
-            let edek_bytes = make_edek_bytes(&["user1", "user2"], &[], "my_doc_42", 99).unwrap();
+            let edek_bytes =
+                build_test_edek_bytes(&["user1", "user2"], &[], "my_doc_42", 99).unwrap();
             let revoke_list = vec![UserOrGroup::User {
                 id: UserId::unsafe_from_string("user1".into()),
             }];
@@ -2411,7 +2478,7 @@ mod tests {
 
         #[test]
         fn extracts_document_id_from_valid_edeks() {
-            let edek_bytes = make_edek_bytes(&["user1"], &[], "test_doc_id", 1).unwrap();
+            let edek_bytes = build_test_edek_bytes(&["user1"], &[], "test_doc_id", 1).unwrap();
             let sdk = create_test_sdk().unwrap();
             let doc_id = sdk
                 .document_get_id_from_edeks_unmanaged(&edek_bytes)

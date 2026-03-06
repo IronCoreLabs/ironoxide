@@ -4,7 +4,7 @@
 
 pub use crate::internal::document_api::{
     DocumentAccessUnmanagedResult, DocumentDecryptUnmanagedResult, DocumentEncryptUnmanagedResult,
-    DocumentId, UserOrGroup,
+    DocumentId, DocumentMetadataUnmanagedResult, UserOrGroup,
 };
 use crate::{
     IronOxideErr, Result, SdkOperation,
@@ -13,7 +13,6 @@ use crate::{
         self, add_optional_timeout,
         document_api::{self},
     },
-    prelude::DocumentMetadataResult,
     proto::transform::EncryptedDeks as EncryptedDeksP,
 };
 use itertools::EitherOrBoth;
@@ -75,11 +74,11 @@ pub trait DocumentAdvancedOps {
     /// Returns the metadata associated with an encrypted document.
     ///
     /// This metadata is extracted from the EDEKs bytes that were produced when the
-    /// document was encrypted.
+    /// document was encrypted, it does not require the IronCore service and can be done offline.
     fn document_get_metadata_unmanaged(
         &self,
         encrypted_deks: &[u8],
-    ) -> impl Future<Output = Result<DocumentMetadataResult>> + Send;
+    ) -> Result<DocumentMetadataUnmanagedResult>;
 
     /// Returns the document ID from the bytes of an encrypted document.
     ///
@@ -263,19 +262,11 @@ impl DocumentAdvancedOps for crate::IronOxide {
         .await?
     }
 
-    async fn document_get_metadata_unmanaged(
+    fn document_get_metadata_unmanaged(
         &self,
         edeks: &[u8],
-    ) -> Result<DocumentMetadataResult> {
-        add_optional_timeout(
-            document_api::document_get_metadata(
-                self.device.auth(),
-                &self.document_get_id_from_edeks_unmanaged(edeks)?,
-            ),
-            self.config.sdk_operation_timeout,
-            SdkOperation::DocumentGetMetadata,
-        )
-        .await?
+    ) -> Result<DocumentMetadataUnmanagedResult> {
+        document_api::document_get_metadata_unmanaged(edeks)
     }
 
     fn document_get_id_from_bytes_unmanaged(

@@ -962,7 +962,7 @@ mod unmanaged {
 
     #[tokio::test]
     async fn grant_access_to_user_and_group() -> Result<(), IronOxideErr> {
-        let (user1, sdk1) = init_sdk_get_user().await;
+        let (_, sdk1) = init_sdk_get_user().await;
         let (user2, sdk2) = init_sdk_get_user().await;
 
         let group = sdk1.group_create(&Default::default()).await?;
@@ -984,12 +984,10 @@ mod unmanaged {
 
         assert!(grant_result.access_via().is_some());
         let succeeded_ids: Vec<UserOrGroup> = grant_result.succeeded().to_vec();
-        // TODO this should only be user 2 and group.
-        assert_eq!(succeeded_ids.len(), 3);
+        assert_eq!(succeeded_ids.len(), 2);
         assert_that!(
             &succeeded_ids,
             contains_in_any_order(vec![
-                UserOrGroup::User { id: user1 },
                 UserOrGroup::User { id: user2 },
                 UserOrGroup::Group {
                     id: group.id().clone()
@@ -1011,7 +1009,7 @@ mod unmanaged {
 
     #[tokio::test]
     async fn grant_access_with_failures() -> Result<(), IronOxideErr> {
-        let (user1, sdk) = init_sdk_get_user().await;
+        let (_, sdk) = init_sdk_get_user().await;
         let user2 = create_second_user().await;
 
         let doc = [42u8; 64];
@@ -1037,15 +1035,12 @@ mod unmanaged {
             .await?;
 
         // TODO succeeded should only be user2, but right now it's both
-        assert_eq!(grant_result.succeeded().len(), 2);
+        assert_eq!(grant_result.succeeded().len(), 1);
         assert_that!(
             &grant_result.succeeded().to_vec(),
-            contains_in_any_order(vec![
-                UserOrGroup::User { id: user1 },
-                UserOrGroup::User {
-                    id: user2.account_id().clone()
-                },
-            ])
+            contains_in_any_order(vec![UserOrGroup::User {
+                id: user2.account_id().clone()
+            },])
         );
         assert_eq!(grant_result.failed().len(), 2);
         Ok(())
@@ -1283,9 +1278,7 @@ mod unmanaged {
             .await?;
 
         // TODO broken right now.
-        let metadata_err = sdk
-            .document_get_metadata_unmanaged(encrypt_result.encrypted_deks())
-            .await;
+        let metadata_err = sdk.document_get_metadata_unmanaged(encrypt_result.encrypted_deks());
         assert!(metadata_err.is_ok());
         Ok(())
     }

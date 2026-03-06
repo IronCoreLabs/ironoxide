@@ -471,8 +471,12 @@ where
 {
     let entries: Vec<(K, V)> = Vec::deserialize(deserializer)?;
     let map = HashMap::new();
-    for (k, v) in entries {
-        map.pin().insert(k, v);
+    {
+        // scoped to drop the pin's guard before return the map
+        let pinned_map = map.pin();
+        for (k, v) in entries {
+            pinned_map.insert(k, v);
+        }
     }
     Ok(map)
 }
@@ -511,6 +515,19 @@ impl PublicKeyCache {
                 "The signed public key cache failed signature verification.".to_string(),
             ))
         }
+    }
+    pub(crate) fn serialize_signed_public_key_cache(
+        &self,
+        device: &DeviceContext,
+    ) -> Result<Vec<u8>> {
+        self.serialize().map(|cache_bytes| {
+            // sign the bytes, then create a result of signature + cache
+            let signature = device.signing_private_key().sign(&cache_bytes);
+            let mut signed_cache = Vec::new();
+            signed_cache.extend_from_slice(&signature);
+            signed_cache.extend(cache_bytes);
+            signed_cache
+        })
     }
 }
 

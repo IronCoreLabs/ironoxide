@@ -195,11 +195,9 @@ impl BlockingIronOxide {
     pub fn document_get_metadata_unmanaged(
         &self,
         encrypted_deks: &[u8],
-    ) -> Result<DocumentMetadataResult> {
-        self.runtime.block_on(
-            self.ironoxide
-                .document_get_metadata_unmanaged(encrypted_deks),
-        )
+    ) -> Result<DocumentMetadataUnmanagedResult> {
+        self.ironoxide
+            .document_get_metadata_unmanaged(encrypted_deks)
     }
     /// See [ironoxide::document::advanced::DocumentAdvancedOps::document_get_id_from_bytes_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_get_id_from_bytes_unmanaged)
     pub fn document_get_id_from_bytes_unmanaged(
