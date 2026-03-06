@@ -1034,7 +1034,6 @@ mod unmanaged {
             )
             .await?;
 
-        // TODO succeeded should only be user2, but right now it's both
         assert_eq!(grant_result.succeeded().len(), 1);
         assert_that!(
             &grant_result.succeeded().to_vec(),
@@ -1277,9 +1276,9 @@ mod unmanaged {
             )
             .await?;
 
-        // TODO broken right now.
-        let metadata_err = sdk.document_get_metadata_unmanaged(encrypt_result.encrypted_deks());
-        assert!(metadata_err.is_ok());
+        let metadata = sdk.document_get_metadata_unmanaged(encrypt_result.encrypted_deks())?;
+        assert!(metadata.visible_to_groups().is_empty());
+        assert_eq!(metadata.visible_to_users().len(), 1);
         Ok(())
     }
 
