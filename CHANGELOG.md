@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.2.0
+
+- [#365](https://github.com/IronCoreLabs/ironoxide/pull/339)
+  - Expand unmanaged API coverage
+  - Adds public key caching to all APIs that can make use of it.
+  - Support offline encryption when using unmanaged + public key caching initialization.
+
 ## 4.1.0
 
 - [[#339](https://github.com/IronCoreLabs/ironoxide/pull/339)]
