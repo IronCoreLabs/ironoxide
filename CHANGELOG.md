@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.2.1
+
+- [[#372](https://github.com/IronCoreLabs/ironoxide/pull/372)] Hotfix serialized public key cache so that offline initialization works. This fix does require cache regeneration.
+
 ## 4.2.0
 
 - [#365](https://github.com/IronCoreLabs/ironoxide/pull/339)
