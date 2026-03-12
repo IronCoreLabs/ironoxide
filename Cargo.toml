@@ -1,19 +1,13 @@
 [package]
 name = "ironoxide"
-version = "4.2.0"
+version = "4.2.1"
 authors = ["IronCore Labs <info@ironcorelabs.com>"]
 readme = "README.md"
 license = "AGPL-3.0-only"
 repository = "https://github.com/IronCoreLabs/ironoxide"
 documentation = "https://docs.rs/ironoxide"
 categories = ["cryptography"]
-keywords = [
-    "cryptography",
-    "proxy-re-encryption",
-    "PRE",
-    "ECC",
-    "transform-encryption",
-]
+keywords = ["cryptography", "proxy-re-encryption", "PRE", "ECC", "transform-encryption"]
 description = "A pure-Rust SDK for accessing IronCore's privacy platform"
 edition = "2024"
 rust-version = "1.88.0"

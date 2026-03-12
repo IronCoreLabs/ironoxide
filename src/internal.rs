@@ -437,8 +437,11 @@ type GroupPublicKeyCache = HashMap<GroupId, PublicKey>;
 /// A cache recording the (id, public key) pairs that have been seen by the API. There are
 /// separate lists for users and groups.
 // Public keys don't go bad, so we don't need expiration, but we may want a default limit on size in the future.
-#[derive(Serialize, Deserialize, Default, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct PublicKeyCache {
+    /// The public key of the user that created this public key cache.
+    /// Public key caches are only valid in the context of the one user, and we need their public key to initialize.
+    creator_public_key: PublicKey,
     #[serde(
         serialize_with = "serialize_papaya_map",
         deserialize_with = "deserialize_papaya_map"
@@ -482,6 +485,13 @@ where
 }
 
 impl PublicKeyCache {
+    pub(crate) fn new(current_user_public_key: &PublicKey) -> Self {
+        Self {
+            creator_public_key: current_user_public_key.clone(),
+            user_keys: Default::default(),
+            group_keys: Default::default(),
+        }
+    }
     /// Serialize the cache to bytes that can be persisted and reloaded
     /// when the SDK is initialized
     pub(crate) fn serialize(&self) -> Result<Vec<u8>> {
@@ -489,6 +499,10 @@ impl PublicKeyCache {
     }
     pub(crate) fn deserialize(serialized_cache: &[u8]) -> Result<Self> {
         postcard::from_bytes(serialized_cache).map_err(IronOxideErr::CacheSerdeError)
+    }
+    /// The public key of the user that created this cache, used for offline SDK initialization
+    pub(crate) fn creator_public_key(&self) -> &PublicKey {
+        &self.creator_public_key
     }
     pub(crate) fn user_keys(&self) -> &HashMap<UserId, PublicKey> {
         &self.user_keys
@@ -1539,12 +1553,15 @@ pub(crate) mod tests {
         assert!(result.is_err());
     }
     #[test]
-    fn empty_public_key_cache_roundtrip() {
-        let cache = PublicKeyCache::default();
+    fn empty_public_key_cache_roundtrip() -> Result<()> {
+        let recr = recrypt::api::Recrypt::new();
+        let (_, re_pubk) = recr.generate_key_pair()?;
+        let cache = PublicKeyCache::new(&re_pubk.into());
         let bytes = cache.serialize().unwrap();
         let deserialized = PublicKeyCache::deserialize(&bytes).unwrap();
         assert_eq!(deserialized.user_keys().len(), 0);
         assert_eq!(deserialized.group_keys().len(), 0);
+        Ok(())
     }
     #[test]
     fn populated_public_key_cache_roundtrip() {
@@ -1552,7 +1569,7 @@ pub(crate) mod tests {
         let (_, pub1) = recrypt.generate_key_pair().unwrap();
         let (_, pub2) = recrypt.generate_key_pair().unwrap();
 
-        let cache = PublicKeyCache::default();
+        let cache = PublicKeyCache::new(&pub1.into());
         cache
             .user_keys()
             .pin()
@@ -1625,7 +1642,8 @@ pub(crate) mod tests {
 
             let signed = io.export_public_key_cache()?;
             let result = PublicKeyCache::deserialize_signed_public_key_cache(&device, &signed)?;
-            assert!(result.user_keys().len() == 1);
+            // Cache contains 2 entries: the current user (account_id) and the inserted user (user1)
+            assert!(result.user_keys().len() == 2);
             let user_keys = result.user_keys().pin();
             let deser_pubk = user_keys
                 .get(&user_id)
@@ -1838,7 +1856,8 @@ pub(crate) mod tests {
         #[test]
         fn multi_user_multi_group_roundtrip() {
             let recrypt = Recrypt::new();
-            let cache = PublicKeyCache::default();
+            let (_, creator_pubk) = recrypt.generate_key_pair().unwrap();
+            let cache = PublicKeyCache::new(&creator_pubk.into());
 
             // insert multiple users
             for i in 0..5 {
@@ -1884,7 +1903,7 @@ pub(crate) mod tests {
             let (_, shared_pubk) = recrypt.generate_key_pair().unwrap();
             let shared_pk: PublicKey = shared_pubk.into();
 
-            let cache = PublicKeyCache::default();
+            let cache = PublicKeyCache::new(&shared_pk);
             cache.user_keys().pin().insert(
                 UserId::unsafe_from_string("alice".into()),
                 shared_pk.clone(),
@@ -1919,7 +1938,7 @@ pub(crate) mod tests {
             let recrypt = Recrypt::new();
             let (_, pubk) = recrypt.generate_key_pair().unwrap();
 
-            let cache = PublicKeyCache::default();
+            let cache = PublicKeyCache::new(&pubk.into());
             cache
                 .user_keys()
                 .pin()

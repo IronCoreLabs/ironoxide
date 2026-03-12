@@ -1,19 +1,49 @@
 mod common;
 
-use common::{create_id_all_classes, gen_jwt, initialize_sdk};
+use common::{USER_PASSWORD, create_id_all_classes, gen_jwt, initialize_sdk};
 use galvanic_assert::{matchers::*, *};
+use ironoxide::Result;
 use ironoxide::prelude::*;
 use std::{convert::TryInto, default::Default};
 use uuid::Uuid;
+
 #[tokio::test]
-async fn user_verify_non_existing_user() -> Result<(), IronOxideErr> {
+async fn initialize_adds_current_user_public_key_to_cache() -> Result<()> {
+    let account_id: UserId = create_id_all_classes("").try_into()?;
+    IronOxide::user_create(
+        &gen_jwt(Some(account_id.id())).0,
+        USER_PASSWORD,
+        &UserCreateOpts::new(false),
+        None,
+    )
+    .await?;
+    let device: DeviceContext = IronOxide::generate_new_device(
+        &gen_jwt(Some(account_id.id())).0,
+        USER_PASSWORD,
+        &Default::default(),
+        None,
+    )
+    .await?
+    .into();
+
+    let sdk = ironoxide::initialize(&device, &Default::default()).await?;
+    let exported_cache = sdk.export_public_key_cache()?;
+
+    // re-initialize with the exported cache. This will fail if the current user's
+    // public key is not in the cache (per create_with_public_key_cache validation).
+    ironoxide::initialize_with_public_keys(&device, &Default::default(), exported_cache).await?;
+
+    Ok(())
+}
+#[tokio::test]
+async fn user_verify_non_existing_user() -> Result<()> {
     let option_result = IronOxide::user_verify(&gen_jwt(None).0, None).await?;
     assert!(option_result.is_none());
     Ok(())
 }
 
 #[tokio::test]
-async fn user_verify_existing_user() -> Result<(), IronOxideErr> {
+async fn user_verify_existing_user() -> Result<()> {
     let account_id: UserId = create_id_all_classes("").try_into()?;
     IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
@@ -32,7 +62,7 @@ async fn user_verify_existing_user() -> Result<(), IronOxideErr> {
 }
 
 #[tokio::test]
-async fn user_verify_after_create_with_needs_rotation() -> Result<(), IronOxideErr> {
+async fn user_verify_after_create_with_needs_rotation() -> Result<()> {
     let account_id: UserId = Uuid::new_v4().to_string().try_into()?;
     IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
@@ -49,7 +79,7 @@ async fn user_verify_after_create_with_needs_rotation() -> Result<(), IronOxideE
     Ok(())
 }
 #[tokio::test]
-async fn user_create_good_with_devices() -> Result<(), IronOxideErr> {
+async fn user_create_good_with_devices() -> Result<()> {
     let account_id: UserId = Uuid::new_v4().to_string().try_into()?;
     IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
@@ -78,7 +108,7 @@ async fn user_create_good_with_devices() -> Result<(), IronOxideErr> {
 }
 
 #[tokio::test]
-async fn user_private_key_rotation() -> Result<(), IronOxideErr> {
+async fn user_private_key_rotation() -> Result<()> {
     let io = initialize_sdk().await?;
 
     let result1 = io.user_rotate_private_key(common::USER_PASSWORD).await?;
@@ -94,7 +124,7 @@ async fn user_private_key_rotation() -> Result<(), IronOxideErr> {
 }
 
 #[tokio::test]
-async fn user_change_password() -> Result<(), IronOxideErr> {
+async fn user_change_password() -> Result<()> {
     let account_id: UserId = Uuid::new_v4().to_string().try_into()?;
     let first_password = "foo";
     let new_password = "bar";
@@ -147,7 +177,7 @@ async fn user_change_password() -> Result<(), IronOxideErr> {
 }
 
 #[tokio::test]
-async fn sdk_init_with_private_key_rotation() -> Result<(), IronOxideErr> {
+async fn sdk_init_with_private_key_rotation() -> Result<()> {
     use ironoxide::InitAndRotationCheck;
 
     let (user_id, init_result) = common::init_sdk_get_init_result(true).await;
@@ -164,7 +194,7 @@ async fn sdk_init_with_private_key_rotation() -> Result<(), IronOxideErr> {
 }
 
 #[tokio::test]
-async fn user_add_device_after_rotation() -> Result<(), IronOxideErr> {
+async fn user_add_device_after_rotation() -> Result<()> {
     //create a user
     let (user, sdk) = common::init_sdk_get_user().await;
     let bytes = vec![42u8, 43u8];
@@ -203,7 +233,7 @@ async fn user_add_device_after_rotation() -> Result<(), IronOxideErr> {
 }
 
 #[tokio::test]
-async fn user_create_with_needs_rotation() -> Result<(), IronOxideErr> {
+async fn user_create_with_needs_rotation() -> Result<()> {
     let account_id: UserId = Uuid::new_v4().to_string().try_into()?;
     let result = IronOxide::user_create(
         &gen_jwt(Some(account_id.id())).0,
@@ -216,7 +246,7 @@ async fn user_create_with_needs_rotation() -> Result<(), IronOxideErr> {
     Ok(())
 }
 #[tokio::test]
-async fn generate_device_with_timeout() -> Result<(), IronOxideErr> {
+async fn generate_device_with_timeout() -> Result<()> {
     let result = IronOxide::generate_new_device(
         &common::gen_jwt(None).0,
         "pass",

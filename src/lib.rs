@@ -363,30 +363,15 @@ pub async fn initialize(
 
 /// Initializes the IronOxide SDK with a device and cached public keys, enabling offline encryption immediately.
 ///
-/// Verifies that the provided user/segment exists and the provided device keys are valid and
-/// exist for the provided account. Verifies the public key cache has not been tampered with.
+/// Verifies the public key cache has not been tampered with.
 pub async fn initialize_with_public_keys(
     device_context: &DeviceContext,
     config: &IronOxideConfig,
     public_key_cache: Vec<u8>,
 ) -> Result<IronOxide> {
-    internal::add_optional_timeout(
-        internal::user_api::user_get_current(device_context.auth()),
-        config.sdk_operation_timeout,
-        SdkOperation::InitializeSdk,
-    )
-    .await?
-    .and_then(|current_user| {
-        let verified_cache =
-            PublicKeyCache::deserialize_signed_public_key_cache(device_context, &public_key_cache)?;
-        IronOxide::create_with_public_key_cache(
-            &current_user,
-            device_context,
-            config,
-            verified_cache,
-        )
-    })
-    .map_err(|e: IronOxideErr| IronOxideErr::InitializeError(e.to_string()))
+    let verified_cache =
+        PublicKeyCache::deserialize_signed_public_key_cache(device_context, &public_key_cache)?;
+    IronOxide::create_with_public_key_cache(device_context, config, verified_cache)
 }
 
 /// Initializes the IronOxide SDK with a device and cached public keys, and checks for necessary
@@ -394,7 +379,8 @@ pub async fn initialize_with_public_keys(
 ///
 /// Verifies that the provided user/segment exists and the provided device keys are valid and
 /// exist for the provided account. Verifies the public key cache has not been tampered with.
-/// Also checks if the user or any groups they admin are marked for private key rotation.
+/// Also checks if the user or any groups they admin are marked for private key rotation
+/// (which requires network access).
 pub async fn initialize_with_public_keys_and_check_rotation(
     device_context: &DeviceContext,
     config: &IronOxideConfig,
@@ -413,9 +399,8 @@ pub async fn initialize_with_public_keys_and_check_rotation(
     let verified_cache =
         PublicKeyCache::deserialize_signed_public_key_cache(device_context, &public_key_cache)
             .map_err(|e| IronOxideErr::InitializeError(e.to_string()))?;
-    let ironoxide =
-        IronOxide::create_with_public_key_cache(&curr_user, device_context, config, verified_cache)
-            .map_err(|e| IronOxideErr::InitializeError(e.to_string()))?;
+    let ironoxide = IronOxide::create_with_public_key_cache(device_context, config, verified_cache)
+        .map_err(|e| IronOxideErr::InitializeError(e.to_string()))?;
     let user_groups = group_list_result.result();
 
     Ok(check_groups_and_collect_rotation(
@@ -504,6 +489,15 @@ impl IronOxide {
         device_context: &DeviceContext,
         config: &IronOxideConfig,
     ) -> IronOxide {
+        // Add the current user's public key to the cache for offline encryption to self,
+        // and set the current user on the public key cache creation so we can initialize using it
+        // in the offline case.
+        let public_key_cache = PublicKeyCache::new(curr_user.user_public_key());
+        public_key_cache.user_keys().pin().insert(
+            curr_user.account_id().clone(),
+            curr_user.user_public_key().clone(),
+        );
+
         IronOxide {
             config: config.clone(),
             recrypt: Arc::new(Recrypt::new()),
@@ -515,23 +509,22 @@ impl IronOxide {
                 OsRng,
             )),
             policy_eval_cache: HashMap::new(),
-            public_key_cache: Default::default(),
+            public_key_cache,
         }
     }
 
     /// Create an IronOxide instance, prefilling its public key cache. Depends on the system having enough entropy to
     /// seed a RNG. The public key cache signature will be verified.
     fn create_with_public_key_cache(
-        curr_user: &UserResult,
-        device_context: &DeviceContext,
+        device: &DeviceContext,
         config: &IronOxideConfig,
         public_key_cache: PublicKeyCache,
     ) -> Result<IronOxide> {
         Ok(IronOxide {
             config: config.clone(),
             recrypt: Arc::new(Recrypt::new()),
-            device: device_context.clone(),
-            user_master_pub_key: curr_user.user_public_key().to_owned(),
+            device: device.clone(),
+            user_master_pub_key: public_key_cache.creator_public_key().clone(),
             rng: Mutex::new(ReseedingRng::new(
                 rand_chacha::ChaChaCore::from_entropy(),
                 BYTES_BEFORE_RESEEDING,
