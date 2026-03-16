@@ -6,12 +6,12 @@ mod common;
 mod blocking_integration_tests {
     use crate::common::{USER_PASSWORD, create_id_all_classes, gen_jwt};
     use galvanic_assert::{matchers::*, *};
-    use ironoxide::prelude::*;
+    use ironoxide::{Result, prelude::*};
     use std::{convert::TryInto, time::Duration};
     // Tests a UserOp (user_create/generate_new_device), a GroupOp (group_create),
     // and ironoxide::blocking functions (initialize/initialize_check_rotation)
     #[test]
-    fn rotate_all() -> Result<(), IronOxideErr> {
+    fn rotate_all() -> Result<()> {
         let account_id: UserId = create_id_all_classes("").try_into()?;
         let jwt = gen_jwt(Some(account_id.id())).0;
         BlockingIronOxide::user_create(&jwt, USER_PASSWORD, &UserCreateOpts::new(true), None)?;
@@ -60,7 +60,7 @@ mod blocking_integration_tests {
 
     // Tests a DocumentOp (document_encrypt) and a DocumentAdvancedOp (document_encrypt_unmanaged)
     #[test]
-    fn document_encrypt() -> Result<(), IronOxideErr> {
+    fn document_encrypt() -> Result<()> {
         let account_id: UserId = create_id_all_classes("").try_into()?;
         BlockingIronOxide::user_create(
             &gen_jwt(Some(account_id.id())).0,
@@ -91,7 +91,7 @@ mod blocking_integration_tests {
 
     // Show that SDK operations timeout correctly using BlockingIronOxide
     #[test]
-    fn initialize_with_timeout() -> Result<(), IronOxideErr> {
+    fn initialize_with_timeout() -> Result<()> {
         let account_id: UserId = create_id_all_classes("").try_into()?;
         BlockingIronOxide::user_create(
             &gen_jwt(Some(account_id.id())).0,
@@ -130,7 +130,7 @@ mod blocking_integration_tests {
     }
 
     #[test]
-    fn rotate_all_with_timeout() -> Result<(), IronOxideErr> {
+    fn rotate_all_with_timeout() -> Result<()> {
         let account_id: UserId = create_id_all_classes("").try_into()?;
         BlockingIronOxide::user_create(
             &gen_jwt(Some(account_id.id())).0,
@@ -167,5 +167,116 @@ mod blocking_integration_tests {
         } else {
             panic!("rotation should be required")
         }
+    }
+
+    // Tests DocumentFileOps (managed file encrypt/decrypt roundtrip)
+    #[test]
+    fn document_file_encrypt_decrypt_roundtrip() -> Result<()> {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        let account_id: UserId = create_id_all_classes("").try_into()?;
+        BlockingIronOxide::user_create(
+            &gen_jwt(Some(account_id.id())).0,
+            USER_PASSWORD,
+            &UserCreateOpts::new(false),
+            None,
+        )?;
+        let device = BlockingIronOxide::generate_new_device(
+            &gen_jwt(Some(account_id.id())).0,
+            USER_PASSWORD,
+            &Default::default(),
+            None,
+        )?
+        .into();
+        let sdk = ironoxide::blocking::initialize(&device, &Default::default())?;
+
+        // Create source file with test data
+        let plaintext = b"Hello from blocking file operations test!";
+        let mut source_file = NamedTempFile::new().expect("Failed to create temp file");
+        source_file
+            .write_all(plaintext)
+            .expect("Failed to write test data");
+        let source_path = source_file.path().to_str().unwrap();
+
+        // Create destination paths
+        let encrypted_file = NamedTempFile::new().expect("Failed to create temp file");
+        let encrypted_path = encrypted_file.path().to_str().unwrap();
+        let decrypted_file = NamedTempFile::new().expect("Failed to create temp file");
+        let decrypted_path = decrypted_file.path().to_str().unwrap();
+
+        // Encrypt file
+        let encrypt_result =
+            sdk.document_file_encrypt(source_path, encrypted_path, &Default::default())?;
+        assert_eq!(encrypt_result.grants().len(), 1);
+        assert_eq!(encrypt_result.access_errs().len(), 0);
+
+        // Decrypt file
+        let decrypt_result = sdk.document_file_decrypt(encrypted_path, decrypted_path)?;
+        assert_eq!(decrypt_result.id(), encrypt_result.id());
+
+        // Verify decrypted content matches original
+        let decrypted_content = std::fs::read(decrypted_path).expect("Failed to read decrypted");
+        assert_eq!(decrypted_content, plaintext);
+
+        Ok(())
+    }
+
+    // Tests DocumentFileAdvancedOps (unmanaged file encrypt/decrypt roundtrip)
+    #[test]
+    fn document_file_encrypt_decrypt_unmanaged_roundtrip() -> Result<()> {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        let account_id: UserId = create_id_all_classes("").try_into()?;
+        BlockingIronOxide::user_create(
+            &gen_jwt(Some(account_id.id())).0,
+            USER_PASSWORD,
+            &UserCreateOpts::new(false),
+            None,
+        )?;
+        let device = BlockingIronOxide::generate_new_device(
+            &gen_jwt(Some(account_id.id())).0,
+            USER_PASSWORD,
+            &Default::default(),
+            None,
+        )?
+        .into();
+        let sdk = ironoxide::blocking::initialize(&device, &Default::default())?;
+
+        // Create source file with test data
+        let plaintext = b"Hello from blocking unmanaged file operations test!";
+        let mut source_file = NamedTempFile::new().expect("Failed to create temp file");
+        source_file
+            .write_all(plaintext)
+            .expect("Failed to write test data");
+        let source_path = source_file.path().to_str().unwrap();
+
+        // Create destination paths
+        let encrypted_file = NamedTempFile::new().expect("Failed to create temp file");
+        let encrypted_path = encrypted_file.path().to_str().unwrap();
+        let decrypted_file = NamedTempFile::new().expect("Failed to create temp file");
+        let decrypted_path = decrypted_file.path().to_str().unwrap();
+
+        // Encrypt file (unmanaged)
+        let encrypt_result =
+            sdk.document_file_encrypt_unmanaged(source_path, encrypted_path, &Default::default())?;
+        assert_eq!(encrypt_result.grants().len(), 1);
+        assert_eq!(encrypt_result.access_errs().len(), 0);
+        assert!(!encrypt_result.encrypted_deks().is_empty());
+
+        // Decrypt file (unmanaged)
+        let decrypt_result = sdk.document_file_decrypt_unmanaged(
+            encrypted_path,
+            decrypted_path,
+            encrypt_result.encrypted_deks(),
+        )?;
+        assert_eq!(decrypt_result.id(), encrypt_result.id());
+
+        // Verify decrypted content matches original
+        let decrypted_content = std::fs::read(decrypted_path).expect("Failed to read decrypted");
+        assert_eq!(decrypted_content, plaintext);
+
+        Ok(())
     }
 }

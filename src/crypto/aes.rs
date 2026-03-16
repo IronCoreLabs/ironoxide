@@ -9,9 +9,11 @@ use std::{convert::TryFrom, ops::DerefMut, sync::Mutex};
 //There is no way this can fail. Value is most definitely not less than one.
 const PBKDF2_ITERATIONS: NonZeroU32 = NonZeroU32::new(250_000).unwrap();
 const PBKDF2_SALT_LEN: usize = 32;
-const AES_GCM_TAG_LEN: usize = 16;
-const AES_IV_LEN: usize = 12;
-const AES_KEY_LEN: usize = 32;
+pub(crate) const AES_GCM_TAG_LEN: usize = 16;
+pub(crate) const AES_IV_LEN: usize = 12;
+pub(crate) const AES_KEY_LEN: usize = 32;
+/// Byte size of AES block (128, 192, and 256 bit keys all have 128 bit blocks)
+pub(crate) const AES_BLOCK_SIZE: usize = 16; // 128 bit / 8 bits per byte
 //The encrypted user master key length will be the size of the encrypted key (32 bytes) plus the size of the GCM auth tag (16 bytes).
 const ENCRYPTED_KEY_AND_GCM_TAG_LEN: usize = AES_KEY_LEN + AES_GCM_TAG_LEN;
 

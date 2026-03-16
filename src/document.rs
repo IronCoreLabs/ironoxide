@@ -19,6 +19,7 @@ use futures::Future;
 use itertools::{Either, EitherOrBoth, Itertools};
 
 pub mod advanced;
+pub mod file;
 
 /// List of users and groups that should have access to decrypt a document.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]

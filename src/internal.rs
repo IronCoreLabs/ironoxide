@@ -97,6 +97,10 @@ pub enum SdkOperation {
     DocumentRevokeAccess,
     DocumentEncryptUnmanaged,
     DocumentDecryptUnmanaged,
+    DocumentFileEncrypt,
+    DocumentFileDecrypt,
+    DocumentFileEncryptUnmanaged,
+    DocumentFileDecryptUnmanaged,
     UserCreate,
     UserListDevices,
     GenerateNewDevice,
@@ -207,6 +211,12 @@ quick_error! {
         }
         CacheSerdeError(error: postcard::Error) {
             source(error)
+        }
+        AesGcmDecryptError {
+            display("AES-GCM decryption failed: authentication tag verification failed")
+        }
+        FileIOError { path: String, operation: String, message: String } {
+            display("File I/O error for '{}' during {}: {}", path, operation, message)
         }
     }
 }

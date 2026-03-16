@@ -38,6 +38,7 @@ default = ["tls-default", "tokio/rt-multi-thread"]
 [dependencies]
 aws-lc-rs = "1"
 base64 = "0.22"
+ghash = "0.5"  # Incremental GHASH computation for streaming AES-GCM
 base64-serde = "0.8"
 bytes = "1"
 futures = "0.3.1"
@@ -74,6 +75,7 @@ criterion = "0.8"
 double = "0.2.4"
 galvanic-assert = "0.8"
 mut_static = "5"
+tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 uuid = { version = "1.0", features = ["v4"], default-features = false }
 
