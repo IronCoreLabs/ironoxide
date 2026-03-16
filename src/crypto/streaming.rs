@@ -8,6 +8,129 @@
 //! This allows processing large files with constant memory usage while producing
 //! output compatible with standard AES-GCM (same format as `crypto::aes` module).
 //!
+//! https://en.wikipedia.org/wiki/Galois/Counter_Mode gives a pretty good explanation of the algorithm we're patching
+//! together from its constituent parts. The NIST documents lay it out in mathematical notation, if you need further
+//! reference.
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────────────────┐
+//! │                        STREAMING AES-GCM ARCHITECTURE                       │
+//! │                                                                             │
+//! │  Standard AES-GCM is not streamable because authentication requires all     │
+//! │  ciphertext before producing/verifying the tag. We decompose GCM into:      │
+//! │                                                                             │
+//! │    AES-GCM = AES-CTR (encryption) + GHASH (authentication)                  │
+//! │                                                                             │
+//! │  Both components can process data incrementally, enabling constant-memory   │
+//! │  streaming while producing output identical to standard AES-GCM.            │
+//! └─────────────────────────────────────────────────────────────────────────────┘
+//!
+//! ┌─────────────────────────────────────────────────────────────────────────────┐
+//! │                              KEY DERIVATION                                 │
+//! │                                                                             │
+//! │   Given: K (256-bit key), IV (96-bit random nonce)                          │
+//! │                                                                             │
+//! │   ┌─────────────┐                                                           │
+//! │   │  0^128      │──────► AES_K ──────► H (GHASH subkey)                     │
+//! │   │ (128 zeros) │                                                           │
+//! │   └─────────────┘                                                           │
+//! │                                                                             │
+//! │   ┌─────────────────────┐                                                   │
+//! │   │  IV  │ 0^31 │ 1     │──► AES_K ──► Encrypted_J0 (for final tag XOR)     │
+//! │   │ 96b  │ 31b  │ 1b    │    (J0 = initial counter block)                   │
+//! │   └─────────────────────┘                                                   │
+//! │                                                                             │
+//! │   CTR counter starts at J0 + 1 = IV || 0^31 || 2                            │
+//! └─────────────────────────────────────────────────────────────────────────────┘
+//!
+//! ┌─────────────────────────────────────────────────────────────────────────────┐
+//! │                              ENCRYPTION FLOW                                │
+//! │                                                                             │
+//! │   Plaintext chunks          AES-CTR                     Output              │
+//! │   ┌──────────┐         ┌─────────────┐                                      │
+//! │   │ P_1      │────────►│ CTR(IV||2)  │──────► C_1 ────────┬──► Ciphertext   │
+//! │   └──────────┘         └─────────────┘                    │                 │
+//! │   ┌──────────┐         ┌─────────────┐                    │                 │
+//! │   │ P_2      │────────►│ CTR(IV||3)  │──────► C_2 ─────┬──┼──► Ciphertext   │
+//! │   └──────────┘         └─────────────┘                 │  │                 │
+//! │       ...                   ...                        │  │                 │
+//! │   ┌──────────┐         ┌─────────────┐                 │  │                 │
+//! │   │ P_n      │────────►│ CTR(IV||n+1)│──────► C_n ──┬──┼──┼──► Ciphertext   │
+//! │   └──────────┘         └─────────────┘              │  │  │                 │
+//! │                                                     │  │  │                 │
+//! │                     GHASH Accumulation              │  │  │                 │
+//! │                     ┌──────────────────────────┐    │  │  │                 │
+//! │                     │  GhashAccumulator        │◄───┴──┴──┘                 │
+//! │                     │  (buffers partial blocks)│                            │
+//! │                     └────────────┬─────────────┘                            │
+//! │                                  │                                          │
+//! │                                  ▼                                          │
+//! │   ┌─────────────────────────────────────────────────┐                       │
+//! │   │ len_block = [AAD_len_bits || CT_len_bits]       │                       │
+//! │   │             [    0^64     || ciphertext_len*8 ] │                       │
+//! │   └────────────────────────┬────────────────────────┘                       │
+//! │                            │                                                │
+//! │                            ▼                                                │
+//! │   ┌───────────────────────────────────────────────────────────────────┐     │
+//! │   │  Tag = GHASH(C_1 || C_2 || ... || C_n || len_block) ⊕ Encrypted_J0│     │
+//! │   └───────────────────────────────────────────────────────────────────┘     │
+//! └─────────────────────────────────────────────────────────────────────────────┘
+//!
+//! ┌─────────────────────────────────────────────────────────────────────────────┐
+//! │                              DECRYPTION FLOW                                │
+//! │                                                                             │
+//! │   Input stream:  [IV (12 bytes)][ciphertext...][tag (16 bytes)]             │
+//! │                                                                             │
+//! │   Strategy: Hold back last 16 bytes of each chunk until verify() is called  │
+//! │                                                                             │
+//! │   ┌──────────┐                                                              │
+//! │   │ Read IV  │──────────────► Initialize CTR & GHASH (same as encrypt)      │
+//! │   └──────────┘                                                              │
+//! │                                                                             │
+//! │   ┌──────────────────┐    ┌──────────────────┐                              │
+//! │   │ Ciphertext chunk │───►│ held_back buffer │ (always keep last 16 bytes)  │
+//! │   └──────────────────┘    └────────┬─────────┘                              │
+//! │                                    │                                        │
+//! │                    ┌───────────────┴───────────────┐                        │
+//! │                    │ Process bytes before held_back│                        │
+//! │                    └───────────────┬───────────────┘                        │
+//! │                                    │                                        │
+//! │                    ┌───────────────┴───────────────┐                        │
+//! │                    ▼                               ▼                        │
+//! │               ┌─────────┐                    ┌───────────┐                  │
+//! │               │ GHASH   │                    │ AES-CTR   │                  │
+//! │               │ update  │                    │ decrypt   │                  │
+//! │               └────┬────┘                    └─────┬─────┘                  │
+//! │                    │                               │                        │
+//! │                    ▼                               ▼                        │
+//! │           hash = (hash ⊕ block) * H          ┌───────────┐                  │
+//! │           (fold into 128-bit hash)           │ Write     │                  │
+//! │                                              │ plaintext │                  │
+//! │                                              └───────────┘                  │
+//! │                                                                             │
+//! │   On verify():                                                              │
+//! │   ┌─────────────────────────────────────────────────────────────────────┐   │
+//! │   │  1. held_back (16 bytes) = expected_tag                             │   │
+//! │   │  2. computed_tag = GHASH(all_ciphertext || len_block) ⊕ Encrypted_J0│   │
+//! │   │  3. constant_time_compare(computed_tag, expected_tag)               │   │
+//! │   │  4. Return remaining plaintext or authentication error              │   │
+//! │   └─────────────────────────────────────────────────────────────────────┘   │
+//! └─────────────────────────────────────────────────────────────────────────────┘
+//!
+//! ┌─────────────────────────────────────────────────────────────────────────────┐
+//! │                              WIRE FORMAT                                    │
+//! │                                                                             │
+//! │   ┌────────────┬─────────────────────────────────┬────────────────┐         │
+//! │   │   IV       │         Ciphertext              │     Tag        │         │
+//! │   │ (12 bytes) │       (plaintext_len bytes)     │  (16 bytes)    │         │
+//! │   └────────────┴─────────────────────────────────┴────────────────┘         │
+//! │                                                                             │
+//! │   Total output size = 12 + plaintext_len + 16 = plaintext_len + 28 bytes    │
+//! │                                                                             │
+//! │   Compatible with: crypto::aes module (bidirectional interop verified)      │
+//! └─────────────────────────────────────────────────────────────────────────────┘
+//! ```
+//!
 // In Java/Scala/nodejs we were able to find common crypto libraries that implemented this model but did not find any
 // in Rust. If one is found (RustCrypto, ring, aws-lc-rs, etc), use that instead of doing it ourselves.
 
