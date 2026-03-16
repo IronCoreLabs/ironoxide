@@ -1105,39 +1105,6 @@ fn edeks_to_edeks_proto(
     Ok(edek_bytes)
 }
 
-/// Creates an encrypted document entry in the IronCore webservice.
-/// Create a document entry on the server with the given EDEKs.
-/// Used by file operations where the encrypted data is written to a file rather than returned.
-pub(crate) async fn document_create_with_edeks(
-    auth: &RequestAuth,
-    doc_id: &DocumentId,
-    doc_name: &Option<DocumentName>,
-    edeks: &[EncryptedDek],
-    accum_errs: Vec<DocAccessEditErr>,
-) -> Result<DocumentEncryptResult, IronOxideErr> {
-    let api_resp = document_create::document_create_request(
-        auth,
-        doc_id.clone(),
-        doc_name.clone(),
-        edeks.to_vec(),
-    )
-    .await?;
-
-    Ok(DocumentEncryptResult {
-        id: api_resp.id,
-        name: api_resp.name,
-        created: api_resp.created,
-        updated: api_resp.updated,
-        encrypted_data: Vec::new(), // Not applicable for file operations
-        grants: api_resp
-            .shared_with
-            .into_iter()
-            .map(|sw| sw.into())
-            .collect(),
-        access_errs: accum_errs,
-    })
-}
-
 async fn document_create(
     auth: &RequestAuth,
     edoc: EncryptedDoc,

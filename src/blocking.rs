@@ -239,10 +239,11 @@ impl BlockingIronOxide {
         destination_path: &str,
         opts: &DocumentEncryptOpts,
     ) -> Result<DocumentFileEncryptResult> {
-        self.runtime.block_on(
-            self.ironoxide
-                .document_file_encrypt(source_path, destination_path, opts),
-        )
+        self.runtime.block_on(self.ironoxide.document_file_encrypt(
+            source_path,
+            destination_path,
+            opts,
+        ))
     }
 
     /// See [ironoxide::document::file::DocumentFileOps::document_file_decrypt](trait.DocumentFileOps.html#tymethod.document_file_decrypt)
@@ -251,8 +252,10 @@ impl BlockingIronOxide {
         source_path: &str,
         destination_path: &str,
     ) -> Result<DocumentFileDecryptResult> {
-        self.runtime
-            .block_on(self.ironoxide.document_file_decrypt(source_path, destination_path))
+        self.runtime.block_on(
+            self.ironoxide
+                .document_file_decrypt(source_path, destination_path),
+        )
     }
 
     /// See [ironoxide::document::file::DocumentFileAdvancedOps::document_file_encrypt_unmanaged](trait.DocumentFileAdvancedOps.html#tymethod.document_file_encrypt_unmanaged)
@@ -262,10 +265,12 @@ impl BlockingIronOxide {
         destination_path: &str,
         opts: &DocumentEncryptOpts,
     ) -> Result<DocumentFileEncryptUnmanagedResult> {
-        self.runtime.block_on(
-            self.ironoxide
-                .document_file_encrypt_unmanaged(source_path, destination_path, opts),
-        )
+        self.runtime
+            .block_on(self.ironoxide.document_file_encrypt_unmanaged(
+                source_path,
+                destination_path,
+                opts,
+            ))
     }
 
     /// See [ironoxide::document::file::DocumentFileAdvancedOps::document_file_decrypt_unmanaged](trait.DocumentFileAdvancedOps.html#tymethod.document_file_decrypt_unmanaged)
@@ -275,10 +280,12 @@ impl BlockingIronOxide {
         destination_path: &str,
         encrypted_deks: &[u8],
     ) -> Result<DocumentFileDecryptUnmanagedResult> {
-        self.runtime.block_on(
-            self.ironoxide
-                .document_file_decrypt_unmanaged(source_path, destination_path, encrypted_deks),
-        )
+        self.runtime
+            .block_on(self.ironoxide.document_file_decrypt_unmanaged(
+                source_path,
+                destination_path,
+                encrypted_deks,
+            ))
     }
 
     /// See [ironoxide::IronOxide::export_public_key_cache](../struct.IronOxide.html#method.export_public_key_cache)

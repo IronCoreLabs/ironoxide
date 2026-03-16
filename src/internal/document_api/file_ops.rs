@@ -13,7 +13,8 @@ use crate::{
         IronOxideErr, PrivateKey, PublicKey, PublicKeyCache, RequestAuth,
         document_api::{
             self, DocAccessEditErr, DocumentHeader, DocumentId, DocumentName, UserOrGroup,
-            parse_header_length, recrypt_document, requests,
+            parse_header_length, recrypt_document,
+            requests::{self, document_create},
         },
     },
     policy::PolicyGrant,
@@ -406,12 +407,11 @@ where
     let encryption_errs = recryption_result.encryption_errs.clone();
 
     // Create document on server
-    let create_result = document_api::document_create_with_edeks(
+    let create_result = document_create::document_create_request(
         auth,
-        &doc_id,
-        &document_name,
-        &recryption_result.edeks,
-        [key_errs, encryption_errs].concat(),
+        doc_id,
+        document_name,
+        recryption_result.edeks,
     )
     .await?;
 
@@ -420,8 +420,12 @@ where
         name: create_result.name,
         created: create_result.created,
         updated: create_result.updated,
-        grants: create_result.grants,
-        access_errs: create_result.access_errs,
+        grants: create_result
+            .shared_with
+            .into_iter()
+            .map(|sw| sw.into())
+            .collect(),
+        access_errs: [key_errs, encryption_errs].concat(),
     })
 }
 
@@ -681,7 +685,10 @@ mod tests {
             let metadata = fs::metadata(path_str).expect("Failed to get metadata");
             let mode = metadata.permissions().mode() & 0o777;
 
-            assert_eq!(mode, 0o600, "File should have mode 0600 (owner read/write only)");
+            assert_eq!(
+                mode, 0o600,
+                "File should have mode 0600 (owner read/write only)"
+            );
 
             // Clean up
             let _ = fs::remove_file(path_str);
