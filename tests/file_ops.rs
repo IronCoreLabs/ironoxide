@@ -393,7 +393,7 @@ async fn file_encrypt_source_not_found() -> Result<()> {
         .await;
 
     assert!(result.is_err());
-    assert_that!(&result.unwrap_err(), is_variant!(IronOxideErr::FileIOError));
+    assert_that!(&result.unwrap_err(), is_variant!(IronOxideErr::FileIoError));
 
     Ok(())
 }
@@ -410,7 +410,7 @@ async fn file_decrypt_source_not_found() -> Result<()> {
         .await;
 
     assert!(result.is_err());
-    assert_that!(&result.unwrap_err(), is_variant!(IronOxideErr::FileIOError));
+    assert_that!(&result.unwrap_err(), is_variant!(IronOxideErr::FileIoError));
 
     Ok(())
 }
@@ -457,7 +457,7 @@ async fn file_encrypt_invalid_destination_path() -> Result<()> {
         .await;
 
     assert!(result.is_err());
-    assert_that!(&result.unwrap_err(), is_variant!(IronOxideErr::FileIOError));
+    assert_that!(&result.unwrap_err(), is_variant!(IronOxideErr::FileIoError));
 
     Ok(())
 }
@@ -483,7 +483,7 @@ async fn file_decrypt_invalid_destination_path() -> Result<()> {
         .await;
 
     assert!(result.is_err());
-    assert_that!(&result.unwrap_err(), is_variant!(IronOxideErr::FileIOError));
+    assert_that!(&result.unwrap_err(), is_variant!(IronOxideErr::FileIoError));
 
     Ok(())
 }

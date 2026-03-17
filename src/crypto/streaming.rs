@@ -231,7 +231,7 @@ impl GhashAccumulator {
         }
 
         // Keep only the remaining partial block
-        self.pending = self.pending[complete_len..].to_vec();
+        self.pending.drain(..complete_len);
     }
 
     /// Finalize GHASH, padding any remaining partial block.
@@ -312,8 +312,8 @@ impl StreamingEncryptor {
     /// After this call, the GHASH accumulator is updated with the ciphertext.
     pub(crate) fn process_chunk(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize> {
         if output.len() < input.len() {
-            return Err(IronOxideErr::FileIOError {
-                path: String::new(),
+            return Err(IronOxideErr::FileIoError {
+                path: None,
                 operation: "encrypt".to_string(),
                 message: "Output buffer too small".to_string(),
             });
@@ -427,8 +427,8 @@ impl StreamingDecryptor {
         self.held_back = combined[to_process_len..].to_vec();
 
         if output.len() < ciphertext.len() {
-            return Err(IronOxideErr::FileIOError {
-                path: String::new(),
+            return Err(IronOxideErr::FileIoError {
+                path: None,
                 operation: "decrypt".to_string(),
                 message: "Output buffer too small".to_string(),
             });
@@ -510,8 +510,8 @@ pub(crate) fn encrypt_stream<R: Read, W: Write, RNG: CryptoRng + RngCore>(
     // Write IV to output
     writer
         .write_all(&iv)
-        .map_err(|e| IronOxideErr::FileIOError {
-            path: String::new(),
+        .map_err(|e| IronOxideErr::FileIoError {
+            path: None,
             operation: "write_iv".to_string(),
             message: e.to_string(),
         })?;
@@ -522,8 +522,8 @@ pub(crate) fn encrypt_stream<R: Read, W: Write, RNG: CryptoRng + RngCore>(
 
     while let n @ 1.. = reader
         .read(&mut input_buffer)
-        .map_err(|e| IronOxideErr::FileIOError {
-            path: String::new(),
+        .map_err(|e| IronOxideErr::FileIoError {
+            path: None,
             operation: "read".to_string(),
             message: e.to_string(),
         })?
@@ -531,8 +531,8 @@ pub(crate) fn encrypt_stream<R: Read, W: Write, RNG: CryptoRng + RngCore>(
         let written = encryptor.process_chunk(&input_buffer[..n], &mut output_buffer)?;
         writer
             .write_all(&output_buffer[..written])
-            .map_err(|e| IronOxideErr::FileIOError {
-                path: String::new(),
+            .map_err(|e| IronOxideErr::FileIoError {
+                path: None,
                 operation: "write".to_string(),
                 message: e.to_string(),
             })?;
@@ -542,8 +542,8 @@ pub(crate) fn encrypt_stream<R: Read, W: Write, RNG: CryptoRng + RngCore>(
     if !remaining.is_empty() {
         writer
             .write_all(&remaining)
-            .map_err(|e| IronOxideErr::FileIOError {
-                path: String::new(),
+            .map_err(|e| IronOxideErr::FileIoError {
+                path: None,
                 operation: "write".to_string(),
                 message: e.to_string(),
             })?;
@@ -551,14 +551,14 @@ pub(crate) fn encrypt_stream<R: Read, W: Write, RNG: CryptoRng + RngCore>(
 
     writer
         .write_all(&tag)
-        .map_err(|e| IronOxideErr::FileIOError {
-            path: String::new(),
+        .map_err(|e| IronOxideErr::FileIoError {
+            path: None,
             operation: "write".to_string(),
             message: e.to_string(),
         })?;
 
-    writer.flush().map_err(|e| IronOxideErr::FileIOError {
-        path: String::new(),
+    writer.flush().map_err(|e| IronOxideErr::FileIoError {
+        path: None,
         operation: "flush".to_string(),
         message: e.to_string(),
     })?;
@@ -578,8 +578,8 @@ pub(crate) fn decrypt_stream<R: Read, W: Write>(
     let mut iv = [0u8; AES_IV_LEN];
     reader
         .read_exact(&mut iv)
-        .map_err(|e| IronOxideErr::FileIOError {
-            path: String::new(),
+        .map_err(|e| IronOxideErr::FileIoError {
+            path: None,
             operation: "read_iv".to_string(),
             message: e.to_string(),
         })?;
@@ -592,8 +592,8 @@ pub(crate) fn decrypt_stream<R: Read, W: Write>(
 
     while let n @ 1.. = reader
         .read(&mut input_buffer)
-        .map_err(|e| IronOxideErr::FileIOError {
-            path: String::new(),
+        .map_err(|e| IronOxideErr::FileIoError {
+            path: None,
             operation: "read".to_string(),
             message: e.to_string(),
         })?
@@ -602,8 +602,8 @@ pub(crate) fn decrypt_stream<R: Read, W: Write>(
         if written > 0 {
             writer
                 .write_all(&output_buffer[..written])
-                .map_err(|e| IronOxideErr::FileIOError {
-                    path: String::new(),
+                .map_err(|e| IronOxideErr::FileIoError {
+                    path: None,
                     operation: "write".to_string(),
                     message: e.to_string(),
                 })?;
@@ -614,15 +614,15 @@ pub(crate) fn decrypt_stream<R: Read, W: Write>(
     if !remaining_plaintext.is_empty() {
         writer
             .write_all(&remaining_plaintext)
-            .map_err(|e| IronOxideErr::FileIOError {
-                path: String::new(),
+            .map_err(|e| IronOxideErr::FileIoError {
+                path: None,
                 operation: "write".to_string(),
                 message: e.to_string(),
             })?;
     }
 
-    writer.flush().map_err(|e| IronOxideErr::FileIOError {
-        path: String::new(),
+    writer.flush().map_err(|e| IronOxideErr::FileIoError {
+        path: None,
         operation: "flush".to_string(),
         message: e.to_string(),
     })?;

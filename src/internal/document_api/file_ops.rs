@@ -44,8 +44,8 @@ fn create_output_file(path: &str) -> Result<File> {
             .truncate(true)
             .mode(0o600)
             .open(path)
-            .map_err(|e| IronOxideErr::FileIOError {
-                path: path.to_string(),
+            .map_err(|e| IronOxideErr::FileIoError {
+                path: Some(path.to_string()),
                 operation: "create".into(),
                 message: e.to_string(),
             })
@@ -60,8 +60,8 @@ fn create_output_file(path: &str) -> Result<File> {
             .truncate(true)
             .share_mode(0)
             .open(path)
-            .map_err(|e| IronOxideErr::FileIOError {
-                path: path.to_string(),
+            .map_err(|e| IronOxideErr::FileIoError {
+                path: Some(path.to_string()),
                 operation: "create".into(),
                 message: e.to_string(),
             })
@@ -74,8 +74,8 @@ fn create_output_file(path: &str) -> Result<File> {
             .create(true)
             .truncate(true)
             .open(path)
-            .map_err(|e| IronOxideErr::FileIOError {
-                path: path.to_string(),
+            .map_err(|e| IronOxideErr::FileIoError {
+                path: Some(path.to_string()),
                 operation: "create".into(),
                 message: e.to_string(),
             })
@@ -90,8 +90,8 @@ fn reset_file_permissions(path: &str) -> Result<()> {
         use fs::Permissions;
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(path, Permissions::from_mode(0o644)).map_err(|e| {
-            IronOxideErr::FileIOError {
-                path: path.to_string(),
+            IronOxideErr::FileIoError {
+                path: Some(path.to_string()),
                 operation: "set_permissions".into(),
                 message: e.to_string(),
             }
@@ -140,8 +140,8 @@ impl Drop for CleanupOnDrop {
 /// Open a source file and read/parse the IronCore document header.
 /// Returns the parsed header and the file positioned after the header.
 fn read_document_header(source_path: &str) -> Result<(DocumentHeader, File)> {
-    let mut source_file = File::open(source_path).map_err(|e| IronOxideErr::FileIOError {
-        path: source_path.to_string(),
+    let mut source_file = File::open(source_path).map_err(|e| IronOxideErr::FileIoError {
+        path: Some(source_path.to_string()),
         operation: "open".into(),
         message: e.to_string(),
     })?;
@@ -150,8 +150,8 @@ fn read_document_header(source_path: &str) -> Result<(DocumentHeader, File)> {
     let mut header_prefix = [0u8; 3];
     source_file
         .read_exact(&mut header_prefix)
-        .map_err(|e| IronOxideErr::FileIOError {
-            path: source_path.to_string(),
+        .map_err(|e| IronOxideErr::FileIoError {
+            path: Some(source_path.to_string()),
             operation: "read_header".into(),
             message: e.to_string(),
         })?;
@@ -161,8 +161,8 @@ fn read_document_header(source_path: &str) -> Result<(DocumentHeader, File)> {
     // Read full header from beginning
     source_file
         .seek(SeekFrom::Start(0))
-        .map_err(|e| IronOxideErr::FileIOError {
-            path: source_path.to_string(),
+        .map_err(|e| IronOxideErr::FileIoError {
+            path: Some(source_path.to_string()),
             operation: "seek".into(),
             message: e.to_string(),
         })?;
@@ -170,8 +170,8 @@ fn read_document_header(source_path: &str) -> Result<(DocumentHeader, File)> {
     let mut header_bytes = vec![0u8; header_len];
     source_file
         .read_exact(&mut header_bytes)
-        .map_err(|e| IronOxideErr::FileIOError {
-            path: source_path.to_string(),
+        .map_err(|e| IronOxideErr::FileIoError {
+            path: Some(source_path.to_string()),
             operation: "read_header".into(),
             message: e.to_string(),
         })?;
@@ -203,8 +203,8 @@ fn stream_decrypt_to_file(
 
     streaming::decrypt_stream(key_bytes, &mut reader, &mut writer)?;
 
-    writer.flush().map_err(|e| IronOxideErr::FileIOError {
-        path: destination_path.to_string(),
+    writer.flush().map_err(|e| IronOxideErr::FileIoError {
+        path: Some(destination_path.to_string()),
         operation: "flush".into(),
         message: e.to_string(),
     })?;
@@ -358,8 +358,8 @@ where
     R1: CryptoRng + RngCore,
     R2: CryptoRng + RngCore,
 {
-    let source_file = File::open(source_path).map_err(|e| IronOxideErr::FileIOError {
-        path: source_path.to_string(),
+    let source_file = File::open(source_path).map_err(|e| IronOxideErr::FileIoError {
+        path: Some(source_path.to_string()),
         operation: "open".into(),
         message: e.to_string(),
     })?;
@@ -387,8 +387,8 @@ where
     let header_bytes = header.pack();
     output_file
         .write_all(&header_bytes.0)
-        .map_err(|e| IronOxideErr::FileIOError {
-            path: destination_path.to_string(),
+        .map_err(|e| IronOxideErr::FileIoError {
+            path: Some(destination_path.to_string()),
             operation: "write_header".into(),
             message: e.to_string(),
         })?;
@@ -404,7 +404,6 @@ where
     // Encrypt DEK to all grantees
     let recryption_result =
         recrypt_document(&auth.signing_private_key, recrypt, dek, &doc_id, grants)?;
-    let encryption_errs = recryption_result.encryption_errs.clone();
 
     // Create document on server
     let create_result = document_create::document_create_request(
@@ -425,7 +424,7 @@ where
             .into_iter()
             .map(|sw| sw.into())
             .collect(),
-        access_errs: [key_errs, encryption_errs].concat(),
+        access_errs: [key_errs, recryption_result.encryption_errs].concat(),
     })
 }
 
@@ -491,8 +490,8 @@ where
     R2: CryptoRng + RngCore,
 {
     // Open source file
-    let source_file = File::open(source_path).map_err(|e| IronOxideErr::FileIOError {
-        path: source_path.to_string(),
+    let source_file = File::open(source_path).map_err(|e| IronOxideErr::FileIoError {
+        path: Some(source_path.to_string()),
         operation: "open".into(),
         message: e.to_string(),
     })?;
@@ -526,8 +525,8 @@ where
     let header_bytes = header.pack();
     output_file
         .write_all(&header_bytes.0)
-        .map_err(|e| IronOxideErr::FileIOError {
-            path: destination_path.to_string(),
+        .map_err(|e| IronOxideErr::FileIoError {
+            path: Some(destination_path.to_string()),
             operation: "write_header".into(),
             message: e.to_string(),
         })?;
@@ -557,7 +556,6 @@ where
 
     Ok(DocumentFileEncryptUnmanagedResult {
         id: doc_id,
-
         encrypted_deks: edek_bytes,
         grants: successful_grants,
         access_errs: all_errs,

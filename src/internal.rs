@@ -215,8 +215,8 @@ quick_error! {
         AesGcmDecryptError {
             display("AES-GCM decryption failed: authentication tag verification failed")
         }
-        FileIOError { path: String, operation: String, message: String } {
-            display("File I/O error for '{}' during {}: {}", path, operation, message)
+        FileIoError { path: Option<String>, operation: String, message: String } {
+            display("File I/O error {}during {}: {}", path.as_ref().map(|s| format!("for '{s}' ")).unwrap_or("".to_string()), operation, message)
         }
     }
 }
