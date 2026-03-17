@@ -6,18 +6,25 @@ use ironoxide::document::file::{DocumentFileAdvancedOps, DocumentFileOps};
 use ironoxide::{Result, prelude::*};
 use std::convert::TryInto;
 use std::io::Write;
-use tempfile::NamedTempFile;
+use tempfile::{NamedTempFile, TempPath};
 
-// Helper to create a temp file with given content
-fn create_temp_file_with_content(content: &[u8]) -> NamedTempFile {
+// Helper to create a temp file with given content.
+// Returns a TempPath (not NamedTempFile) because on Windows, NamedTempFile holds
+// the file handle open, preventing other code from opening it for writing.
+fn create_temp_file_with_content(content: &[u8]) -> TempPath {
     let mut file = NamedTempFile::new().expect("Failed to create temp file");
     file.write_all(content).expect("Failed to write test data");
-    file
+    file.flush().expect("Failed to flush test data");
+    // Convert to TempPath which closes the handle but keeps path for cleanup
+    file.into_temp_path()
 }
 
-// Helper to create an empty temp file for output
-fn create_output_temp_file() -> NamedTempFile {
-    NamedTempFile::new().expect("Failed to create temp file")
+// Helper to create an empty temp file path for output.
+// Returns TempPath (handle closed) to avoid Windows file locking issues.
+fn create_output_temp_file() -> TempPath {
+    NamedTempFile::new()
+        .expect("Failed to create temp file")
+        .into_temp_path()
 }
 
 #[tokio::test]
@@ -29,9 +36,9 @@ async fn file_encrypt_decrypt_roundtrip() -> Result<()> {
     let encrypted_file = create_output_temp_file();
     let decrypted_file = create_output_temp_file();
 
-    let source_path = source_file.path().to_str().unwrap();
-    let encrypted_path = encrypted_file.path().to_str().unwrap();
-    let decrypted_path = decrypted_file.path().to_str().unwrap();
+    let source_path = source_file.to_str().unwrap();
+    let encrypted_path = encrypted_file.to_str().unwrap();
+    let decrypted_path = decrypted_file.to_str().unwrap();
 
     let encrypt_result = sdk
         .document_file_encrypt(source_path, encrypted_path, &Default::default())
@@ -61,9 +68,9 @@ async fn file_encrypt_decrypt_unmanaged_roundtrip() -> Result<()> {
     let encrypted_file = create_output_temp_file();
     let decrypted_file = create_output_temp_file();
 
-    let source_path = source_file.path().to_str().unwrap();
-    let encrypted_path = encrypted_file.path().to_str().unwrap();
-    let decrypted_path = decrypted_file.path().to_str().unwrap();
+    let source_path = source_file.to_str().unwrap();
+    let encrypted_path = encrypted_file.to_str().unwrap();
+    let decrypted_path = decrypted_file.to_str().unwrap();
 
     let encrypt_result = sdk
         .document_file_encrypt_unmanaged(source_path, encrypted_path, &Default::default())
@@ -98,9 +105,9 @@ async fn file_roundtrip_empty_data() -> Result<()> {
     let encrypted_file = create_output_temp_file();
     let decrypted_file = create_output_temp_file();
 
-    let source_path = source_file.path().to_str().unwrap();
-    let encrypted_path = encrypted_file.path().to_str().unwrap();
-    let decrypted_path = decrypted_file.path().to_str().unwrap();
+    let source_path = source_file.to_str().unwrap();
+    let encrypted_path = encrypted_file.to_str().unwrap();
+    let decrypted_path = decrypted_file.to_str().unwrap();
 
     let encrypt_result = sdk
         .document_file_encrypt(source_path, encrypted_path, &Default::default())
@@ -128,9 +135,9 @@ async fn file_roundtrip_large_data() -> Result<()> {
     let encrypted_file = create_output_temp_file();
     let decrypted_file = create_output_temp_file();
 
-    let source_path = source_file.path().to_str().unwrap();
-    let encrypted_path = encrypted_file.path().to_str().unwrap();
-    let decrypted_path = decrypted_file.path().to_str().unwrap();
+    let source_path = source_file.to_str().unwrap();
+    let encrypted_path = encrypted_file.to_str().unwrap();
+    let decrypted_path = decrypted_file.to_str().unwrap();
 
     let encrypt_result = sdk
         .document_file_encrypt(source_path, encrypted_path, &Default::default())
@@ -160,9 +167,9 @@ async fn file_roundtrip_large_data_unmanaged() -> Result<()> {
     let encrypted_file = create_output_temp_file();
     let decrypted_file = create_output_temp_file();
 
-    let source_path = source_file.path().to_str().unwrap();
-    let encrypted_path = encrypted_file.path().to_str().unwrap();
-    let decrypted_path = decrypted_file.path().to_str().unwrap();
+    let source_path = source_file.to_str().unwrap();
+    let encrypted_path = encrypted_file.to_str().unwrap();
+    let decrypted_path = decrypted_file.to_str().unwrap();
 
     let encrypt_result = sdk
         .document_file_encrypt_unmanaged(source_path, encrypted_path, &Default::default())
@@ -195,8 +202,8 @@ async fn file_encrypt_with_explicit_grants() -> Result<()> {
     let source_file = create_temp_file_with_content(plaintext);
     let encrypted_file = create_output_temp_file();
 
-    let source_path = source_file.path().to_str().unwrap();
-    let encrypted_path = encrypted_file.path().to_str().unwrap();
+    let source_path = source_file.to_str().unwrap();
+    let encrypted_path = encrypted_file.to_str().unwrap();
 
     let bad_user: UserId = "bad_user".try_into()?;
     let bad_group: GroupId = "bad_group".try_into()?;
@@ -250,8 +257,8 @@ async fn file_encrypt_with_explicit_grants_unmanaged() -> Result<()> {
     let source_file = create_temp_file_with_content(plaintext);
     let encrypted_file = create_output_temp_file();
 
-    let source_path = source_file.path().to_str().unwrap();
-    let encrypted_path = encrypted_file.path().to_str().unwrap();
+    let source_path = source_file.to_str().unwrap();
+    let encrypted_path = encrypted_file.to_str().unwrap();
 
     let bad_user: UserId = "bad_user".try_into()?;
     let bad_group: GroupId = "bad_group".try_into()?;
@@ -290,9 +297,9 @@ async fn file_encrypt_decrypt_with_document_id_and_name() -> Result<()> {
     let encrypted_file = create_output_temp_file();
     let decrypted_file = create_output_temp_file();
 
-    let source_path = source_file.path().to_str().unwrap();
-    let encrypted_path = encrypted_file.path().to_str().unwrap();
-    let decrypted_path = decrypted_file.path().to_str().unwrap();
+    let source_path = source_file.to_str().unwrap();
+    let encrypted_path = encrypted_file.to_str().unwrap();
+    let decrypted_path = decrypted_file.to_str().unwrap();
 
     let doc_id: DocumentId = create_id_all_classes("file_doc_").try_into()?;
     let doc_name: DocumentName = "Test File Document".try_into()?;
@@ -334,9 +341,9 @@ async fn file_encrypt_without_self_grant() -> Result<()> {
     let encrypted_file = create_output_temp_file();
     let decrypted_file = create_output_temp_file();
 
-    let source_path = source_file.path().to_str().unwrap();
-    let encrypted_path = encrypted_file.path().to_str().unwrap();
-    let decrypted_path = decrypted_file.path().to_str().unwrap();
+    let source_path = source_file.to_str().unwrap();
+    let encrypted_path = encrypted_file.to_str().unwrap();
+    let decrypted_path = decrypted_file.to_str().unwrap();
 
     let opts = DocumentEncryptOpts::with_explicit_grants(
         None,
@@ -375,7 +382,7 @@ async fn file_encrypt_source_not_found() -> Result<()> {
     let sdk = initialize_sdk().await?;
 
     let encrypted_file = create_output_temp_file();
-    let encrypted_path = encrypted_file.path().to_str().unwrap();
+    let encrypted_path = encrypted_file.to_str().unwrap();
 
     let result = sdk
         .document_file_encrypt(
@@ -396,7 +403,7 @@ async fn file_decrypt_source_not_found() -> Result<()> {
     let sdk = initialize_sdk().await?;
 
     let decrypted_file = create_output_temp_file();
-    let decrypted_path = decrypted_file.path().to_str().unwrap();
+    let decrypted_path = decrypted_file.to_str().unwrap();
 
     let result = sdk
         .document_file_decrypt("/nonexistent/path/to/encrypted.iron", decrypted_path)
@@ -417,8 +424,8 @@ async fn file_decrypt_invalid_encrypted_data() -> Result<()> {
     let source_file = create_temp_file_with_content(garbage_data);
     let decrypted_file = create_output_temp_file();
 
-    let source_path = source_file.path().to_str().unwrap();
-    let decrypted_path = decrypted_file.path().to_str().unwrap();
+    let source_path = source_file.to_str().unwrap();
+    let decrypted_path = decrypted_file.to_str().unwrap();
 
     let result = sdk.document_file_decrypt(source_path, decrypted_path).await;
 
@@ -438,7 +445,7 @@ async fn file_encrypt_invalid_destination_path() -> Result<()> {
 
     let plaintext = b"Test data for invalid destination";
     let source_file = create_temp_file_with_content(plaintext);
-    let source_path = source_file.path().to_str().unwrap();
+    let source_path = source_file.to_str().unwrap();
 
     // Try to write to a non-existent directory
     let result = sdk
@@ -464,8 +471,8 @@ async fn file_decrypt_invalid_destination_path() -> Result<()> {
     let source_file = create_temp_file_with_content(plaintext);
     let encrypted_file = create_output_temp_file();
 
-    let source_path = source_file.path().to_str().unwrap();
-    let encrypted_path = encrypted_file.path().to_str().unwrap();
+    let source_path = source_file.to_str().unwrap();
+    let encrypted_path = encrypted_file.to_str().unwrap();
 
     sdk.document_file_encrypt(source_path, encrypted_path, &Default::default())
         .await?;
@@ -491,8 +498,8 @@ async fn interop_file_encrypt_memory_decrypt() -> Result<()> {
     let source_file = create_temp_file_with_content(plaintext);
     let encrypted_file = create_output_temp_file();
 
-    let source_path = source_file.path().to_str().unwrap();
-    let encrypted_path = encrypted_file.path().to_str().unwrap();
+    let source_path = source_file.to_str().unwrap();
+    let encrypted_path = encrypted_file.to_str().unwrap();
 
     // Encrypt with file API
     let _encrypt_result = sdk
@@ -523,12 +530,12 @@ async fn interop_memory_encrypt_file_decrypt() -> Result<()> {
 
     // Write encrypted data to file
     let encrypted_file = create_output_temp_file();
-    let encrypted_path = encrypted_file.path().to_str().unwrap();
+    let encrypted_path = encrypted_file.to_str().unwrap();
     std::fs::write(encrypted_path, encrypt_result.encrypted_data())
         .expect("Failed to write encrypted file");
 
     let decrypted_file = create_output_temp_file();
-    let decrypted_path = decrypted_file.path().to_str().unwrap();
+    let decrypted_path = decrypted_file.to_str().unwrap();
 
     // Decrypt with file API
     let decrypt_result = sdk
@@ -551,8 +558,8 @@ async fn interop_file_encrypt_unmanaged_memory_decrypt_unmanaged() -> Result<()>
     let source_file = create_temp_file_with_content(plaintext);
     let encrypted_file = create_output_temp_file();
 
-    let source_path = source_file.path().to_str().unwrap();
-    let encrypted_path = encrypted_file.path().to_str().unwrap();
+    let source_path = source_file.to_str().unwrap();
+    let encrypted_path = encrypted_file.to_str().unwrap();
 
     // Encrypt with file API (unmanaged)
     let encrypt_result = sdk
@@ -585,12 +592,12 @@ async fn interop_memory_encrypt_unmanaged_file_decrypt_unmanaged() -> Result<()>
 
     // Write encrypted data to file
     let encrypted_file = create_output_temp_file();
-    let encrypted_path = encrypted_file.path().to_str().unwrap();
+    let encrypted_path = encrypted_file.to_str().unwrap();
     std::fs::write(encrypted_path, encrypt_result.encrypted_data())
         .expect("Failed to write encrypted file");
 
     let decrypted_file = create_output_temp_file();
-    let decrypted_path = decrypted_file.path().to_str().unwrap();
+    let decrypted_path = decrypted_file.to_str().unwrap();
 
     // Decrypt with file API (unmanaged)
     let decrypt_result = sdk
@@ -621,9 +628,9 @@ async fn file_encrypt_decrypt_by_different_user() -> Result<()> {
     let encrypted_file = create_output_temp_file();
     let decrypted_file = create_output_temp_file();
 
-    let source_path = source_file.path().to_str().unwrap();
-    let encrypted_path = encrypted_file.path().to_str().unwrap();
-    let decrypted_path = decrypted_file.path().to_str().unwrap();
+    let source_path = source_file.to_str().unwrap();
+    let encrypted_path = encrypted_file.to_str().unwrap();
+    let decrypted_path = decrypted_file.to_str().unwrap();
 
     // User1 encrypts to User2
     let opts = DocumentEncryptOpts::with_explicit_grants(
@@ -655,7 +662,7 @@ async fn file_encrypt_decrypt_by_different_user() -> Result<()> {
 
     // User1 should NOT be able to decrypt (they didn't grant to self)
     let decrypted_file2 = create_output_temp_file();
-    let decrypted_path2 = decrypted_file2.path().to_str().unwrap();
+    let decrypted_path2 = decrypted_file2.to_str().unwrap();
 
     let result = sdk1
         .document_file_decrypt(encrypted_path, decrypted_path2)
@@ -677,9 +684,9 @@ async fn file_encrypt_to_group() -> Result<()> {
     let encrypted_file = create_output_temp_file();
     let decrypted_file = create_output_temp_file();
 
-    let source_path = source_file.path().to_str().unwrap();
-    let encrypted_path = encrypted_file.path().to_str().unwrap();
-    let decrypted_path = decrypted_file.path().to_str().unwrap();
+    let source_path = source_file.to_str().unwrap();
+    let encrypted_path = encrypted_file.to_str().unwrap();
+    let decrypted_path = decrypted_file.to_str().unwrap();
 
     let opts = DocumentEncryptOpts::with_explicit_grants(
         None,
