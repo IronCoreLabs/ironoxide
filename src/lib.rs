@@ -161,6 +161,7 @@ mod proto {
 
 mod crypto {
     pub mod aes;
+    pub mod streaming;
     pub mod transform;
 }
 mod internal;

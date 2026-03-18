@@ -1,6 +1,6 @@
 [package]
 name = "ironoxide"
-version = "4.2.1"
+version = "4.3.0"
 authors = ["IronCore Labs <info@ironcorelabs.com>"]
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -35,6 +35,7 @@ base64 = "0.22"
 base64-serde = "0.8"
 bytes = "1"
 futures = "0.3.1"
+ghash = "0.5"  # Incremental GHASH computation for streaming AES-GCM
 hex = "0.4"
 ironcore-search-helpers = { version = "0.2", optional = true }
 itertools = "0.14"
@@ -68,6 +69,8 @@ criterion = "0.8"
 double = "0.2.4"
 galvanic-assert = "0.8"
 mut_static = "5"
+proptest = "1.6"
+tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 uuid = { version = "1.0", features = ["v4"], default-features = false }
 

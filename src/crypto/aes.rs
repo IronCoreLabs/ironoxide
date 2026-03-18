@@ -9,9 +9,11 @@ use std::{convert::TryFrom, ops::DerefMut, sync::Mutex};
 //There is no way this can fail. Value is most definitely not less than one.
 const PBKDF2_ITERATIONS: NonZeroU32 = NonZeroU32::new(250_000).unwrap();
 const PBKDF2_SALT_LEN: usize = 32;
-const AES_GCM_TAG_LEN: usize = 16;
-const AES_IV_LEN: usize = 12;
-const AES_KEY_LEN: usize = 32;
+pub(crate) const AES_GCM_TAG_LEN: usize = 16;
+pub(crate) const AES_IV_LEN: usize = 12;
+pub(crate) const AES_KEY_LEN: usize = 32;
+/// Byte size of AES block (128, 192, and 256 bit keys all have 128 bit blocks)
+pub(crate) const AES_BLOCK_SIZE: usize = 16; // 128 bit / 8 bits per byte
 //The encrypted user master key length will be the size of the encrypted key (32 bytes) plus the size of the GCM auth tag (16 bytes).
 const ENCRYPTED_KEY_AND_GCM_TAG_LEN: usize = AES_KEY_LEN + AES_GCM_TAG_LEN;
 
@@ -245,6 +247,8 @@ pub fn decrypt(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::crypto::streaming::tests::{generate_test_key, test_rng};
+    use proptest::prelude::*;
     use std::{convert::TryInto, sync::Arc};
 
     #[test]
@@ -275,11 +279,9 @@ mod tests {
     #[test]
     fn test_encrypt() {
         let plaintext = vec![1, 2, 3, 4, 5, 6, 7];
-        let mut key = [0u8; 32];
-        let mut rng = rand::thread_rng();
-        rng.fill_bytes(&mut key);
-
-        let res = encrypt(&Mutex::new(rng), plaintext.clone(), key).unwrap();
+        let key = generate_test_key();
+        let rng = test_rng();
+        let res = encrypt(&rng, plaintext.clone(), key).unwrap();
         assert_eq!(res.aes_iv.len(), 12);
         assert_eq!(
             res.ciphertext.len(),
@@ -290,11 +292,10 @@ mod tests {
     #[test]
     fn test_decrypt() {
         let plaintext = vec![1, 2, 3, 4, 5, 6, 7];
-        let mut key = [0u8; 32];
-        let mut rng = rand::thread_rng();
-        rng.fill_bytes(&mut key);
+        let key = generate_test_key();
+        let rng = test_rng();
 
-        let mut encrypted_result = encrypt(&Mutex::new(rng), plaintext.clone(), key).unwrap();
+        let mut encrypted_result = encrypt(&rng, plaintext.clone(), key).unwrap();
 
         let decrypted_plaintext = decrypt(&mut encrypted_result, key).unwrap();
 
@@ -321,11 +322,9 @@ mod tests {
 
     #[test]
     fn test_parallel_encrypt() {
-        use rand::SeedableRng;
-
         let plaintext = vec![1, 2, 3, 4, 5, 6, 7];
         let mut key = [0u8; 32];
-        let rng = Mutex::new(rand_chacha::ChaChaRng::from_entropy());
+        let rng = test_rng();
         take_lock(&rng).deref_mut().fill_bytes(&mut key);
 
         let a_rng = Arc::new(rng);
@@ -346,5 +345,52 @@ mod tests {
         }
 
         assert_eq!(joined_count, 100);
+    }
+
+    // pulled from https://docs.rs/proptest/latest/src/proptest/array.rs.html#213
+    fn uniform48<S: Strategy>(
+        strategy: S,
+    ) -> proptest::array::UniformArrayStrategy<S, [S::Value; 48]> {
+        proptest::array::UniformArrayStrategy::new(strategy)
+    }
+    proptest! {
+        #[test]
+        fn prop_encrypt_decrypt_roundtrip(plaintext in prop::collection::vec(any::<u8>(), 0..10000)) {
+            let key = generate_test_key();
+            let rng = test_rng();
+
+            let mut encrypted = encrypt(&rng, plaintext.clone(), key).unwrap();
+            let decrypted = decrypt(&mut encrypted, key).unwrap();
+
+            prop_assert_eq!(&plaintext[..], decrypted);
+        }
+
+        #[test]
+        fn prop_aes_encrypted_value_roundtrip_bytes(
+            iv in prop::array::uniform12(any::<u8>()),
+            ciphertext in prop::collection::vec(any::<u8>(), AES_GCM_TAG_LEN..1000)
+        ) {
+            let value = AesEncryptedValue { aes_iv: iv, ciphertext };
+            let bytes = value.bytes();
+            let restored: AesEncryptedValue = bytes.as_slice().try_into().unwrap();
+
+            prop_assert_eq!(value.aes_iv, restored.aes_iv);
+            prop_assert_eq!(value.ciphertext, restored.ciphertext);
+        }
+
+        #[test]
+        fn prop_encrypted_master_key_roundtrip_bytes(
+            salt in prop::array::uniform32(any::<u8>()),
+            iv in prop::array::uniform12(any::<u8>()),
+            encrypted_key in uniform48(any::<u8>())
+        ) {
+            let key = EncryptedMasterKey::new(salt, iv, encrypted_key);
+            let bytes = key.bytes();
+            let restored = EncryptedMasterKey::new_from_slice(&bytes).unwrap();
+
+            prop_assert_eq!(key.pbkdf2_salt, restored.pbkdf2_salt);
+            prop_assert_eq!(key.aes_iv, restored.aes_iv);
+            prop_assert_eq!(key.encrypted_key, restored.encrypted_key);
+        }
     }
 }

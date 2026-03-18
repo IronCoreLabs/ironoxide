@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.3.0
+
+- [[#373](https://github.com/IronCoreLabs/ironoxide/pull/373)] Add managed and unmanaged file encrypt/decrypt, which internally stream the bytes for constant memory usage. Note the security disclaimer on file decrypt if you intend to use these APIs.
+
 ## 4.2.1
 
 - [[#372](https://github.com/IronCoreLabs/ironoxide/pull/372)] Hotfix serialized public key cache so that offline initialization works. This fix does require cache regeneration.

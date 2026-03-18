@@ -39,11 +39,26 @@ use std::{
 };
 use time::OffsetDateTime;
 
+pub mod file_ops;
 mod requests;
 
 const DOC_VERSION_HEADER_LENGTH: usize = 1;
 const HEADER_META_LENGTH_LENGTH: usize = 2;
 const CURRENT_DOCUMENT_ID_VERSION: u8 = 2;
+
+pub(crate) fn parse_header_length(header_prefix: &[u8; 3]) -> Result<usize, IronOxideErr> {
+    //We're explicitly erroring on version 1 documents since there are so few of them and it seems extremely unlikely
+    //that anybody will use them with this SDK which was released after we went to version 2.
+    if header_prefix[0] != CURRENT_DOCUMENT_ID_VERSION {
+        return Err(IronOxideErr::DocumentHeaderParseFailure(
+            "Document is not a supported version and may not be an encrypted file.".to_string(),
+        ));
+    }
+    //The 2nd and 3rd bytes of the header are a big-endian u16 that tell us how long the subsequent JSON
+    //header is in bytes. So we need to convert these two u8s into a single u16.
+    let encoded_header_size = header_prefix[1] as usize * 256 + header_prefix[2] as usize;
+    Ok(DOC_VERSION_HEADER_LENGTH + HEADER_META_LENGTH_LENGTH + encoded_header_size)
+}
 
 /// ID of a document.
 ///
@@ -109,18 +124,18 @@ impl TryFrom<String> for DocumentName {
 }
 
 /// Binary version of the document header. Appropriate for using in edoc serialization.
-struct DocHeaderPacked(Vec<u8>);
+pub(crate) struct DocHeaderPacked(pub Vec<u8>);
 
 /// Represents a parsed document header which is decoded from JSON
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-struct DocumentHeader {
+pub(crate) struct DocumentHeader {
     #[serde(rename = "_did_")]
-    document_id: DocumentId,
+    pub document_id: DocumentId,
     #[serde(rename = "_sid_")]
-    segment_id: usize,
+    pub segment_id: usize,
 }
 impl DocumentHeader {
-    fn new(document_id: DocumentId, segment_id: usize) -> DocumentHeader {
+    pub(crate) fn new(document_id: DocumentId, segment_id: usize) -> DocumentHeader {
         DocumentHeader {
             document_id,
             segment_id,
@@ -128,7 +143,7 @@ impl DocumentHeader {
     }
     /// Generate a documents header given its ID and internal segment ID that is is associated with. Generates
     /// a Vec<u8> which includes the document version, header size, and header JSON as bytes.
-    fn pack(&self) -> DocHeaderPacked {
+    pub(crate) fn pack(&self) -> DocHeaderPacked {
         let mut header_json_bytes =
             serde_json::to_vec(&self).expect("Serialization of DocumentHeader failed."); //Serializing a string and number shouldn't fail
         let header_json_len = header_json_bytes.len();
@@ -149,34 +164,22 @@ impl DocumentHeader {
 fn parse_document_parts(
     encrypted_document: &[u8],
 ) -> Result<(DocumentHeader, aes::AesEncryptedValue), IronOxideErr> {
-    //We're explicitly erroring on version 1 documents since there are so few of them and it seems extremely unlikely
-    //that anybody will use them with this SDK which was released after we went to version 2.
-    if encrypted_document[0] != CURRENT_DOCUMENT_ID_VERSION {
-        Err(IronOxideErr::DocumentHeaderParseFailure(
-            "Document is not a supported version and may not be an encrypted file.".to_string(),
-        ))
-    } else {
-        let header_len_end = DOC_VERSION_HEADER_LENGTH + HEADER_META_LENGTH_LENGTH;
-        //The 2nd and 3rd bytes of the header are a big-endian u16 that tell us how long the subsequent JSON
-        //header is in bytes. So we need to convert these two u8s into a single u16.
-        let encoded_header_size =
-            encrypted_document[1] as usize * 256 + encrypted_document[2] as usize;
-        serde_json::from_slice(
-            &encrypted_document[header_len_end..(header_len_end + encoded_header_size)],
+    let header_len = parse_header_length(encrypted_document[..3].try_into().map_err(|_| {
+        IronOxideErr::DocumentHeaderParseFailure(
+            "Document is too short to contain a valid header".to_string(),
         )
+    })?)?;
+    let header_json_start = DOC_VERSION_HEADER_LENGTH + HEADER_META_LENGTH_LENGTH;
+    serde_json::from_slice(&encrypted_document[header_json_start..header_len])
         .map_err(|_| {
             IronOxideErr::DocumentHeaderParseFailure(
                 "Unable to parse document header. Header value is corrupted.".to_string(),
             )
         })
         .and_then(|header_json| {
-            //Convert the remaining document bytes into an AesEncryptedValue which splits out the IV/data
-            Ok((
-                header_json,
-                encrypted_document[(header_len_end + encoded_header_size)..].try_into()?,
-            ))
+            // Convert the remaining document bytes into an AesEncryptedValue which splits out the IV/data
+            Ok((header_json, encrypted_document[header_len..].try_into()?))
         })
-    }
 }
 
 /// The reason a document can be viewed by the requesting user.
@@ -298,8 +301,10 @@ impl DocumentMetadataResult {
         &self.0.visible_to.groups
     }
 
-    // Not exposed outside of the crate
-    fn to_encrypted_symmetric_key(&self) -> Result<recrypt::api::EncryptedValue, IronOxideErr> {
+    /// Get the encrypted symmetric key (for internal use)
+    pub(crate) fn to_encrypted_symmetric_key(
+        &self,
+    ) -> Result<recrypt::api::EncryptedValue, IronOxideErr> {
         self.0.encrypted_symmetric_key.clone().try_into()
     }
 }
@@ -705,7 +710,7 @@ type UserMasterPublicKey = PublicKey;
 /// A Future that will resolve to:
 /// (Left)  list of keys for all users and groups that should be granted access to the document
 /// (Right) errors for any invalid users/groups that were passed
-async fn resolve_keys_for_grants(
+pub(crate) async fn resolve_keys_for_grants(
     auth: &RequestAuth,
     config: &IronOxideConfig,
     user_grants: &[UserId],
@@ -903,7 +908,7 @@ fn dedupe_grants(grants: &[WithKey<UserOrGroup>]) -> Vec<WithKey<UserOrGroup>> {
 /// Encrypt the document using transform crypto (recrypt).
 /// Can be called once you have public keys for users/groups that should have access as well as the
 /// AES encrypted data.
-fn recrypt_document<CR: rand::CryptoRng + rand::RngCore>(
+pub(crate) fn recrypt_document<CR: rand::CryptoRng + rand::RngCore>(
     signing_keys: &DeviceSigningKeyPair,
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     dek: Plaintext,
@@ -950,8 +955,15 @@ fn recrypt_document<CR: rand::CryptoRng + rand::RngCore>(
 /// It can also be useful to think of an EDEK as representing a "document access grant" to a user/group.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct EncryptedDek {
-    grant_to: WithKey<UserOrGroup>,
-    encrypted_dek_data: recrypt::api::EncryptedValue,
+    pub(crate) grant_to: WithKey<UserOrGroup>,
+    pub(crate) encrypted_dek_data: recrypt::api::EncryptedValue,
+}
+
+impl EncryptedDek {
+    /// Get the user or group this EDEK was encrypted to
+    pub(crate) fn grant_to(&self) -> &UserOrGroup {
+        &self.grant_to.id
+    }
 }
 
 impl TryFrom<&EncryptedDek> for EncryptedDekP {
@@ -1020,9 +1032,9 @@ impl TryFrom<&EncryptedDek> for EncryptedDekP {
 /// `RecryptionResult` is an intermediate value as it cannot be serialized to bytes directly.
 /// To serialize to bytes, first construct an `EncryptedDoc`
 #[derive(Clone, Debug)]
-struct RecryptionResult {
-    edeks: Vec<EncryptedDek>,
-    encryption_errs: Vec<DocAccessEditErr>,
+pub(crate) struct RecryptionResult {
+    pub edeks: Vec<EncryptedDek>,
+    pub encryption_errs: Vec<DocAccessEditErr>,
 }
 
 impl RecryptionResult {
@@ -1064,6 +1076,15 @@ impl EncryptedDoc {
     }
 }
 
+/// Convert EDEKs to bytes for the given document.
+pub(crate) fn edeks_to_bytes(
+    edeks: &[EncryptedDek],
+    document_id: &DocumentId,
+    segment_id: usize,
+) -> Result<Vec<u8>, IronOxideErr> {
+    edeks_to_edeks_proto(edeks, document_id.id(), segment_id as i32)
+}
+
 fn edeks_to_edeks_proto(
     edeks: &[EncryptedDek],
     document_id: &str,
@@ -1084,7 +1105,6 @@ fn edeks_to_edeks_proto(
     Ok(edek_bytes)
 }
 
-/// Creates an encrypted document entry in the IronCore webservice.
 async fn document_create(
     auth: &RequestAuth,
     edoc: EncryptedDoc,
@@ -1420,7 +1440,7 @@ pub fn document_revoke_access_unmanaged(
 }
 
 /// Check to see if a set of edeks match a document header
-fn edeks_and_header_match_or_err(
+pub(crate) fn edeks_and_header_match_or_err(
     edeks: &EncryptedDeksP,
     doc_meta: &DocumentHeader,
 ) -> Result<(), IronOxideErr> {
