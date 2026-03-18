@@ -631,21 +631,22 @@ pub(crate) fn decrypt_stream<R: Read, W: Write>(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::crypto::aes;
+    use proptest::prelude::*;
     use rand::RngCore;
     use rand::SeedableRng;
     use rand_chacha::ChaChaRng;
     use std::io::Cursor;
 
-    fn generate_test_key() -> [u8; AES_KEY_LEN] {
+    pub fn generate_test_key() -> [u8; AES_KEY_LEN] {
         let mut key = [0u8; AES_KEY_LEN];
         rand::thread_rng().fill_bytes(&mut key);
         key
     }
 
-    fn test_rng() -> Mutex<ChaChaRng> {
+    pub fn test_rng() -> Mutex<ChaChaRng> {
         Mutex::new(ChaChaRng::from_entropy())
     }
 
@@ -653,23 +654,23 @@ mod tests {
     fn test_streaming_encrypt_decrypt_roundtrip() {
         let key = generate_test_key();
         let rng = test_rng();
-        let plaintext = b"Hello, World! This is a test of streaming encryption.";
-
-        // Encrypt (writes IV + ciphertext + tag)
-        let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+        let plaintext = b"deadbeef";
         let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
-
-        encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
-
-        // Decrypt (reads IV from input)
-        let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
         let mut decrypted_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
 
-        decrypt_stream(&key, &mut reader, &mut writer).unwrap();
-        drop(writer);
+        {
+            let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+
+            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+        }
+
+        {
+            let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
+            let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
+
+            decrypt_stream(&key, &mut reader, &mut writer).unwrap();
+        }
 
         assert_eq!(decrypted_buf, plaintext);
     }
@@ -679,30 +680,27 @@ mod tests {
         let key = generate_test_key();
         let rng = test_rng();
 
-        // Generate 1MB of random data
+        // 1MB of random data
         let mut plaintext = vec![0u8; 1024 * 1024];
         rand::thread_rng().fill_bytes(&mut plaintext);
-
-        // Encrypt (writes IV + ciphertext + tag)
-        let mut reader = BufReader::new(Cursor::new(&plaintext));
         let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+        let mut decrypted_buf = Vec::new();
 
-        encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
+        {
+            let mut reader = BufReader::new(Cursor::new(&plaintext));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
 
-        // Expected: IV (12) + ciphertext (1MB) + tag (16)
+            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+        }
         let expected_len = AES_IV_LEN + plaintext.len() + AES_GCM_TAG_LEN;
         assert_eq!(ciphertext_buf.len(), expected_len);
 
-        // Decrypt (reads IV from input)
-        let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
-        let mut decrypted_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
+        {
+            let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
+            let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
 
-        decrypt_stream(&key, &mut reader, &mut writer).unwrap();
-        drop(writer);
-
+            decrypt_stream(&key, &mut reader, &mut writer).unwrap();
+        }
         assert_eq!(decrypted_buf, plaintext);
     }
 
@@ -710,22 +708,22 @@ mod tests {
     fn test_streaming_decrypt_detects_tampered_ciphertext() {
         let key = generate_test_key();
         let rng = test_rng();
-        let plaintext = b"Hello, World!";
-
-        // Encrypt (writes IV + ciphertext + tag)
-        let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+        let plaintext = b"deadbeef";
         let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+        let mut decrypted_buf = Vec::new();
 
-        encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
+        {
+            let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+
+            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+        }
 
         // Tamper with ciphertext (first byte after IV)
         ciphertext_buf[AES_IV_LEN] ^= 0xFF;
 
         // Decrypt should fail
         let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
-        let mut decrypted_buf = Vec::new();
         let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
 
         let result = decrypt_stream(&key, &mut reader, &mut writer);
@@ -737,14 +735,15 @@ mod tests {
         let key = generate_test_key();
         let rng = test_rng();
         let plaintext = b"Hello, World!";
-
-        // Encrypt (writes IV + ciphertext + tag)
-        let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
         let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+        let mut decrypted_buf = Vec::new();
 
-        encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
+        {
+            let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+
+            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+        }
 
         // Tamper with tag (last byte)
         let last_idx = ciphertext_buf.len() - 1;
@@ -752,101 +751,97 @@ mod tests {
 
         // Decrypt should fail
         let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
-        let mut decrypted_buf = Vec::new();
         let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
 
         let result = decrypt_stream(&key, &mut reader, &mut writer);
         assert!(result.is_err());
     }
 
+    // Encrypt with streaming, decrypt with standard aes module
+    // This verifies bidirectional interoperability
     #[test]
     fn test_interop_with_aes_module_decrypt_streaming_encrypted() {
-        // Encrypt with streaming, decrypt with standard aes module
-        // This verifies bidirectional interoperability
         let key = generate_test_key();
         let rng = test_rng();
-        let plaintext = b"Test data for interoperability";
-
-        // Encrypt with streaming (writes IV + ciphertext + tag)
-        let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+        let plaintext = b"Test data for interop";
         let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
 
-        encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
+        {
+            let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
 
-        // Output is already [IV][ciphertext][tag], which is what aes module expects
+            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+        }
+
         let mut aes_value: aes::AesEncryptedValue = ciphertext_buf.as_slice().try_into().unwrap();
         let decrypted = aes::decrypt(&mut aes_value, key).unwrap();
         assert_eq!(decrypted, plaintext.as_slice());
     }
 
+    // Encrypt with standard aes module, decrypt with streaming
+    // This test verifies we can decrypt standard AES-GCM output
     #[test]
     fn test_interop_with_aes_module_streaming_decrypt_aes_encrypted() {
-        // Encrypt with standard aes module, decrypt with streaming
-        // Note: This test verifies we can decrypt standard AES-GCM output
         let key = generate_test_key();
-        let plaintext = b"Test data for interoperability";
-
-        // Encrypt with standard aes module (produces [IV][ciphertext][tag])
         let rng = test_rng();
+        let plaintext = b"Test data for interop";
+        let mut decrypted_buf = Vec::new();
+
         let encrypted = aes::encrypt(&rng, plaintext.to_vec(), key).unwrap();
         let encrypted_bytes = encrypted.bytes();
+        {
+            let mut reader = BufReader::new(Cursor::new(encrypted_bytes));
+            let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
 
-        // Decrypt with streaming (expects [IV][ciphertext][tag])
-        let mut reader = BufReader::new(Cursor::new(encrypted_bytes));
-        let mut decrypted_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
-
-        decrypt_stream(&key, &mut reader, &mut writer).unwrap();
-        drop(writer);
+            decrypt_stream(&key, &mut reader, &mut writer).unwrap();
+        }
 
         assert_eq!(decrypted_buf, plaintext);
     }
 
+    // Encrypt large data with streaming, decrypt with standard aes module
     #[test]
     fn test_interop_large_data_streaming_encrypt_standard_decrypt() {
-        // Encrypt large data with streaming, decrypt with standard aes module
         let key = generate_test_key();
         let rng = test_rng();
+        let mut ciphertext_buf = Vec::new();
 
+        // 1MB random data
         let mut plaintext = vec![0u8; 1024 * 1024];
         rand::thread_rng().fill_bytes(&mut plaintext);
 
-        // Encrypt with streaming
-        let mut reader = BufReader::new(Cursor::new(&plaintext));
-        let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+        {
+            let mut reader = BufReader::new(Cursor::new(&plaintext));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
 
-        encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
+            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+        }
 
-        // Decrypt with standard aes module
         let mut aes_value: aes::AesEncryptedValue = ciphertext_buf.as_slice().try_into().unwrap();
         let decrypted = aes::decrypt(&mut aes_value, key).unwrap();
         assert_eq!(decrypted, plaintext.as_slice());
     }
 
+    // Encrypt large data with standard aes, decrypt with streaming
     #[test]
     fn test_interop_large_data_standard_encrypt_streaming_decrypt() {
-        // Encrypt large data with standard aes, decrypt with streaming
         let key = generate_test_key();
         let rng = test_rng();
+        let mut decrypted_buf = Vec::new();
 
+        // 1MB random data
         let mut plaintext = vec![0u8; 1024 * 1024];
         rand::thread_rng().fill_bytes(&mut plaintext);
 
-        // Encrypt with standard aes module
         let encrypted = aes::encrypt(&rng, plaintext.clone(), key).unwrap();
         let encrypted_bytes = encrypted.bytes();
 
-        // Decrypt with streaming
-        let mut reader = BufReader::new(Cursor::new(encrypted_bytes));
-        let mut decrypted_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
+        {
+            let mut reader = BufReader::new(Cursor::new(encrypted_bytes));
+            let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
 
-        decrypt_stream(&key, &mut reader, &mut writer).unwrap();
-        drop(writer);
+            decrypt_stream(&key, &mut reader, &mut writer).unwrap();
+        }
 
         assert_eq!(decrypted_buf, plaintext);
     }
@@ -856,25 +851,25 @@ mod tests {
         let key = generate_test_key();
         let rng = test_rng();
         let plaintext: &[u8] = &[];
-
-        // Encrypt (writes IV + tag for empty plaintext)
-        let mut reader = BufReader::new(Cursor::new(plaintext));
         let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+        let mut decrypted_buf = Vec::new();
 
-        encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
+        {
+            let mut reader = BufReader::new(Cursor::new(plaintext));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+
+            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+        }
 
         // Empty plaintext produces IV (12 bytes) + tag (16 bytes) = 28 bytes
         assert_eq!(ciphertext_buf.len(), AES_IV_LEN + AES_GCM_TAG_LEN);
 
-        // Decrypt
-        let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
-        let mut decrypted_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
+        {
+            let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
+            let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
 
-        decrypt_stream(&key, &mut reader, &mut writer).unwrap();
-        drop(writer);
+            decrypt_stream(&key, &mut reader, &mut writer).unwrap();
+        }
 
         assert_eq!(decrypted_buf.len(), 0);
     }
@@ -884,49 +879,47 @@ mod tests {
         let key = generate_test_key();
         let rng = test_rng();
         let plaintext = &[42u8];
-
-        // Encrypt (writes IV + ciphertext + tag)
-        let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
         let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
-
-        encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
-
-        // Decrypt
-        let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
         let mut decrypted_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
 
-        decrypt_stream(&key, &mut reader, &mut writer).unwrap();
-        drop(writer);
+        {
+            let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+
+            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+        }
+        {
+            let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
+            let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
+
+            decrypt_stream(&key, &mut reader, &mut writer).unwrap();
+        }
 
         assert_eq!(decrypted_buf, plaintext);
     }
 
     // Edge case tests for block boundaries and error conditions
-
     #[test]
     fn test_exact_block_boundary_16_bytes() {
         let key = generate_test_key();
         let rng = test_rng();
         // Exactly one AES block (16 bytes)
         let plaintext = [0xABu8; 16];
-
-        let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
         let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
-
-        encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
-
-        let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
         let mut decrypted_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
 
-        decrypt_stream(&key, &mut reader, &mut writer).unwrap();
-        drop(writer);
+        {
+            let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
 
+            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+        }
+        {
+            let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
+            let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
+
+            decrypt_stream(&key, &mut reader, &mut writer).unwrap();
+        }
         assert_eq!(decrypted_buf, plaintext);
     }
 
@@ -936,21 +929,20 @@ mod tests {
         let rng = test_rng();
         // Exactly two AES blocks (32 bytes)
         let plaintext = [0xCDu8; 32];
-
-        let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
         let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
-
-        encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
-
-        let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
         let mut decrypted_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
+        {
+            let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
 
-        decrypt_stream(&key, &mut reader, &mut writer).unwrap();
-        drop(writer);
+            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+        }
+        {
+            let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
+            let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
 
+            decrypt_stream(&key, &mut reader, &mut writer).unwrap();
+        }
         assert_eq!(decrypted_buf, plaintext);
     }
 
@@ -960,21 +952,18 @@ mod tests {
         let rng = test_rng();
         // Exactly three AES blocks (48 bytes)
         let plaintext = [0xEFu8; 48];
-
-        let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
         let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
-
-        encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
-
-        let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
         let mut decrypted_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
-
-        decrypt_stream(&key, &mut reader, &mut writer).unwrap();
-        drop(writer);
-
+        {
+            let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+        }
+        {
+            let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
+            let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
+            decrypt_stream(&key, &mut reader, &mut writer).unwrap();
+        }
         assert_eq!(decrypted_buf, plaintext);
     }
 
@@ -984,21 +973,19 @@ mod tests {
         let rng = test_rng();
         // One byte over block boundary
         let plaintext = [0x12u8; 17];
-
-        let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
         let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
-
-        encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
-
-        let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
         let mut decrypted_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
 
-        decrypt_stream(&key, &mut reader, &mut writer).unwrap();
-        drop(writer);
-
+        {
+            let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+        }
+        {
+            let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
+            let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
+            decrypt_stream(&key, &mut reader, &mut writer).unwrap();
+        }
         assert_eq!(decrypted_buf, plaintext);
     }
 
@@ -1008,20 +995,19 @@ mod tests {
         let rng = test_rng();
         // One byte under block boundary
         let plaintext = [0x34u8; 15];
-
-        let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
         let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
-
-        encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
-
-        let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
         let mut decrypted_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
 
-        decrypt_stream(&key, &mut reader, &mut writer).unwrap();
-        drop(writer);
+        {
+            let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+        }
+        {
+            let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
+            let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
+            decrypt_stream(&key, &mut reader, &mut writer).unwrap();
+        }
 
         assert_eq!(decrypted_buf, plaintext);
     }
@@ -1032,13 +1018,13 @@ mod tests {
         let decrypt_key = generate_test_key(); // Different key
         let rng = test_rng();
         let plaintext = b"Data encrypted with one key, decrypted with another";
-
-        let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
         let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
 
-        encrypt_stream(&encrypt_key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
+        {
+            let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+            encrypt_stream(&encrypt_key, &rng, &mut reader, &mut writer).unwrap();
+        }
 
         // Try to decrypt with wrong key
         let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
@@ -1054,13 +1040,13 @@ mod tests {
         let key = generate_test_key();
         let rng = test_rng();
         let plaintext = b"Some data to encrypt";
-
-        let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
         let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
 
-        encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
+        {
+            let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+        }
 
         // Truncate the ciphertext (remove some bytes from the end)
         ciphertext_buf.truncate(ciphertext_buf.len() - 5);
@@ -1078,13 +1064,13 @@ mod tests {
         let key = generate_test_key();
         let rng = test_rng();
         let plaintext = b"Some data";
-
-        let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
         let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
 
-        encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
+        {
+            let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+        }
 
         // Truncate to just the IV (12 bytes) - no ciphertext or tag
         ciphertext_buf.truncate(AES_IV_LEN);
@@ -1102,13 +1088,13 @@ mod tests {
         let key = generate_test_key();
         let rng = test_rng();
         let plaintext = b"Test data for partial tag truncation";
-
-        let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
         let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
 
-        encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
+        {
+            let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+        }
 
         // Remove half the tag (8 bytes)
         ciphertext_buf.truncate(ciphertext_buf.len() - 8);
@@ -1126,13 +1112,13 @@ mod tests {
         let key = generate_test_key();
         let rng = test_rng();
         let plaintext = b"Test IV modification detection";
-
-        let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
         let mut ciphertext_buf = Vec::new();
-        let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
 
-        encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-        drop(writer);
+        {
+            let mut reader = BufReader::new(Cursor::new(plaintext.as_slice()));
+            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+        }
 
         // Modify the IV (first 12 bytes)
         ciphertext_buf[0] ^= 0xFF;
@@ -1162,22 +1148,170 @@ mod tests {
 
         for size in test_sizes {
             let plaintext: Vec<u8> = (0..size).map(|i| (i % 256) as u8).collect();
-
-            let mut reader = BufReader::new(Cursor::new(&plaintext));
             let mut ciphertext_buf = Vec::new();
-            let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
-
-            encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
-            drop(writer);
-
-            let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
             let mut decrypted_buf = Vec::new();
-            let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
 
-            decrypt_stream(&key, &mut reader, &mut writer).unwrap();
-            drop(writer);
+            {
+                let mut reader = BufReader::new(Cursor::new(&plaintext));
+                let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+                encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+            }
+            {
+                let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
+                let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
+                decrypt_stream(&key, &mut reader, &mut writer).unwrap();
+            }
 
             assert_eq!(decrypted_buf, plaintext, "Failed for size {}", size);
+        }
+    }
+
+    /// Concrete test showing that naive GHash chunking produces wrong results.
+    /// This demonstrates why GhashAccumulator is needed.
+    #[test]
+    fn test_ghash_naive_chunking_concrete() {
+        // 6 bytes of data, split at byte 3
+        let data = [1u8, 2, 3, 4, 5, 6];
+        // Non-zero key so GHASH actually computes something
+        let key = [
+            0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b, 0x88, 0x4c, 0xfa, 0x59, 0xca, 0x34,
+            0x2b, 0x2e,
+        ];
+        let ghash_key = ghash::Key::from(key);
+
+        // Correct: all data in one block, padded at end
+        let output_correct = {
+            let mut ghash = GHash::new(&ghash_key);
+            let mut block = ghash::Block::default();
+            block[..6].copy_from_slice(&data);
+            // block = [1,2,3,4,5,6,0,0,0,0,0,0,0,0,0,0]
+            ghash.update(&[block]);
+            ghash.finalize()
+        };
+
+        // Wrong: split data into two padded blocks
+        let output_wrong = {
+            let mut ghash = GHash::new(&ghash_key);
+            let mut block1 = ghash::Block::default();
+            block1[..3].copy_from_slice(&data[..3]);
+            // block1 = [1,2,3,0,0,0,0,0,0,0,0,0,0,0,0,0]
+            ghash.update(&[block1]);
+
+            let mut block2 = ghash::Block::default();
+            block2[..3].copy_from_slice(&data[3..]);
+            // block2 = [4,5,6,0,0,0,0,0,0,0,0,0,0,0,0,0]
+            ghash.update(&[block2]);
+            ghash.finalize()
+        };
+
+        // These MUST be different - 1 block vs 2 blocks
+        assert_ne!(
+            output_correct.as_slice(),
+            output_wrong.as_slice(),
+            "Naive chunking should produce different result!"
+        );
+    }
+
+    proptest! {
+        #[test]
+        fn prop_streaming_roundtrip(plaintext in prop::collection::vec(any::<u8>(), 0..100_000)) {
+            let key = generate_test_key();
+            let rng = test_rng();
+            let mut ciphertext_buf = Vec::new();
+            let mut decrypted_buf = Vec::new();
+
+            {
+                let mut reader = BufReader::new(Cursor::new(&plaintext));
+                let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+                encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+            }
+            {
+                let mut reader = BufReader::new(Cursor::new(&ciphertext_buf));
+                let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
+                decrypt_stream(&key, &mut reader, &mut writer).unwrap();
+            }
+
+            prop_assert_eq!(plaintext, decrypted_buf);
+        }
+
+        #[test]
+        fn prop_streaming_interop_standard_decrypt(plaintext in prop::collection::vec(any::<u8>(), 0..50_000)) {
+            let key = generate_test_key();
+            let rng = test_rng();
+            let mut ciphertext_buf = Vec::new();
+            {
+                let mut reader = BufReader::new(Cursor::new(&plaintext));
+                let mut writer = BufWriter::new(Cursor::new(&mut ciphertext_buf));
+                encrypt_stream(&key, &rng, &mut reader, &mut writer).unwrap();
+            }
+            let mut aes_value: aes::AesEncryptedValue = ciphertext_buf.as_slice().try_into().unwrap();
+            let decrypted = aes::decrypt(&mut aes_value, key).unwrap();
+
+            prop_assert_eq!(&plaintext[..], decrypted);
+        }
+
+        #[test]
+        fn prop_standard_encrypt_streaming_decrypt(plaintext in prop::collection::vec(any::<u8>(), 0..50_000)) {
+            let key = generate_test_key();
+            let rng = test_rng();
+            let mut decrypted_buf = Vec::new();
+
+            let encrypted = aes::encrypt(&rng, plaintext.clone(), key).unwrap();
+            let encrypted_bytes = encrypted.bytes();
+            {
+                let mut reader = BufReader::new(Cursor::new(encrypted_bytes));
+                let mut writer = BufWriter::new(Cursor::new(&mut decrypted_buf));
+                decrypt_stream(&key, &mut reader, &mut writer).unwrap();
+            }
+            prop_assert_eq!(plaintext, decrypted_buf);
+        }
+
+        /// GhashAccumulator produces same result regardless of chunk sizes
+        #[test]
+        fn prop_ghash_accumulator_chunking_invariant(data in prop::collection::vec(any::<u8>(), 1..5000), chunk_sizes in prop::collection::vec(1..100usize, 1..50)) {
+            // Non-zero key so GHASH actually computes something
+            let key = [
+                0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b,
+                0x88, 0x4c, 0xfa, 0x59, 0xca, 0x34, 0x2b, 0x2e,
+            ];
+            let ghash_key = ghash::Key::from(key);
+
+            // Compute with all-at-once
+            let mut acc_single = GhashAccumulator::new(GHash::new(&ghash_key));
+            acc_single.update(&data);
+            let ghash_single = acc_single.finalize();
+
+            // Now compute with arbitrary chunking. This simulates BufReader giving us any length (not only 16 byte
+            // multiples) up to 8KiB for a chunk. If you naively break the chunk up into blocks, you'll potentially end
+            // up with a padded value in the middle of the GHash accumulation, resulting in an incorrect tag.
+            let mut acc_chunked = GhashAccumulator::new(GHash::new(&ghash_key));
+            let mut offset = 0;
+            for &size in &chunk_sizes {
+                if offset >= data.len() { break; }
+                let end = (offset + size).min(data.len());
+                acc_chunked.update(&data[offset..end]);
+                offset = end;
+            }
+            // Process any remaining data
+            if offset < data.len() {
+                acc_chunked.update(&data[offset..]);
+            }
+            let ghash_chunked = acc_chunked.finalize();
+
+            // Both should produce the same final tag state
+            let block = ghash::Block::default();
+            let output_single = {
+                let mut g = ghash_single;
+                g.update(&[block]);
+                g.finalize()
+            };
+            let output_chunked = {
+                let mut g = ghash_chunked;
+                g.update(&[block]);
+                g.finalize()
+            };
+
+            prop_assert_eq!(output_single.as_slice(), output_chunked.as_slice());
         }
     }
 }

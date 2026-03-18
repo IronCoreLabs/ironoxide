@@ -219,7 +219,7 @@ fn stream_decrypt_to_file(
 /// Result of file encryption (managed).
 ///
 /// Produced by [document_file_encrypt](trait.DocumentFileOps.html#tymethod.document_file_encrypt).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DocumentFileEncryptResult {
     id: DocumentId,
     name: Option<DocumentName>,
@@ -263,7 +263,7 @@ impl DocumentFileEncryptResult {
 /// Result of file encryption (unmanaged).
 ///
 /// Produced by [document_file_encrypt_unmanaged](trait.DocumentFileUnmanagedOps.html#tymethod.document_file_encrypt_unmanaged).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DocumentFileEncryptUnmanagedResult {
     id: DocumentId,
     encrypted_deks: Vec<u8>,
@@ -296,7 +296,7 @@ impl DocumentFileEncryptUnmanagedResult {
 /// Result of file decryption (managed).
 ///
 /// Produced by [document_file_decrypt](trait.DocumentFileOps.html#tymethod.document_file_decrypt).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DocumentFileDecryptResult {
     id: DocumentId,
     name: Option<DocumentName>,
@@ -317,7 +317,7 @@ impl DocumentFileDecryptResult {
 /// Result of file decryption (unmanaged).
 ///
 /// Produced by [document_file_decrypt_unmanaged](trait.DocumentFileUnmanagedOps.html#tymethod.document_file_decrypt_unmanaged).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct DocumentFileDecryptUnmanagedResult {
     id: DocumentId,
     access_via: UserOrGroup,

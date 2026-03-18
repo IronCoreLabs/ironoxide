@@ -69,6 +69,7 @@ criterion = "0.8"
 double = "0.2.4"
 galvanic-assert = "0.8"
 mut_static = "5"
+proptest = "1.6"
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 uuid = { version = "1.0", features = ["v4"], default-features = false }
