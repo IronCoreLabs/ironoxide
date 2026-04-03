@@ -983,9 +983,9 @@ pub mod json {
                     auth_hash: auth_hash.bytes().to_vec(),
                     public_signing_key: public_signing_key.bytes().to_vec(),
                 }),
-                _ => Err(IronOxideErr::InvalidRecryptEncryptedValue(
-                    "Expected an EncryptedOnceValue but got a TransformedValue".to_string(),
-                )),
+                _ => Err(IronOxideErr::InvalidRecryptEncryptedValue {
+                    msg: "Expected an EncryptedOnceValue but got a TransformedValue".to_string(),
+                }),
             }
         }
     }

@@ -179,9 +179,9 @@ fn read_document_header(source_path: &str) -> Result<(DocumentHeader, File)> {
     // Parse header JSON (skip 3-byte prefix)
     let doc_header: DocumentHeader =
         serde_json::from_slice(&header_bytes[3..header_len]).map_err(|_| {
-            IronOxideErr::DocumentHeaderParseFailure(
-                "Unable to parse document header. Header value is corrupted.".to_string(),
-            )
+            IronOxideErr::DocumentHeaderParseFailure {
+                message: "Unable to parse document header. Header value is corrupted.".to_string(),
+            }
         })?;
 
     Ok((doc_header, source_file))

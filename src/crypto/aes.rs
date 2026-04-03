@@ -61,10 +61,10 @@ impl EncryptedMasterKey {
             encrypted_key.copy_from_slice(&bytes[(PBKDF2_SALT_LEN + AES_IV_LEN)..]);
             Ok(EncryptedMasterKey::new(pbkdf2_salt, aes_iv, encrypted_key))
         } else {
-            Err(IronOxideErr::WrongSizeError(
-                Some(bytes.len()),
-                Some(EncryptedMasterKey::SIZE_BYTES),
-            ))
+            Err(IronOxideErr::WrongSizeError {
+                actual_size: Some(bytes.len()),
+                expected_size: Some(EncryptedMasterKey::SIZE_BYTES),
+            })
         }
     }
 
@@ -114,11 +114,6 @@ impl TryFrom<&[u8]> for AesEncryptedValue {
     }
 }
 
-impl From<aws_lc_rs::error::Unspecified> for IronOxideErr {
-    fn from(ring_err: Unspecified) -> Self {
-        IronOxideErr::AesError(ring_err)
-    }
-}
 
 /// Derive a key from a string password. Returns a tuple of salt that was used as part of the derivation and the
 /// key, both of which are 32 bytes.

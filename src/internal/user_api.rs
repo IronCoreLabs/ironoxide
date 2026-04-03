@@ -70,10 +70,10 @@ impl TryFrom<u64> for DeviceId {
         // less than i64 (i.e. no high bit set) for compatibility with other
         // languages (i.e. Java)
         if device_id < 1 || device_id > (i64::MAX as u64) {
-            Err(IronOxideErr::ValidationError(
-                "device_id".to_string(),
-                format!("'{device_id}' must be a number greater than 0"),
-            ))
+            Err(IronOxideErr::ValidationError {
+                field_name: "device_id".to_string(),
+                err: format!("'{device_id}' must be a number greater than 0"),
+            })
         } else {
             Ok(DeviceId(device_id))
         }
@@ -333,7 +333,7 @@ impl Jwt {
         // signature verification and validation. We just want to do a little initial validation
         // to catch issues earlier.
         let token_data = jsonwebtoken::dangerous::insecure_decode::<JwtClaims>(jwt)
-            .map_err(|e| IronOxideErr::ValidationError("jwt".to_string(), e.to_string()))?;
+            .map_err(|e| IronOxideErr::ValidationError { field_name: "jwt".to_string(), err: e.to_string() })?;
         let JwtClaims {
             pid,
             prefixed_pid,
@@ -344,10 +344,10 @@ impl Jwt {
             ..
         } = &token_data.claims;
         let error_message = |claim: &str| -> IronOxideErr {
-            IronOxideErr::ValidationError(
-                "jwt".to_string(),
-                format!("Missing required claim: `{claim}`/`http://ironcore/{claim}"),
-            )
+            IronOxideErr::ValidationError {
+                field_name: "jwt".to_string(),
+                err: format!("Missing required claim: `{claim}`/`http://ironcore/{claim}"),
+            }
         };
         if pid.is_none() && prefixed_pid.is_none() {
             Err(error_message("pid"))
@@ -364,10 +364,10 @@ impl Jwt {
                     claims: token_data.claims,
                 })
             } else {
-                Err(IronOxideErr::ValidationError(
-                    "jwt".to_string(),
-                    "Unsupported JWT algorithm. Supported algorithms: ES256 and RS256.".to_string(),
-                ))
+                Err(IronOxideErr::ValidationError {
+                    field_name: "jwt".to_string(),
+                    err: "Unsupported JWT algorithm. Supported algorithms: ES256 and RS256.".to_string(),
+                })
             }
         }
     }
@@ -622,9 +622,9 @@ pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
     } = requests::user_verify::user_verify(jwt, request)
         .await?
         .ok_or_else(|| {
-            IronOxideErr::UserDoesNotExist(
-                "Device cannot be added to a user that doesn't exist".to_string(),
-            )
+            IronOxideErr::UserDoesNotExist {
+                msg: "Device cannot be added to a user that doesn't exist".to_string(),
+            }
         })?;
     // unpack the verified user and create a DeviceAdd
     let (device_add, account_id) = (

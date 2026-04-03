@@ -50,9 +50,9 @@ pub(crate) fn parse_header_length(header_prefix: &[u8; 3]) -> Result<usize, Iron
     //We're explicitly erroring on version 1 documents since there are so few of them and it seems extremely unlikely
     //that anybody will use them with this SDK which was released after we went to version 2.
     if header_prefix[0] != CURRENT_DOCUMENT_ID_VERSION {
-        return Err(IronOxideErr::DocumentHeaderParseFailure(
-            "Document is not a supported version and may not be an encrypted file.".to_string(),
-        ));
+        return Err(IronOxideErr::DocumentHeaderParseFailure {
+            message: "Document is not a supported version and may not be an encrypted file.".to_string(),
+        });
     }
     //The 2nd and 3rd bytes of the header are a big-endian u16 that tell us how long the subsequent JSON
     //header is in bytes. So we need to convert these two u8s into a single u16.
@@ -165,16 +165,16 @@ fn parse_document_parts(
     encrypted_document: &[u8],
 ) -> Result<(DocumentHeader, aes::AesEncryptedValue), IronOxideErr> {
     let header_len = parse_header_length(encrypted_document[..3].try_into().map_err(|_| {
-        IronOxideErr::DocumentHeaderParseFailure(
-            "Document is too short to contain a valid header".to_string(),
-        )
+        IronOxideErr::DocumentHeaderParseFailure {
+            message: "Document is too short to contain a valid header".to_string(),
+        }
     })?)?;
     let header_json_start = DOC_VERSION_HEADER_LENGTH + HEADER_META_LENGTH_LENGTH;
     serde_json::from_slice(&encrypted_document[header_json_start..header_len])
         .map_err(|_| {
-            IronOxideErr::DocumentHeaderParseFailure(
-                "Unable to parse document header. Header value is corrupted.".to_string(),
-            )
+            IronOxideErr::DocumentHeaderParseFailure {
+                message: "Unable to parse document header. Header value is corrupted.".to_string(),
+            }
         })
         .and_then(|header_json| {
             // Convert the remaining document bytes into an AesEncryptedValue which splits out the IV/data
@@ -917,13 +917,13 @@ pub(crate) fn recrypt_document<CR: rand::CryptoRng + rand::RngCore>(
 ) -> Result<RecryptionResult, IronOxideErr> {
     // check to make sure that we are granting to something
     if grants.is_empty() {
-        Err(IronOxideErr::ValidationError(
-            "grants".into(),
-            format!(
+        Err(IronOxideErr::ValidationError {
+            field_name: "grants".into(),
+            err: format!(
                 "Access must be granted to document {:?} by explicit grant or via a policy",
                 &doc_id
             ),
-        ))
+        })
     } else {
         Ok({
             // encrypt to all the users and groups
@@ -989,7 +989,7 @@ impl TryFrom<&EncryptedDek> for EncryptedDekP {
                 ..Default::default()
             }),
             re::EncryptedValue::TransformedValue { .. } => Err(
-                IronOxideErr::InvalidRecryptEncryptedValue("Expected".to_string()),
+                IronOxideErr::InvalidRecryptEncryptedValue { msg: "Expected".to_string() },
             ),
         }?;
 
@@ -1447,12 +1447,12 @@ pub(crate) fn edeks_and_header_match_or_err(
     if doc_meta.document_id.id() != edeks.documentId.to_string()
         || doc_meta.segment_id as i32 != edeks.segmentId
     {
-        Err(IronOxideErr::UnmanagedDecryptionError(
-            edeks.documentId.to_string(),
-            edeks.segmentId,
-            doc_meta.document_id.clone().0,
-            doc_meta.segment_id as i32,
-        ))
+        Err(IronOxideErr::UnmanagedDecryptionError {
+            edek_doc_id: edeks.documentId.to_string(),
+            edek_segment_id: edeks.segmentId,
+            edoc_doc_id: doc_meta.document_id.clone().0,
+            edoc_segment_id: doc_meta.segment_id as i32,
+        })
     } else {
         Ok(())
     }
@@ -1663,7 +1663,6 @@ fn process_policy(
 
 #[cfg(test)]
 mod tests {
-    use crate::internal::tests::contains;
     use base64::engine::Engine;
     use base64::prelude::BASE64_STANDARD;
     use galvanic_assert::{
@@ -1688,7 +1687,7 @@ mod tests {
 
         // as a baseline, show that the get_policy_f runs if there is a cache miss
         let err_result = get_cached_policy_or(&config, &policy_grant, &policy_cache, async {
-            Err(IronOxideErr::InitializeError("".into()))
+            Err(IronOxideErr::InitializeError { cause: "".into() })
         })
         .await;
 
@@ -1709,7 +1708,7 @@ mod tests {
 
         // let's get the policy again, but if the policy future executes (cache miss) error
         get_cached_policy_or(&config, &policy_grant, &policy_cache, async {
-            Err(IronOxideErr::InitializeError("".into()))
+            Err(IronOxideErr::InitializeError { cause: "".into() })
         })
         .await?;
         assert_eq!(1, policy_cache.len());
@@ -1887,19 +1886,21 @@ mod tests {
         let doc_with_wrong_version = BASE64_STANDARD.decode("AQA4eyJfZGlkXyI6ImNjOTIyZTA3NzRhM2MwZWViZTI2NDM2Yzk2ZjdiYzkzIiwiX3NpZF8iOjYwOH1ciL4su5SPZh4eFGuG+5rJ+/I2gDSZAs+2dXw097gU8fBkMWzRo0dDIW0dOxHg/1mio1yMRdDZDA==").unwrap();
         let doc_with_invalid_json = BASE64_STANDARD.decode("AgA4Z2NfZGlkXyI6ImNjOTIyZTA3NzRhM2MwZWViZTI2NDM2Yzk2ZjdiYzkzIiwiX3NpZF8iOjYwOH1ciL4su5SPZh4eFGuG+5rJ+/I2gDSZAs+2dXw097gU8fBkMWzRo0dDIW0dOxHg/1mio1yMRdDZDA==").unwrap();
 
-        assert_that!(
-            &get_id_from_bytes(&doc_with_wrong_version).unwrap_err(),
-            has_structure!(
-                IronOxideErr::DocumentHeaderParseFailure[contains("not a supported version")]
-            )
-        );
+        let err = get_id_from_bytes(&doc_with_wrong_version).unwrap_err();
+        match &err {
+            IronOxideErr::DocumentHeaderParseFailure { message } => {
+                assert!(message.contains("not a supported version"), "unexpected message: {message}");
+            }
+            other => panic!("expected DocumentHeaderParseFailure, got: {other}"),
+        }
 
-        assert_that!(
-            &get_id_from_bytes(&doc_with_invalid_json).unwrap_err(),
-            has_structure!(
-                IronOxideErr::DocumentHeaderParseFailure[contains("Header value is corrupted")]
-            )
-        );
+        let err = get_id_from_bytes(&doc_with_invalid_json).unwrap_err();
+        match &err {
+            IronOxideErr::DocumentHeaderParseFailure { message } => {
+                assert!(message.contains("Header value is corrupted"), "unexpected message: {message}");
+            }
+            other => panic!("expected DocumentHeaderParseFailure, got: {other}"),
+        }
     }
 
     #[test]
@@ -2174,10 +2175,10 @@ mod tests {
                         }),
                     }
                 } else {
-                    Err(IronOxideErr::ProtobufValidationError(format!(
+                    Err(IronOxideErr::ProtobufValidationError { msg: format!(
                         "EncryptedDek does not have a valid user or group: {:?}",
                         &edek
-                    )))
+                    ) })
                 }
             })
             .collect();
@@ -2256,12 +2257,12 @@ mod tests {
             let err = edeks_and_header_match_or_err(&proto_edeks, &doc_meta).unwrap_err();
 
             assert_that!(&err, is_variant!(IronOxideErr::UnmanagedDecryptionError));
-            if let IronOxideErr::UnmanagedDecryptionError(
+            if let IronOxideErr::UnmanagedDecryptionError {
                 edek_doc_id,
-                edek_seg_id,
+                edek_segment_id: edek_seg_id,
                 edoc_doc_id,
-                edoc_seg_id,
-            ) = err
+                edoc_segment_id: edoc_seg_id,
+            } = err
             {
                 assert_eq!(&edek_doc_id, "other_docid");
                 assert_eq!(edek_seg_id, seg_id as i32);
@@ -2278,12 +2279,12 @@ mod tests {
             let err = edeks_and_header_match_or_err(&proto_edeks, &doc_meta).unwrap_err();
 
             assert_that!(&err, is_variant!(IronOxideErr::UnmanagedDecryptionError));
-            if let IronOxideErr::UnmanagedDecryptionError(
+            if let IronOxideErr::UnmanagedDecryptionError {
                 edek_doc_id,
-                edek_seg_id,
+                edek_segment_id: edek_seg_id,
                 edoc_doc_id,
-                edoc_seg_id,
-            ) = err
+                edoc_segment_id: edoc_seg_id,
+            } = err
             {
                 assert_eq!(&edek_doc_id, doc_id.id());
                 assert_eq!(edek_seg_id, 42i32);

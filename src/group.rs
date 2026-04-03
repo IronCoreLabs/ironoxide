@@ -125,17 +125,17 @@ impl GroupCreateOpts {
         };
 
         let non_empty_admins = Vec1::try_from_vec(standardized_admins).map_err(|_| {
-            IronOxideErr::ValidationError(
-                "admins".to_string(),
-                "admins list cannot be empty".to_string(),
-            )
+            IronOxideErr::ValidationError {
+                field_name: "admins".to_string(),
+                err: "admins list cannot be empty".to_string(),
+            }
         })?;
 
         if !non_empty_admins.contains(owner_id) {
-            Err(IronOxideErr::ValidationError(
-                "admins".to_string(),
-                "admins list must contain the owner".to_string(),
-            ))
+            Err(IronOxideErr::ValidationError {
+                field_name: "admins".to_string(),
+                err: "admins list must contain the owner".to_string(),
+            })
         } else {
             Ok(GroupCreateOptsStd {
                 id: self.id,
@@ -660,7 +660,7 @@ mod tests {
         let opts = GroupCreateOpts::new(None, None, false, true, None, vec![], vec![], false);
         let result = opts.standardize(&calling_user_id);
         match result {
-            Err(IronOxideErr::ValidationError(field_name, err)) => {
+            Err(IronOxideErr::ValidationError { field_name, err }) => {
                 assert_eq!(field_name, "admins");
                 assert!(err.contains("empty"), "expected 'empty' error, got: {err}");
             }
@@ -687,7 +687,7 @@ mod tests {
         );
         let result = opts.standardize(&calling_user_id);
         match result {
-            Err(IronOxideErr::ValidationError(field_name, err)) => {
+            Err(IronOxideErr::ValidationError { field_name, err }) => {
                 assert_eq!(field_name, "admins");
                 assert!(
                     err.contains("owner"),

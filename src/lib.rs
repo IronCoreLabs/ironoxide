@@ -359,7 +359,7 @@ pub async fn initialize(
     )
     .await?
     .map(|current_user| IronOxide::create(&current_user, device_context, config))
-    .map_err(|e: IronOxideErr| IronOxideErr::InitializeError(e.to_string()))
+    .map_err(|e: IronOxideErr| IronOxideErr::InitializeError { cause: e.to_string() })
 }
 
 /// Initializes the IronOxide SDK with a device and cached public keys, enabling offline encryption immediately.
@@ -399,9 +399,9 @@ pub async fn initialize_with_public_keys_and_check_rotation(
 
     let verified_cache =
         PublicKeyCache::deserialize_signed_public_key_cache(device_context, &public_key_cache)
-            .map_err(|e| IronOxideErr::InitializeError(e.to_string()))?;
+            .map_err(|e| IronOxideErr::InitializeError { cause: e.to_string() })?;
     let ironoxide = IronOxide::create_with_public_key_cache(device_context, config, verified_cache)
-        .map_err(|e| IronOxideErr::InitializeError(e.to_string()))?;
+        .map_err(|e| IronOxideErr::InitializeError { cause: e.to_string() })?;
     let user_groups = group_list_result.result();
 
     Ok(check_groups_and_collect_rotation(

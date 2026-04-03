@@ -569,7 +569,7 @@ async fn doc_create_must_grant() -> Result<(), IronOxideErr> {
     // make sure there was a validation error, and that the problem was with the grant
     assert_eq!(
         match doc_result.err().unwrap() {
-            IronOxideErr::ValidationError(field_name, _) => field_name,
+            IronOxideErr::ValidationError { field_name, .. } => field_name,
             _ => "failed test".to_string(),
         },
         "grants".to_string()

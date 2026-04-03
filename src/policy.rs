@@ -172,15 +172,15 @@ fn validate_simple_policy_field_value(field_id: &str, field_type: &str) -> Resul
     let simple_policy_field_regex = Regex::new("^[A-Za-z0-9_-]+$").expect("regex is valid");
     let trimmed_id = field_id.trim();
     if trimmed_id.is_empty() || trimmed_id.len() > NAME_AND_ID_MAX_LEN {
-        Err(IronOxideErr::ValidationError(
-            field_type.to_string(),
-            format!("'{trimmed_id}' must have length between 1 and 100"),
-        ))
+        Err(IronOxideErr::ValidationError {
+            field_name: field_type.to_string(),
+            err: format!("'{trimmed_id}' must have length between 1 and 100"),
+        })
     } else if !simple_policy_field_regex.is_match(trimmed_id) {
-        Err(IronOxideErr::ValidationError(
-            field_type.to_string(),
-            format!("'{trimmed_id}' contains invalid characters"),
-        ))
+        Err(IronOxideErr::ValidationError {
+            field_name: field_type.to_string(),
+            err: format!("'{trimmed_id}' contains invalid characters"),
+        })
     } else {
         Ok(trimmed_id.to_string())
     }

@@ -110,10 +110,10 @@ impl TryFrom<&[u8]> for BlindIndexSearch {
     fn try_from(bytes: &[u8]) -> Result<BlindIndexSearch> {
         let decrypted_len = bytes.len();
         if decrypted_len != REQUIRED_LEN {
-            Err(IronOxideErr::WrongSizeError(
-                Some(decrypted_len),
-                Some(REQUIRED_LEN),
-            ))
+            Err(IronOxideErr::WrongSizeError {
+                actual_size: Some(decrypted_len),
+                expected_size: Some(REQUIRED_LEN),
+            })
         } else {
             let mut a = [0u8; 32];
             a.copy_from_slice(&bytes[0..32]);
@@ -130,9 +130,9 @@ impl TryFrom<DocumentEncryptUnmanagedResult> for EncryptedBlindIndexSalt {
                 encrypted_deks: r.encrypted_deks().to_vec(),
                 encrypted_salt_bytes: r.encrypted_data().to_vec(),
             }),
-            Some(err) => Err(IronOxideErr::UserOrGroupDoesNotExist(
-                err.user_or_group.clone(),
-            )),
+            Some(err) => Err(IronOxideErr::UserOrGroupDoesNotExist {
+                user_or_group: err.user_or_group.clone(),
+            }),
         }
     }
 }
@@ -155,7 +155,7 @@ impl BlindIndexSearch {
     /// partition_id - An extra string you want to include in every hash, this allows 2 queries with different partition_ids to produce a different set of tokens for the same query
     pub fn tokenize_query(&self, query: &str, partition_id: Option<&str>) -> Result<HashSet<u32>> {
         generate_hashes_for_string(query, partition_id, &self.decrypted_salt[..])
-            .map_err(|message| IronOxideErr::ValidationError("query".to_string(), message))
+            .map_err(|message| IronOxideErr::ValidationError { field_name: "query".to_string(), err: message })
     }
 
     /// Generate the list of tokens to create a search entry for `data`. This function will also return some random values in the HashSet, which will make
@@ -171,7 +171,7 @@ impl BlindIndexSearch {
             &self.decrypted_salt[..],
             &self.rng,
         )
-        .map_err(|message| IronOxideErr::ValidationError("data".to_string(), message))
+        .map_err(|message| IronOxideErr::ValidationError { field_name: "data".to_string(), err: message })
     }
 }
 

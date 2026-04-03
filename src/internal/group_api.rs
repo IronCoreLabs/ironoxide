@@ -405,9 +405,9 @@ fn check_user_mismatch<T: Eq + std::hash::Hash + std::fmt::Debug, X>(
         let found_users_vec: Vec<T> = found_users.into_keys().collect();
         let found_users_set: HashSet<&T> = HashSet::from_iter(&found_users_vec);
         let diff: Vec<&&T> = desired_users_set.difference(&found_users_set).collect();
-        Err(IronOxideErr::UserDoesNotExist(format!(
-            "Failed to find the following users: {diff:?}"
-        )))
+        Err(IronOxideErr::UserDoesNotExist {
+            msg: format!("Failed to find the following users: {diff:?}"),
+        })
     } else {
         Ok(found_users)
     }
@@ -632,10 +632,10 @@ pub async fn group_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
     let group_info = group_get_request(auth, group_id).await?;
     let encrypted_group_key = group_info
         .encrypted_private_key
-        .ok_or_else(|| IronOxideErr::NotGroupAdmin(group_id.to_owned()))?;
+        .ok_or_else(|| IronOxideErr::NotGroupAdmin { id: group_id.to_owned() })?;
     let admins = group_info
         .admin_ids
-        .ok_or_else(|| IronOxideErr::NotGroupAdmin(group_id.to_owned()))?;
+        .ok_or_else(|| IronOxideErr::NotGroupAdmin { id: group_id.to_owned() })?;
     let found_admins = user_api::user_key_list(auth, &admins).await?;
     let admin_info = check_user_mismatch(&admins, found_admins)?;
     let (aug_factor, updated_group_admins) = generate_aug_and_admins(
@@ -700,7 +700,7 @@ pub async fn group_add_members<CR: rand::CryptoRng + rand::RngCore>(
     //At this point the acc_fails list is just the key fetch failures. We append to it as we go.
     let encrypted_group_key = group_get
         .encrypted_private_key
-        .ok_or_else(|| IronOxideErr::NotGroupAdmin(group_id.clone()))?;
+        .ok_or_else(|| IronOxideErr::NotGroupAdmin { id: group_id.clone() })?;
     let (plaintext, _) = transform::decrypt_as_private_key(
         recrypt,
         encrypted_group_key.try_into()?,
@@ -765,7 +765,7 @@ pub async fn group_add_admins<CR: rand::CryptoRng + rand::RngCore>(
     //At this point the acc_fails list is just the key fetch failures. We append to it as we go.
     let encrypted_group_key = group_get
         .encrypted_private_key
-        .ok_or_else(|| IronOxideErr::NotGroupAdmin(group_id.clone()))?;
+        .ok_or_else(|| IronOxideErr::NotGroupAdmin { id: group_id.clone() })?;
     let (plaintext, _) = transform::decrypt_as_private_key(
         recrypt,
         encrypted_group_key.try_into()?,
@@ -1041,7 +1041,7 @@ pub(crate) mod tests {
         let err = check_user_mismatch(&desired_users, found_users)
             .expect_err("check_user_mismatch should return error.");
         let err_msg = match err {
-            IronOxideErr::UserDoesNotExist(msg) => Ok(msg),
+            IronOxideErr::UserDoesNotExist { msg } => Ok(msg),
             _ => Err("Wrong type of error. Should never happen."),
         }?;
         assert_eq!(
