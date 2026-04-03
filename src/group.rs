@@ -508,7 +508,7 @@ impl GroupOps for crate::IronOxide {
                 &self.recrypt,
                 self.device().auth(),
                 id,
-                self.device().device_private_key(),
+                self.device().device_private_key_internal(),
             ),
             self.config.sdk_operation_timeout,
             SdkOperation::GroupRotatePrivateKey,
@@ -525,7 +525,7 @@ impl GroupOps for crate::IronOxide {
             group_api::group_add_members(
                 &self.recrypt,
                 self.device.auth(),
-                self.device.device_private_key(),
+                self.device.device_private_key_internal(),
                 id,
                 grant_list,
                 self.public_key_cache.user_keys(),
@@ -563,7 +563,7 @@ impl GroupOps for crate::IronOxide {
             group_api::group_add_admins(
                 &self.recrypt,
                 self.device.auth(),
-                self.device.device_private_key(),
+                self.device.device_private_key_internal(),
                 id,
                 users,
                 self.public_key_cache.user_keys(),

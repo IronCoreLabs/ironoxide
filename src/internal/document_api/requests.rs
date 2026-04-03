@@ -321,7 +321,7 @@ pub mod policy_get {
                 .map(|d| (DataSubject::QUERY_PARAM.to_string(), url_encode(d.inner()))),
             policy_grant
                 .substitute_user()
-                .map(|UserId(u)| (SUBSTITUTE_ID_QUERY_PARAM.to_string(), url_encode(u))),
+                .map(|UserId(u)| (SUBSTITUTE_ID_QUERY_PARAM.to_string(), url_encode(&u))),
         ]
         .into_iter()
         .flatten()

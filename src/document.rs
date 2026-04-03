@@ -23,11 +23,13 @@ pub mod file;
 
 /// List of users and groups that should have access to decrypt a document.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct ExplicitGrant {
     grant_to_author: bool,
     grants: Vec<UserOrGroup>,
 }
 
+#[cfg(not(feature = "uniffi"))]
 impl ExplicitGrant {
     /// Constructs a new ExplicitGrant.
     ///
@@ -38,6 +40,23 @@ impl ExplicitGrant {
         ExplicitGrant {
             grant_to_author,
             grants: grants.to_vec(),
+        }
+    }
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl ExplicitGrant {
+    /// Constructs a new ExplicitGrant.
+    ///
+    /// # Arguments
+    /// - `grant_to_author` - `true` if the calling user should have access to decrypt the document
+    /// - `grants` - List of users and groups that should have access to decrypt the document
+    #[uniffi::constructor]
+    pub fn new(grant_to_author: bool, grants: Vec<UserOrGroup>) -> ExplicitGrant {
+        ExplicitGrant {
+            grant_to_author,
+            grants,
         }
     }
 }
@@ -425,7 +444,7 @@ impl DocumentOps for crate::IronOxide {
             document_api::decrypt_document(
                 self.device.auth(),
                 self.recrypt.clone(),
-                self.device.device_private_key(),
+                self.device.device_private_key_internal(),
                 encrypted_document,
             ),
             self.config.sdk_operation_timeout,
@@ -465,7 +484,7 @@ impl DocumentOps for crate::IronOxide {
             document_api::document_update_bytes(
                 self.device.auth(),
                 &self.recrypt,
-                self.device.device_private_key(),
+                self.device.device_private_key_internal(),
                 &self.rng,
                 id,
                 new_document_data,
@@ -502,7 +521,7 @@ impl DocumentOps for crate::IronOxide {
                 &self.recrypt,
                 id,
                 &self.user_master_pub_key,
-                self.device.device_private_key(),
+                self.device.device_private_key_internal(),
                 &users,
                 &groups,
                 &self.public_key_cache,

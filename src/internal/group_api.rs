@@ -23,6 +23,8 @@ use std::{
     convert::{TryFrom, TryInto},
     iter::FromIterator,
 };
+#[cfg(feature = "uniffi")]
+use std::sync::Arc;
 use time::OffsetDateTime;
 use vec1::Vec1;
 
@@ -121,13 +123,35 @@ impl TryFrom<&str> for GroupName {
 ///
 /// Result from [group_list](trait.GroupOps.html#tymethod.group_list).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct GroupListResult {
     result: Vec<GroupMetaResult>,
 }
+/// Shared methods
+impl GroupListResult {
+    /// Internal accessor for the result list
+    pub(crate) fn result_internal(&self) -> &Vec<GroupMetaResult> {
+        &self.result
+    }
+}
+
+#[cfg(not(feature = "uniffi"))]
 impl GroupListResult {
     /// Metadata for each group that the requesting user is an admin or a member of
     pub fn result(&self) -> &Vec<GroupMetaResult> {
         &self.result
+    }
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl GroupListResult {
+    /// Metadata for each group that the requesting user is an admin or a member of
+    pub fn result(&self) -> Vec<Arc<GroupMetaResult>> {
+        self.result
+            .iter()
+            .map(|r| Arc::new(r.clone()))
+            .collect()
     }
 }
 
@@ -136,6 +160,7 @@ impl GroupListResult {
 /// Result from [GroupListResult.result()](struct.GroupListResult.html#method.result) and
 /// [group_update_name](trait.GroupOps.html#tymethod.group_update_name).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct GroupMetaResult {
     id: GroupId,
     name: Option<GroupName>,
@@ -146,15 +171,8 @@ pub struct GroupMetaResult {
     updated: OffsetDateTime,
     needs_rotation: Option<bool>,
 }
+/// Shared methods
 impl GroupMetaResult {
-    /// ID of the group
-    pub fn id(&self) -> &GroupId {
-        &self.id
-    }
-    /// Name of the group
-    pub fn name(&self) -> Option<&GroupName> {
-        self.name.as_ref()
-    }
     /// `true` if the calling user is a group administrator
     pub fn is_admin(&self) -> bool {
         self.is_admin
@@ -162,18 +180,6 @@ impl GroupMetaResult {
     /// `true` if the calling user is a group member
     pub fn is_member(&self) -> bool {
         self.is_member
-    }
-    /// Date and time when the group was created
-    pub fn created(&self) -> &OffsetDateTime {
-        &self.created
-    }
-    /// Date and time when the group was last updated
-    pub fn last_updated(&self) -> &OffsetDateTime {
-        &self.updated
-    }
-    /// Public key for encrypting to the group
-    pub fn group_master_public_key(&self) -> &PublicKey {
-        &self.group_master_public_key
     }
     /// Whether the group's private key needs rotation. Can only be accessed by a group administrator.
     /// - `Some(bool)` - Indicates whether the group's private key needs rotation.
@@ -183,7 +189,57 @@ impl GroupMetaResult {
     }
 }
 
+#[cfg(not(feature = "uniffi"))]
+impl GroupMetaResult {
+    /// ID of the group
+    pub fn id(&self) -> &GroupId {
+        &self.id
+    }
+    /// Name of the group
+    pub fn name(&self) -> Option<&GroupName> {
+        self.name.as_ref()
+    }
+    /// Public key for encrypting to the group
+    pub fn group_master_public_key(&self) -> &PublicKey {
+        &self.group_master_public_key
+    }
+    /// Date and time when the group was created
+    pub fn created(&self) -> &OffsetDateTime {
+        &self.created
+    }
+    /// Date and time when the group was last updated
+    pub fn last_updated(&self) -> &OffsetDateTime {
+        &self.updated
+    }
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl GroupMetaResult {
+    /// ID of the group
+    pub fn id(&self) -> GroupId {
+        self.id.clone()
+    }
+    /// Name of the group
+    pub fn name(&self) -> Option<GroupName> {
+        self.name.clone()
+    }
+    /// Public key for encrypting to the group
+    pub fn group_master_public_key(&self) -> PublicKey {
+        self.group_master_public_key.clone()
+    }
+    /// Date and time when the group was created
+    pub fn created(&self) -> OffsetDateTime {
+        self.created
+    }
+    /// Date and time when the group was last updated
+    pub fn last_updated(&self) -> OffsetDateTime {
+        self.updated
+    }
+}
+
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 /// Full metadata for a newly created group.
 ///
 /// Result from [group_create](trait.GroupOps.html#tymethod.group_create).
@@ -200,6 +256,25 @@ pub struct GroupCreateResult {
     updated: OffsetDateTime,
     needs_rotation: Option<bool>,
 }
+/// Shared methods
+impl GroupCreateResult {
+    /// `true` if the calling user is a group administrator
+    pub fn is_admin(&self) -> bool {
+        self.is_admin
+    }
+    /// `true` if the calling user is a group member
+    pub fn is_member(&self) -> bool {
+        self.is_member
+    }
+    /// Whether the group's private key needs rotation. Can only be accessed by a group administrator.
+    /// - `Some(bool)` - Indicates whether the group's private key needs rotation.
+    /// - `None` - The calling user does not have permission to view this.
+    pub fn needs_rotation(&self) -> Option<bool> {
+        self.needs_rotation
+    }
+}
+
+#[cfg(not(feature = "uniffi"))]
 impl GroupCreateResult {
     /// ID of the group
     pub fn id(&self) -> &GroupId {
@@ -212,14 +287,6 @@ impl GroupCreateResult {
     /// Public key for encrypting to the group
     pub fn group_master_public_key(&self) -> &PublicKey {
         &self.group_master_public_key
-    }
-    /// `true` if the calling user is a group administrator
-    pub fn is_admin(&self) -> bool {
-        self.is_admin
-    }
-    /// `true` if the calling user is a group member
-    pub fn is_member(&self) -> bool {
-        self.is_member
     }
     /// Owner of the group
     pub fn owner(&self) -> &UserId {
@@ -241,11 +308,42 @@ impl GroupCreateResult {
     pub fn last_updated(&self) -> &OffsetDateTime {
         &self.updated
     }
-    /// Whether the group's private key needs rotation. Can only be accessed by a group administrator.
-    /// - `Some(bool)` - Indicates whether the group's private key needs rotation.
-    /// - `None` - The calling user does not have permission to view this.
-    pub fn needs_rotation(&self) -> Option<bool> {
-        self.needs_rotation
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl GroupCreateResult {
+    /// ID of the group
+    pub fn id(&self) -> GroupId {
+        self.id.clone()
+    }
+    /// Name of the group
+    pub fn name(&self) -> Option<GroupName> {
+        self.name.clone()
+    }
+    /// Public key for encrypting to the group
+    pub fn group_master_public_key(&self) -> PublicKey {
+        self.group_master_public_key.clone()
+    }
+    /// Owner of the group
+    pub fn owner(&self) -> UserId {
+        self.owner.clone()
+    }
+    /// List of all group administrators
+    pub fn admins(&self) -> Vec<UserId> {
+        self.admins.clone()
+    }
+    /// List of all group members
+    pub fn members(&self) -> Vec<UserId> {
+        self.members.clone()
+    }
+    /// Date and time when the group was created
+    pub fn created(&self) -> OffsetDateTime {
+        self.created
+    }
+    /// Date and time when the group was last updated
+    pub fn last_updated(&self) -> OffsetDateTime {
+        self.updated
     }
 }
 
@@ -253,6 +351,7 @@ impl GroupCreateResult {
 ///
 /// Result from [group_get_metadata](trait.GroupOps.html#tymethod.group_get_metadata).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct GroupGetResult {
     id: GroupId,
     name: Option<GroupName>,
@@ -268,6 +367,25 @@ pub struct GroupGetResult {
     /// not exposed outside of the module
     encrypted_private_key: Option<TransformedEncryptedValue>,
 }
+/// Shared methods
+impl GroupGetResult {
+    /// `true` if the calling user is a group administrator
+    pub fn is_admin(&self) -> bool {
+        self.is_admin
+    }
+    /// `true` if the calling user is a group member
+    pub fn is_member(&self) -> bool {
+        self.is_member
+    }
+    /// Whether the group's private key needs rotation. Can only be accessed by a group administrator.
+    /// - `Some(bool)` - Indicates whether the group's private key needs rotation.
+    /// - `None` - The calling user does not have permission to view this.
+    pub fn needs_rotation(&self) -> Option<bool> {
+        self.needs_rotation
+    }
+}
+
+#[cfg(not(feature = "uniffi"))]
 impl GroupGetResult {
     /// ID of the group
     pub fn id(&self) -> &GroupId {
@@ -280,14 +398,6 @@ impl GroupGetResult {
     /// Public key for encrypting to the group
     pub fn group_master_public_key(&self) -> &PublicKey {
         &self.group_master_public_key
-    }
-    /// `true` if the calling user is a group administrator
-    pub fn is_admin(&self) -> bool {
-        self.is_admin
-    }
-    /// `true` if the calling user is a group member
-    pub fn is_member(&self) -> bool {
-        self.is_member
     }
     /// Date and time when the group was created
     pub fn created(&self) -> &OffsetDateTime {
@@ -311,24 +421,63 @@ impl GroupGetResult {
     pub fn member_list(&self) -> Option<&Vec<UserId>> {
         self.member_list.as_ref()
     }
-    /// Whether the group's private key needs rotation. Can only be accessed by a group administrator.
-    /// - `Some(bool)` - Indicates whether the group's private key needs rotation.
-    /// - `None` - The calling user does not have permission to view this.
-    pub fn needs_rotation(&self) -> Option<bool> {
-        self.needs_rotation
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl GroupGetResult {
+    /// ID of the group
+    pub fn id(&self) -> GroupId {
+        self.id.clone()
+    }
+    /// Name of the group
+    pub fn name(&self) -> Option<GroupName> {
+        self.name.clone()
+    }
+    /// Public key for encrypting to the group
+    pub fn group_master_public_key(&self) -> PublicKey {
+        self.group_master_public_key.clone()
+    }
+    /// Date and time when the group was created
+    pub fn created(&self) -> OffsetDateTime {
+        self.created
+    }
+    /// Date and time when the group was last updated
+    pub fn last_updated(&self) -> OffsetDateTime {
+        self.updated
+    }
+    /// The owner of the group
+    ///     - Some(UserId) - The ID of the group owner.
+    ///     - None - The calling user is not a member of the group and cannot view the owner.
+    pub fn owner(&self) -> Option<UserId> {
+        self.owner.clone()
+    }
+    /// List of all group administrators
+    pub fn admin_list(&self) -> Option<Vec<UserId>> {
+        self.admin_list.clone()
+    }
+    /// List of all group members
+    pub fn member_list(&self) -> Option<Vec<UserId>> {
+        self.member_list.clone()
     }
 }
 
 /// A failure when attempting to change a group's member or admin lists.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct GroupAccessEditErr {
     user: UserId,
     error: String,
 }
+/// Shared methods
 impl GroupAccessEditErr {
     fn new(user: UserId, error: String) -> GroupAccessEditErr {
         GroupAccessEditErr { user, error }
     }
+}
+
+#[cfg(not(feature = "uniffi"))]
+impl GroupAccessEditErr {
     /// The user who was unable to be added/removed from the group.
     pub fn user(&self) -> &UserId {
         &self.user
@@ -339,6 +488,19 @@ impl GroupAccessEditErr {
     }
 }
 
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl GroupAccessEditErr {
+    /// The user who was unable to be added/removed from the group.
+    pub fn user(&self) -> UserId {
+        self.user.clone()
+    }
+    /// The error encountered when attempting to add/remove the user from the group.
+    pub fn error(&self) -> String {
+        self.error.to_string()
+    }
+}
+
 /// Successful and failed changes to a group's member or admin lists.
 ///
 /// Partial success is supported.
@@ -346,11 +508,13 @@ impl GroupAccessEditErr {
 /// Result from [group_add_members](trait.GroupOps.html#tymethod.group_add_members), [group_remove_members](trait.GroupOps.html#tymethod.group_remove_members),
 /// [group_add_admins](trait.GroupOps.html#tymethod.group_add_admins), and [group_remove_admins](trait.GroupOps.html#tymethod.group_remove_admins).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct GroupAccessEditResult {
     succeeded: Vec<UserId>,
     failed: Vec<GroupAccessEditErr>,
 }
 
+#[cfg(not(feature = "uniffi"))]
 impl GroupAccessEditResult {
     /// Users whose access was successfully modified
     pub fn succeeded(&self) -> &Vec<UserId> {
@@ -359,6 +523,22 @@ impl GroupAccessEditResult {
     /// Errors resulting from failure to modify a user's access
     pub fn failed(&self) -> &Vec<GroupAccessEditErr> {
         &self.failed
+    }
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl GroupAccessEditResult {
+    /// Users whose access was successfully modified
+    pub fn succeeded(&self) -> Vec<UserId> {
+        self.succeeded.clone()
+    }
+    /// Errors resulting from failure to modify a user's access
+    pub fn failed(&self) -> Vec<Arc<GroupAccessEditErr>> {
+        self.failed
+            .iter()
+            .map(|e| Arc::new(e.clone()))
+            .collect()
     }
 }
 
@@ -547,6 +727,7 @@ pub async fn group_create<CR: rand::CryptoRng + rand::RngCore>(
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 /// Metadata returned after rotating a group's private key.
 ///
 /// Result from [group_rotate_private_key](trait.GroupOps.html#tymethod.group_rotate_private_key).
@@ -554,14 +735,28 @@ pub struct GroupUpdatePrivateKeyResult {
     id: GroupId,
     needs_rotation: bool,
 }
+/// Shared methods
+impl GroupUpdatePrivateKeyResult {
+    /// `true` if this group's private key requires additional rotation
+    pub fn needs_rotation(&self) -> bool {
+        self.needs_rotation
+    }
+}
+
+#[cfg(not(feature = "uniffi"))]
 impl GroupUpdatePrivateKeyResult {
     /// The ID of the group
     pub fn id(&self) -> &GroupId {
         &self.id
     }
-    /// `true` if this group's private key requires additional rotation
-    pub fn needs_rotation(&self) -> bool {
-        self.needs_rotation
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl GroupUpdatePrivateKeyResult {
+    /// The ID of the group
+    pub fn id(&self) -> GroupId {
+        self.id.clone()
     }
 }
 

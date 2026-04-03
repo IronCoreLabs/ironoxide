@@ -31,6 +31,8 @@ use requests::{
     policy_get::PolicyResponse,
 };
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "uniffi")]
+use std::sync::Arc;
 use std::{
     convert::{TryFrom, TryInto, identity},
     fmt::{Debug, Formatter},
@@ -184,6 +186,7 @@ fn parse_document_parts(
 
 /// The reason a document can be viewed by the requesting user.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
 #[serde(rename_all = "camelCase")]
 pub enum AssociationType {
     /// User created the document.
@@ -196,9 +199,11 @@ pub enum AssociationType {
 
 /// User who is able to access a document.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct VisibleUser {
     id: UserId,
 }
+#[cfg(not(feature = "uniffi"))]
 impl VisibleUser {
     /// ID of the user
     pub fn id(&self) -> &UserId {
@@ -206,12 +211,23 @@ impl VisibleUser {
     }
 }
 
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl VisibleUser {
+    /// ID of the user
+    pub fn id(&self) -> UserId {
+        self.id.clone()
+    }
+}
+
 /// Group that is able to access a document.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct VisibleGroup {
     id: GroupId,
     name: Option<GroupName>,
 }
+#[cfg(not(feature = "uniffi"))]
 impl VisibleGroup {
     /// ID of the group
     pub fn id(&self) -> &GroupId {
@@ -223,11 +239,26 @@ impl VisibleGroup {
     }
 }
 
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl VisibleGroup {
+    /// ID of the group
+    pub fn id(&self) -> GroupId {
+        self.id.clone()
+    }
+    /// Name of the group
+    pub fn name(&self) -> Option<GroupName> {
+        self.name.clone()
+    }
+}
+
 /// Abbreviated document metadata.
 ///
 /// Result from [DocumentListResult.result()](struct.DocumentListResult.html#method.result).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DocumentListMeta(DocumentListApiResponseItem);
+#[cfg(not(feature = "uniffi"))]
 impl DocumentListMeta {
     /// ID of the document
     pub fn id(&self) -> &DocumentId {
@@ -251,17 +282,53 @@ impl DocumentListMeta {
     }
 }
 
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl DocumentListMeta {
+    /// ID of the document
+    pub fn id(&self) -> DocumentId {
+        self.0.id.clone()
+    }
+    /// Name of the document
+    pub fn name(&self) -> Option<DocumentName> {
+        self.0.name.clone()
+    }
+    /// How the requesting user has access to the document
+    pub fn association_type(&self) -> AssociationType {
+        self.0.association.typ.clone()
+    }
+    /// Date and time when the document was created
+    pub fn created(&self) -> OffsetDateTime {
+        self.0.created
+    }
+    /// Date and time when the document was last updated
+    pub fn last_updated(&self) -> OffsetDateTime {
+        self.0.updated
+    }
+}
+
 /// Metadata for each document the current user has access to.
 ///
 /// Result from [document_list](trait.DocumentOps.html#tymethod.document_list).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DocumentListResult {
     result: Vec<DocumentListMeta>,
 }
+#[cfg(not(feature = "uniffi"))]
 impl DocumentListResult {
     /// Metadata for each document the current user has access to
     pub fn result(&self) -> &Vec<DocumentListMeta> {
         &self.result
+    }
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl DocumentListResult {
+    /// Metadata for each document the current user has access to
+    pub fn result(&self) -> Vec<Arc<DocumentListMeta>> {
+        self.result.iter().cloned().map(Arc::new).collect()
     }
 }
 
@@ -270,7 +337,18 @@ impl DocumentListResult {
 /// Result from [document_get_metadata](trait.DocumentOps.html#tymethod.document_get_metadata) and
 /// [document_update_name](trait.DocumentOps.html#tymethod.document_update_name).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DocumentMetadataResult(DocumentMetaApiResponse);
+impl DocumentMetadataResult {
+    /// Get the encrypted symmetric key (for internal use)
+    pub(crate) fn to_encrypted_symmetric_key(
+        &self,
+    ) -> Result<recrypt::api::EncryptedValue, IronOxideErr> {
+        self.0.encrypted_symmetric_key.clone().try_into()
+    }
+}
+
+#[cfg(not(feature = "uniffi"))]
 impl DocumentMetadataResult {
     /// ID of the document
     pub fn id(&self) -> &DocumentId {
@@ -300,12 +378,38 @@ impl DocumentMetadataResult {
     pub fn visible_to_groups(&self) -> &Vec<VisibleGroup> {
         &self.0.visible_to.groups
     }
+}
 
-    /// Get the encrypted symmetric key (for internal use)
-    pub(crate) fn to_encrypted_symmetric_key(
-        &self,
-    ) -> Result<recrypt::api::EncryptedValue, IronOxideErr> {
-        self.0.encrypted_symmetric_key.clone().try_into()
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl DocumentMetadataResult {
+    /// ID of the document
+    pub fn id(&self) -> DocumentId {
+        self.0.id.clone()
+    }
+    /// Name of the document
+    pub fn name(&self) -> Option<DocumentName> {
+        self.0.name.clone()
+    }
+    /// Date and time when the document was created
+    pub fn created(&self) -> OffsetDateTime {
+        self.0.created
+    }
+    /// Date and time when the document was last updated
+    pub fn last_updated(&self) -> OffsetDateTime {
+        self.0.updated
+    }
+    /// How the requesting user has access to the document
+    pub fn association_type(&self) -> AssociationType {
+        self.0.association.typ.clone()
+    }
+    /// List of users who have access to the document
+    pub fn visible_to_users(&self) -> Vec<Arc<VisibleUser>> {
+        self.0.visible_to.users.iter().cloned().map(Arc::new).collect()
+    }
+    /// List of groups that have access to the document
+    pub fn visible_to_groups(&self) -> Vec<Arc<VisibleGroup>> {
+        self.0.visible_to.groups.iter().cloned().map(Arc::new).collect()
     }
 }
 
@@ -341,6 +445,7 @@ impl DocumentMetadataUnmanagedResult {
 ///
 /// Result from [document_encrypt_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_encrypt_unmanaged).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DocumentEncryptUnmanagedResult {
     id: DocumentId,
     encrypted_data: Vec<u8>,
@@ -368,7 +473,10 @@ impl DocumentEncryptUnmanagedResult {
                 .collect(),
         })
     }
+}
 
+#[cfg(not(feature = "uniffi"))]
+impl DocumentEncryptUnmanagedResult {
     /// Bytes of encrypted document data
     pub fn encrypted_data(&self) -> &[u8] {
         &self.encrypted_data
@@ -391,11 +499,37 @@ impl DocumentEncryptUnmanagedResult {
     }
 }
 
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl DocumentEncryptUnmanagedResult {
+    /// Bytes of encrypted document data
+    pub fn encrypted_data(&self) -> Vec<u8> {
+        self.encrypted_data.clone()
+    }
+    /// Bytes of EDEKs of users/groups that have been granted access to `encrypted_data`
+    pub fn encrypted_deks(&self) -> Vec<u8> {
+        self.encrypted_deks.clone()
+    }
+    /// ID of the document
+    pub fn id(&self) -> DocumentId {
+        self.id.clone()
+    }
+    /// Users and groups the document was successfully encrypted to
+    pub fn grants(&self) -> Vec<UserOrGroup> {
+        self.grants.clone()
+    }
+    /// Errors resulting from failure to encrypt
+    pub fn access_errs(&self) -> Vec<Arc<DocAccessEditErr>> {
+        self.access_errs.iter().cloned().map(Arc::new).collect()
+    }
+}
+
 /// Encrypted document bytes and metadata.
 ///
 /// Result from [document_encrypt](trait.DocumentOps.html#tymethod.document_encrypt) and
 /// [document_update_bytes](trait.DocumentOps.html#tymethod.document_update_bytes).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DocumentEncryptResult {
     id: DocumentId,
     name: Option<DocumentName>,
@@ -405,6 +539,7 @@ pub struct DocumentEncryptResult {
     grants: Vec<UserOrGroup>,
     access_errs: Vec<DocAccessEditErr>,
 }
+#[cfg(not(feature = "uniffi"))]
 impl DocumentEncryptResult {
     /// Bytes of encrypted document data
     pub fn encrypted_data(&self) -> &[u8] {
@@ -435,10 +570,44 @@ impl DocumentEncryptResult {
         &self.access_errs
     }
 }
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl DocumentEncryptResult {
+    /// Bytes of encrypted document data
+    pub fn encrypted_data(&self) -> Vec<u8> {
+        self.encrypted_data.clone()
+    }
+    /// ID of the document
+    pub fn id(&self) -> DocumentId {
+        self.id.clone()
+    }
+    /// Name of the document
+    pub fn name(&self) -> Option<DocumentName> {
+        self.name.clone()
+    }
+    /// Date and time when the document was created
+    pub fn created(&self) -> OffsetDateTime {
+        self.created
+    }
+    /// Date and time when the document was last updated
+    pub fn last_updated(&self) -> OffsetDateTime {
+        self.updated
+    }
+    /// Users and groups the document was successfully encrypted to
+    pub fn grants(&self) -> Vec<UserOrGroup> {
+        self.grants.clone()
+    }
+    /// Errors resulting from failure to encrypt
+    pub fn access_errs(&self) -> Vec<Arc<DocAccessEditErr>> {
+        self.access_errs.iter().cloned().map(Arc::new).collect()
+    }
+}
 /// Decrypted document bytes and metadata.
 ///
 /// Result from [document_decrypt](trait.DocumentOps.html#tymethod.document_decrypt).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DocumentDecryptResult {
     id: DocumentId,
     name: Option<DocumentName>,
@@ -446,6 +615,7 @@ pub struct DocumentDecryptResult {
     created: OffsetDateTime,
     decrypted_data: Vec<u8>,
 }
+#[cfg(not(feature = "uniffi"))]
 impl DocumentDecryptResult {
     /// Bytes of decrypted document data
     pub fn decrypted_data(&self) -> &[u8] {
@@ -469,8 +639,34 @@ impl DocumentDecryptResult {
     }
 }
 
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl DocumentDecryptResult {
+    /// Bytes of decrypted document data
+    pub fn decrypted_data(&self) -> Vec<u8> {
+        self.decrypted_data.clone()
+    }
+    /// ID of the document
+    pub fn id(&self) -> DocumentId {
+        self.id.clone()
+    }
+    /// Name of the document
+    pub fn name(&self) -> Option<DocumentName> {
+        self.name.clone()
+    }
+    /// Date and time when the document was created
+    pub fn created(&self) -> OffsetDateTime {
+        self.created
+    }
+    /// Date and time when the document was last updated
+    pub fn last_updated(&self) -> OffsetDateTime {
+        self.updated
+    }
+}
+
 /// Failure to edit a document's access list.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DocAccessEditErr {
     /// User or group that was unable to have access granted/revoked.
     pub user_or_group: UserOrGroup,
@@ -486,6 +682,19 @@ impl DocAccessEditErr {
     }
 }
 
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl DocAccessEditErr {
+    /// User or group that was unable to have access granted/revoked.
+    pub fn user_or_group(&self) -> UserOrGroup {
+        self.user_or_group.clone()
+    }
+    /// The error encountered when attempting to grant/revoke access.
+    pub fn err(&self) -> String {
+        self.err.clone()
+    }
+}
+
 /// Successful and failed changes to a document's access list.
 ///
 /// Both grant and revoke support partial success.
@@ -493,6 +702,7 @@ impl DocAccessEditErr {
 /// Result from [document_grant_access](trait.DocumentOps.html#tymethod.document_grant_access) and
 /// [document_revoke_access](trait.DocumentOps.html#tymethod.document_revoke_access).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DocumentAccessResult {
     succeeded: Vec<UserOrGroup>,
     failed: Vec<DocAccessEditErr>,
@@ -504,7 +714,10 @@ impl DocumentAccessResult {
     ) -> DocumentAccessResult {
         DocumentAccessResult { succeeded, failed }
     }
+}
 
+#[cfg(not(feature = "uniffi"))]
+impl DocumentAccessResult {
     /// Users and groups whose access was successfully changed.
     pub fn succeeded(&self) -> &[UserOrGroup] {
         &self.succeeded
@@ -515,6 +728,20 @@ impl DocumentAccessResult {
         &self.failed
     }
 }
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl DocumentAccessResult {
+    /// Users and groups whose access was successfully changed.
+    pub fn succeeded(&self) -> Vec<UserOrGroup> {
+        self.succeeded.clone()
+    }
+
+    /// Users and groups whose access failed to be changed.
+    pub fn failed(&self) -> Vec<Arc<DocAccessEditErr>> {
+        self.failed.iter().cloned().map(Arc::new).collect()
+    }
+}
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 struct DecryptedData(Vec<u8>);
 
@@ -522,11 +749,13 @@ struct DecryptedData(Vec<u8>);
 ///
 /// Result from [document_decrypt_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_decrypt_unmanaged).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DocumentDecryptUnmanagedResult {
     id: DocumentId,
     access_via: UserOrGroup,
     decrypted_data: DecryptedData,
 }
+#[cfg(not(feature = "uniffi"))]
 impl DocumentDecryptUnmanagedResult {
     /// ID of the document
     pub fn id(&self) -> &DocumentId {
@@ -544,17 +773,38 @@ impl DocumentDecryptUnmanagedResult {
     }
 }
 
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl DocumentDecryptUnmanagedResult {
+    /// ID of the document
+    pub fn id(&self) -> DocumentId {
+        self.id.clone()
+    }
+    /// User or group that granted access to the encrypted data
+    ///
+    /// More specifically, the user or group associated with the EDEK that was chosen and transformed by the webservice
+    pub fn access_via(&self) -> UserOrGroup {
+        self.access_via.clone()
+    }
+    /// Bytes of decrypted document data
+    pub fn decrypted_data(&self) -> Vec<u8> {
+        self.decrypted_data.0.clone()
+    }
+}
+
 /// Unmanaged grant result and metadata.
 ///
 /// Result from [document_grant_access_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_grant_access_unmanaged)
 /// and [document_revoke_access_unmanaged](trait.DocumentAdvancedOps.html#tymethod.document_revoke_access_unmanaged)
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DocumentAccessUnmanagedResult {
     access_via: Option<UserOrGroup>,
     encrypted_deks: Vec<u8>,
     succeeded: Vec<UserOrGroup>,
     failed: Vec<DocAccessEditErr>,
 }
+#[cfg(not(feature = "uniffi"))]
 impl DocumentAccessUnmanagedResult {
     /// User or group that granted ability to alter access
     ///
@@ -577,10 +827,35 @@ impl DocumentAccessUnmanagedResult {
     }
 }
 
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl DocumentAccessUnmanagedResult {
+    /// User or group that granted ability to alter access
+    ///
+    /// More specifically, the user or group associated with the EDEK that was chosen and transformed by the webservice.
+    /// `None` for offline operations like revoke that don't require server interaction.
+    pub fn access_via(&self) -> Option<UserOrGroup> {
+        self.access_via.clone()
+    }
+    /// Updated EDEKs after the access change.
+    pub fn encrypted_deks(&self) -> Vec<u8> {
+        self.encrypted_deks.clone()
+    }
+    /// Users and groups whose access was successfully changed.
+    pub fn succeeded(&self) -> Vec<UserOrGroup> {
+        self.succeeded.clone()
+    }
+    /// Users and groups whose access failed to be changed.
+    pub fn failed(&self) -> Vec<Arc<DocAccessEditErr>> {
+        self.failed.iter().cloned().map(Arc::new).collect()
+    }
+}
+
 /// A user or a group.
 ///
 /// Can be created from `UserId`, `&UserId`, `GroupId`, or `&GroupId` with `UserOrGroup::from()`.
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Enum))]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum UserOrGroup {
     User { id: UserId },

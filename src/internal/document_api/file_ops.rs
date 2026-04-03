@@ -24,6 +24,8 @@ use crate::{
 use protobuf::Message;
 use rand::{CryptoRng, RngCore};
 use recrypt::prelude::*;
+#[cfg(feature = "uniffi")]
+use std::sync::Arc;
 use std::{
     fs::{self, File, OpenOptions},
     io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write},
@@ -220,6 +222,7 @@ fn stream_decrypt_to_file(
 ///
 /// Produced by [document_file_encrypt](trait.DocumentFileOps.html#tymethod.document_file_encrypt).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DocumentFileEncryptResult {
     id: DocumentId,
     name: Option<DocumentName>,
@@ -229,6 +232,7 @@ pub struct DocumentFileEncryptResult {
     access_errs: Vec<DocAccessEditErr>,
 }
 
+#[cfg(not(feature = "uniffi"))]
 impl DocumentFileEncryptResult {
     /// ID of the encrypted document
     pub fn id(&self) -> &DocumentId {
@@ -260,10 +264,44 @@ impl DocumentFileEncryptResult {
     }
 }
 
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl DocumentFileEncryptResult {
+    /// ID of the encrypted document
+    pub fn id(&self) -> DocumentId {
+        self.id.clone()
+    }
+
+    /// Name of the document
+    pub fn name(&self) -> Option<DocumentName> {
+        self.name.clone()
+    }
+
+    /// Date and time when the document was created
+    pub fn created(&self) -> OffsetDateTime {
+        self.created
+    }
+
+    /// Date and time when the document was last updated
+    pub fn last_updated(&self) -> OffsetDateTime {
+        self.updated
+    }
+    /// Users and groups the document was successfully encrypted to
+    pub fn grants(&self) -> Vec<UserOrGroup> {
+        self.grants.clone()
+    }
+
+    /// Errors resulting from failure to encrypt to specific users/groups
+    pub fn access_errs(&self) -> Vec<Arc<DocAccessEditErr>> {
+        self.access_errs.iter().cloned().map(Arc::new).collect()
+    }
+}
+
 /// Result of file encryption (unmanaged).
 ///
 /// Produced by [document_file_encrypt_unmanaged](trait.DocumentFileUnmanagedOps.html#tymethod.document_file_encrypt_unmanaged).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DocumentFileEncryptUnmanagedResult {
     id: DocumentId,
     encrypted_deks: Vec<u8>,
@@ -271,6 +309,7 @@ pub struct DocumentFileEncryptUnmanagedResult {
     access_errs: Vec<DocAccessEditErr>,
 }
 
+#[cfg(not(feature = "uniffi"))]
 impl DocumentFileEncryptUnmanagedResult {
     /// ID of the encrypted document
     pub fn id(&self) -> &DocumentId {
@@ -293,15 +332,41 @@ impl DocumentFileEncryptUnmanagedResult {
     }
 }
 
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl DocumentFileEncryptUnmanagedResult {
+    /// ID of the encrypted document
+    pub fn id(&self) -> DocumentId {
+        self.id.clone()
+    }
+
+    /// Bytes of EDEKs of users/groups that have been granted access
+    pub fn encrypted_deks(&self) -> Vec<u8> {
+        self.encrypted_deks.clone()
+    }
+
+    /// Users and groups the document was successfully encrypted to
+    pub fn grants(&self) -> Vec<UserOrGroup> {
+        self.grants.clone()
+    }
+
+    /// Errors resulting from failure to encrypt to specific users/groups
+    pub fn access_errs(&self) -> Vec<Arc<DocAccessEditErr>> {
+        self.access_errs.iter().cloned().map(Arc::new).collect()
+    }
+}
+
 /// Result of file decryption (managed).
 ///
 /// Produced by [document_file_decrypt](trait.DocumentFileOps.html#tymethod.document_file_decrypt).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DocumentFileDecryptResult {
     id: DocumentId,
     name: Option<DocumentName>,
 }
 
+#[cfg(not(feature = "uniffi"))]
 impl DocumentFileDecryptResult {
     /// ID of the decrypted document
     pub fn id(&self) -> &DocumentId {
@@ -314,15 +379,31 @@ impl DocumentFileDecryptResult {
     }
 }
 
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl DocumentFileDecryptResult {
+    /// ID of the decrypted document
+    pub fn id(&self) -> DocumentId {
+        self.id.clone()
+    }
+
+    /// Name of the document
+    pub fn name(&self) -> Option<DocumentName> {
+        self.name.clone()
+    }
+}
+
 /// Result of file decryption (unmanaged).
 ///
 /// Produced by [document_file_decrypt_unmanaged](trait.DocumentFileUnmanagedOps.html#tymethod.document_file_decrypt_unmanaged).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DocumentFileDecryptUnmanagedResult {
     id: DocumentId,
     access_via: UserOrGroup,
 }
 
+#[cfg(not(feature = "uniffi"))]
 impl DocumentFileDecryptUnmanagedResult {
     /// ID of the decrypted document
     pub fn id(&self) -> &DocumentId {
@@ -332,6 +413,20 @@ impl DocumentFileDecryptUnmanagedResult {
     /// User or group that granted access to the encrypted data
     pub fn access_via(&self) -> &UserOrGroup {
         &self.access_via
+    }
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl DocumentFileDecryptUnmanagedResult {
+    /// ID of the decrypted document
+    pub fn id(&self) -> DocumentId {
+        self.id.clone()
+    }
+
+    /// User or group that granted access to the encrypted data
+    pub fn access_via(&self) -> UserOrGroup {
+        self.access_via.clone()
     }
 }
 
@@ -463,8 +558,8 @@ where
     stream_decrypt_to_file(&key_bytes, &source_file, destination_path)?;
 
     Ok(DocumentFileDecryptResult {
-        id: doc_meta.id().clone(),
-        name: doc_meta.name().cloned(),
+        id: doc_meta.0.id.clone(),
+        name: doc_meta.0.name.clone(),
     })
 }
 

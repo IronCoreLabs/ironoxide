@@ -20,14 +20,29 @@ use std::{collections::HashMap, convert::TryInto};
 ///
 /// Default values are provided with [DeviceCreateOpts::default()](#method.default)
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DeviceCreateOpts {
     device_name: Option<DeviceName>,
 }
+#[cfg(not(feature = "uniffi"))]
 impl DeviceCreateOpts {
     /// # Arguments
     /// - device_name
     ///   - `None` (default) - The device will be created with no name.
     ///   - `Some` - The provided name will be used as the device's name.
+    pub fn new(device_name: Option<DeviceName>) -> DeviceCreateOpts {
+        DeviceCreateOpts { device_name }
+    }
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl DeviceCreateOpts {
+    /// # Arguments
+    /// - device_name
+    ///   - `None` (default) - The device will be created with no name.
+    ///   - `Some` - The provided name will be used as the device's name.
+    #[uniffi::constructor]
     pub fn new(device_name: Option<DeviceName>) -> DeviceCreateOpts {
         DeviceCreateOpts { device_name }
     }
@@ -45,13 +60,26 @@ impl Default for DeviceCreateOpts {
 ///
 /// Default values are provided with [UserCreateOpts::default()](#method.default)
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct UserCreateOpts {
     needs_rotation: bool,
 }
 
+#[cfg(not(feature = "uniffi"))]
 impl UserCreateOpts {
     /// # Arguments
     /// - `needs_rotation` - `true` if the private key for this user marked for rotation
+    pub fn new(needs_rotation: bool) -> UserCreateOpts {
+        UserCreateOpts { needs_rotation }
+    }
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl UserCreateOpts {
+    /// # Arguments
+    /// - `needs_rotation` - `true` if the private key for this user marked for rotation
+    #[uniffi::constructor]
     pub fn new(needs_rotation: bool) -> UserCreateOpts {
         UserCreateOpts { needs_rotation }
     }

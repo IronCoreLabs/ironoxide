@@ -11,6 +11,8 @@ use std::{
     result::Result,
     sync::Mutex,
 };
+#[cfg(feature = "uniffi")]
+use std::sync::Arc;
 use time::OffsetDateTime;
 
 /// private module that handles interaction with the IronCore webservice
@@ -141,25 +143,51 @@ impl UserCreateResult {
 
 /// Public and private key pair used for document encryption and decryption.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct KeyPair {
     public_key: PublicKey,
     private_key: PrivateKey,
 }
 impl KeyPair {
     /// Constructs a new `KeyPair` from the `recrypt` versions of the public and private keys.
-    pub fn new(public_key: RecryptPublicKey, private_key: RecryptPrivateKey) -> Self {
+    pub(crate) fn new(public_key: RecryptPublicKey, private_key: RecryptPrivateKey) -> Self {
         KeyPair {
             public_key: public_key.into(),
             private_key: private_key.into(),
         }
     }
+    /// Internal ref-returning accessor for public key
+    pub(crate) fn public_key_internal(&self) -> &PublicKey {
+        &self.public_key
+    }
+    /// Internal ref-returning accessor for private key
+    pub(crate) fn private_key_internal(&self) -> &PrivateKey {
+        &self.private_key
+    }
+}
+
+#[cfg(not(feature = "uniffi"))]
+impl KeyPair {
     /// Public key of the user
     pub fn public_key(&self) -> &PublicKey {
-        &self.public_key
+        self.public_key_internal()
     }
     /// Private key of the user
     pub fn private_key(&self) -> &PrivateKey {
-        &self.private_key
+        self.private_key_internal()
+    }
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl KeyPair {
+    /// Public key of the user
+    pub fn public_key(&self) -> PublicKey {
+        self.public_key_internal().clone()
+    }
+    /// Private key of the user
+    pub fn private_key(&self) -> PrivateKey {
+        self.private_key_internal().clone()
     }
 }
 
@@ -183,12 +211,21 @@ pub(crate) struct DeviceAdd {
 ///
 /// Result from [user_verify](trait.UserOps.html#tymethod.user_verify).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct UserResult {
     account_id: UserId,
     segment_id: usize,
     user_public_key: PublicKey,
     needs_rotation: bool,
 }
+impl UserResult {
+    /// Whether the user's private key needs rotation
+    pub fn needs_rotation(&self) -> bool {
+        self.needs_rotation
+    }
+}
+
+#[cfg(not(feature = "uniffi"))]
 impl UserResult {
     /// ID of the user
     pub fn account_id(&self) -> &UserId {
@@ -202,9 +239,22 @@ impl UserResult {
     pub fn segment_id(&self) -> usize {
         self.segment_id
     }
-    /// Whether the user's private key needs rotation
-    pub fn needs_rotation(&self) -> bool {
-        self.needs_rotation
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl UserResult {
+    /// ID of the user
+    pub fn account_id(&self) -> UserId {
+        self.account_id.clone()
+    }
+    /// Public key of the user
+    pub fn user_public_key(&self) -> PublicKey {
+        self.user_public_key.clone()
+    }
+    /// Segment ID for the user
+    pub fn segment_id(&self) -> u64 {
+        self.segment_id as u64
     }
 }
 
@@ -214,6 +264,7 @@ impl UserResult {
 ///
 /// Result from [user_list_devices](trait.UserOps.html#tymethod.user_list_devices).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct UserDeviceListResult {
     result: Vec<UserDevice>,
 }
@@ -221,9 +272,22 @@ impl UserDeviceListResult {
     fn new(result: Vec<UserDevice>) -> UserDeviceListResult {
         UserDeviceListResult { result }
     }
+}
+
+#[cfg(not(feature = "uniffi"))]
+impl UserDeviceListResult {
     /// Metadata for each device the user has authorized
     pub fn result(&self) -> &Vec<UserDevice> {
         &self.result
+    }
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl UserDeviceListResult {
+    /// Metadata for each device the user has authorized
+    pub fn result(&self) -> Vec<Arc<UserDevice>> {
+        self.result.iter().cloned().map(Arc::new).collect()
     }
 }
 
@@ -231,6 +295,7 @@ impl UserDeviceListResult {
 ///
 /// Result from [`UserDeviceListResult.result()](struct.UserDeviceListResult.html#method.result).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct UserDevice {
     id: DeviceId,
     name: Option<DeviceName>,
@@ -241,6 +306,14 @@ pub struct UserDevice {
     /// true if this UserDevice is the device making the query
     is_current_device: bool,
 }
+impl UserDevice {
+    /// Whether this is the device that was used to make the API request
+    pub fn is_current_device(&self) -> bool {
+        self.is_current_device
+    }
+}
+
+#[cfg(not(feature = "uniffi"))]
 impl UserDevice {
     /// ID of the device
     pub fn id(&self) -> &DeviceId {
@@ -258,9 +331,26 @@ impl UserDevice {
     pub fn last_updated(&self) -> &OffsetDateTime {
         &self.last_updated
     }
-    /// Whether this is the device that was used to make the API request
-    pub fn is_current_device(&self) -> bool {
-        self.is_current_device
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl UserDevice {
+    /// ID of the device
+    pub fn id(&self) -> DeviceId {
+        self.id.clone()
+    }
+    /// Name of the device
+    pub fn name(&self) -> Option<DeviceName> {
+        self.name.clone()
+    }
+    /// Date and time when the device was created
+    pub fn created(&self) -> OffsetDateTime {
+        self.created
+    }
+    /// Date and time when the device was last updated
+    pub fn last_updated(&self) -> OffsetDateTime {
+        self.last_updated
     }
 }
 
@@ -476,18 +566,32 @@ impl EncryptedPrivateKey {
 ///
 /// Result from [user_rotate_private_key](trait.UserOps.html#tymethod.user_rotate_private_key).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct UserUpdatePrivateKeyResult {
     user_master_private_key: EncryptedPrivateKey,
     needs_rotation: bool,
 }
 impl UserUpdatePrivateKeyResult {
+    /// Whether this user's private key needs further rotation
+    pub fn needs_rotation(&self) -> bool {
+        self.needs_rotation
+    }
+}
+
+#[cfg(not(feature = "uniffi"))]
+impl UserUpdatePrivateKeyResult {
     /// Updated encrypted private key of the user
     pub fn user_master_private_key(&self) -> &EncryptedPrivateKey {
         &self.user_master_private_key
     }
-    /// Whether this user's private key needs further rotation
-    pub fn needs_rotation(&self) -> bool {
-        self.needs_rotation
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl UserUpdatePrivateKeyResult {
+    /// Updated encrypted private key of the user
+    pub fn user_master_private_key(&self) -> EncryptedPrivateKey {
+        self.user_master_private_key.clone()
     }
 }
 
@@ -551,6 +655,7 @@ pub async fn user_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
 ///
 /// Result from [generate_new_device](trait.UserOps.html#tymethod.generate_new_device).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DeviceAddResult {
     account_id: UserId,
     segment_id: usize,
@@ -561,6 +666,7 @@ pub struct DeviceAddResult {
     created: OffsetDateTime,
     last_updated: OffsetDateTime,
 }
+#[cfg(not(feature = "uniffi"))]
 impl DeviceAddResult {
     /// ID of the device
     pub fn device_id(&self) -> &DeviceId {
@@ -597,9 +703,48 @@ impl DeviceAddResult {
         &self.last_updated
     }
 }
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl DeviceAddResult {
+    /// ID of the device
+    pub fn device_id(&self) -> DeviceId {
+        self.device_id.clone()
+    }
+    /// Name of the device
+    pub fn name(&self) -> Option<DeviceName> {
+        self.name.clone()
+    }
+    /// ID of the user who owns the device
+    pub fn account_id(&self) -> UserId {
+        self.account_id.clone()
+    }
+    /// Segment of the user
+    pub fn segment_id(&self) -> u64 {
+        self.segment_id as u64
+    }
+    /// The signing key pair for the device
+    pub fn signing_private_key(&self) -> DeviceSigningKeyPair {
+        self.signing_private_key.clone()
+    }
+    /// Private encryption key of the device
+    ///
+    /// This is different from the user's private key.
+    pub fn device_private_key(&self) -> PrivateKey {
+        self.device_private_key.clone()
+    }
+    /// The date and time when the device was created
+    pub fn created(&self) -> OffsetDateTime {
+        self.created
+    }
+    /// The date and time when the device was last updated
+    pub fn last_updated(&self) -> OffsetDateTime {
+        self.last_updated
+    }
+}
 impl From<DeviceAddResult> for DeviceContext {
     fn from(dar: DeviceAddResult) -> Self {
-        DeviceContext::new(
+        DeviceContext::new_from_parts(
             dar.account_id,
             dar.segment_id,
             dar.device_private_key,
@@ -742,15 +887,15 @@ fn generate_device_add<CR: rand::CryptoRng + rand::RngCore>(
     // generate a transform key from the user's private key to the new device
     let trans_key: TransformKey = recrypt
         .generate_transform_key(
-            user_master_keypair.private_key().recrypt_key(),
-            &device_keypair.public_key().into(),
+            user_master_keypair.private_key_internal().recrypt_key(),
+            &device_keypair.public_key_internal().into(),
             &signing_keypair,
         )?
         .into();
 
     let sig = gen_device_add_signature(recrypt, jwt, user_master_keypair, &trans_key, signing_ts);
     Ok(DeviceAdd {
-        user_public_key: user_master_keypair.public_key().clone(),
+        user_public_key: user_master_keypair.public_key_internal().clone(),
         transform_key: trans_key,
         device_keys: device_keypair,
         signing_keys: signing_keypair.into(),
@@ -793,13 +938,13 @@ fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
         timestamp: signing_ts,
         transform_key,
         jwt,
-        user_public_key: user_master_keypair.public_key(),
+        user_public_key: user_master_keypair.public_key_internal(),
     };
 
     recrypt
         .schnorr_sign(
-            user_master_keypair.private_key().recrypt_key(),
-            &user_master_keypair.public_key().into(),
+            user_master_keypair.private_key_internal().recrypt_key(),
+            &user_master_keypair.public_key_internal().into(),
             &msg,
         )
         .into()

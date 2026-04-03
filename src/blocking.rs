@@ -60,7 +60,7 @@ impl BlockingDeviceContext {
     }
     /// Private encryption key of the device
     pub fn device_private_key(&self) -> &PrivateKey {
-        &self.device.device_private_key()
+        self.device.device_private_key_internal()
     }
 }
 

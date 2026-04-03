@@ -207,7 +207,7 @@ impl DocumentFileOps for crate::IronOxide {
             file_ops::decrypt_file_to_path(
                 self.device.auth(),
                 self.recrypt.clone(),
-                self.device.device_private_key(),
+                self.device.device_private_key_internal(),
                 source_path,
                 destination_path,
             ),
@@ -278,7 +278,7 @@ impl DocumentFileAdvancedOps for crate::IronOxide {
             file_ops::decrypt_file_unmanaged(
                 self.device.auth(),
                 &self.recrypt,
-                self.device.device_private_key(),
+                self.device.device_private_key_internal(),
                 source_path,
                 destination_path,
                 encrypted_deks,

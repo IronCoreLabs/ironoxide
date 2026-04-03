@@ -97,6 +97,7 @@ use std::convert::{TryFrom, TryInto};
 ///
 /// `substitute_user` replaces `%USER%` in a matched policy rule.
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct PolicyGrant {
     category: Option<Category>,
     sensitivity: Option<Sensitivity>,
@@ -104,6 +105,7 @@ pub struct PolicyGrant {
     substitute_user: Option<UserId>,
 }
 
+#[cfg(not(feature = "uniffi"))]
 impl PolicyGrant {
     pub fn new(
         category: Option<Category>,
@@ -132,6 +134,41 @@ impl PolicyGrant {
     }
     pub fn substitute_user(&self) -> Option<&UserId> {
         self.substitute_user.as_ref()
+    }
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl PolicyGrant {
+    #[uniffi::constructor]
+    pub fn new(
+        category: Option<Category>,
+        sensitivity: Option<Sensitivity>,
+        data_subject: Option<DataSubject>,
+        substitute_user: Option<UserId>,
+    ) -> PolicyGrant {
+        PolicyGrant {
+            category,
+            sensitivity,
+            data_subject,
+            substitute_user,
+        }
+    }
+
+    pub fn category(&self) -> Option<Category> {
+        self.category.clone()
+    }
+
+    pub fn sensitivity(&self) -> Option<Sensitivity> {
+        self.sensitivity.clone()
+    }
+
+    pub fn data_subject(&self) -> Option<DataSubject> {
+        self.data_subject.clone()
+    }
+
+    pub fn substitute_user(&self) -> Option<UserId> {
+        self.substitute_user.clone()
     }
 }
 

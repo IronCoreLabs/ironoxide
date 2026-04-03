@@ -252,7 +252,7 @@ impl DocumentAdvancedOps for crate::IronOxide {
             internal::document_api::decrypt_document_unmanaged(
                 self.device.auth(),
                 &self.recrypt,
-                self.device().device_private_key(),
+                self.device().device_private_key_internal(),
                 encrypted_data,
                 encrypted_deks,
             ),
@@ -293,7 +293,7 @@ impl DocumentAdvancedOps for crate::IronOxide {
                 self.device.auth(),
                 &self.recrypt,
                 &self.user_master_pub_key,
-                self.device.device_private_key(),
+                self.device.device_private_key_internal(),
                 edeks,
                 &users,
                 &groups,

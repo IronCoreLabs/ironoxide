@@ -226,10 +226,13 @@ pub mod common {
 /// IronOxide SDK configuration
 pub mod config {
     use serde::{Deserialize, Serialize};
+    #[cfg(feature = "uniffi")]
+    use std::sync::Arc;
     use std::time::Duration;
 
     /// Top-level configuration object for IronOxide
     #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+    #[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
     pub struct IronOxideConfig {
         /// See [PolicyCachingConfig](struct.PolicyCachingConfig.html)
         pub policy_caching: PolicyCachingConfig,
@@ -246,6 +249,29 @@ pub mod config {
         }
     }
 
+    #[cfg(feature = "uniffi")]
+    #[uniffi::export]
+    impl IronOxideConfig {
+        /// Constructs a new IronOxideConfig.
+        #[uniffi::constructor]
+        pub fn new(policy_caching: Arc<PolicyCachingConfig>, timeout_millis: Option<u64>) -> Self {
+            IronOxideConfig {
+                policy_caching: (*policy_caching).clone(),
+                sdk_operation_timeout: timeout_millis.map(Duration::from_millis),
+            }
+        }
+
+        /// Policy caching configuration
+        pub fn policy_caching(&self) -> Arc<PolicyCachingConfig> {
+            Arc::new(self.policy_caching.clone())
+        }
+
+        /// SDK operation timeout in milliseconds
+        pub fn timeout_millis(&self) -> Option<u64> {
+            self.sdk_operation_timeout.map(|d| d.as_millis() as u64)
+        }
+    }
+
     /// Policy evaluation caching config
     ///
     /// The lifetime of the cache is the lifetime of the `IronOxide` struct.
@@ -254,6 +280,7 @@ pub mod config {
     /// up encrypting a document with a [PolicyGrant](../policy/struct.PolicyGrant.html). There is no expiration of the cache, so
     /// if you want to clear it at runtime, call [IronOxide::clear_policy_cache](../struct.IronOxide.html#method.clear_policy_cache).
     #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+    #[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
     pub struct PolicyCachingConfig {
         /// maximum number of policy evaluations that will be cached by the SDK.
         /// If the maximum number is exceeded, the cache will be cleared prior to storing the next entry
@@ -263,6 +290,23 @@ pub mod config {
     impl Default for PolicyCachingConfig {
         fn default() -> Self {
             PolicyCachingConfig { max_entries: 128 }
+        }
+    }
+
+    #[cfg(feature = "uniffi")]
+    #[uniffi::export]
+    impl PolicyCachingConfig {
+        /// Constructs a new PolicyCachingConfig.
+        #[uniffi::constructor]
+        pub fn new(max_entries: u64) -> Self {
+            PolicyCachingConfig {
+                max_entries: max_entries as usize,
+            }
+        }
+
+        /// Maximum number of cached policy evaluations
+        pub fn max_entries(&self) -> u64 {
+            self.max_entries as u64
         }
     }
 }
@@ -407,7 +451,7 @@ pub async fn initialize_with_public_keys_and_check_rotation(
             .map_err(|e| IronOxideErr::InitializeError { cause: e.to_string() })?;
     let ironoxide = IronOxide::create_with_public_key_cache(device_context, config, verified_cache)
         .map_err(|e| IronOxideErr::InitializeError { cause: e.to_string() })?;
-    let user_groups = group_list_result.result();
+    let user_groups = group_list_result.result_internal();
 
     Ok(check_groups_and_collect_rotation(
         user_groups,
@@ -464,7 +508,7 @@ pub async fn initialize_check_rotation(
     .await??;
 
     let ironoxide = IronOxide::create(&curr_user, device_context, config);
-    let user_groups = group_list_result.result();
+    let user_groups = group_list_result.result_internal();
 
     Ok(check_groups_and_collect_rotation(
         user_groups,
@@ -498,7 +542,7 @@ impl IronOxide {
         // Add the current user's public key to the cache for offline encryption to self,
         // and set the current user on the public key cache creation so we can initialize using it
         // in the offline case.
-        let public_key_cache = PublicKeyCache::new(curr_user.user_public_key());
+        let public_key_cache = PublicKeyCache::new(&curr_user.user_public_key());
         public_key_cache.user_keys().pin().insert(
             curr_user.account_id().clone(),
             curr_user.user_public_key().clone(),
@@ -576,7 +620,7 @@ impl IronOxide {
                         &self.recrypt,
                         self.device().auth(),
                         group_id,
-                        self.device().device_private_key(),
+                        self.device().device_private_key_internal(),
                     )
                 })
                 .collect::<Vec<_>>();
