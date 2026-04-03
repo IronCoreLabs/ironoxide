@@ -1,0 +1,3 @@
+[bindings.go]
+package_name = "ironoxide"
+cdylib_name = "ironoxide"

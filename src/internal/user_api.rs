@@ -461,6 +461,11 @@ pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct EncryptedPrivateKey(Vec<u8>);
 impl EncryptedPrivateKey {
+    /// Construct from raw bytes (used by UniFFI custom type converter)
+    #[cfg(feature = "uniffi")]
+    pub(crate) fn new(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
     /// The bytes of the user's encrypted private key
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
