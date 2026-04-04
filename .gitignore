@@ -15,3 +15,4 @@ src/proto/transform.rs
 benches/data/*.json
 example.devcon
 .direnv
+/go/

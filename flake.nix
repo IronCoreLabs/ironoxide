@@ -22,7 +22,7 @@
     in rec {
       # nix develop
       devShells.default = pkgs.mkShell {
-        buildInputs = with pkgs; [rusttoolchain pkg-config openssl];
+        buildInputs = with pkgs; [rusttoolchain pkg-config openssl go];
       };
     });
 }
