@@ -69,6 +69,7 @@ impl ExplicitGrant {
 ///
 /// Default values are provided with [DocumentEncryptOpts::default()](struct.DocumentEncryptOpts.html#method.default).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DocumentEncryptOpts {
     id: Option<DocumentId>,
     name: Option<DocumentName>,

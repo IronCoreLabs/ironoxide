@@ -373,6 +373,7 @@ const BYTES_BEFORE_RESEEDING: u64 = 1024 * 1024;
 
 /// Provides soft rotation capabilities for user and group keys
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct PrivateKeyRotationCheckResult {
     pub rotations_needed: EitherOrBoth<UserId, Vec1<GroupId>>,
 }

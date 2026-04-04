@@ -115,6 +115,7 @@ impl TryFrom<&str> for DeviceName {
 ///
 /// Result from [user_create](trait.UserOps.html#tymethod.user_create).
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct UserCreateResult {
     user_public_key: PublicKey,
     needs_rotation: bool,
@@ -408,6 +409,7 @@ pub struct JwtClaims {
 /// generated from an external source.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct Jwt {
     jwt: String,
     header: jsonwebtoken::Header,

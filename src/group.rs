@@ -19,6 +19,7 @@ use vec1::Vec1;
 ///
 /// Default values are provided with [GroupCreateOpts::default()](struct.GroupCreateOpts.html#method.default)
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct GroupCreateOpts {
     /// ID of the group. If `None`, the server will assign the ID.
     id: Option<GroupId>,

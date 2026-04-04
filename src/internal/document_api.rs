@@ -417,6 +417,7 @@ impl DocumentMetadataResult {
 ///
 /// Result from [document_get_metadata_unmanaged](trait.DocumentOps.html#tymethod.document_get_metadata_unmanaged)
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Object))]
 pub struct DocumentMetadataUnmanagedResult {
     id: DocumentId,
     user_visibility: Vec<VisibleUser>,
