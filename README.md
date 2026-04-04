@@ -11,6 +11,7 @@ To include IronOxide in your Rust application, see https://crates.io/crates/iron
 
 If you are not building a Rust application, you might be interested in one of these SDKs:
 
+- **[ironoxide-go](go/ironoxide/)** - Go bindings for ironoxide, auto-generated via [UniFFI](https://mozilla.github.io/uniffi-rs/).
 - [ironoxide-java](https://github.com/IronCoreLabs/ironoxide-java) - Java bindings for ironoxide. Appropriate for all JVM languages.
 - [ironoxide-scala](https://github.com/IronCoreLabs/ironoxide-scala) - Scala wrappers around `ironoxide-java`.
 - [ironnode](https://github.com/IronCoreLabs/ironnode) - NodeJS implementation of IronCore's Privacy Platform.

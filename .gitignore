@@ -15,4 +15,7 @@ src/proto/transform.rs
 benches/data/*.json
 example.devcon
 .direnv
-/go/
+/go/ironoxide/ironoxide.go
+/go/ironoxide/ironoxide.h
+/go/go.mod
+/go/go.sum

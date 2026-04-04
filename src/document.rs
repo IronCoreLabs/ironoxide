@@ -79,14 +79,7 @@ pub struct DocumentEncryptOpts {
 impl DocumentEncryptOpts {
     /// Constructs a new `DocumentEncryptOpts`.
     ///
-    /// Document encryption requires an `ExplicitGrant`, a `PolicyGrant`, or both. If only using one type
-    /// of grant, consider using [with_explicit_grants](./struct.DocumentEncryptOpts.html#method.with_explicit_grants)
-    /// or [with_policy_grants](./struct.DocumentEncryptOpts.html#method.with_policy_grants) instead.
-    ///
-    /// # Arguments
-    /// - `id` - ID to use for the document.
-    /// - `name` - Name to use for the document.
-    /// - `grants` - Grants that control who will have access to read and decrypt this document.
+    /// Document encryption requires an `ExplicitGrant`, a `PolicyGrant`, or both.
     pub fn new(
         id: Option<DocumentId>,
         name: Option<DocumentName>,
@@ -94,14 +87,10 @@ impl DocumentEncryptOpts {
     ) -> DocumentEncryptOpts {
         DocumentEncryptOpts { grants, name, id }
     }
+}
 
-    /// Constructs a new `DocumentEncryptOpts` with access explicitly granted to certain users and groups.
-    ///
-    /// # Arguments
-    /// - `id` - ID to use for the document.
-    /// - `name` - Name to use for the document.
-    /// - `grant_to_author` - `true` if the calling user should have access to decrypt the document
-    /// - `grants` - List of users and groups that should have access to read and decrypt this document
+#[cfg(not(feature = "uniffi"))]
+impl DocumentEncryptOpts {
     pub fn with_explicit_grants(
         id: Option<DocumentId>,
         name: Option<DocumentName>,
@@ -118,13 +107,6 @@ impl DocumentEncryptOpts {
         }
     }
 
-    /// Constructs a new `DocumentEncryptOpts` with access granted by a policy.
-    ///
-    /// # Arguments
-    /// - `id` - ID to use for the document.
-    /// - `name` - Name to use for the document.
-    /// - `policy` - Policy to determine which users and groups will have access to read and decrypt this document.
-    ///   See the [policy](../policy/index.html) module for more information.
     pub fn with_policy_grants(
         id: Option<DocumentId>,
         name: Option<DocumentName>,
@@ -137,6 +119,40 @@ impl DocumentEncryptOpts {
         }
     }
 }
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl DocumentEncryptOpts {
+    #[uniffi::constructor]
+    pub fn with_explicit_grants(
+        id: Option<DocumentId>,
+        name: Option<DocumentName>,
+        grant_to_author: bool,
+        grants: Vec<UserOrGroup>,
+    ) -> DocumentEncryptOpts {
+        DocumentEncryptOpts {
+            id,
+            name,
+            grants: EitherOrBoth::Left(ExplicitGrant {
+                grants,
+                grant_to_author,
+            }),
+        }
+    }
+
+    #[uniffi::constructor]
+    pub fn with_policy_grants(
+        id: Option<DocumentId>,
+        name: Option<DocumentName>,
+        policy: std::sync::Arc<PolicyGrant>,
+    ) -> DocumentEncryptOpts {
+        DocumentEncryptOpts {
+            id,
+            name,
+            grants: EitherOrBoth::Right((*policy).clone()),
+        }
+    }
+}
+
 impl Default for DocumentEncryptOpts {
     /// Constructs a `DocumentEncryptOpts` with common values.
     ///

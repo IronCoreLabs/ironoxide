@@ -171,7 +171,7 @@ pub struct GroupMetaResult {
     updated: OffsetDateTime,
     needs_rotation: Option<bool>,
 }
-/// Shared methods
+#[cfg(not(feature = "uniffi"))]
 impl GroupMetaResult {
     /// `true` if the calling user is a group administrator
     pub fn is_admin(&self) -> bool {
@@ -187,10 +187,6 @@ impl GroupMetaResult {
     pub fn needs_rotation(&self) -> Option<bool> {
         self.needs_rotation
     }
-}
-
-#[cfg(not(feature = "uniffi"))]
-impl GroupMetaResult {
     /// ID of the group
     pub fn id(&self) -> &GroupId {
         &self.id
@@ -216,6 +212,20 @@ impl GroupMetaResult {
 #[cfg(feature = "uniffi")]
 #[uniffi::export]
 impl GroupMetaResult {
+    /// `true` if the calling user is a group administrator
+    pub fn is_admin(&self) -> bool {
+        self.is_admin
+    }
+    /// `true` if the calling user is a group member
+    pub fn is_member(&self) -> bool {
+        self.is_member
+    }
+    /// Whether the group's private key needs rotation. Can only be accessed by a group administrator.
+    /// - `Some(bool)` - Indicates whether the group's private key needs rotation.
+    /// - `None` - The calling user does not have permission to view this.
+    pub fn needs_rotation(&self) -> Option<bool> {
+        self.needs_rotation
+    }
     /// ID of the group
     pub fn id(&self) -> GroupId {
         self.id.clone()
@@ -256,7 +266,7 @@ pub struct GroupCreateResult {
     updated: OffsetDateTime,
     needs_rotation: Option<bool>,
 }
-/// Shared methods
+#[cfg(not(feature = "uniffi"))]
 impl GroupCreateResult {
     /// `true` if the calling user is a group administrator
     pub fn is_admin(&self) -> bool {
@@ -272,10 +282,6 @@ impl GroupCreateResult {
     pub fn needs_rotation(&self) -> Option<bool> {
         self.needs_rotation
     }
-}
-
-#[cfg(not(feature = "uniffi"))]
-impl GroupCreateResult {
     /// ID of the group
     pub fn id(&self) -> &GroupId {
         &self.id
@@ -313,6 +319,20 @@ impl GroupCreateResult {
 #[cfg(feature = "uniffi")]
 #[uniffi::export]
 impl GroupCreateResult {
+    /// `true` if the calling user is a group administrator
+    pub fn is_admin(&self) -> bool {
+        self.is_admin
+    }
+    /// `true` if the calling user is a group member
+    pub fn is_member(&self) -> bool {
+        self.is_member
+    }
+    /// Whether the group's private key needs rotation. Can only be accessed by a group administrator.
+    /// - `Some(bool)` - Indicates whether the group's private key needs rotation.
+    /// - `None` - The calling user does not have permission to view this.
+    pub fn needs_rotation(&self) -> Option<bool> {
+        self.needs_rotation
+    }
     /// ID of the group
     pub fn id(&self) -> GroupId {
         self.id.clone()
@@ -367,7 +387,7 @@ pub struct GroupGetResult {
     /// not exposed outside of the module
     encrypted_private_key: Option<TransformedEncryptedValue>,
 }
-/// Shared methods
+#[cfg(not(feature = "uniffi"))]
 impl GroupGetResult {
     /// `true` if the calling user is a group administrator
     pub fn is_admin(&self) -> bool {
@@ -383,10 +403,6 @@ impl GroupGetResult {
     pub fn needs_rotation(&self) -> Option<bool> {
         self.needs_rotation
     }
-}
-
-#[cfg(not(feature = "uniffi"))]
-impl GroupGetResult {
     /// ID of the group
     pub fn id(&self) -> &GroupId {
         &self.id
@@ -426,6 +442,20 @@ impl GroupGetResult {
 #[cfg(feature = "uniffi")]
 #[uniffi::export]
 impl GroupGetResult {
+    /// `true` if the calling user is a group administrator
+    pub fn is_admin(&self) -> bool {
+        self.is_admin
+    }
+    /// `true` if the calling user is a group member
+    pub fn is_member(&self) -> bool {
+        self.is_member
+    }
+    /// Whether the group's private key needs rotation. Can only be accessed by a group administrator.
+    /// - `Some(bool)` - Indicates whether the group's private key needs rotation.
+    /// - `None` - The calling user does not have permission to view this.
+    pub fn needs_rotation(&self) -> Option<bool> {
+        self.needs_rotation
+    }
     /// ID of the group
     pub fn id(&self) -> GroupId {
         self.id.clone()
@@ -735,16 +765,12 @@ pub struct GroupUpdatePrivateKeyResult {
     id: GroupId,
     needs_rotation: bool,
 }
-/// Shared methods
+#[cfg(not(feature = "uniffi"))]
 impl GroupUpdatePrivateKeyResult {
     /// `true` if this group's private key requires additional rotation
     pub fn needs_rotation(&self) -> bool {
         self.needs_rotation
     }
-}
-
-#[cfg(not(feature = "uniffi"))]
-impl GroupUpdatePrivateKeyResult {
     /// The ID of the group
     pub fn id(&self) -> &GroupId {
         &self.id
@@ -754,6 +780,10 @@ impl GroupUpdatePrivateKeyResult {
 #[cfg(feature = "uniffi")]
 #[uniffi::export]
 impl GroupUpdatePrivateKeyResult {
+    /// `true` if this group's private key requires additional rotation
+    pub fn needs_rotation(&self) -> bool {
+        self.needs_rotation
+    }
     /// The ID of the group
     pub fn id(&self) -> GroupId {
         self.id.clone()

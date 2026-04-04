@@ -124,6 +124,7 @@ pub struct UserCreateResult {
 
 pub type UserUpdateResult = UserCreateResult;
 
+#[cfg(not(feature = "uniffi"))]
 impl UserCreateResult {
     /// Public key for the user
     ///
@@ -139,6 +140,26 @@ impl UserCreateResult {
     /// The user's id.
     pub fn id(&self) -> &str {
         self.id.as_str()
+    }
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl UserCreateResult {
+    /// Public key for the user
+    ///
+    /// For most use cases, this public key can be discarded, as IronCore escrows the user's keys. The escrowed keys are unlocked
+    /// by the provided password.
+    pub fn user_public_key(&self) -> PublicKey {
+        self.user_public_key.clone()
+    }
+    /// Whether the user's private key needs to be rotated
+    pub fn needs_rotation(&self) -> bool {
+        self.needs_rotation
+    }
+    /// The user's id.
+    pub fn id(&self) -> String {
+        self.id.clone()
     }
 }
 
@@ -219,15 +240,12 @@ pub struct UserResult {
     user_public_key: PublicKey,
     needs_rotation: bool,
 }
+#[cfg(not(feature = "uniffi"))]
 impl UserResult {
     /// Whether the user's private key needs rotation
     pub fn needs_rotation(&self) -> bool {
         self.needs_rotation
     }
-}
-
-#[cfg(not(feature = "uniffi"))]
-impl UserResult {
     /// ID of the user
     pub fn account_id(&self) -> &UserId {
         &self.account_id
@@ -245,6 +263,10 @@ impl UserResult {
 #[cfg(feature = "uniffi")]
 #[uniffi::export]
 impl UserResult {
+    /// Whether the user's private key needs rotation
+    pub fn needs_rotation(&self) -> bool {
+        self.needs_rotation
+    }
     /// ID of the user
     pub fn account_id(&self) -> UserId {
         self.account_id.clone()
@@ -307,15 +329,12 @@ pub struct UserDevice {
     /// true if this UserDevice is the device making the query
     is_current_device: bool,
 }
+#[cfg(not(feature = "uniffi"))]
 impl UserDevice {
     /// Whether this is the device that was used to make the API request
     pub fn is_current_device(&self) -> bool {
         self.is_current_device
     }
-}
-
-#[cfg(not(feature = "uniffi"))]
-impl UserDevice {
     /// ID of the device
     pub fn id(&self) -> &DeviceId {
         &self.id
@@ -337,6 +356,10 @@ impl UserDevice {
 #[cfg(feature = "uniffi")]
 #[uniffi::export]
 impl UserDevice {
+    /// Whether this is the device that was used to make the API request
+    pub fn is_current_device(&self) -> bool {
+        self.is_current_device
+    }
     /// ID of the device
     pub fn id(&self) -> DeviceId {
         self.id.clone()
@@ -417,23 +440,12 @@ pub struct Jwt {
 }
 
 impl Jwt {
-    /// Constructs a new Jwt.
-    ///
-    /// Verifies that the provided jwt uses a compatible algorithm and contains the required claims.
-    pub fn new(jwt: &str) -> Result<Jwt, IronOxideErr> {
-        // This insecure decode is acceptable here because the server will do the actual
-        // signature verification and validation. We just want to do a little initial validation
-        // to catch issues earlier.
+    /// Shared validation logic for JWT construction.
+    fn validate_and_create(jwt: &str) -> Result<Jwt, IronOxideErr> {
         let token_data = jsonwebtoken::dangerous::insecure_decode::<JwtClaims>(jwt)
             .map_err(|e| IronOxideErr::ValidationError { field_name: "jwt".to_string(), err: e.to_string() })?;
         let JwtClaims {
-            pid,
-            prefixed_pid,
-            sid,
-            prefixed_sid,
-            kid,
-            prefixed_kid,
-            ..
+            pid, prefixed_pid, sid, prefixed_sid, kid, prefixed_kid, ..
         } = &token_data.claims;
         let error_message = |claim: &str| -> IronOxideErr {
             IronOxideErr::ValidationError {
@@ -464,11 +476,6 @@ impl Jwt {
         }
     }
 
-    /// Raw JWT
-    pub fn jwt(&self) -> &str {
-        self.jwt.as_str()
-    }
-
     /// JWT claims
     pub fn claims(&self) -> &JwtClaims {
         &self.claims
@@ -479,20 +486,46 @@ impl Jwt {
         &self.header
     }
 
-    fn to_utf8(&self) -> Vec<u8> {
+    pub(crate) fn to_utf8(&self) -> Vec<u8> {
         self.jwt.as_bytes().to_vec()
+    }
+}
+
+#[cfg(not(feature = "uniffi"))]
+impl Jwt {
+    /// Constructs a new Jwt.
+    pub fn new(jwt: &str) -> Result<Jwt, IronOxideErr> {
+        Self::validate_and_create(jwt)
+    }
+    /// Raw JWT
+    pub fn jwt(&self) -> &str {
+        self.jwt.as_str()
+    }
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl Jwt {
+    /// Constructs a new Jwt.
+    #[uniffi::constructor]
+    pub fn new(jwt: &str) -> Result<Jwt, IronOxideErr> {
+        Self::validate_and_create(jwt)
+    }
+    /// Raw JWT
+    pub fn jwt(&self) -> String {
+        self.jwt.clone()
     }
 }
 impl TryFrom<String> for Jwt {
     type Error = IronOxideErr;
     fn try_from(maybe_jwt: String) -> Result<Self, Self::Error> {
-        Jwt::new(&maybe_jwt)
+        Jwt::validate_and_create(&maybe_jwt)
     }
 }
 impl TryFrom<&str> for Jwt {
     type Error = IronOxideErr;
     fn try_from(maybe_jwt: &str) -> Result<Self, Self::Error> {
-        Jwt::new(maybe_jwt)
+        Jwt::validate_and_create(maybe_jwt)
     }
 }
 impl std::fmt::Display for Jwt {
@@ -573,15 +606,12 @@ pub struct UserUpdatePrivateKeyResult {
     user_master_private_key: EncryptedPrivateKey,
     needs_rotation: bool,
 }
+#[cfg(not(feature = "uniffi"))]
 impl UserUpdatePrivateKeyResult {
     /// Whether this user's private key needs further rotation
     pub fn needs_rotation(&self) -> bool {
         self.needs_rotation
     }
-}
-
-#[cfg(not(feature = "uniffi"))]
-impl UserUpdatePrivateKeyResult {
     /// Updated encrypted private key of the user
     pub fn user_master_private_key(&self) -> &EncryptedPrivateKey {
         &self.user_master_private_key
@@ -591,6 +621,10 @@ impl UserUpdatePrivateKeyResult {
 #[cfg(feature = "uniffi")]
 #[uniffi::export]
 impl UserUpdatePrivateKeyResult {
+    /// Whether this user's private key needs further rotation
+    pub fn needs_rotation(&self) -> bool {
+        self.needs_rotation
+    }
     /// Updated encrypted private key of the user
     pub fn user_master_private_key(&self) -> EncryptedPrivateKey {
         self.user_master_private_key.clone()

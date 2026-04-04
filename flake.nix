@@ -23,6 +23,13 @@
       # nix develop
       devShells.default = pkgs.mkShell {
         buildInputs = with pkgs; [rusttoolchain pkg-config openssl go];
+        # Go's cgo and Rust's cc crate each pull in different Apple SDK
+        # versions via DEVELOPER_DIR / DEVELOPER_DIR_FOR_TARGET. Go 1.25+
+        # refuses to build when both are set with different values. Unsetting
+        # the target-specific one lets cgo fall back to DEVELOPER_DIR.
+        shellHook = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
+          unset DEVELOPER_DIR_FOR_TARGET
+        '';
       };
     });
 }

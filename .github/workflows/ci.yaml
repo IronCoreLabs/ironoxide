@@ -27,6 +27,8 @@ jobs:
             features: blocking
           - os: ubuntu-24.04
             features: blocking,beta
+          - os: ubuntu-24.04
+            features: uniffi
           # different tls implementations
           - os: ubuntu-24.04
             features: tls-rustls --no-default-features
@@ -96,6 +98,31 @@ jobs:
           use-cross: true
           command: build
           args: --target ${{ matrix.target }} --features "beta blocking tls-rustls" --no-default-features
+
+  go-bindings:
+    name: Go Bindings
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: IronCoreLabs/rust-toolchain@v1
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Build cdylib
+        run: cargo build --release --features uniffi
+      - name: Generate Go bindings
+        run: cargo run --features uniffi --bin uniffi-bindgen-go -- --library target/release/libironoxide.$([ "$RUNNER_OS" = "macOS" ] && echo dylib || echo so) --out-dir go/ --config uniffi.toml
+      - name: Init Go module
+        working-directory: go
+        run: go mod init github.com/IronCoreLabs/ironoxide-go
+      - name: Compile and test Go bindings
+        working-directory: go
+        run: CGO_LDFLAGS="-L../target/release -lironoxide" go test ./... -v -count=1
 
   clippy:
     name: Clippy

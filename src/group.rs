@@ -44,6 +44,7 @@ pub struct GroupCreateOpts {
     needs_rotation: bool,
 }
 
+#[cfg(not(feature = "uniffi"))]
 impl GroupCreateOpts {
     /// # Arguments
     /// - `id`
@@ -92,6 +93,29 @@ impl GroupCreateOpts {
         }
     }
 
+}
+
+#[cfg(feature = "uniffi")]
+#[uniffi::export]
+impl GroupCreateOpts {
+    #[uniffi::constructor]
+    pub fn new(
+        id: Option<GroupId>,
+        name: Option<GroupName>,
+        add_as_admin: bool,
+        add_as_member: bool,
+        owner: Option<UserId>,
+        admins: Vec<UserId>,
+        members: Vec<UserId>,
+        needs_rotation: bool,
+    ) -> GroupCreateOpts {
+        GroupCreateOpts {
+            id, name, add_as_admin, add_as_member, owner, admins, members, needs_rotation,
+        }
+    }
+}
+
+impl GroupCreateOpts {
     fn standardize(self, calling_id: &UserId) -> Result<GroupCreateOptsStd> {
         // if `add_as_member`, make sure the calling user is in the `members` list
         let standardized_members = if self.add_as_member && !self.members.contains(calling_id) {
