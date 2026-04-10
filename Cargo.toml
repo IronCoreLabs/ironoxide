@@ -58,11 +58,11 @@ tokio = { version = "1", features = ["time"] }
 url = "2.2"
 vec1 = "1.6"
 
-[target.'cfg(target_pointer_width = "64")'.dependencies]
-recrypt = { version = "0.16", default-features = false, features = ["u64_backend"] }
-
 [target.'cfg(target_pointer_width = "32")'.dependencies]
 recrypt = { version = "0.16", default-features = false, features = ["u32_backend"] }
+
+[target.'cfg(target_pointer_width = "64")'.dependencies]
+recrypt = { version = "0.16", default-features = false, features = ["u64_backend"] }
 
 [build-dependencies]
 itertools = "0.14"
