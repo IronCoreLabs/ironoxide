@@ -22,7 +22,7 @@ use crate::{
     user::UserId,
 };
 use protobuf::Message;
-use rand::{CryptoRng, RngCore};
+use rand::CryptoRng;
 use recrypt::prelude::*;
 use std::{
     fs::{self, File, OpenOptions},
@@ -355,8 +355,8 @@ pub async fn encrypt_file_to_path<R1, R2>(
     public_key_cache: &PublicKeyCache,
 ) -> Result<DocumentFileEncryptResult>
 where
-    R1: CryptoRng + RngCore,
-    R2: CryptoRng + RngCore,
+    R1: CryptoRng,
+    R2: CryptoRng,
 {
     let source_file = File::open(source_path).map_err(|e| IronOxideErr::FileIoError {
         path: Some(source_path.to_string()),
@@ -439,7 +439,7 @@ pub async fn decrypt_file_to_path<CR>(
     destination_path: &str,
 ) -> Result<DocumentFileDecryptResult>
 where
-    CR: CryptoRng + RngCore + Send + Sync + 'static,
+    CR: CryptoRng + Send + Sync + 'static,
 {
     let (doc_header, source_file) = read_document_header(source_path)?;
 
@@ -486,8 +486,8 @@ pub async fn encrypt_file_unmanaged<R1, R2>(
     public_key_cache: &PublicKeyCache,
 ) -> Result<DocumentFileEncryptUnmanagedResult>
 where
-    R1: CryptoRng + RngCore,
-    R2: CryptoRng + RngCore,
+    R1: CryptoRng,
+    R2: CryptoRng,
 {
     // Open source file
     let source_file = File::open(source_path).map_err(|e| IronOxideErr::FileIoError {
@@ -572,7 +572,7 @@ pub async fn decrypt_file_unmanaged<CR>(
     encrypted_deks: &[u8],
 ) -> Result<DocumentFileDecryptUnmanagedResult>
 where
-    CR: CryptoRng + RngCore,
+    CR: CryptoRng,
 {
     let (doc_header, source_file) = read_document_header(source_path)?;
 

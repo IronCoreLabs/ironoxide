@@ -415,7 +415,7 @@ fn check_user_mismatch<T: Eq + std::hash::Hash + std::fmt::Debug, X>(
 
 /// Partitions `user_ids_and_keys` into a vector of admins and a vector of members.
 /// Also generates TransformKeys for members to prepare for making requests::GroupMembers
-fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
+fn collect_admin_and_member_info<CR: rand::CryptoRng>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     signing_key: &crate::internal::DeviceSigningKeyPair,
     group_priv_key: recrypt::api::PrivateKey,
@@ -470,7 +470,7 @@ fn collect_admin_and_member_info<CR: rand::CryptoRng + rand::RngCore>(
 /// - `name` - name for the group. Does not need to be unique.
 /// - `members` - list of user ids to add as members of the group.
 /// - `needs_rotation` - true if the group private key should be rotated by an admin, else false
-pub async fn group_create<CR: rand::CryptoRng + rand::RngCore>(
+pub async fn group_create<CR: rand::CryptoRng>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &RequestAuth,
     group_id: Option<GroupId>,
@@ -587,7 +587,7 @@ fn collect_group_admin_keys(
 
 /// Decrypts the group's private key, generates a new private key and plaintext,
 /// computes the difference between the old and new private keys, and encrypts the new plaintext to each group admin.
-fn generate_aug_and_admins<CR: rand::CryptoRng + rand::RngCore>(
+fn generate_aug_and_admins<CR: rand::CryptoRng>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     device_signing_key_pair: &DeviceSigningKeyPair,
     encrypted_group_key: EncryptedValue,
@@ -623,7 +623,7 @@ fn generate_aug_and_admins<CR: rand::CryptoRng + rand::RngCore>(
 /// - `auth` - Auth context details for making API requests. The user associated with this device must be an admin of the group.
 /// - `group_id` - unique id for the group needing rotation within the segment.
 /// - `device_private_key` - user's device private key to use for decrypting the group's private key.
-pub async fn group_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
+pub async fn group_rotate_private_key<CR: rand::CryptoRng>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &RequestAuth,
     group_id: &GroupId,
@@ -685,7 +685,7 @@ pub async fn group_delete(auth: &RequestAuth, group_id: &GroupId) -> Result<Grou
 /// # Returns
 /// GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
 ///   the reason they were not.
-pub async fn group_add_members<CR: rand::CryptoRng + rand::RngCore>(
+pub async fn group_add_members<CR: rand::CryptoRng>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &RequestAuth,
     device_private_key: &PrivateKey,
@@ -750,7 +750,7 @@ pub async fn group_add_members<CR: rand::CryptoRng + rand::RngCore>(
 /// # Returns
 /// GroupAccessEditResult, which contains all the users that were added. It also contains the users that were not added and
 ///   the reason they were not.
-pub async fn group_add_admins<CR: rand::CryptoRng + rand::RngCore>(
+pub async fn group_add_admins<CR: rand::CryptoRng>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     auth: &RequestAuth,
     device_private_key: &PrivateKey,
@@ -877,7 +877,7 @@ pub async fn group_remove_entity(
 
 ///A stripped down version of this could be put in `transform.rs`, but since it was inconvenient to do the type mapping afterwards
 ///I just moved it to here so I could keep all of the mapping code together.
-fn generate_transform_for_keys<CR: rand::CryptoRng + rand::RngCore>(
+fn generate_transform_for_keys<CR: rand::CryptoRng>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     from_private: &recrypt::api::PrivateKey,
     signing_keys: &recrypt::api::SigningKeypair,

@@ -27,23 +27,19 @@ pub use ironcore_search_helpers::transliterate_string;
 use ironcore_search_helpers::{
     generate_hashes_for_string, generate_hashes_for_string_with_padding,
 };
-use rand::{
-    self, RngCore, SeedableRng,
-    rngs::{OsRng, adapter::ReseedingRng},
-};
-use rand_chacha::ChaChaCore;
+use rand::Rng as _;
+use recrypt::api::DefaultRng;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
     convert::{TryFrom, TryInto},
+    fmt,
     ops::DerefMut,
     sync::Mutex,
 };
 
 ///The required length of the salt.
 const REQUIRED_LEN: usize = 32;
-/// number of bytes that can be read from `BlindIndexSearch.rng` before it is reseeded. 1 MB
-const BYTES_BEFORE_RESEEDING: u64 = 1024 * 1024;
 
 #[derive(Debug, PartialEq, Clone, Hash, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -99,10 +95,18 @@ impl BlindIndexSearchInitialize for IronOxide {
     }
 }
 
-#[derive(Debug)]
 pub struct BlindIndexSearch {
     decrypted_salt: [u8; 32],
-    rng: Mutex<ReseedingRng<ChaChaCore, OsRng>>,
+    rng: Mutex<DefaultRng>,
+}
+
+/// We can just implement this manually since the DefaultRng doesn't implement Debug
+impl fmt::Debug for BlindIndexSearch {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BlindIndexSearch")
+            .field("decrypted_salt", &self.decrypted_salt)
+            .finish()
+    }
 }
 
 impl TryFrom<&[u8]> for BlindIndexSearch {
@@ -139,11 +143,7 @@ impl TryFrom<DocumentEncryptUnmanagedResult> for EncryptedBlindIndexSalt {
 
 impl BlindIndexSearch {
     fn new(decrypted_salt: [u8; 32]) -> BlindIndexSearch {
-        let rng = Mutex::new(ReseedingRng::new(
-            rand_chacha::ChaChaCore::from_entropy(),
-            BYTES_BEFORE_RESEEDING,
-            OsRng::default(),
-        ));
+        let rng = Mutex::new(DefaultRng::default());
         BlindIndexSearch {
             decrypted_salt,
             rng,
