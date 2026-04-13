@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.3.1
+
+- [[#375](https://github.com/IronCoreLabs/ironoxide/pull/375)] Updates the core cryptographic library (recrypt) and well as rand and some other dependencies. On 64 bit architectures the encrypt and decrypt operations should be much faster due to the optimizations in recrypt.
+
 ## 4.3.0
 
 - [[#373](https://github.com/IronCoreLabs/ironoxide/pull/373)] Add managed and unmanaged file encrypt/decrypt, which internally stream the bytes for constant memory usage. Note the security disclaimer on file decrypt if you intend to use these APIs.
