@@ -141,11 +141,8 @@ use aws_lc_rs::{
     },
     constant_time,
 };
-use ghash::{
-    GHash,
-    universal_hash::{KeyInit, UniversalHash},
-};
-use rand::{CryptoRng, RngCore};
+use ghash::{GHash, universal_hash::UniversalHash};
+use rand::CryptoRng;
 use std::{
     io::{BufReader, BufWriter, Read, Write},
     ops::DerefMut,
@@ -497,7 +494,7 @@ impl StreamingDecryptor {
 /// Generates the IV internally and writes it to the output before the ciphertext,
 /// similar to how `aes::encrypt` bundles IV with ciphertext.
 /// Output format: [IV (12 bytes)][ciphertext][tag (16 bytes)]
-pub(crate) fn encrypt_stream<R: Read, W: Write, RNG: CryptoRng + RngCore>(
+pub(crate) fn encrypt_stream<R: Read, W: Write, RNG: CryptoRng>(
     key: &[u8; AES_KEY_LEN],
     rng: &Mutex<RNG>,
     reader: &mut BufReader<R>,
@@ -635,19 +632,17 @@ pub(crate) mod tests {
     use super::*;
     use crate::crypto::aes;
     use proptest::prelude::*;
-    use rand::RngCore;
-    use rand::SeedableRng;
-    use rand_chacha::ChaChaRng;
+    use rand::{Rng, SeedableRng, rngs::StdRng};
     use std::io::Cursor;
 
     pub fn generate_test_key() -> [u8; AES_KEY_LEN] {
         let mut key = [0u8; AES_KEY_LEN];
-        rand::thread_rng().fill_bytes(&mut key);
+        rand::rng().fill_bytes(&mut key);
         key
     }
 
-    pub fn test_rng() -> Mutex<ChaChaRng> {
-        Mutex::new(ChaChaRng::from_entropy())
+    pub fn test_rng() -> Mutex<StdRng> {
+        Mutex::new(StdRng::from_rng(&mut rand::rng()))
     }
 
     #[test]
@@ -682,7 +677,7 @@ pub(crate) mod tests {
 
         // 1MB of random data
         let mut plaintext = vec![0u8; 1024 * 1024];
-        rand::thread_rng().fill_bytes(&mut plaintext);
+        rand::rng().fill_bytes(&mut plaintext);
         let mut ciphertext_buf = Vec::new();
         let mut decrypted_buf = Vec::new();
 
@@ -808,7 +803,7 @@ pub(crate) mod tests {
 
         // 1MB random data
         let mut plaintext = vec![0u8; 1024 * 1024];
-        rand::thread_rng().fill_bytes(&mut plaintext);
+        rand::rng().fill_bytes(&mut plaintext);
 
         {
             let mut reader = BufReader::new(Cursor::new(&plaintext));
@@ -831,7 +826,7 @@ pub(crate) mod tests {
 
         // 1MB random data
         let mut plaintext = vec![0u8; 1024 * 1024];
-        rand::thread_rng().fill_bytes(&mut plaintext);
+        rand::rng().fill_bytes(&mut plaintext);
 
         let encrypted = aes::encrypt(&rng, plaintext.clone(), key).unwrap();
         let encrypted_bytes = encrypted.bytes();

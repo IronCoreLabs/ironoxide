@@ -23,7 +23,7 @@ use futures::{Future, try_join};
 use hex::encode;
 use itertools::{Either, Itertools};
 use protobuf::Message;
-use rand::{self, CryptoRng, RngCore};
+use rand::{self, CryptoRng};
 use recrypt::{api::Plaintext, prelude::*};
 use requests::{
     DocumentMetaApiResponse, document_create,
@@ -76,7 +76,7 @@ impl DocumentId {
     }
 
     /// Generate a random id for a document
-    pub(crate) fn goo_id<R: CryptoRng + RngCore>(rng: &Mutex<R>) -> DocumentId {
+    pub(crate) fn goo_id<R: CryptoRng>(rng: &Mutex<R>) -> DocumentId {
         let mut id = [0u8; 16];
         take_lock(rng).deref_mut().fill_bytes(&mut id);
         DocumentId(encode(id))
@@ -641,10 +641,7 @@ pub fn get_id_from_bytes(encrypted_document: &[u8]) -> Result<DocumentId, IronOx
 }
 
 /// Encrypt a new document and share it with explicit users/groups and with users/groups specified by a policy
-pub async fn encrypt_document<
-    R1: rand::CryptoRng + rand::RngCore,
-    R2: rand::CryptoRng + rand::RngCore,
->(
+pub async fn encrypt_document<R1: rand::CryptoRng, R2: rand::CryptoRng>(
     auth: &RequestAuth,
     config: &IronOxideConfig,
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
@@ -823,8 +820,8 @@ pub async fn encrypt_document_unmanaged<R1, R2>(
     public_key_cache: &PublicKeyCache,
 ) -> Result<DocumentEncryptUnmanagedResult, IronOxideErr>
 where
-    R1: rand::CryptoRng + rand::RngCore,
-    R2: rand::CryptoRng + rand::RngCore,
+    R1: rand::CryptoRng,
+    R2: rand::CryptoRng,
 {
     let config = IronOxideConfig::default();
 
@@ -871,7 +868,7 @@ async fn encrypt_dek_to<R1>(
     doc_id: &DocumentId,
 ) -> Result<(RecryptionResult, Vec<DocAccessEditErr>), IronOxideErr>
 where
-    R1: rand::CryptoRng + rand::RngCore,
+    R1: rand::CryptoRng,
 {
     let (grants, key_errs) = resolve_keys_for_grants(
         auth,
@@ -908,7 +905,7 @@ fn dedupe_grants(grants: &[WithKey<UserOrGroup>]) -> Vec<WithKey<UserOrGroup>> {
 /// Encrypt the document using transform crypto (recrypt).
 /// Can be called once you have public keys for users/groups that should have access as well as the
 /// AES encrypted data.
-pub(crate) fn recrypt_document<CR: rand::CryptoRng + rand::RngCore>(
+pub(crate) fn recrypt_document<CR: rand::CryptoRng>(
     signing_keys: &DeviceSigningKeyPair,
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     dek: Plaintext,
@@ -1133,10 +1130,7 @@ async fn document_create(
 
 /// Encrypt the provided plaintext using the DEK from the provided document ID but with a new AES IV. Allows updating the encrypted bytes
 /// of a document without having to change document access.
-pub async fn document_update_bytes<
-    R1: rand::CryptoRng + rand::RngCore,
-    R2: rand::CryptoRng + rand::RngCore,
->(
+pub async fn document_update_bytes<R1: rand::CryptoRng, R2: rand::CryptoRng>(
     auth: &RequestAuth,
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<R1>>,
     device_private_key: &PrivateKey,
@@ -1170,7 +1164,7 @@ pub async fn document_update_bytes<
 
 /// Decrypt the provided document with the provided device private key. Return metadata about the document
 /// that was decrypted along with its decrypted bytes.
-pub async fn decrypt_document<CR: rand::CryptoRng + rand::RngCore + Send + Sync + 'static>(
+pub async fn decrypt_document<CR: rand::CryptoRng + Send + Sync + 'static>(
     auth: &RequestAuth,
     recrypt: std::sync::Arc<Recrypt<Sha256, Ed25519, RandomBytes<CR>>>,
     device_private_key: &PrivateKey,
@@ -1203,7 +1197,7 @@ pub async fn decrypt_document<CR: rand::CryptoRng + rand::RngCore + Send + Sync 
 
 /// Decrypt the unmanaged document. The caller must provide both the encrypted data as well as the
 /// encrypted DEKs. Most use cases would want `decrypt_document` instead.
-pub async fn decrypt_document_unmanaged<CR: rand::CryptoRng + rand::RngCore>(
+pub async fn decrypt_document_unmanaged<CR: rand::CryptoRng>(
     auth: &RequestAuth,
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     device_private_key: &PrivateKey,
@@ -1243,7 +1237,7 @@ pub async fn decrypt_document_unmanaged<CR: rand::CryptoRng + rand::RngCore>(
 
 /// Grant access to an unmanaged document.
 /// Cannot be done offline - it needs the IronCore service to determine transform keys.
-pub async fn document_grant_access_unmanaged<CR: rand::CryptoRng + rand::RngCore>(
+pub async fn document_grant_access_unmanaged<CR: rand::CryptoRng>(
     auth: &RequestAuth,
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     user_master_pub_key: &PublicKey,
@@ -1470,7 +1464,7 @@ pub async fn update_document_name(
         .map(DocumentMetadataResult)
 }
 
-pub async fn document_grant_access<CR: rand::CryptoRng + rand::RngCore>(
+pub async fn document_grant_access<CR: rand::CryptoRng>(
     auth: &RequestAuth,
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     id: &DocumentId,

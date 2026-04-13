@@ -191,12 +191,7 @@ use crate::{
 };
 use itertools::EitherOrBoth;
 use papaya::HashMap;
-use rand::{
-    SeedableRng,
-    rngs::{OsRng, adapter::ReseedingRng},
-};
-use rand_chacha::ChaChaCore;
-use recrypt::api::{Ed25519, RandomBytes, Recrypt, Sha256};
+use recrypt::api::{DefaultRng, Ed25519, RandomBytes, Recrypt, Sha256};
 use std::{
     convert::TryInto,
     fmt,
@@ -273,7 +268,7 @@ pub struct IronOxide {
     /// Master public key for the user identified by `account_id`
     pub(crate) user_master_pub_key: PublicKey,
     pub(crate) device: DeviceContext,
-    pub(crate) rng: Mutex<ReseedingRng<ChaChaCore, OsRng>>,
+    pub(crate) rng: Mutex<DefaultRng>,
     pub(crate) policy_eval_cache: PolicyCache,
     pub(crate) public_key_cache: PublicKeyCache,
 }
@@ -318,9 +313,6 @@ impl<T> InitAndRotationCheck<T> {
         InitAndRotationCheck::RotationNeeded(io, PrivateKeyRotationCheckResult { rotations_needed })
     }
 }
-
-/// number of bytes that can be read from `IronOxide.rng` before it is reseeded. 1 MB
-const BYTES_BEFORE_RESEEDING: u64 = 1024 * 1024;
 
 /// Provides soft rotation capabilities for user and group keys
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -504,11 +496,7 @@ impl IronOxide {
             recrypt: Arc::new(Recrypt::new()),
             device: device_context.clone(),
             user_master_pub_key: curr_user.user_public_key().to_owned(),
-            rng: Mutex::new(ReseedingRng::new(
-                rand_chacha::ChaChaCore::from_entropy(),
-                BYTES_BEFORE_RESEEDING,
-                OsRng,
-            )),
+            rng: Mutex::new(DefaultRng::default()),
             policy_eval_cache: HashMap::new(),
             public_key_cache,
         }
@@ -526,11 +514,7 @@ impl IronOxide {
             recrypt: Arc::new(Recrypt::new()),
             device: device.clone(),
             user_master_pub_key: public_key_cache.creator_public_key().clone(),
-            rng: Mutex::new(ReseedingRng::new(
-                rand_chacha::ChaChaCore::from_entropy(),
-                BYTES_BEFORE_RESEEDING,
-                OsRng,
-            )),
+            rng: Mutex::new(DefaultRng::default()),
             policy_eval_cache: HashMap::new(),
             public_key_cache,
         })
@@ -561,6 +545,7 @@ impl IronOxide {
                 &self.recrypt,
                 valid_password,
                 self.device().auth(),
+                &self.rng,
             )
         });
         let group_futures = rotations.group_rotation_needed().map(|groups| {

@@ -1,7 +1,7 @@
 use std::{fmt, num::NonZeroU32};
 
 use aws_lc_rs::{aead, aead::BoundKey, digest, error::Unspecified, pbkdf2};
-use rand::{self, CryptoRng, RngCore};
+use rand::CryptoRng;
 
 use crate::internal::{IronOxideErr, take_lock};
 use std::{convert::TryFrom, ops::DerefMut, sync::Mutex};
@@ -136,7 +136,7 @@ fn derive_key_from_password(password: &str, salt: [u8; PBKDF2_SALT_LEN]) -> [u8;
 
 /// Encrypt a users master private key using the provided password. Uses the password to generate a derived AES key
 /// via PBKDF2 and then AES encrypts the users private key with the derived AES key.
-pub fn encrypt_user_master_key<R: CryptoRng + RngCore>(
+pub fn encrypt_user_master_key<R: CryptoRng>(
     rng: &Mutex<R>,
     password: &str,
     user_master_key: &[u8; 32],
@@ -200,7 +200,7 @@ impl aead::NonceSequence for SingleUseNonceGenerator {
 
 /// Encrypt the provided variable length plaintext with the provided 32 byte AES key. Returns a Result which
 /// is a struct which contains the resulting ciphertext and the IV used during encryption.
-pub fn encrypt<R: CryptoRng + RngCore>(
+pub fn encrypt<R: CryptoRng>(
     rng: &Mutex<R>,
     mut plaintext: Vec<u8>,
     key: [u8; AES_KEY_LEN],
@@ -221,7 +221,7 @@ pub fn encrypt<R: CryptoRng + RngCore>(
 }
 
 /// Like `encrypt`, just async for convenience
-pub async fn encrypt_async<R: CryptoRng + RngCore>(
+pub async fn encrypt_async<R: CryptoRng>(
     rng: &Mutex<R>,
     plaintext: Vec<u8>,
     key: [u8; AES_KEY_LEN],
@@ -249,13 +249,14 @@ mod tests {
     use super::*;
     use crate::crypto::streaming::tests::{generate_test_key, test_rng};
     use proptest::prelude::*;
+    use rand::Rng;
     use std::{convert::TryInto, sync::Arc};
 
     #[test]
     fn test_encrypt_user_master_key() {
         let user_master_key = [0u8; 32];
         let password = "MyPassword";
-        let rng = rand::thread_rng();
+        let rng = rand::rng();
         let encrypted_master_key =
             encrypt_user_master_key(&Mutex::new(rng), password, &user_master_key).unwrap();
         assert_eq!(encrypted_master_key.pbkdf2_salt.len(), 32);
@@ -267,7 +268,7 @@ mod tests {
     fn test_decrypt_user_master_key() {
         let user_master_key = [0u8; 32];
         let password = "MyPassword";
-        let rng = rand::thread_rng();
+        let rng = rand::rng();
         let encrypted_master_key =
             encrypt_user_master_key(&Mutex::new(rng), password, &user_master_key).unwrap();
 

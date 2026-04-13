@@ -3,7 +3,6 @@ use crate::{
     internal::{rest::IronCoreRequest, *},
 };
 use jsonwebtoken::Algorithm;
-use rand::rngs::OsRng;
 use recrypt::prelude::*;
 use std::{
     collections::HashMap,
@@ -427,7 +426,7 @@ pub async fn user_verify(
 }
 
 /// Create a user
-pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
+pub async fn user_create<CR: rand::CryptoRng>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: &Jwt,
     passphrase: Password,
@@ -439,7 +438,7 @@ pub async fn user_create<CR: rand::CryptoRng + rand::RngCore>(
         .map_err(IronOxideErr::from)
         .and_then(|(recrypt_priv, recrypt_pub)| {
             Ok(aes::encrypt_user_master_key(
-                &Mutex::new(rand::thread_rng()),
+                &Mutex::new(rand::rng()),
                 passphrase.0.as_str(),
                 recrypt_priv.bytes(),
             )
@@ -501,10 +500,11 @@ pub async fn user_get_current(auth: &RequestAuth) -> Result<UserResult, IronOxid
 }
 
 /// Rotate the user's private key. The public key for the user remains unchanged.
-pub async fn user_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
+pub async fn user_rotate_private_key<CR: rand::CryptoRng, R: rand::CryptoRng>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     password: Password,
     auth: &RequestAuth,
+    rng: &Mutex<R>,
 ) -> Result<UserUpdatePrivateKeyResult, IronOxideErr> {
     let requests::user_get::CurrentUserResponse {
         user_private_key: encrypted_priv_key,
@@ -521,7 +521,7 @@ pub async fn user_rotate_private_key<CR: rand::CryptoRng + rand::RngCore>(
 
         let (new_priv_key, aug_factor) = augment_private_key_with_retry(recrypt, &priv_key)?;
         let new_encrypted_priv_key =
-            aes::encrypt_user_master_key(&Mutex::new(OsRng), &password.0, new_priv_key.as_bytes())?;
+            aes::encrypt_user_master_key(rng, &password.0, new_priv_key.as_bytes())?;
         (
             curr_user_id,
             current_key_id,
@@ -604,7 +604,7 @@ impl From<DeviceAddResult> for DeviceContext {
 }
 
 /// Generate a device key for the user specified in the JWT.
-pub async fn generate_device_key<CR: rand::CryptoRng + rand::RngCore>(
+pub async fn generate_device_key<CR: rand::CryptoRng>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: &Jwt,
     password: Password,
@@ -724,7 +724,7 @@ pub(crate) async fn get_user_keys(
 /// Generate all the necessary device keys, transform keys, and signatures to be able to add a new user device.
 /// Specifically, it creates a device key pair and signing key pair, then a transform key between the provided
 /// user private key and device public key. Also generated is a device add signature that is necessary to hit the API.
-fn generate_device_add<CR: rand::CryptoRng + rand::RngCore>(
+fn generate_device_add<CR: rand::CryptoRng>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: &Jwt,
     user_master_keypair: &KeyPair,
@@ -755,7 +755,7 @@ fn generate_device_add<CR: rand::CryptoRng + rand::RngCore>(
 }
 
 /// Generate a schnorr signature for calling the device add endpoint in the IronCore service
-fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
+fn gen_device_add_signature<CR: rand::CryptoRng>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     jwt: &Jwt,
     user_master_keypair: &KeyPair,
@@ -801,10 +801,11 @@ fn gen_device_add_signature<CR: rand::CryptoRng + rand::RngCore>(
 }
 
 /// Change the password for the user
-pub async fn user_change_password(
+pub async fn user_change_password<R: rand::CryptoRng>(
     password: Password,
     new_password: Password,
     auth: &RequestAuth,
+    rng: &Mutex<R>,
 ) -> Result<UserCreateResult, IronOxideErr> {
     let requests::user_get::CurrentUserResponse {
         user_private_key: encrypted_priv_key,
@@ -818,7 +819,7 @@ pub async fn user_change_password(
         )?
         .into();
 
-        aes::encrypt_user_master_key(&Mutex::new(OsRng), &new_password.0, priv_key.as_bytes())?
+        aes::encrypt_user_master_key(rng, &new_password.0, priv_key.as_bytes())?
     };
     requests::user_update::user_update(auth, &curr_user_id, Some(new_encrypted_priv_key.into()))
         .await?

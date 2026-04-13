@@ -9,7 +9,7 @@ use recrypt::{
 };
 
 /// Generate a DEK and its associated symmetric key for a new document
-pub fn generate_new_doc_key<CR: rand::CryptoRng + rand::RngCore>(
+pub fn generate_new_doc_key<CR: rand::CryptoRng>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
 ) -> (Plaintext, DerivedSymmetricKey) {
     let dek = recrypt.gen_plaintext();
@@ -28,7 +28,7 @@ pub fn gen_group_keys<R: CryptoOps + KeyGenOps>(
 }
 
 /// Decrypt the provided encrypted plaintext and return the symmetric key that is derived from it.
-pub fn decrypt_as_symmetric_key<CR: rand::CryptoRng + rand::RngCore>(
+pub fn decrypt_as_symmetric_key<CR: rand::CryptoRng>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     encrypted_plaintext: EncryptedValue,
     user_device_private_key: &PrivateKey,
@@ -40,7 +40,7 @@ pub fn decrypt_as_symmetric_key<CR: rand::CryptoRng + rand::RngCore>(
 
 /// Decrypt the provided encrypted plaintext and return both the plaintext and the private key that
 /// is derived from it.
-pub fn decrypt_as_private_key<CR: rand::CryptoRng + rand::RngCore>(
+pub fn decrypt_as_private_key<CR: rand::CryptoRng>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     encrypted_plaintext: EncryptedValue,
     user_device_private_key: &PrivateKey,
@@ -52,7 +52,7 @@ pub fn decrypt_as_private_key<CR: rand::CryptoRng + rand::RngCore>(
 
 /// Encrypt the plaintext to all the public keys in the `with_keys` list. If the encryption succeeds, return the values in the right
 /// list. If encryption fails, return them in the left list.
-pub fn encrypt_to_with_key<T, CR: rand::CryptoRng + rand::RngCore>(
+pub fn encrypt_to_with_key<T, CR: rand::CryptoRng>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
     plaintext: &recrypt::api::Plaintext,
     signing_keys: &recrypt::api::SigningKeypair,
