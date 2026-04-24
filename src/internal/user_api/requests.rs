@@ -212,7 +212,10 @@ pub mod user_update_private_key {
 }
 
 pub mod user_create {
-    use crate::internal::{TryInto, user_api::UserCreateResult};
+    use crate::{
+        internal::{TryInto, user_api::UserCreateResult},
+        user::UserStatus,
+    };
 
     use super::*;
 
@@ -220,7 +223,7 @@ pub mod user_create {
     #[serde(rename_all = "camelCase")]
     pub struct UserCreateResponse {
         id: String,
-        status: usize,
+        status: UserStatus,
         segment_id: usize,
         pub user_private_key: EncryptedPrivateKey,
         pub user_master_public_key: PublicKey,
@@ -264,13 +267,14 @@ pub mod user_create {
                 id: resp.id,
                 user_public_key: resp.user_master_public_key.try_into()?,
                 needs_rotation: resp.needs_rotation,
+                status: resp.status,
             })
         }
     }
 }
 
 pub mod user_update {
-    use crate::internal::{TryInto, user_api::UserCreateResult};
+    use crate::user::{UserCreateResult, UserStatus};
 
     use super::*;
 
@@ -278,7 +282,7 @@ pub mod user_update {
     #[serde(rename_all = "camelCase")]
     pub struct UserUpdateResponse {
         id: String,
-        status: usize,
+        status: UserStatus,
         segment_id: usize,
         pub user_private_key: EncryptedPrivateKey,
         pub user_master_public_key: PublicKey,
@@ -289,24 +293,34 @@ pub mod user_update {
     #[serde(rename_all = "camelCase")]
     struct UserUpdateReq {
         user_private_key: Option<EncryptedPrivateKey>,
+        status: Option<UserStatus>,
     }
 
     pub async fn user_update(
         auth: &RequestAuth,
         user_id: &UserId,
         encrypted_user_private_key: Option<EncryptedPrivateKey>,
+        status: Option<UserStatus>,
     ) -> Result<UserUpdateResponse, IronOxideErr> {
-        let req_body = UserUpdateReq {
-            user_private_key: encrypted_user_private_key,
-        };
-        auth.request
-            .put(
-                &format!("users/{}", rest::url_encode(user_id.id())),
-                &req_body,
-                RequestErrorCode::UserUpdate,
-                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
-            )
-            .await
+        if status == Some(UserStatus::Enabled) {
+            Err(IronOxideErr::ValidationError(
+                "status".to_string(),
+                "Users cannot enable themselves".to_string(),
+            ))
+        } else {
+            let req_body = UserUpdateReq {
+                user_private_key: encrypted_user_private_key,
+                status,
+            };
+            auth.request
+                .put(
+                    &format!("users/{}", rest::url_encode(user_id.id())),
+                    &req_body,
+                    RequestErrorCode::UserUpdate,
+                    AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
+                )
+                .await
+        }
     }
 
     impl TryFrom<UserUpdateResponse> for UserCreateResult {
@@ -317,8 +331,37 @@ pub mod user_update {
                 id: resp.id,
                 user_public_key: resp.user_master_public_key.try_into()?,
                 needs_rotation: resp.needs_rotation,
+                status: resp.status,
             })
         }
+    }
+}
+
+pub mod user_update_status {
+    use super::*;
+    use crate::internal::user_api::{UserStatus, requests::user_update::UserUpdateResponse};
+
+    #[derive(Debug, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct UserUpdateStatusReq {
+        status: UserStatus,
+    }
+
+    pub async fn user_update_status(
+        jwt: &Jwt,
+        user_id: &str,
+        status: UserStatus,
+        request: &IronCoreRequest,
+    ) -> Result<UserUpdateResponse, IronOxideErr> {
+        let req_body = UserUpdateStatusReq { status };
+        request
+            .put_jwt_auth(
+                &format!("users/{}", rest::url_encode(user_id)),
+                &req_body,
+                RequestErrorCode::UserUpdateStatus,
+                &Authorization::JwtAuth(jwt),
+            )
+            .await
     }
 }
 

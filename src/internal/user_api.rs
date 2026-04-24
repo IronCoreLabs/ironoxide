@@ -116,9 +116,49 @@ pub struct UserCreateResult {
     user_public_key: PublicKey,
     needs_rotation: bool,
     id: String,
+    status: UserStatus,
 }
 
 pub type UserUpdateResult = UserCreateResult;
+
+/// Status of a user.
+///
+/// Disabled users will not be able to call any SDK functions.
+/// Users are able to disable themselves using `user_disable_self`.
+/// `user_update_status` can be used with a JWT to re-enable a disabled user.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum UserStatus {
+    Disabled,
+    Enabled,
+}
+
+impl serde::Serialize for UserStatus {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        let v: u8 = match self {
+            UserStatus::Disabled => 0,
+            UserStatus::Enabled => 1,
+        };
+        serializer.serialize_u8(v)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for UserStatus {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        let v = u8::deserialize(deserializer)?;
+        match v {
+            0 => Ok(UserStatus::Disabled),
+            1 => Ok(UserStatus::Enabled),
+            other => Err(serde::de::Error::custom(format!(
+                "invalid UserStatus value: {other}"
+            ))),
+        }
+    }
+}
 
 impl UserCreateResult {
     /// Public key for the user
@@ -135,6 +175,10 @@ impl UserCreateResult {
     /// The user's id.
     pub fn id(&self) -> &str {
         self.id.as_str()
+    }
+    /// The user's current status.
+    pub fn status(&self) -> UserStatus {
+        self.status
     }
 }
 
@@ -423,6 +467,29 @@ pub async fn user_verify(
         .await?
         .map(|resp| resp.try_into())
         .transpose()
+}
+
+/// Update the status of the user identified by the given JWT.
+pub async fn user_update_status(
+    jwt: &Jwt,
+    status: UserStatus,
+    request: IronCoreRequest,
+) -> Result<UserUpdateResult, IronOxideErr> {
+    let user_id = jwt
+        .claims()
+        .uid
+        .as_deref()
+        .unwrap_or(jwt.claims().sub.as_str());
+    requests::user_update_status::user_update_status(jwt, user_id, status, &request)
+        .await?
+        .try_into()
+}
+
+pub async fn user_disable_self(auth: &RequestAuth) -> Result<UserCreateResult, IronOxideErr> {
+    let curr_user_id = requests::user_get::get_curr_user(auth).await?.id;
+    requests::user_update::user_update(auth, &curr_user_id, None, Some(UserStatus::Disabled))
+        .await?
+        .try_into()
 }
 
 /// Create a user
@@ -821,9 +888,14 @@ pub async fn user_change_password<R: rand::CryptoRng>(
 
         aes::encrypt_user_master_key(rng, &new_password.0, priv_key.as_bytes())?
     };
-    requests::user_update::user_update(auth, &curr_user_id, Some(new_encrypted_priv_key.into()))
-        .await?
-        .try_into()
+    requests::user_update::user_update(
+        auth,
+        &curr_user_id,
+        Some(new_encrypted_priv_key.into()),
+        None,
+    )
+    .await?
+    .try_into()
 }
 
 #[cfg(test)]

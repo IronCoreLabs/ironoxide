@@ -405,6 +405,15 @@ impl BlockingIronOxide {
         let rt = create_runtime();
         rt.block_on(IronOxide::user_verify(jwt, timeout))
     }
+    /// See [ironoxide::user::UserOps::user_update_status](trait.UserOps.html#tymethod.user_update_status)
+    pub fn user_update_status(
+        jwt: &Jwt,
+        status: UserStatus,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<UserCreateResult> {
+        let rt = create_runtime();
+        rt.block_on(IronOxide::user_update_status(jwt, status, timeout))
+    }
     /// See [ironoxide::user::UserOps::user_get_public_key](trait.UserOps.html#tymethod.user_get_public_key)
     pub fn user_get_public_key(&self, users: &[UserId]) -> Result<HashMap<UserId, PublicKey>> {
         self.runtime
@@ -425,6 +434,10 @@ impl BlockingIronOxide {
             self.ironoxide
                 .user_change_password(current_password, new_password),
         )
+    }
+    /// See [ironoxide::user::UserOps::user_disable_self](trait.UserOps.html#tymethod.user_disable_self)
+    pub fn user_disable_self(&self) -> Result<UserUpdateResult> {
+        self.runtime.block_on(self.ironoxide.user_disable_self())
     }
 }
 

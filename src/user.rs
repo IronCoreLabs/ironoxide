@@ -4,7 +4,7 @@
 
 pub use crate::internal::user_api::{
     DeviceAddResult, DeviceId, DeviceName, EncryptedPrivateKey, Jwt, JwtClaims, KeyPair,
-    UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserResult,
+    UserCreateResult, UserDevice, UserDeviceListResult, UserId, UserResult, UserStatus,
     UserUpdatePrivateKeyResult, UserUpdateResult,
 };
 use crate::{
@@ -162,6 +162,32 @@ pub trait UserOps {
         timeout: Option<std::time::Duration>,
     ) -> impl Future<Output = Result<Option<UserResult>>> + Send;
 
+    /// Updates the status of the user identified by the provided JWT.
+    ///
+    /// This performs the same user-update operation as on the server side, but authenticates with a
+    /// JWT and can only change the user's status (enabled or disabled).
+    ///
+    /// # Arguments
+    /// - `jwt`     - Valid IronCore or Auth0 JWT for the user whose status should change
+    /// - `status`  - New status for the user
+    /// - `timeout` - Timeout for this operation or `None` for no timeout
+    ///
+    /// # Examples
+    /// ```
+    /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+    /// # use ironoxide::prelude::*;
+    /// # let jwt_str = "";
+    /// let jwt = Jwt::new(jwt_str)?;
+    /// IronOxide::user_update_status(&jwt, UserStatus::Disabled, None).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn user_update_status(
+        jwt: &Jwt,
+        status: UserStatus,
+        timeout: Option<std::time::Duration>,
+    ) -> impl Future<Output = Result<UserUpdateResult>> + Send;
+
     /// Lists all of the devices for the current user.
     ///
     /// # Examples
@@ -283,6 +309,23 @@ pub trait UserOps {
         current_password: &str,
         new_password: &str,
     ) -> impl Future<Output = Result<UserUpdateResult>> + Send;
+
+    /// Disables the currently authenticated user.
+    ///
+    /// A disabled user is immediately unable to call any authenticated SDK function.
+    /// Users cannot re-enable themselves; an admin must re-enable the user by calling
+    /// [`user_update_status`](#tymethod.user_update_status) with a valid JWT for the user.
+    ///
+    /// # Examples
+    /// ```
+    /// # async fn run() -> Result<(), ironoxide::IronOxideErr> {
+    /// # use ironoxide::prelude::*;
+    /// # let sdk: IronOxide = unimplemented!();
+    /// let disable_result = sdk.user_disable_self().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn user_disable_self(&self) -> impl Future<Output = Result<UserUpdateResult>> + Send;
 }
 
 impl UserOps for IronOxide {
@@ -340,6 +383,28 @@ impl UserOps for IronOxide {
             user_api::user_verify(jwt, IronCoreRequest::default()),
             timeout,
             SdkOperation::UserVerify,
+        )
+        .await?
+    }
+
+    async fn user_update_status(
+        jwt: &Jwt,
+        status: UserStatus,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<UserUpdateResult> {
+        add_optional_timeout(
+            user_api::user_update_status(jwt, status, IronCoreRequest::default()),
+            timeout,
+            SdkOperation::UserUpdateStatus,
+        )
+        .await?
+    }
+
+    async fn user_disable_self(&self) -> Result<UserUpdateResult> {
+        add_optional_timeout(
+            user_api::user_disable_self(self.device.auth()),
+            self.config.sdk_operation_timeout,
+            SdkOperation::UserDisableSelf,
         )
         .await?
     }
