@@ -284,7 +284,7 @@ pub mod user_update {
         id: String,
         status: UserStatus,
         segment_id: usize,
-        pub user_private_key: EncryptedPrivateKey,
+        pub user_private_key: Option<EncryptedPrivateKey>,
         pub user_master_public_key: PublicKey,
         needs_rotation: bool,
     }

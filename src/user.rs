@@ -312,7 +312,7 @@ pub trait UserOps {
 
     /// Disables the currently authenticated user.
     ///
-    /// A disabled user is immediately unable to call any authenticated SDK function.
+    /// A disabled user is unable to call any authenticated SDK function.
     /// Users cannot re-enable themselves; an admin must re-enable the user by calling
     /// [`user_update_status`](#tymethod.user_update_status) with a valid JWT for the user.
     ///
