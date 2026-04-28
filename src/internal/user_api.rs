@@ -729,7 +729,7 @@ pub async fn device_list(auth: &RequestAuth) -> Result<UserDeviceListResult, Iro
     let devices = {
         let mut vec: Vec<UserDevice> = resp.result.into_iter().map(UserDevice::from).collect();
         // sort the devices by device_id
-        vec.sort_by(|a, b| a.id.0.cmp(&b.id.0));
+        vec.sort_by_key(|a| a.id.0);
         vec
     };
     Ok(UserDeviceListResult::new(devices))
