@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.4.0
+
+- [[377](https://github.com/IronCoreLabs/ironoxide/pull/377)]
+  - Add `user_disable_self` which a user can call to disable their account. Disabled users can still be members of groups but will be unable to call SDK functions.
+  - Add `user_update_status` which uses a JWT to enable or disable a user.
+
 ## 4.3.1
 
 - [[#375](https://github.com/IronCoreLabs/ironoxide/pull/375)] Updates the core cryptographic library (recrypt) and well as rand and some other dependencies. On 64 bit architectures the encrypt and decrypt operations should be much faster due to the optimizations in recrypt.
