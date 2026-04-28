@@ -41,7 +41,7 @@ impl TryFrom<EncryptedPrivateKey> for EncryptedMasterKey {
 }
 
 pub mod user_verify {
-    use crate::internal::user_api::UserResult;
+    use crate::{internal::user_api::UserResult, user::UserStatus};
     use std::convert::TryInto;
 
     use super::*;
@@ -50,7 +50,7 @@ pub mod user_verify {
     #[serde(rename_all = "camelCase")]
     pub struct UserVerifyResponse {
         pub(crate) id: String,
-        status: usize,
+        status: UserStatus,
         pub(crate) segment_id: usize,
         pub(crate) user_private_key: EncryptedPrivateKey,
         pub(crate) user_master_public_key: PublicKey,
@@ -106,7 +106,7 @@ pub mod user_verify {
 
             let resp = UserVerifyResponse {
                 id: t_account_id.id().to_string(),
-                status: 100,
+                status: UserStatus::Enabled,
                 segment_id: t_segment_id,
                 user_private_key: priv_key,
                 user_master_public_key: pub_key,
@@ -130,14 +130,14 @@ pub mod user_verify {
 
 pub mod user_get {
     use super::*;
-    use crate::internal::group_api::GroupId;
+    use crate::{internal::group_api::GroupId, user::UserStatus};
 
     #[derive(Debug, PartialEq, Eq, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct CurrentUserResponse {
         pub(in crate::internal) current_key_id: u64,
         pub(in crate::internal) id: UserId,
-        pub(in crate::internal) status: usize,
+        pub(in crate::internal) status: UserStatus,
         pub(in crate::internal) segment_id: usize,
         pub(in crate::internal) user_master_public_key: PublicKey,
         pub(in crate::internal) user_private_key: EncryptedPrivateKey,

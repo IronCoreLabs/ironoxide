@@ -475,11 +475,7 @@ pub async fn user_update_status(
     status: UserStatus,
     request: IronCoreRequest,
 ) -> Result<UserUpdateResult, IronOxideErr> {
-    let user_id = jwt
-        .claims()
-        .uid
-        .as_deref()
-        .unwrap_or(jwt.claims().sub.as_str());
+    let user_id = jwt.claims().sub.as_str();
     requests::user_update_status::user_update_status(jwt, user_id, status, &request)
         .await?
         .try_into()
