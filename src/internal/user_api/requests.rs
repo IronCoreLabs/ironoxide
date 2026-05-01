@@ -296,31 +296,27 @@ pub mod user_update {
         status: Option<UserStatus>,
     }
 
+    /// Update a user's encrypted private key or status.
+    /// This endpoint (authed user) cannot be used to enable a user (enforced by the server)
+    /// See user_update_status for enabling (authenticated by a JWT instead)
     pub async fn user_update(
         auth: &RequestAuth,
         user_id: &UserId,
         encrypted_user_private_key: Option<EncryptedPrivateKey>,
         status: Option<UserStatus>,
     ) -> Result<UserUpdateResponse, IronOxideErr> {
-        if status == Some(UserStatus::Enabled) {
-            Err(IronOxideErr::ValidationError(
-                "status".to_string(),
-                "Users cannot enable themselves".to_string(),
-            ))
-        } else {
-            let req_body = UserUpdateReq {
-                user_private_key: encrypted_user_private_key,
-                status,
-            };
-            auth.request
-                .put(
-                    &format!("users/{}", rest::url_encode(user_id.id())),
-                    &req_body,
-                    RequestErrorCode::UserUpdate,
-                    AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
-                )
-                .await
-        }
+        let req_body = UserUpdateReq {
+            user_private_key: encrypted_user_private_key,
+            status,
+        };
+        auth.request
+            .put(
+                &format!("users/{}", rest::url_encode(user_id.id())),
+                &req_body,
+                RequestErrorCode::UserUpdate,
+                AuthV2Builder::new(auth, OffsetDateTime::now_utc()),
+            )
+            .await
     }
 
     impl TryFrom<UserUpdateResponse> for UserCreateResult {

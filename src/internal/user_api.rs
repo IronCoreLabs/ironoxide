@@ -126,36 +126,41 @@ pub type UserUpdateResult = UserCreateResult;
 /// Disabled users will not be able to call any SDK functions.
 /// Users are able to disable themselves using `user_disable_self`.
 /// `user_update_status` can be used with a JWT to re-enable a disabled user.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+///
+/// `Unknown` carries any wire value the SDK does not recognize, so future
+/// server-side status codes deserialize without breaking calls.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[serde(from = "u8", into = "u8")]
+#[non_exhaustive]
 pub enum UserStatus {
     Disabled,
     Enabled,
+    Unknown(u8),
 }
 
-impl serde::Serialize for UserStatus {
-    fn serialize<S: serde::Serializer>(
-        &self,
-        serializer: S,
-    ) -> std::result::Result<S::Ok, S::Error> {
-        let v: u8 = match self {
-            UserStatus::Disabled => 0,
-            UserStatus::Enabled => 1,
-        };
-        serializer.serialize_u8(v)
+impl UserStatus {
+    /// Wire-format integer value of this status.
+    pub fn as_u8(self) -> u8 {
+        self.into()
     }
 }
 
-impl<'de> serde::Deserialize<'de> for UserStatus {
-    fn deserialize<D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> std::result::Result<Self, D::Error> {
-        let v = u8::deserialize(deserializer)?;
+impl From<u8> for UserStatus {
+    fn from(v: u8) -> Self {
         match v {
-            0 => Ok(UserStatus::Disabled),
-            1 => Ok(UserStatus::Enabled),
-            other => Err(serde::de::Error::custom(format!(
-                "invalid UserStatus value: {other}"
-            ))),
+            0 => UserStatus::Disabled,
+            1 => UserStatus::Enabled,
+            other => UserStatus::Unknown(other),
+        }
+    }
+}
+
+impl From<UserStatus> for u8 {
+    fn from(s: UserStatus) -> u8 {
+        match s {
+            UserStatus::Disabled => 0,
+            UserStatus::Enabled => 1,
+            UserStatus::Unknown(v) => v,
         }
     }
 }
