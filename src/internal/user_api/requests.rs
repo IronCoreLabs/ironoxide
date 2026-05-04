@@ -41,7 +41,7 @@ impl TryFrom<EncryptedPrivateKey> for EncryptedMasterKey {
 }
 
 pub mod user_verify {
-    use crate::internal::user_api::UserResult;
+    use crate::{internal::user_api::UserResult, user::UserStatus};
     use std::convert::TryInto;
 
     use super::*;
@@ -50,7 +50,7 @@ pub mod user_verify {
     #[serde(rename_all = "camelCase")]
     pub struct UserVerifyResponse {
         pub(crate) id: String,
-        status: usize,
+        status: UserStatus,
         pub(crate) segment_id: usize,
         pub(crate) user_private_key: EncryptedPrivateKey,
         pub(crate) user_master_public_key: PublicKey,
@@ -106,7 +106,7 @@ pub mod user_verify {
 
             let resp = UserVerifyResponse {
                 id: t_account_id.id().to_string(),
-                status: 100,
+                status: UserStatus::Enabled,
                 segment_id: t_segment_id,
                 user_private_key: priv_key,
                 user_master_public_key: pub_key,
@@ -130,14 +130,14 @@ pub mod user_verify {
 
 pub mod user_get {
     use super::*;
-    use crate::internal::group_api::GroupId;
+    use crate::{internal::group_api::GroupId, user::UserStatus};
 
     #[derive(Debug, PartialEq, Eq, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct CurrentUserResponse {
         pub(in crate::internal) current_key_id: u64,
         pub(in crate::internal) id: UserId,
-        pub(in crate::internal) status: usize,
+        pub(in crate::internal) status: UserStatus,
         pub(in crate::internal) segment_id: usize,
         pub(in crate::internal) user_master_public_key: PublicKey,
         pub(in crate::internal) user_private_key: EncryptedPrivateKey,
@@ -212,7 +212,10 @@ pub mod user_update_private_key {
 }
 
 pub mod user_create {
-    use crate::internal::{TryInto, user_api::UserCreateResult};
+    use crate::{
+        internal::{TryInto, user_api::UserCreateResult},
+        user::UserStatus,
+    };
 
     use super::*;
 
@@ -220,7 +223,7 @@ pub mod user_create {
     #[serde(rename_all = "camelCase")]
     pub struct UserCreateResponse {
         id: String,
-        status: usize,
+        status: UserStatus,
         segment_id: usize,
         pub user_private_key: EncryptedPrivateKey,
         pub user_master_public_key: PublicKey,
@@ -264,13 +267,14 @@ pub mod user_create {
                 id: resp.id,
                 user_public_key: resp.user_master_public_key.try_into()?,
                 needs_rotation: resp.needs_rotation,
+                status: resp.status,
             })
         }
     }
 }
 
 pub mod user_update {
-    use crate::internal::{TryInto, user_api::UserCreateResult};
+    use crate::user::{UserCreateResult, UserStatus};
 
     use super::*;
 
@@ -278,9 +282,9 @@ pub mod user_update {
     #[serde(rename_all = "camelCase")]
     pub struct UserUpdateResponse {
         id: String,
-        status: usize,
+        status: UserStatus,
         segment_id: usize,
-        pub user_private_key: EncryptedPrivateKey,
+        pub user_private_key: Option<EncryptedPrivateKey>,
         pub user_master_public_key: PublicKey,
         needs_rotation: bool,
     }
@@ -289,15 +293,21 @@ pub mod user_update {
     #[serde(rename_all = "camelCase")]
     struct UserUpdateReq {
         user_private_key: Option<EncryptedPrivateKey>,
+        status: Option<UserStatus>,
     }
 
+    /// Update a user's encrypted private key or status.
+    /// This endpoint (authed user) cannot be used to enable a user (enforced by the server)
+    /// See user_update_status for enabling (authenticated by a JWT instead)
     pub async fn user_update(
         auth: &RequestAuth,
         user_id: &UserId,
         encrypted_user_private_key: Option<EncryptedPrivateKey>,
+        status: Option<UserStatus>,
     ) -> Result<UserUpdateResponse, IronOxideErr> {
         let req_body = UserUpdateReq {
             user_private_key: encrypted_user_private_key,
+            status,
         };
         auth.request
             .put(
@@ -317,8 +327,37 @@ pub mod user_update {
                 id: resp.id,
                 user_public_key: resp.user_master_public_key.try_into()?,
                 needs_rotation: resp.needs_rotation,
+                status: resp.status,
             })
         }
+    }
+}
+
+pub mod user_update_status {
+    use super::*;
+    use crate::internal::user_api::{UserStatus, requests::user_update::UserUpdateResponse};
+
+    #[derive(Debug, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct UserUpdateStatusReq {
+        status: UserStatus,
+    }
+
+    pub async fn user_update_status(
+        jwt: &Jwt,
+        user_id: &str,
+        status: UserStatus,
+        request: &IronCoreRequest,
+    ) -> Result<UserUpdateResponse, IronOxideErr> {
+        let req_body = UserUpdateStatusReq { status };
+        request
+            .put_jwt_auth(
+                &format!("users/{}", rest::url_encode(user_id)),
+                &req_body,
+                RequestErrorCode::UserUpdateStatus,
+                &Authorization::JwtAuth(jwt),
+            )
+            .await
     }
 }
 

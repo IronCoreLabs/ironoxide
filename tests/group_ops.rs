@@ -252,8 +252,10 @@ async fn group_get_metadata() -> Result<(), IronOxideErr> {
 
     admin_sdk.group_add_members(group_id, &[member_id]).await?;
 
-    let admin_group_get = admin_sdk.group_get_metadata(group_id).await?;
     let member_group_get = member_sdk.group_get_metadata(group_id).await?;
+    // Disabling a user does not exclude them from the group lists
+    member_sdk.user_disable_self().await?;
+    let admin_group_get = admin_sdk.group_get_metadata(group_id).await?;
     let nonmember_group_get = nonmember_sdk.group_get_metadata(group_id).await?;
 
     assert_eq!(admin_group_get.needs_rotation(), Some(false));

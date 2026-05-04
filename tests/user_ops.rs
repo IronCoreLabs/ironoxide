@@ -246,6 +246,105 @@ async fn user_create_with_needs_rotation() -> Result<()> {
     Ok(())
 }
 #[tokio::test]
+async fn user_update_status_disable_then_enable() -> Result<()> {
+    let account_id: UserId = create_id_all_classes("").try_into()?;
+    IronOxide::user_create(
+        &gen_jwt(Some(account_id.id())).0,
+        USER_PASSWORD,
+        &Default::default(),
+        None,
+    )
+    .await?;
+    // Disable the user using a JWT
+    IronOxide::user_update_status(
+        &gen_jwt(Some(account_id.id())).0,
+        UserStatus::Disabled,
+        None,
+    )
+    .await?;
+    // Re-enable the user using a JWT
+    IronOxide::user_update_status(&gen_jwt(Some(account_id.id())).0, UserStatus::Enabled, None)
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn user_inoperable_after_disable() -> Result<()> {
+    let account_id: UserId = create_id_all_classes("").try_into()?;
+    IronOxide::user_create(
+        &gen_jwt(Some(account_id.id())).0,
+        USER_PASSWORD,
+        &Default::default(),
+        None,
+    )
+    .await?;
+    let device = IronOxide::generate_new_device(
+        &common::gen_jwt(Some(account_id.id())).0,
+        USER_PASSWORD,
+        &Default::default(),
+        None,
+    )
+    .await?
+    .into();
+    let sdk = ironoxide::initialize(&device, &Default::default()).await?;
+    // Disable the user using a JWT
+    IronOxide::user_update_status(
+        &gen_jwt(Some(account_id.id())).0,
+        UserStatus::Disabled,
+        None,
+    )
+    .await?;
+
+    // JWT operation still work after disabling
+    IronOxide::user_verify(&common::gen_jwt(Some(account_id.id())).0, None).await?;
+
+    // SDK operations don't work after disabling
+    assert!(sdk.document_list().await.is_err());
+    assert!(
+        ironoxide::initialize(&device, &Default::default())
+            .await
+            .is_err()
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn user_disable_self_works() -> Result<()> {
+    let account_id: UserId = create_id_all_classes("").try_into()?;
+    IronOxide::user_create(
+        &gen_jwt(Some(account_id.id())).0,
+        USER_PASSWORD,
+        &Default::default(),
+        None,
+    )
+    .await?;
+
+    let device: DeviceContext = IronOxide::generate_new_device(
+        &gen_jwt(Some(account_id.id())).0,
+        USER_PASSWORD,
+        &Default::default(),
+        None,
+    )
+    .await?
+    .into();
+
+    let sdk = ironoxide::initialize(&device, &Default::default()).await?;
+
+    let disable_result = sdk.user_disable_self().await?;
+    assert_eq!(disable_result.id(), account_id.id());
+    assert_eq!(disable_result.status(), UserStatus::Disabled);
+
+    // SDK operations don't work after disabling
+    assert!(sdk.document_list().await.is_err());
+    assert!(
+        ironoxide::initialize(&device, &Default::default())
+            .await
+            .is_err()
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn generate_device_with_timeout() -> Result<()> {
     let result = IronOxide::generate_new_device(
         &common::gen_jwt(None).0,

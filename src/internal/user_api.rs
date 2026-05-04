@@ -116,9 +116,55 @@ pub struct UserCreateResult {
     user_public_key: PublicKey,
     needs_rotation: bool,
     id: String,
+    status: UserStatus,
 }
 
 pub type UserUpdateResult = UserCreateResult;
+
+/// Status of a user.
+///
+/// Disabled users will not be able to call any SDK functions.
+/// Users are able to disable themselves using `user_disable_self`.
+/// `user_update_status` can be used with a JWT to re-enable a disabled user.
+///
+/// `Unknown` carries any wire value the SDK does not recognize, so future
+/// server-side status codes deserialize without breaking calls.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[serde(from = "u8", into = "u8")]
+#[non_exhaustive]
+pub enum UserStatus {
+    Disabled,
+    Enabled,
+    #[non_exhaustive] // prevents external construction of Unknown
+    Unknown(u8),
+}
+
+impl UserStatus {
+    /// Wire-format integer value of this status.
+    pub fn as_u8(self) -> u8 {
+        self.into()
+    }
+}
+
+impl From<u8> for UserStatus {
+    fn from(v: u8) -> Self {
+        match v {
+            0 => UserStatus::Disabled,
+            1 => UserStatus::Enabled,
+            other => UserStatus::Unknown(other),
+        }
+    }
+}
+
+impl From<UserStatus> for u8 {
+    fn from(s: UserStatus) -> u8 {
+        match s {
+            UserStatus::Disabled => 0,
+            UserStatus::Enabled => 1,
+            UserStatus::Unknown(v) => v,
+        }
+    }
+}
 
 impl UserCreateResult {
     /// Public key for the user
@@ -135,6 +181,10 @@ impl UserCreateResult {
     /// The user's id.
     pub fn id(&self) -> &str {
         self.id.as_str()
+    }
+    /// The user's current status.
+    pub fn status(&self) -> UserStatus {
+        self.status
     }
 }
 
@@ -425,6 +475,25 @@ pub async fn user_verify(
         .transpose()
 }
 
+/// Update the status of the user identified by the given JWT.
+pub async fn user_update_status(
+    jwt: &Jwt,
+    status: UserStatus,
+    request: IronCoreRequest,
+) -> Result<UserUpdateResult, IronOxideErr> {
+    let user_id = jwt.claims().sub.as_str();
+    requests::user_update_status::user_update_status(jwt, user_id, status, &request)
+        .await?
+        .try_into()
+}
+
+pub async fn user_disable_self(auth: &RequestAuth) -> Result<UserCreateResult, IronOxideErr> {
+    let curr_user_id = requests::user_get::get_curr_user(auth).await?.id;
+    requests::user_update::user_update(auth, &curr_user_id, None, Some(UserStatus::Disabled))
+        .await?
+        .try_into()
+}
+
 /// Create a user
 pub async fn user_create<CR: rand::CryptoRng>(
     recrypt: &Recrypt<Sha256, Ed25519, RandomBytes<CR>>,
@@ -666,7 +735,7 @@ pub async fn device_list(auth: &RequestAuth) -> Result<UserDeviceListResult, Iro
     let devices = {
         let mut vec: Vec<UserDevice> = resp.result.into_iter().map(UserDevice::from).collect();
         // sort the devices by device_id
-        vec.sort_by(|a, b| a.id.0.cmp(&b.id.0));
+        vec.sort_by_key(|a| a.id.0);
         vec
     };
     Ok(UserDeviceListResult::new(devices))
@@ -821,9 +890,14 @@ pub async fn user_change_password<R: rand::CryptoRng>(
 
         aes::encrypt_user_master_key(rng, &new_password.0, priv_key.as_bytes())?
     };
-    requests::user_update::user_update(auth, &curr_user_id, Some(new_encrypted_priv_key.into()))
-        .await?
-        .try_into()
+    requests::user_update::user_update(
+        auth,
+        &curr_user_id,
+        Some(new_encrypted_priv_key.into()),
+        None,
+    )
+    .await?
+    .try_into()
 }
 
 #[cfg(test)]

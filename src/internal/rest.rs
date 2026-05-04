@@ -340,18 +340,17 @@ impl IronCoreRequest {
         self.base_url
     }
 
-    ///POST body to the resource at relative_url using auth for authorization.
-    ///If the request fails a RequestError will be raised.
-    pub async fn post_jwt_auth<A: Serialize, B: DeserializeOwned>(
+    pub async fn jwt_auth<A: Serialize, B: DeserializeOwned>(
         &self,
         relative_url: &str,
         body: &A,
         error_code: RequestErrorCode,
         auth: &Authorization<'_>,
+        method: Method,
     ) -> Result<B, IronOxideErr> {
         self.request::<A, _, String, _>(
             relative_url,
-            Method::POST,
+            method,
             Some(body),
             None,
             error_code,
@@ -359,6 +358,32 @@ impl IronCoreRequest {
             move |server_resp| IronCoreRequest::deserialize_body(server_resp, error_code),
         )
         .await
+    }
+
+    /// POST body to the resource at relative_url using auth for authorization.
+    /// If the request fails a RequestError will be raised.
+    pub async fn post_jwt_auth<A: Serialize, B: DeserializeOwned>(
+        &self,
+        relative_url: &str,
+        body: &A,
+        error_code: RequestErrorCode,
+        auth: &Authorization<'_>,
+    ) -> Result<B, IronOxideErr> {
+        self.jwt_auth(relative_url, body, error_code, auth, Method::POST)
+            .await
+    }
+
+    /// PUT body to the resource at relative_url using auth for authorization.
+    /// If the request fails a RequestError will be raised.
+    pub async fn put_jwt_auth<A: Serialize, B: DeserializeOwned>(
+        &self,
+        relative_url: &str,
+        body: &A,
+        error_code: RequestErrorCode,
+        auth: &Authorization<'_>,
+    ) -> Result<B, IronOxideErr> {
+        self.jwt_auth(relative_url, body, error_code, auth, Method::PUT)
+            .await
     }
 
     ///POST body to the resource at relative_url using IronCore authorization.
