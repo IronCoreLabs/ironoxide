@@ -135,6 +135,7 @@ pub type UserUpdateResult = UserCreateResult;
 pub enum UserStatus {
     Disabled,
     Enabled,
+    #[non_exhaustive] // prevents external construction of Unknown
     Unknown(u8),
 }
 
