@@ -1,6 +1,6 @@
 [package]
 name = "ironoxide"
-version = "4.4.0-pre"
+version = "4.4.0-rc.0"
 authors = ["IronCore Labs <info@ironcorelabs.com>"]
 readme = "README.md"
 license = "AGPL-3.0-only"
