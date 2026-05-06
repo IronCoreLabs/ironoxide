@@ -292,7 +292,9 @@ pub mod user_update {
     #[derive(Debug, Serialize)]
     #[serde(rename_all = "camelCase")]
     struct UserUpdateReq {
+        #[serde(skip_serializing_if = "Option::is_none")]
         user_private_key: Option<EncryptedPrivateKey>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         status: Option<UserStatus>,
     }
 

@@ -345,6 +345,31 @@ async fn user_disable_self_works() -> Result<()> {
 }
 
 #[tokio::test]
+async fn user_disable_self_roundtrips() -> Result<()> {
+    let account_id: UserId = create_id_all_classes("").try_into()?;
+    let jwt = gen_jwt(Some(account_id.id())).0;
+    IronOxide::user_create(&jwt, USER_PASSWORD, &Default::default(), None).await?;
+
+    let device: DeviceContext = IronOxide::generate_new_device(
+        &gen_jwt(Some(account_id.id())).0,
+        USER_PASSWORD,
+        &Default::default(),
+        None,
+    )
+    .await?
+    .into();
+
+    let sdk = ironoxide::initialize(&device, &Default::default()).await?;
+
+    sdk.user_disable_self().await?;
+    let enable_result = IronOxide::user_update_status(&jwt, UserStatus::Enabled, None).await?;
+    assert_eq!(enable_result.status(), UserStatus::Enabled);
+    let disable_result = sdk.user_disable_self().await?;
+    assert_eq!(disable_result.status(), UserStatus::Disabled);
+    Ok(())
+}
+
+#[tokio::test]
 async fn generate_device_with_timeout() -> Result<()> {
     let result = IronOxide::generate_new_device(
         &common::gen_jwt(None).0,
