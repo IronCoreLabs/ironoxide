@@ -548,6 +548,92 @@ async fn doc_create_shared_user_can_revoke() -> Result<(), IronOxideErr> {
 }
 
 #[tokio::test]
+async fn doc_revoke_owner_prevents_owner_decrypt() -> Result<(), IronOxideErr> {
+    let (user1, user1_sdk) = init_sdk_get_user().await;
+    let (user2, _user2_sdk) = init_sdk_get_user().await;
+
+    let doc = [0u8; 64];
+
+    // user1 creates the doc and shares with user2 so the doc remains accessible to someone
+    let doc_result = user1_sdk
+        .document_encrypt(
+            doc.into(),
+            &DocumentEncryptOpts::with_explicit_grants(
+                Some(create_id_all_classes("").try_into()?),
+                Some("first name".try_into()?),
+                true,
+                vec![UserOrGroup::User { id: user2.clone() }],
+            ),
+        )
+        .await?;
+    assert_eq!(doc_result.grants().len(), 2);
+
+    // revoke the owner from their own document
+    let revoke_result = user1_sdk
+        .document_revoke_access(doc_result.id(), &[UserOrGroup::User { id: user1.clone() }])
+        .await?;
+    assert_eq!(revoke_result.failed().len(), 0);
+    assert_eq!(revoke_result.succeeded().len(), 1);
+
+    // the owner can no longer decrypt the document
+    let decrypt_result = user1_sdk
+        .document_decrypt(doc_result.encrypted_data())
+        .await;
+    assert!(decrypt_result.is_err());
+    Ok(())
+}
+
+#[tokio::test]
+async fn doc_non_owner_can_revoke_all_access() -> Result<(), IronOxideErr> {
+    let (user1, user1_sdk) = init_sdk_get_user().await;
+    let (user2, user2_sdk) = init_sdk_get_user().await;
+
+    let doc = [0u8; 64];
+
+    // user1 creates the doc and shares it with user2
+    let doc_result = user1_sdk
+        .document_encrypt(
+            doc.into(),
+            &DocumentEncryptOpts::with_explicit_grants(
+                Some(create_id_all_classes("").try_into()?),
+                Some("first name".try_into()?),
+                true,
+                vec![UserOrGroup::User { id: user2.clone() }],
+            ),
+        )
+        .await?;
+    assert_eq!(doc_result.grants().len(), 2);
+
+    // user2 (not the owner) revokes everyone, including the owner and themselves
+    let revoke_result = user2_sdk
+        .document_revoke_access(
+            doc_result.id(),
+            &[
+                UserOrGroup::User { id: user1.clone() },
+                UserOrGroup::User { id: user2.clone() },
+            ],
+        )
+        .await?;
+    assert_eq!(revoke_result.failed().len(), 0);
+    assert_eq!(revoke_result.succeeded().len(), 2);
+
+    // neither the owner nor the formerly-shared user can decrypt
+    assert!(
+        user1_sdk
+            .document_decrypt(doc_result.encrypted_data())
+            .await
+            .is_err()
+    );
+    assert!(
+        user2_sdk
+            .document_decrypt(doc_result.encrypted_data())
+            .await
+            .is_err()
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn doc_create_must_grant() -> Result<(), IronOxideErr> {
     let sdk = initialize_sdk().await?;
 
