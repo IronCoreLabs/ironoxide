@@ -23,7 +23,11 @@ blocking = []
 # enable to use statically compiled openssl on supported OpenSSL platforms; use with 'default-features = false'
 tls-vendored-openssl = ["reqwest/native-tls-vendored"]
 # enable to use rustls-tls; use with 'default-features = false'
-tls-rustls = ["reqwest/rustls"]
+# Trust anchors come from `webpki-roots`, not the platform trust store. reqwest 0.13's `rustls`
+# feature routes verification through `rustls-platform-verifier`, whose Android backend rejects a
+# certificate whose AIA omits an OCSP responder as revoked (rustls-platform-verifier#221). Public
+# CAs are dropping OCSP, so that backend fails against a valid chain.
+tls-rustls = ["reqwest/rustls", "dep:rustls", "dep:webpki-roots"]
 # dynamically use the target platform's native TLS
 tls-default = ["reqwest/native-tls"]
 
@@ -58,6 +62,11 @@ reqwest = { version = "0.13", features = [
     "query",
     "http2",
 ], default-features = false }
+rustls = { version = "0.23", optional = true, default-features = false, features = [
+    "aws-lc-rs",
+    "std",
+    "tls12",
+] }
 serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1"
 time = { version = "0.3.6", features = [
@@ -69,6 +78,7 @@ time = { version = "0.3.6", features = [
 tokio = { version = "1", features = ["time"] }
 url = "2.2"
 vec1 = "1.6"
+webpki-roots = { version = "1", optional = true }
 
 [target.'cfg(target_pointer_width = "32")'.dependencies]
 recrypt = { version = "0.16", default-features = false, features = [

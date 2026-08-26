@@ -310,6 +310,40 @@ pub struct IronCoreRequest {
     pub(crate) client: reqwest::Client,
 }
 
+/// Trust anchors for the `tls-rustls` feature, taken from `webpki-roots` rather than the platform
+/// trust store.
+///
+/// reqwest 0.13's `rustls` feature verifies through `rustls-platform-verifier`, whose Android
+/// backend maps "certificate specifies no OCSP responder" onto `CertificateError::Revoked`
+/// (rustls-platform-verifier#221). Google Trust Services, Let's Encrypt and SSL.com have all
+/// stopped publishing OCSP responders, so that backend rejects chains that are valid and
+/// unrevoked. Platform trust remains available through `tls-default`.
+#[cfg(feature = "tls-rustls")]
+fn webpki_roots_tls_config() -> rustls::ClientConfig {
+    let mut roots = rustls::RootCertStore::empty();
+    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    let mut config = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
+        rustls::crypto::aws_lc_rs::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .expect("aws-lc-rs supports rustls' default protocol versions")
+    .with_root_certificates(roots)
+    .with_no_client_auth();
+    // `use_preconfigured_tls` replaces reqwest's TLS setup wholesale, including the ALPN protocols
+    // it would otherwise advertise. Without this, every connection negotiates HTTP/1.1.
+    config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+    config
+}
+
+#[cfg(feature = "tls-rustls")]
+fn default_client() -> reqwest::Client {
+    Client::builder()
+        .use_preconfigured_tls(webpki_roots_tls_config())
+        .build()
+        .expect("client configuration is statically valid")
+}
+
+#[cfg(not(feature = "tls-rustls"))]
 fn default_client() -> reqwest::Client {
     Client::new()
 }
@@ -694,8 +728,8 @@ impl IronCoreRequest {
         let status = res.status();
         //Now make the error type into the IronOxideErr and run the resp_handler which was passed to us.
         let server_resp = res.bytes().await.map_err(|err| {
-            //Map the generic error from reqwest to our error type.
-            IronCoreRequest::create_request_err(err.to_string(), error_code, err.status())
+            let status = err.status();
+            IronCoreRequest::create_request_err(describe_reqwest_error(&err), error_code, status)
         })?;
         //If the status code is a 5xx, return a fixed error code message
         if status.is_server_error() || status.is_client_error() {
@@ -723,9 +757,8 @@ impl IronCoreRequest {
         let status = res.status();
         //Now make the error type into the IronOxideErr and run the resp_handler which was passed to us.
         let server_resp = res.bytes().await.map_err(|err| {
-            //Map the generic error from reqwest to our error type.
-
-            IronCoreRequest::create_request_err(err.to_string(), error_code, err.status())
+            let status = err.status();
+            IronCoreRequest::create_request_err(describe_reqwest_error(&err), error_code, status)
         })?;
         //If the status code is a 5xx, return a fixed error code message
         if status.is_server_error() || status.is_client_error() {
@@ -859,10 +892,24 @@ impl From<(serde_json::Error, RequestErrorCode)> for IronOxideErr {
     }
 }
 
+/// reqwest's `Display` reports only the error kind and the URL, so a DNS failure, a refused
+/// connection, a rejected certificate and an elapsed timeout all render identically. The cause
+/// that distinguishes them exists only in the source chain.
+pub(crate) fn describe_reqwest_error(e: &reqwest::Error) -> String {
+    let mut message = e.to_string();
+    let mut source = std::error::Error::source(e);
+    while let Some(cause) = source {
+        message.push_str(": ");
+        message.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    message
+}
+
 impl From<(reqwest::Error, RequestErrorCode)> for IronOxideErr {
     fn from((e, code): (reqwest::Error, RequestErrorCode)) -> Self {
         IronOxideErr::RequestError {
-            message: e.to_string(),
+            message: describe_reqwest_error(&e),
             code,
             http_status: None,
         }
@@ -1080,6 +1127,21 @@ mod tests {
             base_url: "https://example.com",
             client: Client::new(),
         }
+    }
+
+    /// Trust must come from `webpki-roots`, and ALPN must advertise h2. `use_preconfigured_tls`
+    /// replaces reqwest's TLS setup entirely, so an empty `alpn_protocols` here silently
+    /// downgrades every connection to HTTP/1.1.
+    #[cfg(feature = "tls-rustls")]
+    #[test]
+    fn webpki_roots_tls_config_advertises_http2_and_loads_roots() {
+        let config = webpki_roots_tls_config();
+        assert_eq!(
+            config.alpn_protocols,
+            vec![b"h2".to_vec(), b"http/1.1".to_vec()]
+        );
+        // An empty bundle would leave every chain unbuildable.
+        assert!(!webpki_roots::TLS_SERVER_ROOTS.is_empty());
     }
 
     #[test]
