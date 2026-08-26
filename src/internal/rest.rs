@@ -310,15 +310,15 @@ pub struct IronCoreRequest {
     pub(crate) client: reqwest::Client,
 }
 
-/// Trust anchors for the `tls-rustls` feature, taken from `webpki-roots` rather than the platform
-/// trust store.
+/// Trust anchors for Android, taken from `webpki-roots` rather than the platform trust store.
 ///
 /// reqwest 0.13's `rustls` feature verifies through `rustls-platform-verifier`, whose Android
 /// backend maps "certificate specifies no OCSP responder" onto `CertificateError::Revoked`
 /// (rustls-platform-verifier#221). Google Trust Services, Let's Encrypt and SSL.com have all
 /// stopped publishing OCSP responders, so that backend rejects chains that are valid and
-/// unrevoked. Platform trust remains available through `tls-default`.
-#[cfg(feature = "tls-rustls")]
+/// unrevoked. Other platforms keep the system trust store and the user-installed and enterprise
+/// CAs that come with it.
+#[cfg(all(feature = "tls-rustls", any(target_os = "android", test)))]
 fn webpki_roots_tls_config() -> rustls::ClientConfig {
     let mut roots = rustls::RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
@@ -335,14 +335,14 @@ fn webpki_roots_tls_config() -> rustls::ClientConfig {
     config
 }
 
-#[cfg(feature = "tls-rustls")]
+#[cfg(all(feature = "tls-rustls", any(target_os = "android", test)))]
 lazy_static! {
     /// Built once. Assembling the root store parses the entire `webpki-roots` bundle, and cloning
     /// shares the resulting verifier behind an `Arc`.
     static ref TLS_CONFIG: rustls::ClientConfig = webpki_roots_tls_config();
 }
 
-#[cfg(feature = "tls-rustls")]
+#[cfg(all(feature = "tls-rustls", target_os = "android"))]
 fn default_client() -> reqwest::Client {
     Client::builder()
         .use_preconfigured_tls(TLS_CONFIG.clone())
@@ -350,7 +350,7 @@ fn default_client() -> reqwest::Client {
         .expect("client configuration is statically valid")
 }
 
-#[cfg(not(feature = "tls-rustls"))]
+#[cfg(not(all(feature = "tls-rustls", target_os = "android")))]
 fn default_client() -> reqwest::Client {
     Client::new()
 }

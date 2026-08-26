@@ -23,10 +23,8 @@ blocking = []
 # enable to use statically compiled openssl on supported OpenSSL platforms; use with 'default-features = false'
 tls-vendored-openssl = ["reqwest/native-tls-vendored"]
 # enable to use rustls-tls; use with 'default-features = false'
-# Trust anchors come from `webpki-roots`, not the platform trust store. reqwest 0.13's `rustls`
-# feature routes verification through `rustls-platform-verifier`, whose Android backend rejects a
-# certificate whose AIA omits an OCSP responder as revoked (rustls-platform-verifier#221). Public
-# CAs are dropping OCSP, so that backend fails against a valid chain.
+# Android trusts `webpki-roots` rather than the platform store until
+# rustls-platform-verifier#221 is fixed.
 tls-rustls = ["reqwest/rustls", "dep:rustls", "dep:webpki-roots"]
 # dynamically use the target platform's native TLS
 tls-default = ["reqwest/native-tls"]
