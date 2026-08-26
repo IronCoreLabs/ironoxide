@@ -336,9 +336,16 @@ fn webpki_roots_tls_config() -> rustls::ClientConfig {
 }
 
 #[cfg(feature = "tls-rustls")]
+lazy_static! {
+    /// Built once. Assembling the root store parses the entire `webpki-roots` bundle, and cloning
+    /// shares the resulting verifier behind an `Arc`.
+    static ref TLS_CONFIG: rustls::ClientConfig = webpki_roots_tls_config();
+}
+
+#[cfg(feature = "tls-rustls")]
 fn default_client() -> reqwest::Client {
     Client::builder()
-        .use_preconfigured_tls(webpki_roots_tls_config())
+        .use_preconfigured_tls(TLS_CONFIG.clone())
         .build()
         .expect("client configuration is statically valid")
 }
@@ -348,6 +355,11 @@ fn default_client() -> reqwest::Client {
     Client::new()
 }
 
+/// A `Client` owns a connection pool bound to the runtime that created it. `blocking` builds a
+/// fresh runtime for each unauthenticated entry point and drops it when the call returns, so a
+/// process-wide client would leave pooled connections attached to a dead reactor. That is the
+/// hang described on `BlockingDeviceContext`. Authenticated operations already share one client,
+/// held in `RequestAuth` for the life of the `DeviceContext`.
 impl Default for IronCoreRequest {
     fn default() -> Self {
         IronCoreRequest::new(&URL_STRING, default_client())
@@ -1135,11 +1147,10 @@ mod tests {
     #[cfg(feature = "tls-rustls")]
     #[test]
     fn webpki_roots_tls_config_advertises_http2_and_loads_roots() {
-        let config = webpki_roots_tls_config();
-        assert_eq!(
-            config.alpn_protocols,
-            vec![b"h2".to_vec(), b"http/1.1".to_vec()]
-        );
+        let expected = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+        assert_eq!(webpki_roots_tls_config().alpn_protocols, expected);
+        // `default_client` clones the memoized config, so assert on that path too.
+        assert_eq!(TLS_CONFIG.clone().alpn_protocols, expected);
         // An empty bundle would leave every chain unbuildable.
         assert!(!webpki_roots::TLS_SERVER_ROOTS.is_empty());
     }

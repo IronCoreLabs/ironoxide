@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- The `tls-rustls` feature now takes its trust anchors from `webpki-roots` instead of the platform trust store. reqwest 0.13's `rustls` feature verifies through `rustls-platform-verifier`, whose Android backend reports a certificate with no OCSP responder in its AIA as revoked ([rustls-platform-verifier#221](https://github.com/rustls/rustls-platform-verifier/issues/221)). Google Trust Services, Let's Encrypt and SSL.com have all stopped publishing OCSP responders, so that backend rejects chains that are valid and unrevoked. Use `tls-default` if you need platform trust, including user-installed and enterprise CAs.
+- Request errors now carry the underlying cause. reqwest's own `Display` reports only the error kind and URL, so a DNS failure, a refused connection, a rejected certificate and an elapsed timeout were previously indistinguishable in `IronOxideErr::RequestError`.
+- The rustls configuration is built once per process rather than per request. Unauthenticated entry points still construct a client per call, because `blocking` creates and drops a runtime around each of them and a connection pool cannot outlive its runtime.
+
 ## 4.4.1
 
 - [[#378](https://github.com/IronCoreLabs/ironoxide/pull/378)] Fix an issue where calling `user_disable_self` would update the user's private key.
