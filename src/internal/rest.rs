@@ -310,36 +310,36 @@ pub struct IronCoreRequest {
     pub(crate) client: reqwest::Client,
 }
 
-/// Trust anchors for Android, taken from `webpki-roots` rather than the platform trust store.
-///
-/// reqwest 0.13's `rustls` feature verifies through `rustls-platform-verifier`, whose Android
-/// backend maps "certificate specifies no OCSP responder" onto `CertificateError::Revoked`
-/// (rustls-platform-verifier#221). Google Trust Services, Let's Encrypt and SSL.com have all
-/// stopped publishing OCSP responders, so that backend rejects chains that are valid and
-/// unrevoked. Other platforms keep the system trust store and the user-installed and enterprise
-/// CAs that come with it.
-#[cfg(all(feature = "tls-rustls", any(target_os = "android", test)))]
-fn webpki_roots_tls_config() -> rustls::ClientConfig {
-    let mut roots = rustls::RootCertStore::empty();
-    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-    let mut config = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
-        rustls::crypto::aws_lc_rs::default_provider(),
-    ))
-    .with_safe_default_protocol_versions()
-    .expect("aws-lc-rs supports rustls' default protocol versions")
-    .with_root_certificates(roots)
-    .with_no_client_auth();
-    // `use_preconfigured_tls` replaces reqwest's TLS setup wholesale, including the ALPN protocols
-    // it would otherwise advertise. Without this, every connection negotiates HTTP/1.1.
-    config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
-    config
-}
-
 #[cfg(all(feature = "tls-rustls", any(target_os = "android", test)))]
 lazy_static! {
-    /// Built once. Assembling the root store parses the entire `webpki-roots` bundle, and cloning
-    /// shares the resulting verifier behind an `Arc`.
-    static ref TLS_CONFIG: rustls::ClientConfig = webpki_roots_tls_config();
+    /// Trust anchors for Android, taken from `webpki-roots` rather than the platform trust store.
+    ///
+    /// reqwest 0.13's `rustls` feature verifies through `rustls-platform-verifier`, whose Android
+    /// backend maps "certificate specifies no OCSP responder" onto `CertificateError::Revoked`
+    /// (rustls-platform-verifier#221). Google Trust Services, Let's Encrypt and SSL.com have all
+    /// stopped publishing OCSP responders, so that backend rejects chains that are valid and
+    /// unrevoked. Other platforms keep the system trust store and the user-installed and
+    /// enterprise CAs that come with it.
+    ///
+    /// Built once: assembling the root store parses the entire `webpki-roots` bundle, and cloning
+    /// shares the verifier behind an `Arc`. The `test` arm exists so the host unit test can assert
+    /// on the value `default_client` clones; `default_client` itself is Android-only.
+    static ref TLS_CONFIG: rustls::ClientConfig = {
+        let mut roots = rustls::RootCertStore::empty();
+        roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        let mut config = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
+            rustls::crypto::aws_lc_rs::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .expect("aws-lc-rs supports rustls' default protocol versions")
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+        // `use_preconfigured_tls` replaces reqwest's TLS setup wholesale, including the ALPN
+        // protocols it would otherwise advertise. Without this, every connection negotiates
+        // HTTP/1.1.
+        config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+        config
+    };
 }
 
 #[cfg(all(feature = "tls-rustls", target_os = "android"))]
@@ -1141,18 +1141,17 @@ mod tests {
         }
     }
 
-    /// Trust must come from `webpki-roots`, and ALPN must advertise h2. `use_preconfigured_tls`
-    /// replaces reqwest's TLS setup entirely, so an empty `alpn_protocols` here silently
-    /// downgrades every connection to HTTP/1.1.
+    /// `use_preconfigured_tls` replaces reqwest's TLS setup entirely, including the ALPN protocols
+    /// it would otherwise advertise, so dropping `alpn_protocols` downgrades every Android
+    /// connection to HTTP/1.1. Nothing on Android fails when that happens, which leaves this as
+    /// the only place it is caught.
     #[cfg(feature = "tls-rustls")]
     #[test]
-    fn webpki_roots_tls_config_advertises_http2_and_loads_roots() {
-        let expected = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
-        assert_eq!(webpki_roots_tls_config().alpn_protocols, expected);
-        // `default_client` clones the memoized config, so assert on that path too.
-        assert_eq!(TLS_CONFIG.clone().alpn_protocols, expected);
-        // An empty bundle would leave every chain unbuildable.
-        assert!(!webpki_roots::TLS_SERVER_ROOTS.is_empty());
+    fn android_tls_config_advertises_http2() {
+        assert_eq!(
+            TLS_CONFIG.alpn_protocols,
+            vec![b"h2".to_vec(), b"http/1.1".to_vec()]
+        );
     }
 
     #[test]
