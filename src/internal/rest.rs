@@ -310,10 +310,56 @@ pub struct IronCoreRequest {
     pub(crate) client: reqwest::Client,
 }
 
+#[cfg(all(feature = "tls-rustls", any(target_os = "android", test)))]
+lazy_static! {
+    /// Trust anchors for Android, taken from `webpki-roots` rather than the platform trust store.
+    ///
+    /// reqwest 0.13's `rustls` feature verifies through `rustls-platform-verifier`, whose Android
+    /// backend maps "certificate specifies no OCSP responder" onto `CertificateError::Revoked`
+    /// (rustls-platform-verifier#221). Google Trust Services, Let's Encrypt and SSL.com have all
+    /// stopped publishing OCSP responders, so that backend rejects chains that are valid and
+    /// unrevoked. Other platforms keep the system trust store and the user-installed and
+    /// enterprise CAs that come with it.
+    ///
+    /// Built once: assembling the root store parses the entire `webpki-roots` bundle, and cloning
+    /// shares the verifier behind an `Arc`. The `test` arm exists so the host unit test can assert
+    /// on the value `default_client` clones; `default_client` itself is Android-only.
+    static ref TLS_CONFIG: rustls::ClientConfig = {
+        let mut roots = rustls::RootCertStore::empty();
+        roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        let mut config = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
+            rustls::crypto::aws_lc_rs::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .expect("aws-lc-rs supports rustls' default protocol versions")
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+        // `use_preconfigured_tls` replaces reqwest's TLS setup wholesale, including the ALPN
+        // protocols it would otherwise advertise. Without this, every connection negotiates
+        // HTTP/1.1.
+        config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+        config
+    };
+}
+
+#[cfg(all(feature = "tls-rustls", target_os = "android"))]
+fn default_client() -> reqwest::Client {
+    Client::builder()
+        .use_preconfigured_tls(TLS_CONFIG.clone())
+        .build()
+        .expect("client configuration is statically valid")
+}
+
+#[cfg(not(all(feature = "tls-rustls", target_os = "android")))]
 fn default_client() -> reqwest::Client {
     Client::new()
 }
 
+/// A `Client` owns a connection pool bound to the runtime that created it. `blocking` builds a
+/// fresh runtime for each unauthenticated entry point and drops it when the call returns, so a
+/// process-wide client would leave pooled connections attached to a dead reactor. That is the
+/// hang described on `BlockingDeviceContext`. Authenticated operations already share one client,
+/// held in `RequestAuth` for the life of the `DeviceContext`.
 impl Default for IronCoreRequest {
     fn default() -> Self {
         IronCoreRequest::new(&URL_STRING, default_client())
@@ -694,8 +740,8 @@ impl IronCoreRequest {
         let status = res.status();
         //Now make the error type into the IronOxideErr and run the resp_handler which was passed to us.
         let server_resp = res.bytes().await.map_err(|err| {
-            //Map the generic error from reqwest to our error type.
-            IronCoreRequest::create_request_err(err.to_string(), error_code, err.status())
+            let status = err.status();
+            IronCoreRequest::create_request_err(describe_reqwest_error(&err), error_code, status)
         })?;
         //If the status code is a 5xx, return a fixed error code message
         if status.is_server_error() || status.is_client_error() {
@@ -723,9 +769,8 @@ impl IronCoreRequest {
         let status = res.status();
         //Now make the error type into the IronOxideErr and run the resp_handler which was passed to us.
         let server_resp = res.bytes().await.map_err(|err| {
-            //Map the generic error from reqwest to our error type.
-
-            IronCoreRequest::create_request_err(err.to_string(), error_code, err.status())
+            let status = err.status();
+            IronCoreRequest::create_request_err(describe_reqwest_error(&err), error_code, status)
         })?;
         //If the status code is a 5xx, return a fixed error code message
         if status.is_server_error() || status.is_client_error() {
@@ -859,10 +904,24 @@ impl From<(serde_json::Error, RequestErrorCode)> for IronOxideErr {
     }
 }
 
+/// reqwest's `Display` reports only the error kind and the URL, so a DNS failure, a refused
+/// connection, a rejected certificate and an elapsed timeout all render identically. The cause
+/// that distinguishes them exists only in the source chain.
+pub(crate) fn describe_reqwest_error(e: &reqwest::Error) -> String {
+    let mut message = e.to_string();
+    let mut source = std::error::Error::source(e);
+    while let Some(cause) = source {
+        message.push_str(": ");
+        message.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    message
+}
+
 impl From<(reqwest::Error, RequestErrorCode)> for IronOxideErr {
     fn from((e, code): (reqwest::Error, RequestErrorCode)) -> Self {
         IronOxideErr::RequestError {
-            message: e.to_string(),
+            message: describe_reqwest_error(&e),
             code,
             http_status: None,
         }
@@ -1080,6 +1139,19 @@ mod tests {
             base_url: "https://example.com",
             client: Client::new(),
         }
+    }
+
+    /// `use_preconfigured_tls` replaces reqwest's TLS setup entirely, including the ALPN protocols
+    /// it would otherwise advertise, so dropping `alpn_protocols` downgrades every Android
+    /// connection to HTTP/1.1. Nothing on Android fails when that happens, which leaves this as
+    /// the only place it is caught.
+    #[cfg(feature = "tls-rustls")]
+    #[test]
+    fn android_tls_config_advertises_http2() {
+        assert_eq!(
+            TLS_CONFIG.alpn_protocols,
+            vec![b"h2".to_vec(), b"http/1.1".to_vec()]
+        );
     }
 
     #[test]

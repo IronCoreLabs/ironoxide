@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.4.2
+
+- On Android, the `tls-rustls` feature now trusts `webpki-roots` instead of the platform trust store. Android's verifier reports a certificate whose AIA omits an OCSP responder as revoked ([rustls-platform-verifier#221](https://github.com/rustls/rustls-platform-verifier/issues/221)), and the public CAs have stopped publishing OCSP responders. Android builds consequently no longer honor user-installed or enterprise CAs. Other platforms are unaffected.
+- `IronOxideErr::RequestError` now carries the underlying cause.
+
 ## 4.4.1
 
 - [[#378](https://github.com/IronCoreLabs/ironoxide/pull/378)] Fix an issue where calling `user_disable_self` would update the user's private key.
