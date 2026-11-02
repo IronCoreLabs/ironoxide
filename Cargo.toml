@@ -33,15 +33,15 @@ default = ["tls-default", "tokio/rt-multi-thread"]
 
 [dependencies]
 aws-lc-rs = "1"
-base64 = "0.22"
+base64 = "0.23"
 base64-serde = "0.8"
 bytes = "1"
 futures = "0.3.1"
 ghash = "0.6" # Incremental GHASH computation for streaming AES-GCM
 hex = "0.4"
 ironcore-search-helpers = { version = "0.4", optional = true }
-itertools = "0.14"
-jsonwebtoken = { version = "10", features = ["rust_crypto"] }
+itertools = "0.15"
+jsonwebtoken = { version = "11", features = ["rust_crypto"] }
 lazy_static = "1.4"
 log = "0.4"
 papaya = { version = "0.2.0", features = ["serde"] }
@@ -89,7 +89,7 @@ recrypt = { version = "0.16", default-features = false, features = [
 ] }
 
 [build-dependencies]
-itertools = "0.14"
+itertools = "0.15"
 protobuf-codegen = "3.0"
 
 [dev-dependencies]
