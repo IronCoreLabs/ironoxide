@@ -152,19 +152,23 @@ impl BlockingIronOxide {
             .block_on(self.ironoxide.document_update_name(id, name))
     }
     /// See [ironoxide::document::DocumentOps::document_grant_access](trait.DocumentOps.html#tymethod.document_grant_access)
+    // `&Vec` rather than `&[UserOrGroup]`: narrowing it breaks downstream code that names the
+    // signature, so it waits for the next major. Same for `document_revoke_access` below.
+    #[allow(clippy::ptr_arg)]
     pub fn document_grant_access(
         &self,
         id: &DocumentId,
-        grant_list: &[UserOrGroup],
+        grant_list: &Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult> {
         self.runtime
             .block_on(self.ironoxide.document_grant_access(id, grant_list))
     }
     /// See [ironoxide::document::DocumentOps::document_revoke_access](trait.DocumentOps.html#tymethod.document_revoke_access)
+    #[allow(clippy::ptr_arg)]
     pub fn document_revoke_access(
         &self,
         id: &DocumentId,
-        revoke_list: &[UserOrGroup],
+        revoke_list: &Vec<UserOrGroup>,
     ) -> Result<DocumentAccessResult> {
         self.runtime
             .block_on(self.ironoxide.document_revoke_access(id, revoke_list))

@@ -1,11 +1,9 @@
 # Changelog
 
-## 4.5.0
+## 4.4.3
 
-- Bump MSRV to 1.89.0.
 - Update recrypt to 0.17.
 - Update jsonwebtoken to 12.
-- `BlockingIronOxide::document_grant_access` and `document_revoke_access` now take `&[UserOrGroup]` instead of `&Vec<UserOrGroup>`, matching the async API. Callers passing `&some_vec` are unaffected.
 
 ## 4.4.2
 
