@@ -589,8 +589,8 @@ pub enum UserOrGroup {
 impl std::fmt::Display for UserOrGroup {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
-            UserOrGroup::User { id } => write!(f, "'{}' [user]", &id.0),
-            UserOrGroup::Group { id } => write!(f, "'{}' [group]", &id.0),
+            UserOrGroup::User { id } => write!(f, "'{}' [user]", id.0),
+            UserOrGroup::Group { id } => write!(f, "'{}' [group]", id.0),
         }
     }
 }
@@ -918,7 +918,7 @@ pub(crate) fn recrypt_document<CR: rand::CryptoRng>(
             "grants".into(),
             format!(
                 "Access must be granted to document {:?} by explicit grant or via a policy",
-                &doc_id
+                doc_id
             ),
         ))
     } else {
@@ -1607,7 +1607,7 @@ fn process_policy(
                             .map_err(|_e| {
                                 DocAccessEditErr::new(
                                     user,
-                                    format!("Error parsing user public key {:?}", &key),
+                                    format!("Error parsing user public key {:?}", key),
                                 )
                             }),
                     )
@@ -1628,7 +1628,7 @@ fn process_policy(
                             .map_err(|_e| {
                                 DocAccessEditErr::new(
                                     group,
-                                    format!("Error parsing group public key {:?}", &key),
+                                    format!("Error parsing group public key {:?}", key),
                                 )
                             }),
                     )
@@ -1636,7 +1636,7 @@ fn process_policy(
 
                 any => {
                     let uog: UserOrGroup = any.clone().into();
-                    let err_msg = format!("{} does not have associated public key", &uog);
+                    let err_msg = format!("{} does not have associated public key", uog);
                     Either::Left(DocAccessEditErr::new(uog, err_msg))
                 }
             });
@@ -1647,7 +1647,7 @@ fn process_policy(
             .chain(policy_result.invalid_users_and_groups.iter().map(|uog| {
                 DocAccessEditErr::new(
                     uog.clone(),
-                    format!("Policy refers to unknown user or group '{}'", &uog),
+                    format!("Policy refers to unknown user or group '{}'", uog),
                 )
             }))
             .collect(),
@@ -2170,7 +2170,7 @@ mod tests {
                 } else {
                     Err(IronOxideErr::ProtobufValidationError(format!(
                         "EncryptedDek does not have a valid user or group: {:?}",
-                        &edek
+                        edek
                     )))
                 }
             })

@@ -59,8 +59,6 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.features }}-${{ matrix.toolchain }}-Cargo.lock
           path: Cargo.lock
-      - name: Install protobuf-codegen
-        run: cargo install protobuf-codegen
       - name: Cargo test
         run: cargo test --features ${{ matrix.features }}
         env:
@@ -71,31 +69,36 @@ jobs:
     continue-on-error: true
     strategy:
       matrix:
-        target:
-          - aarch64-linux-android
-          - armv7-linux-androideabi
-          - i686-linux-android
-          - x86_64-linux-android
-          - x86_64-unknown-linux-musl
-        os:
-          - ubuntu-24.04
+        # The ubuntu runner has no linker for the android and musl targets, so those build under cross. The macOS runner links iOS itself.
         include:
-          - target: aarch64-apple-ios
-            os: macos-15-intel
+          - os: ubuntu-24.04
+            target: aarch64-linux-android
+            cross: true
+          - os: ubuntu-24.04
+            target: armv7-linux-androideabi
+            cross: true
+          - os: ubuntu-24.04
+            target: i686-linux-android
+            cross: true
+          - os: ubuntu-24.04
+            target: x86_64-linux-android
+            cross: true
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            cross: true
+          - os: macos-15-intel
+            target: aarch64-apple-ios
     steps:
       - uses: actions/checkout@v7
-      - uses: actions-rs/toolchain@v1
+      - uses: IronCoreLabs/rust-toolchain@v1
         with:
           toolchain: stable
           target: ${{ matrix.target }}
-          override: true
       - uses: Swatinem/rust-cache@v2
-      - uses: actions-rs/cargo@v1
-        with:
-          # `cross` will work on all our targets except aarch64-apple-ios. We can still use `cross` everywhere, because it transparently falls back to `cargo`.
-          use-cross: true
-          command: build
-          args: --target ${{ matrix.target }} --features "beta blocking tls-rustls" --no-default-features
+      - name: Install cross
+        if: matrix.cross
+        uses: taiki-e/install-action@cross
+      - run: ${{ matrix.cross && 'cross' || 'cargo' }} build --target ${{ matrix.target }} --features "beta blocking tls-rustls" --no-default-features
 
   clippy:
     name: Clippy

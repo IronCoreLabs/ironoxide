@@ -238,7 +238,7 @@ impl HeaderIronCoreUserContext {
             .map_err(|_| IronOxideErr::RequestError {
                 message: format!(
                     "Failed to encode '{}' into a X-IronCore-User-Context header",
-                    &self.payload()
+                    self.payload()
                 ),
                 code: error_code,
                 http_status: None,
@@ -273,8 +273,8 @@ impl HeaderIronCoreRequestSig<'_> {
 
         let bytes_no_body = format!(
             "{}{}{}",
-            &ironcore_user_context.payload(),
-            &method,
+            ironcore_user_context.payload(),
+            method,
             url.signature_string(),
         )
         .into_bytes();
@@ -809,7 +809,7 @@ impl IronCoreRequest {
             IronCoreRequest::create_request_err(
                 format!(
                     "Could not deserialize JSON response of: {:?} => serde error was: {}",
-                    &std::str::from_utf8(body),
+                    std::str::from_utf8(body),
                     serde_err
                 ),
                 error_code,

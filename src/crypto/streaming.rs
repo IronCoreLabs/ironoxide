@@ -221,7 +221,7 @@ impl GhashAccumulator {
         let complete_blocks = self.pending.len() / AES_BLOCK_SIZE;
         let complete_len = complete_blocks * AES_BLOCK_SIZE;
 
-        for chunk in self.pending[..complete_len].chunks_exact(AES_BLOCK_SIZE) {
+        for chunk in self.pending[..complete_len].as_chunks::<AES_BLOCK_SIZE>().0 {
             let mut block = ghash::Block::default();
             block.copy_from_slice(chunk);
             self.ghash.update(&[block]);

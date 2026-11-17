@@ -48,7 +48,7 @@ impl BlockingDeviceContext {
     }
     /// ID of the device's owner
     pub fn account_id(&self) -> &UserId {
-        &self.device.auth().account_id()
+        self.device.auth().account_id()
     }
     /// ID of the segment
     pub fn segment_id(&self) -> usize {
@@ -56,11 +56,11 @@ impl BlockingDeviceContext {
     }
     /// Private signing key of the device
     pub fn signing_private_key(&self) -> &DeviceSigningKeyPair {
-        &self.device.auth().signing_private_key()
+        self.device.auth().signing_private_key()
     }
     /// Private encryption key of the device
     pub fn device_private_key(&self) -> &PrivateKey {
-        &self.device.device_private_key()
+        self.device.device_private_key()
     }
 }
 
@@ -152,6 +152,10 @@ impl BlockingIronOxide {
             .block_on(self.ironoxide.document_update_name(id, name))
     }
     /// See [ironoxide::document::DocumentOps::document_grant_access](trait.DocumentOps.html#tymethod.document_grant_access)
+    // `&Vec` rather than `&[UserOrGroup]`: narrowing it breaks callers that let `collect()` infer
+    // `Vec` from this parameter, which ironoxide-swig-bindings does. We can change this with the next major.
+    // Same for `document_revoke_access` below.
+    #[allow(clippy::ptr_arg)]
     pub fn document_grant_access(
         &self,
         id: &DocumentId,
@@ -161,6 +165,7 @@ impl BlockingIronOxide {
             .block_on(self.ironoxide.document_grant_access(id, grant_list))
     }
     /// See [ironoxide::document::DocumentOps::document_revoke_access](trait.DocumentOps.html#tymethod.document_revoke_access)
+    #[allow(clippy::ptr_arg)]
     pub fn document_revoke_access(
         &self,
         id: &DocumentId,

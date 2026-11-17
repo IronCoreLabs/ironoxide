@@ -356,7 +356,7 @@ async fn group_add_member() -> Result<(), IronOxideErr> {
     let group_id = group_result.id().clone();
     //Call to add ourselves to the group, since we didn't add on create, this should succeed.
     let add_member_res = sdk
-        .group_add_members(&group_id, &[account_id.clone()])
+        .group_add_members(&group_id, std::slice::from_ref(&account_id))
         .await?;
     assert_eq!(add_member_res.succeeded().len(), 1);
     assert_eq!(add_member_res.failed().len(), 0);
@@ -598,12 +598,12 @@ async fn group_remove_admin() -> Result<(), IronOxideErr> {
     let group_id = group_result.id().clone();
     //Call to add the second id as an admin.
     let add_member_res = sdk
-        .group_add_admins(&group_id, &[second_account_id.clone()])
+        .group_add_admins(&group_id, std::slice::from_ref(&second_account_id))
         .await?;
     assert_eq!(add_member_res.succeeded().len(), 1);
     //Then remove them, which should succeed.
     let remove_member_res = sdk
-        .group_remove_admins(&group_id, &[second_account_id.clone()])
+        .group_remove_admins(&group_id, std::slice::from_ref(&second_account_id))
         .await?;
     assert_eq!(remove_member_res.succeeded().len(), 1);
     assert_eq!(remove_member_res.succeeded()[0], second_account_id);
@@ -621,7 +621,7 @@ async fn group_remove_owner_as_admin_fails() -> Result<(), IronOxideErr> {
 
     // Attempting to remove the owner as an admin should fail server-side.
     let remove_result = sdk
-        .group_remove_admins(&group_id, &[account_id.clone()])
+        .group_remove_admins(&group_id, std::slice::from_ref(&account_id))
         .await?;
     assert_eq!(remove_result.succeeded().len(), 0);
     assert_eq!(remove_result.failed().len(), 1);
@@ -639,7 +639,7 @@ async fn group_remove_owner_as_member_succeeds() -> Result<(), IronOxideErr> {
 
     // The owner CAN be removed as a member (unlike admin removal, which is protected).
     let remove_result = sdk
-        .group_remove_members(&group_id, &[account_id.clone()])
+        .group_remove_members(&group_id, std::slice::from_ref(&account_id))
         .await?;
     assert_eq!(remove_result.succeeded().len(), 1);
     assert_eq!(&remove_result.succeeded()[0], &account_id);
@@ -658,13 +658,13 @@ async fn group_non_admin_member_can_remove_self() -> Result<(), IronOxideErr> {
 
     // Add the second user as a member (not an admin).
     let add_result = admin_sdk
-        .group_add_members(&group_id, &[member_id.clone()])
+        .group_add_members(&group_id, std::slice::from_ref(&member_id))
         .await?;
     assert_eq!(add_result.succeeded().len(), 1);
 
     // A non-admin member should be able to remove themselves.
     let remove_result = member_sdk
-        .group_remove_members(&group_id, &[member_id.clone()])
+        .group_remove_members(&group_id, std::slice::from_ref(&member_id))
         .await?;
     assert_eq!(remove_result.succeeded().len(), 1);
     assert_eq!(&remove_result.succeeded()[0], &member_id);
