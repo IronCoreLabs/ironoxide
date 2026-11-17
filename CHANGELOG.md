@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.5.0
+
+- Bump MSRV to 1.89.0.
+- Update recrypt to 0.17.
+- Update jsonwebtoken to 12.
+- `BlockingIronOxide::document_grant_access` and `document_revoke_access` now take `&[UserOrGroup]` instead of `&Vec<UserOrGroup>`, matching the async API. Callers passing `&some_vec` are unaffected.
+
 ## 4.4.2
 
 - On Android, the `tls-rustls` feature now trusts `webpki-roots` instead of the platform trust store. Android's verifier reports a certificate whose AIA omits an OCSP responder as revoked ([rustls-platform-verifier#221](https://github.com/rustls/rustls-platform-verifier/issues/221)), and the public CAs have stopped publishing OCSP responders. Android builds consequently no longer honor user-installed or enterprise CAs. Other platforms are unaffected.

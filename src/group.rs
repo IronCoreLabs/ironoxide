@@ -622,9 +622,9 @@ mod tests {
         let calling_user_id = UserId::unsafe_from_string("test_user".to_string());
         let opts = GroupCreateOpts::default();
         let std_opts = opts.standardize(&calling_user_id)?;
-        assert_eq!(std_opts.all_users(), [calling_user_id.clone()]);
+        assert_eq!(std_opts.all_users(), std::slice::from_ref(&calling_user_id));
         assert_eq!(std_opts.owner, None);
-        assert_eq!(std_opts.admins, [calling_user_id.clone()]);
+        assert_eq!(std_opts.admins, std::slice::from_ref(&calling_user_id));
         assert_eq!(std_opts.members, [calling_user_id]);
         assert!(!std_opts.needs_rotation);
         Ok(())
@@ -645,7 +645,7 @@ mod tests {
             true,
         );
         let std_opts = opts.standardize(&calling_user_id)?;
-        assert_eq!(std_opts.all_users(), [owner.clone()]);
+        assert_eq!(std_opts.all_users(), std::slice::from_ref(&owner));
         assert_eq!(std_opts.owner, Some(owner.clone()));
         assert_eq!(std_opts.admins, [owner]);
         assert_eq!(std_opts.members, []);

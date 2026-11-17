@@ -177,7 +177,7 @@ async fn add_customers(
             .read_line(&mut name)
             .expect("error: couldn't read input");
         name = name.trim().to_string();
-        if &name == "" {
+        if name.is_empty() {
             break;
         } else {
             let mut email = String::new();
@@ -189,10 +189,10 @@ async fn add_customers(
 
             let cust = Customer {
                 id: next_id,
-                name: name,
-                email: email,
+                name,
+                email,
             };
-            save_customer(cust, &group_id, &sdk, &blind_index).await?;
+            save_customer(cust, group_id, sdk, blind_index).await?;
         }
         next_id += 1;
     }
@@ -296,7 +296,7 @@ async fn save_customer_with_2_indices(
 // Load the device context and use it to initialize ironoxide
 async fn initialize_sdk_from_file(device_path: &PathBuf) -> Result<IronOxide> {
     if device_path.is_file() {
-        let device_context_file = File::open(&device_path)?;
+        let device_context_file = File::open(device_path)?;
         let device_context: DeviceContext = serde_json::from_reader(device_context_file)?;
         println!("Found DeviceContext in \"{}\"", device_path.display());
         Ok(ironoxide::initialize(&device_context, &Default::default()).await?)
@@ -311,7 +311,7 @@ async fn initialize_sdk_from_file(device_path: &PathBuf) -> Result<IronOxide> {
 // Add the program start time to the end of the specified string to
 // form a unique id string, then create a GroupId from it
 // start-snippet{createGroupId}
-fn create_group_id(id_str: &str, start_time: &String) -> Result<ironoxide::group::GroupId> {
+fn create_group_id(id_str: &str, start_time: &str) -> Result<ironoxide::group::GroupId> {
     let gid = id_str.to_owned() + start_time;
     Ok(ironoxide::group::GroupId::try_from(gid)?)
 }
@@ -354,8 +354,8 @@ async fn filter_customer(
     let dec_result = sdk
         .document_decrypt_unmanaged(&cust.enc_name, &cust.name_keys)
         .await?;
-    let dec_name = std::str::from_utf8(&dec_result.decrypted_data()).unwrap();
-    let dec_name_trans = ironoxide::search::transliterate_string(&dec_name);
+    let dec_name = std::str::from_utf8(dec_result.decrypted_data()).unwrap();
+    let dec_name_trans = ironoxide::search::transliterate_string(dec_name);
     if name_parts
         .iter()
         .all(|name_part| dec_name_trans.contains(name_part))
@@ -383,10 +383,10 @@ async fn display_customer_matches_by_name(
         .into_iter()
         .collect();
     let customer_recs = search_customers_by_name(query_tokens);
-    let trans_query = ironoxide::search::transliterate_string(&query_str);
+    let trans_query = ironoxide::search::transliterate_string(query_str);
     let name_parts: Vec<&str> = trans_query.split_whitespace().collect();
     for cust in customer_recs.iter() {
-        let result = filter_customer(&sdk, &cust, &name_parts).await?;
+        let result = filter_customer(sdk, cust, &name_parts).await?;
         match result {
             Some(decrypted_name) => println!("{} {} matched query", cust.id, decrypted_name),
             None => println!("{} did not match query", cust.id),
@@ -398,20 +398,11 @@ async fn display_customer_matches_by_name(
 
 // Mock out some functions that would call the back-end service and return data in the real app
 // We use some mutable global state to persist things that the service usually would.
+#[derive(Default)]
 struct AppServerMock {
     pub name_salt: Option<EncryptedBlindIndexSalt>,
     pub email_salt: Option<EncryptedBlindIndexSalt>,
     pub customers: Vec<(HashSet<u32>, HashSet<u32>, EncryptedCustomer)>,
-}
-
-impl Default for AppServerMock {
-    fn default() -> Self {
-        AppServerMock {
-            name_salt: None,
-            email_salt: None,
-            customers: vec![],
-        }
-    }
 }
 
 lazy_static! {
@@ -455,7 +446,7 @@ fn search_customers_by_name(tokens: Vec<u32>) -> Vec<EncryptedCustomer> {
     let cust_list = &MOCK_APP_SERVER.read().unwrap().customers;
     let matching_cust: Vec<(HashSet<u32>, HashSet<u32>, EncryptedCustomer)> = cust_list
         .iter()
-        .filter(|(name_set, _email_set, _cust)| name_query.is_subset(&name_set))
+        .filter(|(name_set, _email_set, _cust)| name_query.is_subset(name_set))
         .cloned()
         .collect();
     matching_cust

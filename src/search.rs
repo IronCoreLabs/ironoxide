@@ -129,7 +129,7 @@ impl TryFrom<&[u8]> for BlindIndexSearch {
 impl TryFrom<DocumentEncryptUnmanagedResult> for EncryptedBlindIndexSalt {
     type Error = IronOxideErr;
     fn try_from(r: DocumentEncryptUnmanagedResult) -> Result<EncryptedBlindIndexSalt> {
-        match r.access_errs().get(0) {
+        match r.access_errs().first() {
             None => Ok(EncryptedBlindIndexSalt {
                 encrypted_deks: r.encrypted_deks().to_vec(),
                 encrypted_salt_bytes: r.encrypted_data().to_vec(),

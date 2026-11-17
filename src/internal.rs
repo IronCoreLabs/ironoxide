@@ -1769,11 +1769,12 @@ pub(crate) mod tests {
         let cache: HashMap<UserId, PublicKey> = HashMap::new();
         cache.pin().insert(uid.clone(), pubk.into());
 
-        let (not_found, found) = get_keys_with_cache(&[uid.clone()], &cache, |_| async {
-            panic!("fetch should not be called when fully cached")
-        })
-        .await
-        .unwrap();
+        let (not_found, found) =
+            get_keys_with_cache(std::slice::from_ref(&uid), &cache, |_| async {
+                panic!("fetch should not be called when fully cached")
+            })
+            .await
+            .unwrap();
 
         assert!(not_found.is_empty());
         assert_eq!(found.len(), 1);
@@ -1822,7 +1823,7 @@ pub(crate) mod tests {
 
         let pub_clone = io_pub.clone();
         let uid_clone = uid.clone();
-        get_keys_with_cache(&[uid.clone()], &cache, move |_| async move {
+        get_keys_with_cache(std::slice::from_ref(&uid), &cache, move |_| async move {
             let mut map = std::collections::HashMap::new();
             map.insert(uid_clone, pub_clone);
             Ok(map)
@@ -1838,11 +1839,12 @@ pub(crate) mod tests {
         let uid = UserId::unsafe_from_string("nonexistent".into());
         let cache: HashMap<UserId, PublicKey> = HashMap::new();
 
-        let (not_found, found) = get_keys_with_cache(&[uid.clone()], &cache, |_| async {
-            Ok(std::collections::HashMap::new())
-        })
-        .await
-        .unwrap();
+        let (not_found, found) =
+            get_keys_with_cache(std::slice::from_ref(&uid), &cache, |_| async {
+                Ok(std::collections::HashMap::new())
+            })
+            .await
+            .unwrap();
 
         assert_eq!(not_found.len(), 1);
         assert_eq!(not_found[0], uid);

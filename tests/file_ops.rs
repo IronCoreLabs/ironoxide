@@ -228,11 +228,7 @@ async fn file_encrypt_with_explicit_grants() -> Result<()> {
     // Should have 2 successful grants (self + second_user)
     assert_eq!(encrypt_result.grants().len(), 2);
     assert_that!(
-        &encrypt_result
-            .grants()
-            .iter()
-            .cloned()
-            .collect::<Vec<UserOrGroup>>(),
+        &encrypt_result.grants().to_vec(),
         contains_in_any_order(vec![
             UserOrGroup::User {
                 id: sdk.device().account_id().clone()

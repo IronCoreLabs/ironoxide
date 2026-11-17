@@ -48,7 +48,7 @@ impl BlockingDeviceContext {
     }
     /// ID of the device's owner
     pub fn account_id(&self) -> &UserId {
-        &self.device.auth().account_id()
+        self.device.auth().account_id()
     }
     /// ID of the segment
     pub fn segment_id(&self) -> usize {
@@ -56,11 +56,11 @@ impl BlockingDeviceContext {
     }
     /// Private signing key of the device
     pub fn signing_private_key(&self) -> &DeviceSigningKeyPair {
-        &self.device.auth().signing_private_key()
+        self.device.auth().signing_private_key()
     }
     /// Private encryption key of the device
     pub fn device_private_key(&self) -> &PrivateKey {
-        &self.device.device_private_key()
+        self.device.device_private_key()
     }
 }
 
@@ -155,7 +155,7 @@ impl BlockingIronOxide {
     pub fn document_grant_access(
         &self,
         id: &DocumentId,
-        grant_list: &Vec<UserOrGroup>,
+        grant_list: &[UserOrGroup],
     ) -> Result<DocumentAccessResult> {
         self.runtime
             .block_on(self.ironoxide.document_grant_access(id, grant_list))
@@ -164,7 +164,7 @@ impl BlockingIronOxide {
     pub fn document_revoke_access(
         &self,
         id: &DocumentId,
-        revoke_list: &Vec<UserOrGroup>,
+        revoke_list: &[UserOrGroup],
     ) -> Result<DocumentAccessResult> {
         self.runtime
             .block_on(self.ironoxide.document_revoke_access(id, revoke_list))

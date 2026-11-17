@@ -18,7 +18,7 @@ To run all the tests:
 
 Integration tests run against IronCore environments require some test keys and configuration files. Pre-generated keys and config files can be found in `tests/testkeys/`. _Currently only IronCore devs have access to these keys._ The following ironhide command will decrypt the developer test keys.
 
-`$ ironhide file:decrypt tests/testkeys/*.iron`
+`$ ironhide file decrypt tests/testkeys/*.iron`
 
 ### Running the Tests
 
