@@ -152,8 +152,9 @@ impl BlockingIronOxide {
             .block_on(self.ironoxide.document_update_name(id, name))
     }
     /// See [ironoxide::document::DocumentOps::document_grant_access](trait.DocumentOps.html#tymethod.document_grant_access)
-    // `&Vec` rather than `&[UserOrGroup]`: narrowing it breaks downstream code that names the
-    // signature, so it waits for the next major. Same for `document_revoke_access` below.
+    // `&Vec` rather than `&[UserOrGroup]`: narrowing it breaks callers that let `collect()` infer
+    // `Vec` from this parameter, which ironoxide-swig-bindings does. We can change this with the next major.
+    // Same for `document_revoke_access` below.
     #[allow(clippy::ptr_arg)]
     pub fn document_grant_access(
         &self,

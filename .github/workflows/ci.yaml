@@ -69,7 +69,7 @@ jobs:
     continue-on-error: true
     strategy:
       matrix:
-        # Ubuntu has no linker for the android and musl targets, so those build under cross. Xcode already links iOS.
+        # The ubuntu runner has no linker for the android and musl targets, so those build under cross. The macOS runner links iOS itself.
         include:
           - os: ubuntu-24.04
             target: aarch64-linux-android
